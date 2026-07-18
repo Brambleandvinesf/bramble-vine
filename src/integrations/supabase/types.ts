@@ -14,39 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      messages: {
-        Row: {
-          content: string
-          created_at: string
-          external_id: string | null
-          id: string
-          received_at: string
-          sender_name: string
-          source: Database["public"]["Enums"]["message_source"]
-          status: Database["public"]["Enums"]["message_status"]
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          received_at?: string
-          sender_name: string
-          source: Database["public"]["Enums"]["message_source"]
-          status?: Database["public"]["Enums"]["message_status"]
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          external_id?: string | null
-          id?: string
-          received_at?: string
-          sender_name?: string
-          source?: Database["public"]["Enums"]["message_source"]
-          status?: Database["public"]["Enums"]["message_status"]
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never
@@ -55,8 +23,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      message_source: "gmail" | "quo"
-      message_status: "read" | "unread"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -183,9 +150,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      message_source: ["gmail", "quo"],
-      message_status: ["read", "unread"],
-    },
+    Enums: {},
   },
 } as const
