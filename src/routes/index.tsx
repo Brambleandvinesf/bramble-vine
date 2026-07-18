@@ -1,24 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
+import calendarHtml from "../legacy/calendar.html?raw";
+import { LegacyPage } from "../lib/LegacyPage";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Bramble & Vine — Schedule" },
+      { name: "description", content: "Daily and weekly schedule for Bramble & Vine crews." },
+      { property: "og:title", content: "Bramble & Vine — Schedule" },
+      { property: "og:description", content: "Daily and weekly schedule for Bramble & Vine crews." },
+    ],
+  }),
+  component: CalendarPage,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
+function CalendarPage() {
+  return <LegacyPage html={calendarHtml} />;
 }

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bramble &amp; Vine — Confirm Special Loading</title>
+<style>
+  :root{
+    --bg:#0a0a0a; --panel:#121212; --panel2:#181818;
+    --lime:#7cff00; --lime-dim:rgba(124,255,0,.35);
+    --text:#e8e8e8; --muted:#8f8f8f; --line:#2a2a2a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+    font-family:'Courier New', Courier, monospace;}
+  body{padding-bottom:96px;}
+
+  header{position:sticky; top:0; z-index:10; background:var(--bg);
+    border-bottom:1px solid var(--line); padding:14px 16px 10px;}
+  .h-title{color:var(--lime); font-size:20px; font-weight:bold; letter-spacing:2px;}
+  .h-sub{display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-top:4px;}
+  .h-count b{color:var(--lime);}
+
+  .client{margin:18px 12px 0;}
+  .client-head{display:flex; align-items:baseline; padding:0 4px 8px;}
+  .client-name{color:var(--lime); font-size:16px; font-weight:bold; letter-spacing:1px;}
+  .rows{background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden;}
+
+  .item{display:flex; align-items:center; gap:14px; min-height:64px;
+    padding:14px; border-bottom:1px solid var(--line); cursor:pointer; user-select:none;}
+  .item:last-child{border-bottom:none;}
+  .item:active{background:var(--panel2);}
+  .badge{flex:0 0 auto; font-size:10px; letter-spacing:2px; color:var(--bg);
+    background:var(--lime); border-radius:3px; padding:2px 7px; align-self:flex-start; margin-top:3px;}
+  .item-main{flex:1; min-width:0;}
+  .item-name{font-size:15px; line-height:1.4;}
+  .item-meta{font-size:12px; color:var(--muted); margin-top:4px;}
+  .item-notes{font-size:12px; color:rgba(124,255,0,.55); margin-top:4px; line-height:1.35;}
+  .box{flex:0 0 28px; height:28px; border:2px solid var(--lime-dim); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+    color:var(--bg); transition:all .12s ease;}
+  .item.done .box{background:var(--lime); border-color:var(--lime);}
+  .item.done .item-name{color:var(--muted);}
+
+  .state{margin:40px 20px; text-align:center; color:var(--muted); font-size:14px; line-height:1.6;}
+  .state b{color:var(--lime);}
+
+  .gobar{position:fixed; left:0; right:0; bottom:0; z-index:20;
+    background:linear-gradient(transparent, var(--bg) 30%); padding:18px 14px 16px;}
+  .gobtn{width:100%; min-height:56px; font-family:inherit; font-size:17px; font-weight:bold;
+    letter-spacing:2px; color:var(--bg); background:var(--lime); border:none; border-radius:10px;
+    cursor:pointer;}
+  .gobtn:disabled{background:var(--panel2); color:var(--muted);}
+  .gobtn:active:not(:disabled){transform:scale(.985);}
+  .gostatus{text-align:center; font-size:12px; color:var(--muted); margin-top:6px; min-height:15px;}
+  .gostatus.ok{color:var(--lime);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-title">CONFIRM SPECIAL LOADING</div>
+  <div class="h-sub">
+    <span id="today-date"></span>
+    <span class="h-count"><b id="n-done">0</b> / <span id="n-total">0</span> confirmed</span>
+  </div>
+</header>
+
+<main id="list"></main>
+<div class="state" id="state" style="display:none"></div>
+
+<div class="gobar">
+  <button class="gobtn" id="confirm" disabled>CONFIRM SPECIAL LOADING</button>
+  <div class="gostatus" id="gostatus"></div>
+</div>
+
+<script>
+/* ================= CONFIG =================
+   Same pattern as /loading/. SPECIAL projects come from the
+   Client Projects tab (Type = SPECIAL) for today's clients,
+   joined to their tools & materials by Project ID.
+============================================ */
+const CONFIG = {
+  LIVE: true,   // false = demo data only
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec',
+  GO_WEBHOOK: 'https://hook.us2.make.com/1drj7x1w9lq1gmllzenfm875ni4s8cir'
+};
+
+const DEMO_DATA = [
+  {row:357, client:'Marieke', project:'proj-1', action:'Retrieve shaker from basement',
+   items:[], notes:'', confirmed:false}
+];
+
+let SPECIALS = [];
+
+async function loadData(){
+  if(!CONFIG.LIVE){ SPECIALS = DEMO_DATA; return; }
+  const d = await (await fetch(CONFIG.SCRIPT_URL + '?action=getData')).json();
+  const clients = new Set((d.clients||[]).map(c=>String(c||'').trim()).filter(Boolean));
+  const itemsByKey = {};
+  (d.tools||[]).forEach(t => {
+    const k = String(t['Client Name']||'').trim() + '|' + (t['Project ID']||'');
+    if(t['Item Name']) (itemsByKey[k] = itemsByKey[k] || []).push(t['Item Name']);
+  });
+  SPECIALS = (d.projects||[]).map(p=>({row:p.row,
+      client:String(p['Client Name']||'').trim(), project:p['Project ID']||'',
+      action:p['Project Action']||'', notes:p['Notes']||'',
+      type:String(p['Type']||'').trim().toUpperCase(),
+      status:String(p['Status']||'').trim().toUpperCase(), confirmed:false}))
+    .filter(p => p.type==='SPECIAL' && p.status!=='SKIP' && clients.has(p.client))
+    .map(p => (p.items = itemsByKey[p.client+'|'+p.project] || [], p));
+}
+
+function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function render(){
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  const byClient = {};
+  SPECIALS.forEach(p => (byClient[p.client] = byClient[p.client] || []).push(p));
+
+  if(!SPECIALS.length){
+    const st = document.getElementById('state');
+    st.style.display = 'block';
+    st.innerHTML = 'No special projects today.<br><b>Standard loading only.</b>';
+    document.getElementById('confirm').disabled = true;
+  }
+
+  Object.keys(byClient).forEach(client => {
+    const rows = byClient[client].map(p =>
+      '<div class="item' + (p.confirmed?' done':'') + '" data-row="' + p.row + '">'
+      + '<span class="badge">SPECIAL</span>'
+      + '<div class="item-main"><div class="item-name">' + esc(p.action) + '</div>'
+      + (p.items.length ? '<div class="item-meta">Load: ' + esc(p.items.join(', ')) + '</div>' : '')
+      + (p.notes ? '<div class="item-notes">' + esc(p.notes) + '</div>' : '')
+      + '</div><div class="box">&#10003;</div></div>').join('');
+    list.insertAdjacentHTML('beforeend',
+      '<section class="client"><div class="client-head"><span class="client-name">'
+      + esc(client) + '</span></div><div class="rows">' + rows + '</div></section>');
+  });
+  updateCounts();
+}
+
+function updateCounts(){
+  const done = SPECIALS.filter(p=>p.confirmed).length, total = SPECIALS.length;
+  document.getElementById('n-done').textContent = done;
+  document.getElementById('n-total').textContent = total;
+  document.getElementById('confirm').disabled = !total || done < total;
+}
+
+document.getElementById('list').addEventListener('click', e => {
+  const el = e.target.closest('.item'); if(!el) return;
+  const p = SPECIALS.find(s => s.row === +el.dataset.row); if(!p) return;
+  p.confirmed = !p.confirmed;
+  el.classList.toggle('done', p.confirmed);
+  updateCounts();
+});
+
+document.getElementById('confirm').addEventListener('click', async () => {
+  const btn = document.getElementById('confirm'), st = document.getElementById('gostatus');
+  btn.disabled = true; st.textContent = 'Recording…'; st.className='gostatus';
+  try{
+    if(CONFIG.LIVE && CONFIG.SCRIPT_URL){
+      await fetch(CONFIG.SCRIPT_URL, {method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({action:'confirmSpecial',
+          rows:SPECIALS.map(p=>p.row), ts:new Date().toISOString()})});
+    }
+    st.textContent = 'Special loading confirmed. \u2713'; st.className='gostatus ok';
+  }catch(e){
+    st.textContent = 'Write failed — try again.'; btn.disabled = false;
+  }
+});
+
+document.getElementById('today-date').textContent =
+  new Date().toLocaleDateString('en-US',{weekday:'long', month:'short', day:'numeric'});
+loadData().then(render).catch(err => {
+  const st = document.getElementById('state');
+  st.style.display='block';
+  st.textContent = 'Could not load special projects. Check connection and reload.';
+  console.error(err);
+});
+</script>
+</body>
+</html>
