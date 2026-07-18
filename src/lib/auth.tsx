@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
  */
 export const ALLOWLIST: readonly string[] = [
   "brandon@brambleandvine.com",
+  "info@brambleandvinesf.com",
   "crew1@brambleandvine.com",
   "crew2@brambleandvine.com",
   "crew3@brambleandvine.com",
