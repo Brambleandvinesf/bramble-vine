@@ -147,14 +147,6 @@ function AppFrame() {
   );
 }
 
-const NAV_ITEMS = [
-  { to: "/", label: "Schedule" },
-  { to: "/loading", label: "Loading" },
-  { to: "/confirm", label: "Confirm" },
-  { to: "/visits", label: "Visits" },
-  { to: "/messages", label: "Messages" },
-] as const;
-
 function NavBar() {
   const { user, signOut } = useAuth();
   return (
@@ -162,51 +154,30 @@ function NavBar() {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 4,
+        gap: 8,
         background: "#0a0a0a",
         borderBottom: "1px solid #2a2a2a",
-        padding: "8px 10px",
-        overflowX: "auto",
+        padding: "8px 12px",
         fontFamily: "'Courier New', Courier, monospace",
         position: "sticky",
         top: 0,
         zIndex: 100,
+        minHeight: 44,
       }}
     >
-      {NAV_ITEMS.map((item) => (
-        <Link
-          key={item.to}
-          to={item.to}
-          style={{
-            color: "#7cff00",
-            textDecoration: "none",
-            padding: "6px 12px",
-            fontSize: 13,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            borderRadius: 4,
-            whiteSpace: "nowrap",
-          }}
-          activeProps={{
-            style: {
-              color: "#0a0a0a",
-              background: "#7cff00",
-              fontWeight: "bold",
-              padding: "6px 12px",
-              fontSize: 13,
-              letterSpacing: 1,
-              textTransform: "uppercase",
-              borderRadius: 4,
-              whiteSpace: "nowrap",
-              textDecoration: "none",
-            },
-          }}
-          activeOptions={{ exact: true }}
-        >
-          {item.label}
-        </Link>
-      ))}
-      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+      <Link
+        to="/"
+        style={{
+          color: "#7cff00",
+          textDecoration: "none",
+          fontSize: 13,
+          letterSpacing: 2,
+          fontWeight: "bold",
+        }}
+      >
+        BRAMBLE &amp; VINE
+      </Link>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
         {user ? (
           <>
             <span
@@ -216,13 +187,13 @@ function NavBar() {
                 fontSize: 11,
                 letterSpacing: 1,
                 textTransform: "uppercase",
-                maxWidth: 160,
+                maxWidth: 200,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              {user.split("@")[0]}
+              {user}
             </span>
             <button
               onClick={signOut}
