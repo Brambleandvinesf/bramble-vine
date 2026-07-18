@@ -114,8 +114,70 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <NavBar />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
+  );
+}
+
+const NAV_ITEMS = [
+  { to: "/", label: "Schedule" },
+  { to: "/loading", label: "Loading" },
+  { to: "/confirm", label: "Confirm" },
+  { to: "/visits", label: "Visits" },
+  { to: "/messages", label: "Messages" },
+] as const;
+
+function NavBar() {
+  return (
+    <nav
+      style={{
+        display: "flex",
+        gap: 4,
+        background: "#0a0a0a",
+        borderBottom: "1px solid #2a2a2a",
+        padding: "8px 10px",
+        overflowX: "auto",
+        fontFamily: "'Courier New', Courier, monospace",
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+      }}
+    >
+      {NAV_ITEMS.map((item) => (
+        <Link
+          key={item.to}
+          to={item.to}
+          style={{
+            color: "#7cff00",
+            textDecoration: "none",
+            padding: "6px 12px",
+            fontSize: 13,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            borderRadius: 4,
+            whiteSpace: "nowrap",
+          }}
+          activeProps={{
+            style: {
+              color: "#0a0a0a",
+              background: "#7cff00",
+              fontWeight: "bold",
+              padding: "6px 12px",
+              fontSize: 13,
+              letterSpacing: 1,
+              textTransform: "uppercase",
+              borderRadius: 4,
+              whiteSpace: "nowrap",
+              textDecoration: "none",
+            },
+          }}
+          activeOptions={{ exact: true }}
+        >
+          {item.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
