@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { AuthProvider, useAuth } from "../lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -114,10 +116,34 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <NavBar />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <AuthProvider>
+        <AppFrame />
+      </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function AppFrame() {
+  const { user, ready } = useAuth();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
+
+  const onLogin = pathname === "/login";
+
+  // Client-side gate. Legacy screens hit external endpoints and require identity;
+  // we bounce unauthenticated visitors to /login. SSR renders nothing until ready.
+  useEffect(() => {
+    if (!ready) return;
+    if (!user && !onLogin) {
+      void router.navigate({ to: "/login" });
+    }
+  }, [ready, user, onLogin, router]);
+
+  return (
+    <>
+      <NavBar />
+      {ready && (user || onLogin) ? <Outlet /> : null}
+    </>
   );
 }
 
@@ -130,10 +156,12 @@ const NAV_ITEMS = [
 ] as const;
 
 function NavBar() {
+  const { user, signOut } = useAuth();
   return (
     <nav
       style={{
         display: "flex",
+        alignItems: "center",
         gap: 4,
         background: "#0a0a0a",
         borderBottom: "1px solid #2a2a2a",
@@ -178,6 +206,43 @@ function NavBar() {
           {item.label}
         </Link>
       ))}
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+        {user ? (
+          <>
+            <span
+              title={user}
+              style={{
+                color: "#8f8f8f",
+                fontSize: 11,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                maxWidth: 160,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {user.split("@")[0]}
+            </span>
+            <button
+              onClick={signOut}
+              style={{
+                background: "transparent",
+                color: "#7cff00",
+                border: "1px solid #7cff00",
+                borderRadius: 4,
+                padding: "4px 10px",
+                fontFamily: "inherit",
+                fontSize: 11,
+                letterSpacing: 1,
+                cursor: "pointer",
+              }}
+            >
+              SIGN OUT
+            </button>
+          </>
+        ) : null}
+      </div>
     </nav>
   );
 }

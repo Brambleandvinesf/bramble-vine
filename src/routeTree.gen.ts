@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as NavigateRouteImport } from './routes/navigate'
 import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoadingRouteImport } from './routes/loading'
 import { Route as ConfirmRouteImport } from './routes/confirm'
 import { Route as IndexRouteImport } from './routes/index'
@@ -29,6 +30,11 @@ const NavigateRoute = NavigateRouteImport.update({
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoadingRoute = LoadingRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/confirm': typeof ConfirmRoute
   '/loading': typeof LoadingRoute
+  '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/navigate': typeof NavigateRoute
   '/visits': typeof VisitsRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/confirm': typeof ConfirmRoute
   '/loading': typeof LoadingRoute
+  '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/navigate': typeof NavigateRoute
   '/visits': typeof VisitsRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/confirm': typeof ConfirmRoute
   '/loading': typeof LoadingRoute
+  '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/navigate': typeof NavigateRoute
   '/visits': typeof VisitsRoute
@@ -78,16 +87,25 @@ export interface FileRouteTypes {
     | '/'
     | '/confirm'
     | '/loading'
+    | '/login'
     | '/messages'
     | '/navigate'
     | '/visits'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/confirm' | '/loading' | '/messages' | '/navigate' | '/visits'
+  to:
+    | '/'
+    | '/confirm'
+    | '/loading'
+    | '/login'
+    | '/messages'
+    | '/navigate'
+    | '/visits'
   id:
     | '__root__'
     | '/'
     | '/confirm'
     | '/loading'
+    | '/login'
     | '/messages'
     | '/navigate'
     | '/visits'
@@ -97,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConfirmRoute: typeof ConfirmRoute
   LoadingRoute: typeof LoadingRoute
+  LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
   NavigateRoute: typeof NavigateRoute
   VisitsRoute: typeof VisitsRoute
@@ -123,6 +142,13 @@ declare module '@tanstack/react-router' {
       path: '/messages'
       fullPath: '/messages'
       preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/loading': {
@@ -153,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConfirmRoute: ConfirmRoute,
   LoadingRoute: LoadingRoute,
+  LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
   NavigateRoute: NavigateRoute,
   VisitsRoute: VisitsRoute,
