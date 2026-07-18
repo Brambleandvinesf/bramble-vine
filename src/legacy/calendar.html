@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bramble & Vine — Schedule</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --lime: #a6ff00;
+    --lime-dim: #6b9e00;
+    --line: #1c2400;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--lime);
+    font-family: 'Courier New', monospace;
+    height: 100%;
+    overflow-x: hidden;
+  }
+  #wrap {
+    padding: 16px 18px 24px;
+    min-height: 100vh;
+  }
+  #top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  #nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav-btn {
+    background: transparent;
+    border: 1px solid var(--lime-dim);
+    color: var(--lime);
+    font-family: inherit;
+    font-size: 19px;
+    padding: 8px 16px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .nav-btn:hover {
+    background: var(--lime);
+    color: var(--bg);
+  }
+  .nav-btn:active {
+    transform: translateY(1px);
+  }
+  #view-toggle {
+    display: flex;
+    border: 1px solid var(--lime-dim);
+  }
+  .toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--lime-dim);
+    font-family: inherit;
+    font-size: 16px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    cursor: pointer;
+  }
+  .toggle-btn.active {
+    background: var(--lime);
+    color: var(--bg);
+    font-weight: bold;
+  }
+  #date-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--lime);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+  #date-header h1 {
+    font-size: 28px;
+    letter-spacing: 0.04em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  #date-header span {
+    font-size: 18px;
+    color: var(--lime-dim);
+  }
+  #status {
+    font-size: 17px;
+    color: var(--lime-dim);
+    padding: 40px 0;
+    text-align: center;
+  }
+  .day-group-label {
+    font-size: 17px;
+    font-weight: bold;
+    color: var(--bg);
+    background: var(--lime-dim);
+    padding: 6px 12px;
+    margin: 22px 0 6px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .day-group-label:first-child {
+    margin-top: 0;
+  }
+  #week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(140px, 1fr));
+    gap: 0;
+    overflow-x: auto;
+    border-left: 1px solid var(--line);
+  }
+  .week-col {
+    border-right: 1px solid var(--line);
+    min-width: 0;
+  }
+  .week-col-header {
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--bg);
+    background: var(--lime-dim);
+    padding: 6px 4px;
+    text-align: center;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+  }
+  .week-col-header.is-today {
+    background: var(--lime);
+  }
+  .week-col-events {
+    padding: 6px 6px 12px;
+    min-height: 60px;
+  }
+  .week-event {
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .week-event:last-child { border-bottom: none; }
+  .week-event-time {
+    font-size: 12px;
+    color: var(--lime-dim);
+    white-space: nowrap;
+  }
+  .week-event-title {
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.3;
+    margin-top: 2px;
+    overflow-wrap: break-word;
+  }
+  .week-event-location a {
+    font-size: 11px;
+    color: var(--lime-dim);
+    overflow-wrap: break-word;
+    display: block;
+    margin-top: 2px;
+  }
+  .week-event-details {
+    display: none;
+    font-size: 12px;
+    color: var(--lime);
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--line);
+    line-height: 1.4;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+  .week-event.expanded .week-event-details {
+    display: block;
+  }
+  .week-col-empty {
+    font-size: 12px;
+    color: var(--lime-dim);
+    font-style: italic;
+    padding: 6px 4px;
+  }
+  .event {
+    display: flex;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .event:last-child { border-bottom: none; }
+  .event-time {
+    flex: 0 0 100px;
+    font-size: 17px;
+    color: var(--lime-dim);
+    padding-top: 1px;
+    white-space: nowrap;
+  }
+  .event-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .event-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .event-title {
+    font-size: 19px;
+    font-weight: bold;
+    line-height: 1.3;
+  }
+  .event-caret {
+    font-size: 14px;
+    color: var(--lime-dim);
+    transition: transform 0.15s ease;
+    flex-shrink: 0;
+  }
+  .event.expanded .event-caret {
+    transform: rotate(90deg);
+  }
+  .event-location {
+    font-size: 15px;
+    margin-top: 3px;
+    overflow-wrap: break-word;
+  }
+  .event-location a {
+    color: var(--lime-dim);
+    text-decoration: underline;
+  }
+  .event-location a:hover {
+    color: var(--lime);
+  }
+  .event-details {
+    display: none;
+    font-size: 16px;
+    color: var(--lime);
+    margin-top: 10px;
+    margin-left: -114px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    line-height: 1.5;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+  .event.expanded .event-details {
+    display: block;
+  }
+  .event-details a {
+    color: var(--lime);
+  }
+  .event-details-empty {
+    color: var(--lime-dim);
+    font-style: italic;
+  }
+  .empty {
+    text-align: center;
+    color: var(--lime-dim);
+    padding: 40px 0;
+    font-size: 17px;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="top-bar">
+    <div id="nav-controls">
+      <button class="nav-btn" id="btn-prev">◀</button>
+      <button class="nav-btn" id="btn-today">Today</button>
+      <button class="nav-btn" id="btn-next">▶</button>
+    </div>
+    <div id="view-toggle">
+      <button class="toggle-btn active" id="btn-day">Day</button>
+      <button class="toggle-btn" id="btn-week">Week</button>
+    </div>
+  </div>
+  <div id="date-header">
+    <h1 id="range-label">Loading…</h1>
+    <span id="clock"></span>
+  </div>
+  <div id="status">Fetching schedule…</div>
+  <div id="events"></div>
+  <div id="week-grid" style="display:none;"></div>
+</div>
+
+<script>
+  // ---- CONFIG ----
+  const API_KEY = "AIzaSyDlCEVSdta4dtT5m9zQFeqBwKIU_HTWS7s";
+  const CALENDAR_ID = "c_e3d4d0260bc0cced6edab0091077b67e376e5bc8c43741d55c3574445943e730@group.calendar.google.com";
+  const TIMEZONE = "America/Los_Angeles";
+  const REFRESH_MS = 5 * 60 * 1000; // refresh every 5 minutes
+  const WEEK_STARTS_MONDAY = true; // matches wkst=2 in the original embed
+  // ----------------
+
+  let viewMode = 'day'; // 'day' or 'week'
+  let anchorDate = new Date(); // the reference date navigation is based on
+
+  function fmtTime(dt) {
+    return dt.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZone: TIMEZONE
+    });
+  }
+
+  function mapsNavUrl(address) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving&dir_action=navigate`;
+  }
+
+  function tzLocalDate(d) {
+    // returns a Date object representing d's wall-clock time in TIMEZONE
+    return new Date(d.toLocaleString('en-US', { timeZone: TIMEZONE }));
+  }
+
+  function startOfDayISO(date) {
+    const local = tzLocalDate(date);
+    local.setHours(0, 0, 0, 0);
+    const offsetDiff = date.getTime() - tzLocalDate(date).getTime();
+    return new Date(local.getTime() + offsetDiff).toISOString();
+  }
+
+  function endOfDayISO(date) {
+    const local = tzLocalDate(date);
+    local.setHours(23, 59, 59, 999);
+    const offsetDiff = date.getTime() - tzLocalDate(date).getTime();
+    return new Date(local.getTime() + offsetDiff).toISOString();
+  }
+
+  function getWeekStart(date) {
+    const local = tzLocalDate(date);
+    const day = local.getDay(); // 0 = Sun, 1 = Mon, ...
+    const diff = WEEK_STARTS_MONDAY ? (day === 0 ? 6 : day - 1) : day;
+    local.setDate(local.getDate() - diff);
+    local.setHours(0, 0, 0, 0);
+    return local;
+  }
+
+  function isSameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() &&
+           a.getMonth() === b.getMonth() &&
+           a.getDate() === b.getDate();
+  }
+
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: TIMEZONE });
+  }
+
+  function updateRangeLabel() {
+    const label = document.getElementById('range-label');
+    if (viewMode === 'day') {
+      label.textContent = anchorDate.toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', timeZone: TIMEZONE
+      });
+    } else {
+      const weekStart = getWeekStart(anchorDate);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const startStr = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endStr = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      label.textContent = `${startStr} – ${endStr}`;
+    }
+  }
+
+  function renderEventRow(ev, container) {
+    const div = document.createElement('div');
+    div.className = 'event';
+
+    let timeLabel = 'All day';
+    if (ev.start && ev.start.dateTime) {
+      timeLabel = fmtTime(new Date(ev.start.dateTime));
+    }
+
+    const title = ev.summary || '(No title)';
+    const location = ev.location || '';
+    const description = ev.description ? ev.description.trim() : '';
+    const locationHtml = location
+      ? `<div class="event-location"><a href="${mapsNavUrl(location)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${location.replace(/</g, '&lt;')}</a></div>`
+      : '';
+
+    div.innerHTML = `
+      <div class="event-time">${timeLabel}</div>
+      <div class="event-body">
+        <div class="event-title-row">
+          <span class="event-caret">▶</span>
+          <span class="event-title">${title.replace(/</g, '&lt;')}</span>
+        </div>
+        ${locationHtml}
+        <div class="event-details">${description ? description : '<span class="event-details-empty">No additional details.</span>'}</div>
+      </div>
+    `;
+
+    div.addEventListener('click', () => {
+      div.classList.toggle('expanded');
+    });
+
+    container.appendChild(div);
+  }
+
+  function renderWeekEvent(ev, container) {
+    const div = document.createElement('div');
+    div.className = 'week-event';
+
+    let timeLabel = 'All day';
+    if (ev.start && ev.start.dateTime) {
+      timeLabel = fmtTime(new Date(ev.start.dateTime));
+    }
+
+    const title = ev.summary || '(No title)';
+    const location = ev.location || '';
+    const description = ev.description ? ev.description.trim() : '';
+    const locationHtml = location
+      ? `<div class="week-event-location"><a href="${mapsNavUrl(location)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${location.replace(/</g, '&lt;')}</a></div>`
+      : '';
+
+    div.innerHTML = `
+      <div class="week-event-time">${timeLabel}</div>
+      <div class="week-event-title">${title.replace(/</g, '&lt;')}</div>
+      ${locationHtml}
+      <div class="week-event-details">${description ? description : '<span class="event-details-empty">No additional details.</span>'}</div>
+    `;
+
+    div.addEventListener('click', () => {
+      div.classList.toggle('expanded');
+    });
+
+    container.appendChild(div);
+  }
+
+  async function loadEvents() {
+    const statusEl = document.getElementById('status');
+    const listEl = document.getElementById('events');
+    const gridEl = document.getElementById('week-grid');
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Fetching schedule…';
+    listEl.innerHTML = '';
+    gridEl.innerHTML = '';
+    listEl.style.display = viewMode === 'day' ? 'block' : 'none';
+    gridEl.style.display = viewMode === 'week' ? 'grid' : 'none';
+
+    updateRangeLabel();
+
+    try {
+      let timeMin, timeMax, weekStart;
+      if (viewMode === 'day') {
+        timeMin = startOfDayISO(anchorDate);
+        timeMax = endOfDayISO(anchorDate);
+      } else {
+        weekStart = getWeekStart(anchorDate);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        timeMin = startOfDayISO(weekStart);
+        timeMax = endOfDayISO(weekEnd);
+      }
+
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events` +
+        `?key=${API_KEY}&singleEvents=true&orderBy=startTime` +
+        `&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}` +
+        `&timeZone=${encodeURIComponent(TIMEZONE)}`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`API error ${res.status}: ${errBody}`);
+      }
+      const data = await res.json();
+      const items = data.items || [];
+
+      statusEl.style.display = 'none';
+
+      if (viewMode === 'day') {
+        if (items.length === 0) {
+          listEl.innerHTML = '<div class="empty">No events scheduled.</div>';
+        } else {
+          items.forEach(ev => renderEventRow(ev, listEl));
+        }
+        return;
+      }
+
+      // Week view: one column per day, Monday–Sunday (or per WEEK_STARTS_MONDAY)
+      const now = new Date();
+      for (let i = 0; i < 7; i++) {
+        const colDate = new Date(weekStart);
+        colDate.setDate(colDate.getDate() + i);
+
+        const col = document.createElement('div');
+        col.className = 'week-col';
+
+        const header = document.createElement('div');
+        header.className = 'week-col-header';
+        if (isSameDay(colDate, now)) header.classList.add('is-today');
+        header.textContent = colDate.toLocaleDateString('en-US', {
+          weekday: 'short', month: 'numeric', day: 'numeric', timeZone: TIMEZONE
+        });
+        col.appendChild(header);
+
+        const eventsWrap = document.createElement('div');
+        eventsWrap.className = 'week-col-events';
+
+        const dayEvents = items.filter(ev => {
+          const start = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime)
+                        : ev.start && ev.start.date ? new Date(ev.start.date + 'T00:00:00')
+                        : null;
+          return start && isSameDay(start, colDate);
+        });
+
+        if (dayEvents.length === 0) {
+          eventsWrap.innerHTML = '<div class="week-col-empty">No events</div>';
+        } else {
+          dayEvents.forEach(ev => renderWeekEvent(ev, eventsWrap));
+        }
+
+        col.appendChild(eventsWrap);
+        gridEl.appendChild(col);
+      }
+    } catch (err) {
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'Could not load calendar: ' + err.message;
+      console.error(err);
+    }
+  }
+
+  function setViewMode(mode) {
+    viewMode = mode;
+    document.getElementById('btn-day').classList.toggle('active', mode === 'day');
+    document.getElementById('btn-week').classList.toggle('active', mode === 'week');
+    loadEvents();
+  }
+
+  function navigate(direction) {
+    const step = viewMode === 'day' ? 1 : 7;
+    anchorDate = new Date(anchorDate);
+    anchorDate.setDate(anchorDate.getDate() + step * direction);
+    loadEvents();
+  }
+
+  function goToToday() {
+    anchorDate = new Date();
+    loadEvents();
+  }
+
+  document.getElementById('btn-day').addEventListener('click', () => setViewMode('day'));
+  document.getElementById('btn-week').addEventListener('click', () => setViewMode('week'));
+  document.getElementById('btn-prev').addEventListener('click', () => navigate(-1));
+  document.getElementById('btn-next').addEventListener('click', () => navigate(1));
+  document.getElementById('btn-today').addEventListener('click', goToToday);
+
+  updateClock();
+  loadEvents();
+  setInterval(updateClock, 30 * 1000);
+  setInterval(loadEvents, REFRESH_MS);
+</script>
+</body>
+</html>
