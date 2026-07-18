@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.enforce_crew_allowlist() FROM PUBLIC, anon, authenticated;
