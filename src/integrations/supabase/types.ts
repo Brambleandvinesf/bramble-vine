@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           content: string
           created_at: string
+          external_id: string | null
           id: string
           received_at: string
           sender_name: string
@@ -27,6 +28,7 @@ export type Database = {
         Insert: {
           content: string
           created_at?: string
+          external_id?: string | null
           id?: string
           received_at?: string
           sender_name: string
@@ -36,6 +38,7 @@ export type Database = {
         Update: {
           content?: string
           created_at?: string
+          external_id?: string | null
           id?: string
           received_at?: string
           sender_name?: string
