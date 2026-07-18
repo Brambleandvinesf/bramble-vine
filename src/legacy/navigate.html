@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bramble &amp; Vine — Navigate</title>
+<style>
+  html,body{margin:0; height:100%; background:#0a0a0a; color:#e8e8e8;
+    font-family:'Courier New', Courier, monospace; display:flex;
+    align-items:center; justify-content:center; text-align:center;}
+  .wrap{padding:24px; max-width:480px;}
+  h1{color:#7cff00; font-size:18px; letter-spacing:2px; margin:0 0 12px;}
+  p{font-size:14px; color:#8f8f8f; line-height:1.5; margin:0 0 20px; word-break:break-word;}
+  a.btn{display:block; background:#7cff00; color:#0a0a0a; font-weight:bold;
+    font-size:22px; letter-spacing:2px; padding:26px 28px; border-radius:14px;
+    text-decoration:none;}
+  a.alt{display:inline-block; margin-top:18px; color:#8f8f8f; font-size:12px;
+    text-decoration:underline;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title">READY TO ROLL</h1>
+  <p id="addr"></p>
+  <a class="btn" id="go" href="#">START NAVIGATION &#128656;</a>
+  <a class="alt" id="alt" href="#">open route preview instead</a>
+</div>
+<script>
+  const addr = new URLSearchParams(location.search).get('addr') || '';
+  const enc  = encodeURIComponent(addr);
+  const navIntent = 'google.navigation:q=' + enc;                    // straight to turn-by-turn (Android)
+  const mapsUrl   = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=' + enc;
+
+  document.getElementById('addr').textContent = addr || 'No address provided.';
+  document.getElementById('go').href  = navIntent;  // real tap → straight to turn-by-turn
+  document.getElementById('alt').href = mapsUrl;    // web/preview fallback
+
+  if (addr) location.href = navIntent;              // free attempt; if the browser
+                                                    // blocks it, the big button remains
+</script>
+</body>
+</html>

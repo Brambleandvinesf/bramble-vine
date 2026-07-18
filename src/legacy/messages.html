@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Message Center</title>
+<style>
+  :root { --lime:#7cff00; --dim:rgba(124,255,0,.55); --panel:#121212; --panel2:#181818;
+          --line:#2a2a2a; --red:#ff3b30; }
+  body { background:#0a0a0a; color:var(--lime); font-family:'Courier New',monospace;
+         margin:0; padding:16px; }
+  body.flash { animation:redflash .5s steps(2,end) 6; }
+  @keyframes redflash { 0%{background:#0a0a0a} 50%{background:#3a0000} 100%{background:#0a0a0a} }
+
+  header { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+           border-bottom:1px solid var(--lime); padding-bottom:10px; margin-bottom:6px; }
+  h1 { font-size:1.2rem; margin:0; }
+  #badge { background:var(--red); color:#fff; border-radius:12px; padding:2px 10px;
+           font-weight:bold; font-size:.9rem; }
+  #badge.zero { background:transparent; color:var(--dim); border:1px solid var(--line); }
+  #countdown { margin-left:auto; text-align:right; font-size:.9rem; line-height:1.35; }
+  #countdown .big { font-size:1.15rem; font-weight:bold; }
+  #countdown .late { color:var(--red); }
+
+  .row { display:flex; gap:8px; margin:10px 0; flex-wrap:wrap; }
+  button { background:var(--lime); color:#000; border:none; border-radius:4px; padding:14px 18px;
+           font-family:inherit; font-weight:bold; font-size:.95rem; min-height:56px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--lime); border:1px solid var(--lime); }
+  button:disabled { opacity:.4; }
+  input, textarea { background:#0a0a0a; color:var(--lime); border:1px solid #4a7a1e;
+                    border-radius:4px; font-family:inherit; font-size:.95rem; padding:8px;
+                    box-sizing:border-box; }
+
+  .item { background:var(--panel); border:2px solid var(--lime); border-radius:6px;
+          padding:12px; margin:20px 0; display:flex; gap:12px; align-items:flex-start; }
+  .item.unread { background:var(--panel2); }
+  .item.awaiting { border-color:var(--red); }
+  .item.client.awaiting { box-shadow:0 0 6px rgba(255,59,48,.45); }
+  .src { font-size:1.3rem; line-height:1; padding:8px; cursor:pointer; border-radius:50%;
+         align-self:flex-start; }
+  .src.selected { background:var(--lime); color:#000 !important; }
+  .src.gmail { color:var(--lime); }
+  .src.quo { color:var(--lime); }
+  .msg.in  { border-left:3px solid var(--lime); }
+  .msg.out { opacity:.75; border-left:3px solid var(--line); }
+  .body { flex:1; min-width:0; text-align:center; }
+  .top { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap;
+         justify-content:center; position:relative; padding-right:56px; }
+  .from { font-weight:bold; }
+  .client-tag { border:1px solid var(--red); color:var(--red); border-radius:4px;
+                padding:0 6px; font-size:.7rem; }
+  .att-tag { border:1px solid var(--dim); color:var(--dim); border-radius:4px;
+             padding:0 6px; font-size:.7rem; }
+  .when { position:absolute; right:0; top:0; font-size:.8rem; opacity:.75; white-space:nowrap; }
+  .subj { margin-top:2px; }
+  .snip { margin-top:4px; font-size:.95rem; opacity:.95; overflow:hidden;
+          text-overflow:ellipsis; white-space:nowrap; }
+  .unread .subj { font-weight:bold; }
+  .reply { display:flex; gap:8px; margin-top:10px; }
+  .reply textarea { flex:1; min-height:44px; max-height:120px; resize:none; }
+  .reply button { min-height:44px; padding:8px 14px; }
+  .acts { display:flex; flex-direction:column; gap:8px; align-self:stretch; justify-content:flex-end; }
+  .acts button { min-width:56px; min-height:56px; padding:0; font-size:1.3rem; }
+  .acts .trash { background:transparent; color:var(--lime); border:1px solid var(--lime); }
+  .reply .sendBtn, #vSend { background:transparent; color:var(--lime); border:1px solid var(--lime); }
+  .acts .spam, #vBar .spam,
+  .acts .conf, #vBar .conf,
+  .acts .expand { background:transparent; color:var(--lime); border:1px solid var(--lime); }
+
+  /* ---------- full-screen viewer ---------- */
+  #viewer { position:fixed; inset:0; background:#0a0a0a; display:flex; flex-direction:column; z-index:50; }
+  #vHead { display:flex; gap:10px; align-items:center; padding:12px 16px;
+           border-bottom:1px solid var(--lime); }
+  #vTitle { flex:1; min-width:0; text-align:center; }
+  #vTitle .from { font-size:1.05rem; }
+  #vTitle .subj { font-size:.9rem; opacity:.8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #vBody { flex:1; overflow-y:auto; padding:12px 16px; }
+  .msg { border:1px solid var(--line); border-radius:6px; background:var(--panel);
+         padding:12px; margin-bottom:12px; }
+  .mmeta { font-size:.85rem; opacity:.8; margin-bottom:8px; border-bottom:1px solid var(--line);
+           padding-bottom:6px; text-align:center; }
+  .mbody { white-space:pre-wrap; word-wrap:break-word; font-size:1.05rem; color:var(--lime);
+           text-align:center; }
+  .att { margin-top:10px; }
+  .att img { max-width:100%; border:1px solid var(--line); border-radius:4px; display:block; }
+  .att canvas { max-width:100%; border:1px solid var(--line); border-radius:4px;
+                display:block; margin-bottom:6px; }
+  .att .chip { display:inline-block; border:1px solid var(--dim); color:var(--dim);
+               border-radius:4px; padding:6px 10px; font-size:.85rem; }
+  .att .aname { font-size:.8rem; opacity:.7; margin:4px 0 8px; }
+  #vBar { border-top:1px solid var(--lime); padding:10px 16px; display:flex; gap:8px;
+          align-items:flex-end; background:#0a0a0a; }
+  #vReply { flex:1; min-height:72px; max-height:160px; resize:vertical; }
+  #vBar .col { display:flex; flex-direction:column; gap:6px; }
+  #vBar .col button { min-width:64px; min-height:44px; padding:6px; }
+  #vBar .trash { background:transparent; color:var(--lime); border:1px solid var(--lime); }
+
+  /* ---------- label picker ---------- */
+  #acPick { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:60;
+            display:flex; align-items:center; justify-content:center; padding:20px; }
+  #acPanel { background:var(--panel); border:1px solid var(--lime); border-radius:8px;
+             width:100%; max-width:440px; max-height:80vh; display:flex; flex-direction:column; }
+  #acPanel h3 { margin:0; padding:14px 16px 8px; font-size:1rem; }
+  #acPanel .who { padding:0 16px 8px; font-size:.85rem; opacity:.75; }
+  #acSearch { margin:0 16px 10px; min-height:48px; }
+  #acList { overflow-y:auto; flex:1; border-top:1px solid var(--line); min-height:120px; }
+  #acList div { padding:14px 16px; border-bottom:1px solid var(--line); cursor:pointer; min-height:28px; }
+  #acList div.create { color:#ffb03f; }
+  #acList div:active { background:var(--panel2); }
+  #acCancel { margin:10px 16px 14px; }
+  .addC { background:transparent; color:var(--lime); border:1px solid #4a7a1e;
+          border-radius:4px; padding:2px 10px; font-size:1rem; margin-left:8px; }
+
+  #labelPick { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:60;
+               display:flex; align-items:center; justify-content:center; padding:20px; }
+  #lpPanel { background:var(--panel); border:1px solid var(--lime); border-radius:8px;
+             width:100%; max-width:440px; max-height:80vh; display:flex; flex-direction:column; }
+  #lpPanel h3 { margin:0; padding:14px 16px 8px; font-size:1rem; }
+  #lpPanel .who { padding:0 16px 8px; font-size:.85rem; opacity:.75; }
+  #lpSearch { margin:0 16px 10px; min-height:48px; }
+  #lpList { overflow-y:auto; flex:1; border-top:1px solid var(--line); }
+  #lpList div { padding:14px 16px; border-bottom:1px solid var(--line); cursor:pointer; min-height:28px; }
+  #lpList div.create { color:#ffb03f; }
+  #lpList div:active { background:var(--panel2); }
+  #lpCancel { margin:10px 16px 14px; }
+  /* ---------- attachments ---------- */
+  .chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .chips span { border:1px solid var(--dim); color:var(--dim); border-radius:4px;
+                padding:6px 8px; font-size:.8rem; display:inline-flex; gap:8px; align-items:center; }
+  .chips b { cursor:pointer; color:var(--red); font-size:1rem; }
+  #vChips { padding:0 16px; }
+  /* ---------- emoji picker ---------- */
+  .emoBtn { background:transparent; border:1px solid var(--lime); color:inherit;
+            min-width:44px; min-height:44px; padding:0; font-size:1.2rem; }
+  #emoPick { position:fixed; left:50%; bottom:16px; transform:translateX(-50%);
+             background:var(--panel); border:1px solid var(--lime); border-radius:8px;
+             padding:10px; z-index:70; max-width:440px; width:calc(100% - 32px); }
+  #emoGrid { display:grid; grid-template-columns:repeat(8,1fr); gap:2px;
+             max-height:45vh; overflow-y:auto; }
+  #emoGrid button { background:transparent; border:none; font-size:1.6rem;
+                    min-height:52px; padding:0; font-family:'Segoe UI Emoji','Noto Color Emoji','Apple Color Emoji',sans-serif; }
+  #emoClose { width:100%; margin-top:8px; min-height:44px; padding:6px; }
+
+  #status { font-size:.85rem; min-height:1.2em; margin-top:6px; }
+
+  /* ---------- recipient search ---------- */
+  #searchWrap { position:relative; flex:1; min-width:200px; }
+  #searchBar { width:100%; min-height:48px; box-sizing:border-box; }
+  #searchSugg { position:absolute; top:100%; left:0; right:0; z-index:65;
+                background:var(--panel); border:1px solid var(--lime); border-radius:0 0 8px 8px;
+                max-height:50vh; overflow-y:auto; }
+  #searchSugg div { padding:14px 16px; border-bottom:1px solid var(--line); cursor:pointer;
+                    display:flex; gap:10px; align-items:center; }
+  #searchSugg div:active { background:var(--panel2); }
+  #searchSugg .sicon { flex:none; }
+  #searchSugg .snote { margin-left:auto; font-size:.8rem; opacity:.6; white-space:nowrap; }
+  .item.found { box-shadow:0 0 0 4px var(--lime); transition:box-shadow .3s; }
+
+  /* ---------- selection + action bar ---------- */
+  .sel { width:26px; height:26px; accent-color:var(--lime); flex:none; align-self:center; }
+  .msel { width:22px; height:22px; accent-color:var(--lime); vertical-align:middle; margin-right:8px; }
+  #actBar { position:fixed; left:50%; transform:translateX(-50%); bottom:16px; z-index:80;
+            background:var(--panel); border:1px solid var(--lime); border-radius:8px;
+            padding:10px 14px; display:flex; gap:10px; align-items:center; }
+  #actBar.vpos { bottom:130px; }
+  #actBar span { font-size:.9rem; opacity:.85; }
+  #fwdPick, #apPick { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:85;
+                      display:flex; align-items:center; justify-content:center; padding:20px; }
+  #fwdPanel, #apPanel { background:var(--panel); border:1px solid var(--lime); border-radius:8px;
+                        width:100%; max-width:560px; max-height:90vh; overflow-y:auto;
+                        display:flex; flex-direction:column; gap:10px; padding:16px; }
+  #fwdPanel h3, #apPanel h3 { margin:0; }
+  #fwdPanel .who, #apPanel .who { font-size:.85rem; opacity:.75; }
+  #fwdText { min-height:140px; resize:vertical; }
+  #apAction { min-height:150px; resize:vertical; font-weight:bold; font-size:1.15rem; }
+  #apPanel label { font-size:.85rem; opacity:.8; margin-bottom:-6px; }
+  .typeRow { display:flex; gap:10px; }
+  .typeRow button { flex:1; }
+  .typeRow button.on { background:var(--lime); color:#000; border-color:var(--lime); }
+  .apItem { display:grid; grid-template-columns:2fr 64px 90px 2fr 48px; gap:6px; }
+  .apItem input { min-height:44px; min-width:0; }
+  .apItem .iDel { min-height:44px; padding:0; }
+  #apAddItem { align-self:flex-start; }
+  .pickBtns { display:flex; gap:10px; justify-content:flex-end; }
+  #rcPick { position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:85;
+            display:flex; align-items:center; justify-content:center; padding:20px; }
+  #rcPanel { background:var(--panel); border:1px solid var(--lime); border-radius:8px;
+             width:100%; max-width:560px; max-height:90vh; overflow-y:auto;
+             display:flex; flex-direction:column; gap:10px; padding:16px; }
+  #rcPanel h3 { margin:0; }
+  #rcPanel .who { font-size:.85rem; opacity:.75; }
+  #rcPanel label { font-size:.85rem; opacity:.8; }
+  .rcGrid { display:grid; grid-template-columns:90px 1fr; gap:8px; align-items:center; }
+  .rcItem { display:grid; grid-template-columns:2fr 64px 100px 48px; gap:6px; }
+  .rcItem input { min-height:44px; min-width:0; }
+  #rcAddItem { align-self:flex-start; }
+  .pmsg { min-height:1.2em; font-size:.9rem; }
+  .pmsg.err { color:var(--red); }
+  .warn { color:#ffb03f; }
+  .hidden { display:none !important; }
+  .spin::after { content:''; display:inline-block; animation:dots 1.2s steps(4,end) infinite; }
+  @keyframes dots { 0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Message Center</h1>
+  <span id="badge" class="zero">0</span>
+  <div id="countdown"></div>
+</header>
+
+<div class="row">
+  <div id="searchWrap">
+    <input id="searchBar" placeholder="Search recipients&hellip;" autocomplete="off">
+    <div id="searchSugg" class="hidden"></div>
+  </div>
+  <button id="reloadBtn" class="ghost">Reload</button>
+  <button id="fsBtn" class="ghost" title="Fullscreen"></button>
+</div>
+
+<div id="list">Loading<span class="spin"></span></div>
+<div id="status"></div>
+
+<div id="viewer" class="hidden">
+  <div id="vHead">
+    <div id="vTitle"><div class="from"></div><div class="subj"></div></div>
+    <button id="vClose" class="ghost">Close</button>
+  </div>
+  <div id="vBody"></div>
+  <div id="vChips" class="chips"></div>
+  <div id="vBar">
+    <button class="emoBtn" id="vEmo"></button>
+    <button class="emoBtn" id="vAtt"></button>
+    <textarea id="vReply" placeholder="Reply&hellip; (greeting + signature added automatically)"></textarea>
+    <div class="col">
+      <button id="vSend">Send</button>
+      <button id="vFile" class="ghost">&#10003; File</button>
+      <button id="vConf" class="conf"></button>
+      <button id="vRcpt" class="conf"></button>
+      <button id="vTrash" class="trash">&#10005; Trash</button>
+      <button id="vSpam" class="spam"></button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="filePick" multiple class="hidden">
+
+<div id="labelPick" class="hidden">
+  <div id="lpPanel">
+    <h3>File under label&hellip;</h3>
+    <div class="who" id="lpWho"></div>
+    <input id="lpSearch" placeholder="Search labels&hellip;">
+    <div id="lpList"></div>
+    <button id="lpCancel" class="ghost">Cancel</button>
+  </div>
+</div>
+
+<div id="emoPick" class="hidden">
+  <div id="emoGrid"></div>
+  <button id="emoClose" class="ghost">Close</button>
+</div>
+
+<div id="actBar" class="hidden">
+  <span id="actCount"></span>
+  <button id="actProject">+ Project</button>
+  <button id="actForward">&rarr; Crew</button>
+  <button id="actClear" class="ghost">Clear</button>
+</div>
+
+<div id="fwdPick" class="hidden">
+  <div id="fwdPanel">
+    <h3>Forward to crew</h3>
+    <div class="who">Texts +1 (650) 710-5061 and +1 (415) 234-3696 as one group message</div>
+    <textarea id="fwdText"></textarea>
+    <div class="pmsg" id="fwdMsg"></div>
+    <div class="pickBtns">
+      <button id="fwdSend">Send</button>
+      <button id="fwdCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="apPick" class="hidden">
+  <div id="apPanel">
+    <h3>Add project</h3>
+    <div class="who" id="apClientLine"></div>
+    <label>Project Action</label>
+    <textarea id="apAction"></textarea>
+    <label>Items (Project Tools &amp; Materials)</label>
+    <div id="apItems"></div>
+    <button id="apAddItem" class="ghost">+ Add Item</button>
+    <label>Type</label>
+    <div class="typeRow">
+      <button id="apTypeSpecial" class="ghost">SPECIAL</button>
+      <button id="apTypeRecurring" class="ghost">RECURRING</button>
+    </div>
+    <label>Notes (optional)</label>
+    <input id="apNotes">
+    <div class="pmsg" id="apMsg"></div>
+    <div class="pickBtns">
+      <button id="apSave">Save project</button>
+      <button id="apCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="rcPick" class="hidden">
+  <div id="rcPanel">
+    <h3>Receipt</h3>
+    <div class="who">Confirm the details — saves a PDF to Drive &rarr; "receipt drop"</div>
+    <div class="rcGrid">
+      <label>Vendor</label><input id="rcVendor">
+      <label>Date</label><input id="rcDate" placeholder="YYYY-MM-DD">
+    </div>
+    <label>Items</label>
+    <div id="rcItems"></div>
+    <button id="rcAddItem" class="ghost">+ Add Item</button>
+    <div class="rcGrid">
+      <label>Subtotal</label><input id="rcSub">
+      <label>Tax</label><input id="rcTax">
+      <label>Total</label><input id="rcTotal" style="font-weight:bold">
+    </div>
+    <div class="pmsg" id="rcMsg"></div>
+    <div class="pickBtns">
+      <button id="rcSave">Confirm &amp; Save PDF</button>
+      <button id="rcCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="acPick" class="hidden">
+  <div id="acPanel">
+    <h3>Add to Google Contacts</h3>
+    <div class="who" id="acWho"></div>
+    <input id="acSearch" placeholder="Name&hellip;">
+    <div id="acList"></div>
+    <div class="pmsg" id="acMsg"></div>
+    <button id="acCancel" class="ghost">Cancel</button>
+  </div>
+</div>
+
+<script>
+/* ============ CONFIG ============ */
+/* line-art icons (currentColor = lime via button styling) */
+const ICON_SMILE = "<svg viewBox='0 0 24 24' width='1.3em' height='1.3em' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'><circle cx='12' cy='12' r='9'/><path d='M8.5 14.5c.9 1.2 2.1 1.9 3.5 1.9s2.6-.7 3.5-1.9'/><circle cx='9' cy='9.6' r='.7' fill='currentColor' stroke='none'/><circle cx='15' cy='9.6' r='.7' fill='currentColor' stroke='none'/></svg>";
+const ICON_CLIP = "<svg viewBox='0 0 24 24' width='1.3em' height='1.3em' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48'/></svg>";
+const ICON_POO = "<svg viewBox='0 0 24 24' width='1.3em' height='1.3em' fill='currentColor'><path d='M12 2c-.6 1.6.4 2.4 1.5 3.1.9.6 1.8 1.3 1.6 2.8 1.9.2 3.2 1.5 3.2 3.2 0 .6-.2 1.2-.5 1.7 1.4.5 2.2 1.5 2.2 2.9 0 2.1-1.9 3.5-4.6 3.5H8.6C5.9 19.2 4 17.8 4 15.7c0-1.4.8-2.4 2.2-2.9-.3-.5-.5-1.1-.5-1.7 0-1.7 1.3-3 3.2-3.2-.1-1.8 1.1-2.5 2.1-3.2.9-.6 1.4-1.4 1-2.7z'/></svg>";
+const ICON_FS = "<svg viewBox='0 0 24 24' width='1.3em' height='1.3em' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14 10l6-6M20 4v5M20 4h-5M10 14l-6 6M4 20v-5M4 20h5M14 14l6 6M20 20v-5M20 20h-5M10 10L4 4M4 4v5M4 4h5'/></svg>";
+const ICON_RCPT = "<svg viewBox='0 0 24 24' width='1.3em' height='1.3em' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 2h14v20l-2.5-1.8L14 22l-2-1.6L10 22l-2.5-1.8L5 22zM9 7h6M9 11h6M13 15h2'/></svg>";
+const ICON_CONF = "<svg viewBox='0 0 24 24' width='1.3em' height='1.3em' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='5' width='18' height='17' rx='2'/><path d='M16 3v4M8 3v4M3 11h18M9 16l2 2 4-4'/></svg>";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
+const POLL_MS = 60000;
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+/* ================================ */
+
+let SEEN_CLIENT_IDS = null;   // unread-client ids from previous poll (null = first load)
+let LABELS = [];              // Gmail label names, for the file-under picker
+let LAST_CONTACTS = [];       // [{r:resourceName, n:name}] Google Contacts, for the add-contact picker
+let LAST_ITEMS = [];          // current feed items, for the recipient search
+let LAST_CLIENTS = [];        // Client Info names, for the add-project picker
+let NEXT_VISIT = null;
+let TICK = null;
+let OPEN_ITEM = null;         // item currently in the viewer
+
+/* ---------- feed ---------- */
+async function loadInbox() {
+  const r = await fetch(SCRIPT_URL + "?action=getInbox").then(x => x.json());
+  const items = r.inbox || [];
+  LAST_ITEMS = items;
+  LABELS = r.labels || [];
+  LAST_CONTACTS = r.contacts || LAST_CONTACTS;
+  LAST_CLIENTS = r.clients || LAST_CLIENTS;
+  NEXT_VISIT = r.nextVisit || null;
+  render(items);
+  updateBadge(items);
+  detectNew(items);
+  startCountdown();
+}
+
+async function safeLoad() {
+  try { await loadInbox(); }
+  catch (e) {
+    document.getElementById("list").textContent =
+      "Couldn't reach the inbox — check connection and Reload.";
+  }
+}
+
+function render(items) {
+  const list = document.getElementById("list");
+  if (!items.length) { list.textContent = "Inbox is quiet. \u2713"; return; }
+  list.innerHTML = "";
+  items.forEach(it => {
+    const quo = it.source === "quo";
+    const d = document.createElement("div");
+    d.className = "item" + (it.unread ? " unread" : "") + (it.awaiting ? " awaiting" : "") +
+                  (it.isClient ? " client" : "");
+    d.dataset.id = it.id;
+    d.innerHTML =
+      "<div class='src " + esc(it.source) + "' title='Select latest message'>" + srcIcon(it.source) + "</div>" +
+      "<div class='body'>" +
+        "<div class='top'><span class='from'>" + esc(it.from) + "</span>" +
+        (quo && it.unknowns && it.unknowns.length
+          ? "<button class='addC' title='Add contact'>+</button>" : "") +
+        (it.isClient ? "<span class='client-tag'>CLIENT</span>" : "") +
+        "<span class='when'>" + rel(it.date) + "</span></div>" +
+        (quo ? "" : "<div class='subj'>" + esc(it.subject || "(no subject)") + "</div>") +
+        (it.snippet ? "<div class='snip'>" + esc(it.snippet) + "</div>" : "") +
+        "<div class='reply'><button class='emoBtn'>" + ICON_SMILE + "</button>" +
+        (quo ? "" : "<button class='emoBtn attBtn'>" + ICON_CLIP + "</button>") +
+        "<textarea rows='1' placeholder='Reply&hellip;'></textarea><button class='sendBtn'>Send</button></div>" +
+        "<div class='chips'></div>" +
+      "</div>" +
+      "<div class='acts'>" +
+        "<button class='expand' title='Open full screen'>" + ICON_FS + "</button>" +
+        (it.isClient ? "<button class='conf' title='Mark visit confirmed'>" + ICON_CONF + "</button>" : "") +
+        (quo ? (it.unknowns && it.unknowns.length
+                 ? "<button class='spam' title='Mark as spam'>" + ICON_POO + "</button>" : "")
+             : "<button class='trash' title='Trash'>\u2715</button>") +
+        "<button class='file' title='" + (quo ? "Done" : "File") + "'>\u2713</button>" +
+      "</div>";
+    d.querySelector(".file").onclick = () => quo ? doneItem(d, it) : fileItem(d, it);
+    const spamBtn = d.querySelector(".spam");
+    if (spamBtn) spamBtn.onclick = () => spamItem(d, it);
+    const confBtn = d.querySelector(".conf");
+    if (confBtn) confBtn.onclick = () => confirmVisit(d, it);
+    d.querySelector(".expand").onclick = () => openViewer(it);
+    d.querySelector(".src").onclick = function () {
+      const was = this.classList.contains("selected");
+      document.querySelectorAll(".item .src.selected").forEach(el => el.classList.remove("selected"));
+      if (was) {
+        SEL = null;
+      } else {
+        this.classList.add("selected");
+        const s = it.snippet || "";
+        const i = s.indexOf(": ");
+        SEL = { msgs: [{ name: i > 0 ? s.slice(0, i) : it.from,
+                         text: i > 0 ? s.slice(i + 2) : s,
+                         date: it.date }],
+                item: it };
+      }
+      setActBar();
+    };
+    const acBtn = d.querySelector(".addC");
+    if (acBtn) acBtn.onclick = (ev) => { ev.stopPropagation(); openAddContact(it); };
+    if (!quo) d.querySelector(".trash").onclick = () => trashItem(d, it);
+    const inp = d.querySelector(".reply textarea");
+    const btn = d.querySelector(".reply .sendBtn");
+    btn.onclick = (ev) => { ev.stopPropagation(); sendReply(it, inp.value, btn, inp); };
+    inp.onclick = (ev) => ev.stopPropagation();
+    inp.addEventListener("keydown", (ev) => {          // Enter = newline, Ctrl+Enter = send
+      if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); btn.click(); }
+    });
+    const syncSend = () => { btn.disabled = !inp.value.trim(); };
+    syncSend();
+    inp.addEventListener("input", syncSend);
+    d.querySelector(".reply .emoBtn").onclick = (ev) => { ev.stopPropagation(); openEmoji(inp); };
+    const chipsEl = d.querySelector(".chips");
+    if (!quo) {
+      d.querySelector(".attBtn").onclick = (ev) => { ev.stopPropagation(); openAttach(it, chipsEl); };
+      renderChips(it.threadId, chipsEl);        // restore staged files across re-renders
+    }
+    list.appendChild(d);
+  });
+}
+
+function srcIcon(s) {
+  const handset = "<svg viewBox='0 0 24 24' width='1.1em' height='1.1em' fill='currentColor' style='vertical-align:-2px'>" +
+    "<path d='M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z'/></svg>";
+  return { gmail: "\u2709", quo: handset, chat: "\u2b24" }[s] || "\u2022";
+}
+
+function updateBadge(items) {
+  const n = items.filter(i => i.unread && i.isClient).length;
+  const b = document.getElementById("badge");
+  b.textContent = n;
+  b.className = n ? "" : "zero";
+}
+
+/* red/black flash when a new unread CLIENT message appears since last poll */
+function detectNew(items) {
+  const ids = items.filter(i => i.unread && i.isClient).map(i => i.id);
+  if (SEEN_CLIENT_IDS !== null && ids.some(id => SEEN_CLIENT_IDS.indexOf(id) < 0)) {
+    document.body.classList.remove("flash");
+    void document.body.offsetWidth;          // restart animation
+    document.body.classList.add("flash");
+  }
+  SEEN_CLIENT_IDS = ids;
+}
+
+/* ---------- attachments (staged per thread until Send) ---------- */
+const STAGED = {};            // threadId -> [{name, mime, data, size}]
+let ATT_CTX = null;           // { threadId, chipsEl }
+const MAX_FILE = 10 * 1024 * 1024, MAX_TOTAL = 18 * 1024 * 1024;
+
+function openAttach(it, chipsEl) {
+  ATT_CTX = { threadId: it.threadId, chipsEl };
+  document.getElementById("filePick").click();
+}
+document.getElementById("filePick").onchange = async function () {
+  if (!ATT_CTX) return;
+  const list = STAGED[ATT_CTX.threadId] = STAGED[ATT_CTX.threadId] || [];
+  for (const f of this.files) {
+    if (f.size > MAX_FILE) { flash(f.name + " is over 10MB — skipped.", true); continue; }
+    const total = list.reduce((a, x) => a + x.size, 0);
+    if (total + f.size > MAX_TOTAL) { flash("Attachment limit reached — " + f.name + " skipped.", true); break; }
+    const data = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(",")[1]);
+      r.onerror = rej;
+      r.readAsDataURL(f);
+    });
+    list.push({ name: f.name, mime: f.type || "application/octet-stream", data, size: f.size });
+  }
+  renderChips(ATT_CTX.threadId, ATT_CTX.chipsEl);
+  this.value = "";
+};
+function renderChips(threadId, el) {
+  if (!el) return;
+  const list = STAGED[threadId] || [];
+  el.innerHTML = "";
+  list.forEach((a, i) => {
+    const s = document.createElement("span");
+    s.innerHTML = "\ud83d\udcce " + esc(a.name) + " (" + fmtSize(a.size) + ") <b>\u2715</b>";
+    s.querySelector("b").onclick = (ev) => {
+      ev.stopPropagation();
+      list.splice(i, 1);
+      renderChips(threadId, el);
+    };
+    el.appendChild(s);
+  });
+}
+function fmtSize(n) {
+  return n > 1048576 ? (n / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(n / 1024)) + "KB";
+}
+
+/* ---------- reply ---------- */
+async function sendReply(it, text, btn, field) {
+  text = String(text || "").trim();
+  if (!text) { flash("Write a reply first.", true); return; }
+  if (btn) btn.disabled = true;
+  const attachments = it.source === "quo" ? [] : (STAGED[it.threadId] || []);
+  const res = await postAction(it.source === "quo"
+    ? { action: "replyQuo", participants: it.participants, text, conversationId: it.conversationId }
+    : { action: "replyThread", threadId: it.threadId, fromName: it.from, text, attachments });
+  if (btn) btn.disabled = false;
+  if (res && res.ok && res.sent) {
+    if (field) { field.value = ""; field.dispatchEvent(new Event("input", { bubbles: true })); }
+    it.awaiting = false;
+    document.querySelectorAll(".item[data-id='" + it.id + "']")
+      .forEach(el => el.classList.remove("awaiting"));
+    delete STAGED[it.threadId];
+    document.querySelectorAll(".item[data-id='" + it.id + "'] .chips")
+      .forEach(el => el.innerHTML = "");
+    const vc = document.getElementById("vChips");
+    if (OPEN_ITEM && OPEN_ITEM.threadId === it.threadId) vc.innerHTML = "";
+    flash("Replied to " + it.from +
+          (attachments.length ? " with " + attachments.length + " attachment" +
+            (attachments.length > 1 ? "s" : "") : "") + " \u2713" +
+          (res.warning ? " (" + res.warning + ")" : ""));
+    return true;
+  }
+  flash("Reply failed — try again.", true);
+  return false;
+}
+
+/* ---------- file / trash ---------- */
+async function fileItem(card, it) {
+  if (!it.ruleLabel) {                        // no rule yet: pick/create a label
+    const label = await pickLabel(it);
+    if (!label) return;                       // cancelled
+    return fileWith(card, it, label);
+  }
+  return fileWith(card, it, "");              // rule exists server-side
+}
+
+async function fileWith(card, it, label) {
+  if (card) setBusy(card, true);
+  const res = await postAction({ action: "fileThread", threadId: it.threadId,
+                                 fromEmail: it.fromEmail, label });
+  if (res && res.ok && res.needsLabel) {      // page thought a rule existed; server disagrees
+    if (card) setBusy(card, false);
+    it.ruleLabel = "";
+    return fileItem(card, it);
+  }
+  if (res && res.ok && res.filed) {
+    if (LABELS.indexOf(res.label) < 0) LABELS.push(res.label), LABELS.sort();
+    removeCard(it.id);
+    flash("Filed \u2192 " + res.label);
+    return true;
+  }
+  if (card) setBusy(card, false);
+  flash("Couldn't file — try again.", true);
+  return false;
+}
+
+/* ---------- searchable label picker ---------- */
+let LP_RESOLVE = null;
+function pickLabel(it) {
+  return new Promise(resolve => {
+    LP_RESOLVE = resolve;
+    document.getElementById("lpWho").textContent =
+      it.from + " \u2039" + it.fromEmail + "\u203a";
+    const s = document.getElementById("lpSearch");
+    s.value = "";
+    lpRender("");
+    document.getElementById("labelPick").classList.remove("hidden");
+    s.focus();
+  });
+}
+function lpRender(q) {
+  const list = document.getElementById("lpList");
+  const ql = q.trim().toLowerCase();
+  const hits = LABELS.filter(l => l.toLowerCase().indexOf(ql) >= 0);
+  list.innerHTML = "";
+  hits.forEach(l => {
+    const d = document.createElement("div");
+    d.textContent = l;
+    d.onclick = () => lpDone(l);
+    list.appendChild(d);
+  });
+  const exact = LABELS.some(l => l.toLowerCase() === ql);
+  if (q.trim() && !exact) {
+    const d = document.createElement("div");
+    d.className = "create";
+    d.textContent = "+ Create \u201c" + q.trim() + "\u201d";
+    d.onclick = () => lpDone(q.trim());
+    list.appendChild(d);
+  }
+}
+function lpDone(label) {
+  document.getElementById("labelPick").classList.add("hidden");
+  const r = LP_RESOLVE; LP_RESOLVE = null;
+  if (r) r(label);
+}
+document.getElementById("lpSearch").oninput = function () { lpRender(this.value); };
+document.getElementById("lpCancel").onclick = () => lpDone("");
+
+/* ---------- emoji picker ---------- */
+/* garden favorites pinned first, then the full battery from Unicode ranges */
+const EMOJI_FAVES = ["\ud83d\ude0a","\ud83d\udc4d","\ud83d\ude4f","\u2705","\ud83c\udf89","\ud83d\udc9a",
+               "\ud83c\udf31","\ud83c\udf3f","\ud83c\udf38","\ud83c\udf3b","\ud83e\udeb4","\ud83c\udf33",
+               "\u2600\ufe0f","\ud83c\udf27\ufe0f","\ud83d\udca7","\ud83d\udc1b","\ud83d\udc1d","\ud83e\udd8b",
+               "\ud83d\udcc5","\ud83d\udd50","\ud83d\udcf8","\ud83d\udccd","\ud83d\ude9a","\ud83e\uddf0",
+               "\u2702\ufe0f","\u2757","\u2753","\ud83e\udd1d","\ud83d\ude04","\ud83e\udd70"];
+function emojiRange(a, b, vs) {
+  const out = [];
+  for (let c = a; c <= b; c++) out.push(String.fromCodePoint(c) + (vs ? "\ufe0f" : ""));
+  return out;
+}
+const EMOJI = EMOJI_FAVES.concat(
+  emojiRange(0x1F600, 0x1F64F),        // smileys & gestures
+  emojiRange(0x1F900, 0x1F9FF),        // supplemental: faces, people, food, animals
+  emojiRange(0x1FA70, 0x1FAF8),        // extended: hearts, hands, plants
+  emojiRange(0x1F300, 0x1F5FF),        // nature, weather, food, objects
+  emojiRange(0x1F680, 0x1F6FC),        // transport
+  emojiRange(0x1F947, 0x1F94F),        // sports medals etc. (subset overlap ok)
+  emojiRange(0x2600, 0x26FF, true),    // classic symbols (sun, stars, warning)
+  emojiRange(0x2700, 0x27BF, true)     // dingbats (scissors, checks, sparkles)
+);
+let EMO_TARGET = null;
+(function buildEmoji() {
+  const g = document.getElementById("emoGrid");
+  const frag = document.createDocumentFragment();
+  EMOJI.forEach(e => {
+    const b = document.createElement("button");
+    b.textContent = e;
+    b.onclick = () => insertEmoji(e);
+    frag.appendChild(b);
+  });
+  g.appendChild(frag);
+})();
+function openEmoji(field) {
+  EMO_TARGET = field;
+  document.getElementById("emoPick").classList.remove("hidden");
+}
+function insertEmoji(e) {
+  const f = EMO_TARGET;
+  if (!f) return;
+  const s = f.selectionStart ?? f.value.length, en = f.selectionEnd ?? s;
+  f.value = f.value.slice(0, s) + e + f.value.slice(en);
+  f.focus();
+  f.selectionStart = f.selectionEnd = s + e.length;
+  f.dispatchEvent(new Event("input", { bubbles: true }));
+}
+document.getElementById("emoClose").onclick = () => {
+  document.getElementById("emoPick").classList.add("hidden");
+  EMO_TARGET = null;
+};
+
+async function doneItem(card, it) {
+  if (card) setBusy(card, true);
+  const res = await postAction({ action: "quoDone", conversationId: it.conversationId });
+  if (res && res.ok && res.done) { removeCard(it.id); flash("Marked done."); return true; }
+  if (card) setBusy(card, false);
+  flash("Couldn't mark done — try again.", true);
+  return false;
+}
+
+async function trashItem(card, it) {
+  if (!confirm("Trash this thread from " + it.from + "?")) return;
+  if (card) setBusy(card, true);
+  const res = await postAction({ action: "trashThread", threadId: it.threadId });
+  if (res && res.ok && res.trashed) { removeCard(it.id); flash("Trashed."); return true; }
+  if (card) setBusy(card, false);
+  flash("Couldn't trash — try again.", true);
+  return false;
+}
+
+/* Colors the client's next calendar event Blueberry in Google Calendar.
+   (Kiosk calendar renders blueberry as the standard green — unchanged.) */
+async function confirmVisit(card, it) {
+  if (card) setBusy(card, true);
+  const body = { action: "confirmVisit" };
+  if (it.source === "quo") body.participants = it.participants;
+  else body.fromEmail = it.fromEmail;
+  const res = await postAction(body);
+  if (card) setBusy(card, false);
+  if (res && res.ok && res.confirmed) {
+    flash("Confirmed: " + res.event + " (" + rel(res.start) + ")");
+    return true;
+  }
+  flash((res && res.error) || "Couldn't confirm — try again.", true);
+  return false;
+}
+
+/* Quo has no delete — spam = save the number(s) to Google Contacts named 💩;
+   the backend then auto-marks 💩 conversations done and drops them from the
+   feed forever. Also marks this conversation done right now. */
+async function spamItem(card, it) {
+  if (!confirm("Mark " + it.from + " as spam? You'll never see this number again.")) return;
+  if (card) setBusy(card, true);
+  let ok = true;
+  for (const p of (it.participants || [])) {
+    const r = await postAction({ action: "addContact", phone: p, name: "zzz-spam \ud83d\udca9" });
+    if (!r || !r.ok) ok = false;
+  }
+  const d = await postAction({ action: "quoDone", conversationId: it.conversationId });
+  if (!d || !d.ok) ok = false;
+  if (ok) { removeCard(it.id); flash("Marked as spam \ud83d\udca9"); return true; }
+  if (card) setBusy(card, false);
+  flash("Spam-marking failed — try again.", true);
+  return false;
+}
+
+function removeCard(id) {
+  const el = document.querySelector(".item[data-id='" + id + "']");
+  if (el) el.remove();
+  refreshBadgeFromDom();
+}
+function setBusy(card, on) {
+  card.querySelectorAll("button").forEach(b => b.disabled = on);
+}
+function refreshBadgeFromDom() {
+  const n = document.querySelectorAll(".item.client.unread").length;
+  const b = document.getElementById("badge");
+  b.textContent = n; b.className = n ? "" : "zero";
+}
+
+/* ---------- add contact (unknown Quo numbers -> Google Contacts) ----------
+   One number at a time: pick an existing Google Contact (attaches the number
+   to them) or '+ New contact' with the typed name. */
+let AC_QUEUE = [], AC_PHONE = null;
+function openAddContact(it) {
+  AC_QUEUE = (it.unknowns || []).slice();
+  advanceAc();
+}
+function advanceAc() {
+  AC_PHONE = AC_QUEUE.shift() || null;
+  if (!AC_PHONE) {
+    document.getElementById("acPick").classList.add("hidden");
+    safeLoad();
+    return;
+  }
+  document.getElementById("acWho").textContent = AC_PHONE;
+  const s = document.getElementById("acSearch");
+  s.value = "";
+  renderAcList("");
+  document.getElementById("acPick").classList.remove("hidden");
+  s.focus();
+}
+function renderAcList(q) {
+  const list = document.getElementById("acList");
+  list.innerHTML = "";
+  const ql = q.trim().toLowerCase();
+  const mk = (txt, cls, fn) => {
+    const d = document.createElement("div");
+    d.textContent = txt;
+    if (cls) d.className = cls;
+    d.onclick = fn;
+    list.appendChild(d);
+  };
+  if (ql) mk("+ New contact: \u201c" + q.trim() + "\u201d", "create",
+             () => saveAc({ name: q.trim() }));
+  (LAST_CONTACTS || [])
+    .filter(c => !ql || c.n.toLowerCase().indexOf(ql) >= 0)
+    .slice(0, 40)
+    .forEach(c => mk(c.n, "", () => saveAc({ resourceName: c.r, name: c.n })));
+}
+document.getElementById("acSearch").oninput = function () { renderAcList(this.value); };
+document.getElementById("acCancel").onclick = () => {
+  AC_QUEUE = [];
+  document.getElementById("acPick").classList.add("hidden");
+};
+async function saveAc(sel) {
+  const body = { action: "addContact", phone: AC_PHONE };
+  if (sel.resourceName) body.resourceName = sel.resourceName;
+  else body.name = sel.name;
+  const res = await postAction(body);
+  if (res && res.ok) { pmsg("acMsg", ""); flash("Saved: " + sel.name); advanceAc(); }
+  else pmsg("acMsg", (res && res.error) || "Save failed.", true);
+}
+
+/* ---------- recipient search (finds existing conversations) ---------- */
+(function () {
+  const bar = document.getElementById("searchBar");
+  const sugg = document.getElementById("searchSugg");
+  function hideSugg() { sugg.classList.add("hidden"); }
+  function matches(it, q) {
+    if ((it.from || "").toLowerCase().indexOf(q) >= 0) return true;
+    if ((it.fromEmail || "").toLowerCase().indexOf(q) >= 0) return true;
+    return (it.participants || []).some(p => p.replace(/\D/g, "").indexOf(q.replace(/\D/g, "")) >= 0 && q.replace(/\D/g, ""));
+  }
+  bar.oninput = function () {
+    const q = bar.value.trim().toLowerCase();
+    sugg.innerHTML = "";
+    if (!q) { hideSugg(); return; }
+    const hits = LAST_ITEMS.filter(it => matches(it, q)).slice(0, 8);
+    if (!hits.length) { hideSugg(); return; }
+    hits.forEach(it => {
+      const d = document.createElement("div");
+      d.innerHTML = "<span class='sicon " + (it.source === "quo" ? "src quo" : "src gmail") + "'>" +
+                    srcIcon(it.source) + "</span><span>" + esc(it.from) + "</span>" +
+                    "<span class='snote'>" + rel(it.date) + "</span>";
+      d.onclick = () => { bar.value = ""; hideSugg(); jumpToCard(it.id); };
+      sugg.appendChild(d);
+    });
+    sugg.classList.remove("hidden");
+  };
+  bar.addEventListener("blur", () => setTimeout(hideSugg, 250));  // let taps land first
+  bar.addEventListener("focus", () => { if (bar.value.trim()) bar.oninput(); });
+})();
+function jumpToCard(id) {
+  const el = document.querySelector(".item[data-id='" + id + "']");
+  if (!el) { flash("Conversation not in the current feed.", true); return; }
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("found");
+  setTimeout(() => el.classList.remove("found"), 2500);
+}
+
+/* ---------- selection + actions ---------- */
+let SEL = null;                                  // { msgs:[{name,text,date}], item? }
+const CREW = ["+16507105061", "+14152343696"];   // confirmed 7/17
+
+function wireMsel(msgEl, name, body, date) {
+  const cb = msgEl.querySelector(".msel");
+  cb._m = { name: name, text: body, date: date };
+  cb.onchange = collectViewerSel;
+}
+function collectViewerSel() {
+  const msgs = [...document.querySelectorAll("#vBody .msel")]
+    .filter(cb => cb.checked)
+    .map(cb => cb._m)
+    .sort((a, b) => a.date < b.date ? -1 : 1);   // chronological
+  SEL = msgs.length ? { msgs: msgs, item: OPEN_ITEM } : null;
+  setActBar();
+}
+function setActBar() {
+  const bar = document.getElementById("actBar");
+  const on = SEL && SEL.msgs.length;
+  bar.classList.toggle("hidden", !on);
+  bar.classList.toggle("vpos", !!OPEN_ITEM);
+  if (on) document.getElementById("actCount").textContent =
+    SEL.msgs.length + " message" + (SEL.msgs.length > 1 ? "s" : "");
+}
+function pmsg(id, text, err) {
+  const el = document.getElementById(id);
+  el.textContent = text || "";
+  el.classList.toggle("err", !!err);
+}
+function clearSel() {
+  SEL = null;
+  document.querySelectorAll(".item .src.selected").forEach(el => el.classList.remove("selected"));
+  document.querySelectorAll(".msel").forEach(cb => cb.checked = false);
+  setActBar();
+}
+function compileSel(cap) {
+  const txt = (SEL ? SEL.msgs : [])
+    .map(m => m.name + ": " + String(m.text || "").trim())
+    .join("\n\n");
+  return cap && txt.length > cap ? txt.slice(0, cap - 2) + " \u2026" : txt;
+}
+document.getElementById("actClear").onclick = clearSel;
+
+/* --- forward to crew --- */
+document.getElementById("actForward").onclick = () => {
+  if (!SEL) return;
+  document.getElementById("fwdText").value = compileSel(1500);   // Quo cap 1600
+  pmsg("fwdMsg", "");
+  document.getElementById("fwdPick").classList.remove("hidden");
+};
+document.getElementById("fwdCancel").onclick =
+  () => document.getElementById("fwdPick").classList.add("hidden");
+document.getElementById("fwdSend").onclick = async function () {
+  const text = document.getElementById("fwdText").value.trim();
+  if (!text) { pmsg("fwdMsg", "Nothing to send.", true); return; }
+  pmsg("fwdMsg", "Sending\u2026");
+  this.disabled = true;
+  const res = await postAction({ action: "replyQuo", participants: CREW, text: text });
+  this.disabled = false;
+  if (res && res.ok && res.sent) {
+    document.getElementById("fwdPick").classList.add("hidden");
+    clearSel();
+    flash("Forwarded to crew \u2713");
+  } else {
+    pmsg("fwdMsg", "Forward failed — try again.", true);
+  }
+};
+
+/* --- add project --- */
+let AP_TYPE = "";
+function setApType(t) {
+  AP_TYPE = t;
+  document.getElementById("apTypeSpecial").classList.toggle("on", t === "SPECIAL");
+  document.getElementById("apTypeRecurring").classList.toggle("on", t === "RECURRING");
+}
+document.getElementById("apTypeSpecial").onclick = () => setApType("SPECIAL");
+document.getElementById("apTypeRecurring").onclick = () => setApType("RECURRING");
+function addApItemRow() {
+  const row = document.createElement("div");
+  row.className = "apItem";
+  row.innerHTML = "<input class='iName' placeholder='Item name'>" +
+                  "<input class='iQty' placeholder='Qty'>" +
+                  "<input class='iSize' placeholder='Size'>" +
+                  "<input class='iNotes' placeholder='Notes'>" +
+                  "<button class='iDel ghost' title='Remove item'>\u2715</button>";
+  row.querySelector(".iDel").onclick = () => row.remove();
+  document.getElementById("apItems").appendChild(row);
+  row.querySelector(".iName").focus();
+}
+document.getElementById("apAddItem").onclick = addApItemRow;
+document.getElementById("actProject").onclick = () => {
+  if (!SEL) return;
+  document.getElementById("apClientLine").textContent =
+    "Client: " + (SEL.item ? SEL.item.from : "\u2014") + " (matched via Client Info on save)";
+  document.getElementById("apAction").value = compileSel(0);   // the message IS the action
+  document.getElementById("apItems").innerHTML = "";
+  document.getElementById("apNotes").value = "";
+  setApType("");
+  pmsg("apMsg", "");
+  document.getElementById("apPick").classList.remove("hidden");
+};
+document.getElementById("apCancel").onclick =
+  () => document.getElementById("apPick").classList.add("hidden");
+document.getElementById("apSave").onclick = async function () {
+  const act = document.getElementById("apAction").value.trim();
+  if (!act) { pmsg("apMsg", "Project Action is required.", true); return; }
+  if (!AP_TYPE) { pmsg("apMsg", "Pick SPECIAL or RECURRING.", true); return; }
+  if (!SEL || !SEL.item) { pmsg("apMsg", "Selection lost — close, reselect, try again.", true); return; }
+  pmsg("apMsg", "Saving\u2026");
+  const it = SEL.item;
+  this.disabled = true;
+  const body = {
+    action: "addProject",
+    projectAction: act,
+    type: AP_TYPE,
+    notes: document.getElementById("apNotes").value.trim(),
+    items: [...document.querySelectorAll("#apItems .apItem")].map(r => ({
+      name: r.querySelector(".iName").value.trim(),
+      qty: r.querySelector(".iQty").value.trim(),
+      size: r.querySelector(".iSize").value.trim(),
+      notes: r.querySelector(".iNotes").value.trim()
+    })).filter(i => i.name)
+  };
+  if (it.source === "quo") body.participants = it.participants;
+  else body.fromEmail = it.fromEmail;
+  const res = await postAction(body);
+  this.disabled = false;
+  if (res && res.ok && res.projectId) {
+    document.getElementById("apPick").classList.add("hidden");
+    clearSel();
+    flash("Added " + res.projectId + " for " + res.client +
+          (res.items ? " (" + res.items + " item" + (res.items > 1 ? "s" : "") + ")" : "") + " \u2713");
+  } else {
+    pmsg("apMsg", (res && res.error) || "Couldn't add project — try again.", true);
+  }
+};
+
+/* --- receipt capture (Gmail viewer) --- */
+function rcItemRow(i) {
+  const row = document.createElement("div");
+  row.className = "rcItem";
+  row.innerHTML = "<input class='rDesc' placeholder='Description'>" +
+                  "<input class='rQty' placeholder='Qty'>" +
+                  "<input class='rAmt' placeholder='Amount'>" +
+                  "<button class='rDel ghost' title='Remove'>\u2715</button>";
+  row.querySelector(".rDesc").value = (i && i.description) || "";
+  row.querySelector(".rQty").value = (i && i.qty) || "";
+  row.querySelector(".rAmt").value = (i && i.amount) || "";
+  row.querySelector(".rDel").onclick = () => row.remove();
+  document.getElementById("rcItems").appendChild(row);
+}
+document.getElementById("rcAddItem").onclick = () => rcItemRow(null);
+document.getElementById("rcCancel").onclick =
+  () => document.getElementById("rcPick").classList.add("hidden");
+async function startReceipt() {
+  if (!OPEN_ITEM || OPEN_ITEM.source !== "gmail") return;
+  const btn = document.getElementById("vRcpt");
+  btn.disabled = true;
+  flash("Reading receipt\u2026");
+  const res = await postAction({ action: "extractReceipt", threadId: OPEN_ITEM.threadId });
+  btn.disabled = false;
+  if (!res || !res.ok || !res.receipt) {
+    flash((res && res.error) || "Couldn't extract a receipt.", true);
+    return;
+  }
+  const r = res.receipt;
+  document.getElementById("rcVendor").value = r.vendor || "";
+  document.getElementById("rcDate").value = r.date || res.emailDate || "";
+  document.getElementById("rcSub").value = r.subtotal || "";
+  document.getElementById("rcTax").value = r.tax || "";
+  document.getElementById("rcTotal").value = r.total || "";
+  document.getElementById("rcItems").innerHTML = "";
+  (r.items && r.items.length ? r.items : [null]).forEach(rcItemRow);
+  pmsg("rcMsg", r.vendor ? "" : "No obvious receipt found — fill in manually or Cancel.", !r.vendor);
+  document.getElementById("rcPick").classList.remove("hidden");
+}
+document.getElementById("rcSave").onclick = async function () {
+  const vendor = document.getElementById("rcVendor").value.trim();
+  if (!vendor) { pmsg("rcMsg", "Vendor is required.", true); return; }
+  pmsg("rcMsg", "Generating PDF\u2026");
+  this.disabled = true;
+  const res = await postAction({
+    action: "saveReceipt",
+    vendor: vendor,
+    date: document.getElementById("rcDate").value.trim(),
+    subtotal: document.getElementById("rcSub").value.trim(),
+    tax: document.getElementById("rcTax").value.trim(),
+    total: document.getElementById("rcTotal").value.trim(),
+    items: [...document.querySelectorAll("#rcItems .rcItem")].map(row => ({
+      description: row.querySelector(".rDesc").value.trim(),
+      qty: row.querySelector(".rQty").value.trim(),
+      amount: row.querySelector(".rAmt").value.trim()
+    })).filter(i => i.description)
+  });
+  this.disabled = false;
+  if (res && res.ok && res.saved) {
+    document.getElementById("rcPick").classList.add("hidden");
+    flash(res.webhook === 200
+      ? "Receipt saved & processing \u2713 " + res.name
+      : "Receipt saved, but the scan webhook returned " + res.webhook + " — check Make.", res.webhook !== 200);
+  } else {
+    pmsg("rcMsg", (res && res.error) || "Save failed — try again.", true);
+  }
+};
+
+async function postAction(body) {
+  try {
+    return await fetch(SCRIPT_URL, {
+      method: "POST", headers: { "Content-Type": "text/plain" },  // avoids CORS preflight
+      body: JSON.stringify(body)
+    }).then(x => x.json());
+  } catch (e) { return null; }
+}
+
+/* ---------- full-screen viewer ---------- */
+async function openViewer(it) {
+  OPEN_ITEM = it;
+  const quo = it.source === "quo";
+  const v = document.getElementById("viewer");
+  document.getElementById("vTitle").querySelector(".from").textContent = it.from;
+  document.getElementById("vTitle").querySelector(".subj").textContent =
+    quo ? "Text conversation" : (it.subject || "(no subject)");
+  document.getElementById("vFile").innerHTML = quo ? "\u2713 Done" : "\u2713 File";
+  document.getElementById("vTrash").classList.toggle("hidden", quo);
+  document.getElementById("vSpam").classList.toggle("hidden", !quo);
+  document.getElementById("vConf").classList.toggle("hidden", !it.isClient);
+  document.getElementById("vRcpt").classList.toggle("hidden", quo);
+  document.getElementById("vAtt").classList.toggle("hidden", quo);
+  const vb = document.getElementById("vBody");
+  vb.innerHTML = "Loading thread<span class='spin'></span>";
+  document.getElementById("vReply").value = "";
+  document.getElementById("vReply").dispatchEvent(new Event("input", { bubbles: true }));
+  renderChips(quo ? "-" : it.threadId, document.getElementById("vChips"));
+  v.classList.remove("hidden");
+  try {
+    if (quo) {
+      const r = await fetch(SCRIPT_URL + "?action=getQuoThread&participants=" +
+                            encodeURIComponent(it.participants.join(","))).then(x => x.json());
+      if (r.error) throw new Error(r.error);
+      renderQuoThread(vb, r, it);
+    } else {
+      const r = await fetch(SCRIPT_URL + "?action=getMessage&threadId=" +
+                            encodeURIComponent(it.threadId)).then(x => x.json());
+      if (r.error) throw new Error(r.error);
+      renderThread(vb, r);
+    }
+  } catch (e) {
+    vb.textContent = "Couldn't load the thread — Close and try again.";
+  }
+}
+
+function renderQuoThread(vb, r, it) {
+  vb.innerHTML = "";
+  (r.messages || []).forEach(m => {
+    const d = document.createElement("div");
+    const inc = m.direction === "incoming";
+    const who = inc ? it.from : "Bramble & Vine";
+    d.className = "msg " + (inc ? "in" : "out");
+    d.innerHTML = "<div class='mmeta'><input type='checkbox' class='msel'><b>" +
+                  esc(who) + "</b> — " +
+                  new Date(m.date).toLocaleString() + "</div>" +
+                  "<div class='mbody'>" + esc(m.body) + "</div>";
+    wireMsel(d, who, m.body, m.date);
+    vb.appendChild(d);
+  });
+  if (!vb.children.length) vb.textContent = "No messages found.";
+  vb.scrollTop = vb.scrollHeight;
+}
+
+function closeViewer() {
+  document.getElementById("viewer").classList.add("hidden");
+  document.getElementById("vBody").innerHTML = "";
+  document.getElementById("vChips").innerHTML = "";
+  OPEN_ITEM = null;
+  setActBar();   // reposition / keep any selection visible in the feed
+}
+
+function renderThread(vb, r) {
+  vb.innerHTML = "";
+  (r.messages || []).forEach(m => {
+    const d = document.createElement("div");
+    d.className = "msg";
+    d.innerHTML = "<div class='mmeta'><input type='checkbox' class='msel'><b>" + esc(m.from) + "</b> — " +
+                  new Date(m.date).toLocaleString() + "</div>" +
+                  "<div class='mbody'>" + esc(m.body) + "</div>";
+    wireMsel(d, m.from, m.body, m.date);
+    (m.attachments || []).forEach(a => {
+      const box = document.createElement("div");
+      box.className = "att";
+      if (a.data && a.mime.indexOf("image/") === 0) {
+        box.innerHTML = "<img src='data:" + a.mime + ";base64," + a.data + "'>" +
+                        "<div class='aname'>" + esc(a.name) + "</div>";
+      } else if (a.data && a.mime === "application/pdf") {
+        box.innerHTML = "<div class='aname'>" + esc(a.name) + "</div>";
+        renderPdf(box, a.data);
+      } else {
+        box.innerHTML = "<span class='chip'>&#128206; " + esc(a.name) +
+                        " (" + fmtSize(a.size) + ") — view in Gmail</span>";
+      }
+      d.appendChild(box);
+    });
+    vb.appendChild(d);
+  });
+  vb.scrollTop = vb.scrollHeight;    // newest message into view
+}
+
+/* PDF.js — loaded lazily the first time a PDF shows up */
+let PDFJS_READY = null;
+function ensurePdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  if (PDFJS_READY) return PDFJS_READY;
+  PDFJS_READY = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = PDFJS;
+    s.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER; res(); };
+    s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return PDFJS_READY;
+}
+
+async function renderPdf(box, b64) {
+  try {
+    await ensurePdfJs();
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    const width = Math.min(box.clientWidth || 600, 900);
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: width / base.width });
+      const canvas = document.createElement("canvas");
+      canvas.width = vp.width; canvas.height = vp.height;
+      box.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    }
+  } catch (e) {
+    const warn = document.createElement("div");
+    warn.className = "aname warn";
+    warn.textContent = "Couldn't render this PDF here — view in Gmail.";
+    box.appendChild(warn);
+  }
+}
+
+/* viewer buttons */
+document.getElementById("vEmo").innerHTML = ICON_SMILE;
+document.getElementById("vAtt").innerHTML = ICON_CLIP;
+document.getElementById("vSpam").innerHTML = ICON_POO + " Spam";
+document.getElementById("vConf").innerHTML = ICON_CONF + " Confirm";
+document.getElementById("vRcpt").innerHTML = ICON_RCPT + " Receipt";
+document.getElementById("vRcpt").onclick = startReceipt;
+document.getElementById("vConf").onclick = async function () {
+  if (OPEN_ITEM) await confirmVisit(null, OPEN_ITEM);
+};
+/* fullscreen ⛶ */
+document.getElementById("fsBtn").innerHTML = ICON_FS;
+document.getElementById("fsBtn").onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen();
+};
+document.getElementById("vClose").onclick = closeViewer;
+document.getElementById("vEmo").onclick = () => openEmoji(document.getElementById("vReply"));
+document.getElementById("vReply").addEventListener("keydown", (ev) => {  // Enter = newline, Ctrl+Enter = send
+  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+    ev.preventDefault(); document.getElementById("vSend").click();
+  }
+});
+(function () {
+  const vr = document.getElementById("vReply"), vs = document.getElementById("vSend");
+  const sync = () => { vs.disabled = !vr.value.trim(); };
+  sync();
+  vr.addEventListener("input", sync);
+})();
+document.getElementById("vAtt").onclick = () => {
+  if (OPEN_ITEM) openAttach(OPEN_ITEM, document.getElementById("vChips"));
+};
+document.getElementById("vSend").onclick = async function () {
+  if (!OPEN_ITEM) return;
+  this.disabled = true;
+  const ok = await sendReply(OPEN_ITEM, document.getElementById("vReply").value, null, null);
+  this.disabled = false;
+  if (ok) {
+    document.getElementById("vReply").value = "";
+    document.getElementById("vReply").dispatchEvent(new Event("input", { bubbles: true }));
+  }
+};
+document.getElementById("vFile").onclick = async function () {
+  if (!OPEN_ITEM) return;
+  const ok = OPEN_ITEM.source === "quo" ? await doneItem(null, OPEN_ITEM)
+                                        : await fileItem(null, OPEN_ITEM);
+  if (ok) closeViewer();
+};
+document.getElementById("vTrash").onclick = async function () {
+  if (!OPEN_ITEM) return;
+  const ok = await trashItem(null, OPEN_ITEM);
+  if (ok) closeViewer();
+};
+document.getElementById("vSpam").onclick = async function () {
+  if (!OPEN_ITEM) return;
+  const ok = await spamItem(null, OPEN_ITEM);
+  if (ok) closeViewer();
+};
+
+/* ---------- countdown ---------- */
+function startCountdown() {
+  if (TICK) clearInterval(TICK);
+  tickCountdown();
+  TICK = setInterval(tickCountdown, 1000);
+}
+function tickCountdown() {
+  const el = document.getElementById("countdown");
+  if (!NEXT_VISIT) { el.innerHTML = ""; return; }
+  const ms = new Date(NEXT_VISIT.start) - new Date();
+  const late = ms < 0, a = Math.abs(ms);
+  const h = Math.floor(a / 3600000), m = Math.floor(a % 3600000 / 60000),
+        s = Math.floor(a % 60000 / 1000);
+  const t = (h ? h + "h " : "") + m + "m " + (h ? "" : s + "s");
+  el.innerHTML = "NEXT: " + esc(NEXT_VISIT.title) + "<br>" +
+    "<span class='big" + (late ? " late" : "") + "'>" +
+    (late ? t + " AGO" : "in " + t) + "</span>";
+}
+
+/* ---------- misc ---------- */
+document.getElementById("reloadBtn").onclick = async function () {
+  this.disabled = true;
+  this.innerHTML = "Loading<span class='spin'></span>";
+  await safeLoad();
+  this.textContent = "Reload";
+  this.disabled = false;
+};
+
+function flash(msg, warn) {
+  const s = document.getElementById("status");
+  s.innerHTML = warn ? "<span class='warn'>" + esc(msg) + "</span>" : esc(msg);
+  setTimeout(() => { if (s.textContent === msg) s.textContent = ""; }, 6000);
+}
+function rel(iso) {
+  const s = Math.floor((new Date() - new Date(iso)) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return Math.floor(s / 60) + "m";
+  if (s < 86400) return Math.floor(s / 3600) + "h";
+  return Math.floor(s / 86400) + "d";
+}
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+
+safeLoad();
+setInterval(() => {
+  /* don't wipe an open viewer or a half-typed reply with a re-render */
+  const ae = document.activeElement;
+  const typing = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
+  const picker = !document.getElementById("labelPick").classList.contains("hidden") ||
+                 !document.getElementById("emoPick").classList.contains("hidden") ||
+                 !document.getElementById("acPick").classList.contains("hidden") ||
+                 !document.getElementById("fwdPick").classList.contains("hidden") ||
+                 !document.getElementById("apPick").classList.contains("hidden") ||
+                 !document.getElementById("rcPick").classList.contains("hidden");
+  if (!OPEN_ITEM && !typing && !picker && !SEL) safeLoad();
+}, POLL_MS);
+</script>
+</body>
+</html>
