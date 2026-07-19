@@ -120,6 +120,28 @@ function timeLabel(iso?: string): string {
   }).format(d);
 }
 
+function summarizeReport(report?: Record<string, unknown> | null): string {
+  if (!report || typeof report !== "object") return "";
+  const parts: string[] = [];
+  const updates = Number(report.updates);
+  if (updates > 0) parts.push(`${updates} updated`);
+  const statuses = Number(report.statuses);
+  if (statuses > 0) parts.push(`${statuses} confirmed/skipped`);
+  const deletes = Number(report.deletes);
+  if (deletes > 0) parts.push(`${deletes} deleted`);
+  const newProjects = Array.isArray(report.newProjects) ? report.newProjects.length : 0;
+  if (newProjects > 0) parts.push(`${newProjects} added`);
+  const added = Number(report.added);
+  if (added > 0) parts.push(`${added} added`);
+  const rebuilt =
+    report.rebuilt && typeof report.rebuilt === "object" ? Object.keys(report.rebuilt).length : 0;
+  if (rebuilt > 0) parts.push(`${rebuilt} client${rebuilt === 1 ? "" : "s"} rebuilt`);
+  const texts =
+    report.texts && typeof report.texts === "object" ? Object.keys(report.texts).length : 0;
+  if (texts > 0) parts.push("crew texted");
+  return parts.join(" · ");
+}
+
 function ConfirmPage() {
   const { user } = useAuth();
   const { effectiveRole } = useViewAs();
