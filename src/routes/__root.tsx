@@ -163,6 +163,7 @@ const TABS: TabDef[] = [
     screens: ["route_enroute", "route_arrived", "route_visit", "route_debrief", "route_next"],
   },
   { to: "/visits", label: "VISITS", screens: ["visits"] },
+  { to: "/projects", label: "PROJECTS", screens: ["projects"] },
   { to: "/messages", label: "MESSAGES", screens: ["messages"] },
   { to: "/receipts", label: "RECEIPTS", screens: ["rcpt_designate", "rcpt_invoice"] },
   { to: "/more", label: "MORE", screens: ["admin"] },
