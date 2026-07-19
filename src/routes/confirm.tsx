@@ -21,7 +21,7 @@ export const Route = createFileRoute("/confirm")({
  *         body: { action: "confirmDay", statuses, updates,
  *                 newProjects, deletes, sendText }
  * ============================================================ */
-const SCRIPT_URL =
+export const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
 
 type Item = { name: string; qty: string; size: string; notes: string };
