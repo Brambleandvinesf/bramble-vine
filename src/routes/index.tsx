@@ -64,10 +64,12 @@ function HomePage() {
     fetch(`${SCRIPT_URL}?action=getConfirm`)
       .then((res) => res.json())
       .then((json: { state?: { confirmed?: boolean } }) => {
+        console.log("[home confirm] ok", json);
         if (cancelled) return;
         setConfirmState(json.state ?? null);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("[home confirm] error", e);
         if (cancelled) return;
         setConfirmState(null);
       })
