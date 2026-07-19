@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoadingRouteImport } from './routes/loading'
 import { Route as FieldRouteImport } from './routes/field'
 import { Route as IndexRouteImport } from './routes/index'
 
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -40,12 +46,14 @@ export interface FileRoutesByFullPath {
   '/field': typeof FieldRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
+  '/messages': typeof MessagesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/field': typeof FieldRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
+  '/messages': typeof MessagesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,14 @@ export interface FileRoutesById {
   '/field': typeof FieldRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
+  '/messages': typeof MessagesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/field' | '/loading' | '/login'
+  fullPaths: '/' | '/field' | '/loading' | '/login' | '/messages'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/field' | '/loading' | '/login'
-  id: '__root__' | '/' | '/field' | '/loading' | '/login'
+  to: '/' | '/field' | '/loading' | '/login' | '/messages'
+  id: '__root__' | '/' | '/field' | '/loading' | '/login' | '/messages'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,10 +76,18 @@ export interface RootRouteChildren {
   FieldRoute: typeof FieldRoute
   LoadingRoute: typeof LoadingRoute
   LoginRoute: typeof LoginRoute
+  MessagesRoute: typeof MessagesRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -107,6 +124,7 @@ const rootRouteChildren: RootRouteChildren = {
   FieldRoute: FieldRoute,
   LoadingRoute: LoadingRoute,
   LoginRoute: LoginRoute,
+  MessagesRoute: MessagesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
