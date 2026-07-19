@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReceiptsRouteImport } from './routes/receipts'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoadingRouteImport } from './routes/loading'
 import { Route as FieldRouteImport } from './routes/field'
 import { Route as IndexRouteImport } from './routes/index'
 
+const ReceiptsRoute = ReceiptsRouteImport.update({
+  id: '/receipts',
+  path: '/receipts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MessagesRoute = MessagesRouteImport.update({
   id: '/messages',
   path: '/messages',
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/receipts': typeof ReceiptsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/receipts': typeof ReceiptsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,21 @@ export interface FileRoutesById {
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/receipts': typeof ReceiptsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/field' | '/loading' | '/login' | '/messages'
+  fullPaths: '/' | '/field' | '/loading' | '/login' | '/messages' | '/receipts'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/field' | '/loading' | '/login' | '/messages'
-  id: '__root__' | '/' | '/field' | '/loading' | '/login' | '/messages'
+  to: '/' | '/field' | '/loading' | '/login' | '/messages' | '/receipts'
+  id:
+    | '__root__'
+    | '/'
+    | '/field'
+    | '/loading'
+    | '/login'
+    | '/messages'
+    | '/receipts'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,10 +93,18 @@ export interface RootRouteChildren {
   LoadingRoute: typeof LoadingRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
+  ReceiptsRoute: typeof ReceiptsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/receipts': {
+      id: '/receipts'
+      path: '/receipts'
+      fullPath: '/receipts'
+      preLoaderRoute: typeof ReceiptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/messages': {
       id: '/messages'
       path: '/messages'
@@ -125,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoadingRoute: LoadingRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
+  ReceiptsRoute: ReceiptsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
