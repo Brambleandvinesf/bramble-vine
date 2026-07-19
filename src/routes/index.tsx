@@ -147,6 +147,7 @@ function HomePage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+        {console.log("[home render]", { role, canSee: canSee(role, "special_confirm"), confirmLoading, confirmState }) || null}
         {canSee(role, "special_confirm") && !confirmLoading && confirmState && (
           <Link to="/confirm" style={{ textDecoration: "none" }}>
             <div
