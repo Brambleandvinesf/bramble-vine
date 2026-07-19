@@ -1,6 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
+import { useViewAs } from "../lib/view-as";
+import { canSee } from "../lib/permissions";
 
 export const Route = createFileRoute("/visits")({
   head: () => ({
@@ -97,6 +99,12 @@ type CardState = {
 
 function VisitsPage() {
   const { user } = useAuth();
+  const { effectiveRole } = useViewAs();
+  const navigate = useNavigate();
+  const allowed = canSee(effectiveRole, "visits");
+  useEffect(() => {
+    if (!allowed) void navigate({ to: "/" });
+  }, [allowed, navigate]);
   const [rows, setRows] = useState<QueueRow[] | null>(null);
   const [clients, setClients] = useState<string[]>([]);
   const [lastYes, setLastYes] = useState<string | null>(null);
@@ -278,28 +286,36 @@ function VisitsPage() {
   );
 
   const onAdd = useCallback(async () => {
-    if (!addClient || !addText.trim()) {
-      setAddFlash({ msg: "Choose a client and enter text.", err: true });
+    if (!addClient) {
+      setAddFlash({ msg: "Choose a client.", err: true });
+      return;
+    }
+    if (!addText.trim()) {
+      setAddFlash({ msg: "Write a message.", err: true });
       return;
     }
     setAddBusy(true);
     setAddFlash(null);
     try {
-      const res = await fetch(ACTION_URL, {
+      const res = await fetch(SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
-          token: TOKEN,
-          action: "add",
+          action: "addMessage",
           client: addClient,
           text: addText,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { ok?: boolean; method?: string; contact?: string };
+      if (!json.ok) throw new Error("not ok");
       setAddClient("");
       setAddText("");
-      setAddFlash({ msg: "Queued.", err: false });
       setShowAdd(false);
+      if (!json.contact) {
+        setAddFlash({ msg: "Queued — but no contact found for this client!", err: true });
+      } else {
+        setAddFlash({ msg: `Queued via ${json.method} to ${json.contact}`, err: false });
+      }
       await loadQueue();
     } catch {
       setAddFlash({ msg: "Failed — try again.", err: true });
@@ -307,6 +323,8 @@ function VisitsPage() {
       setAddBusy(false);
     }
   }, [addClient, addText, loadQueue]);
+
+  if (!allowed) return null;
 
   return (
     <div style={PAGE}>
