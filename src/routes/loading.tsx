@@ -91,10 +91,9 @@ function normalize(d: GetDataResponse): ToolRow[] {
 }
 
 function LoadingPage() {
-  const { user } = useAuth();
-  const { effectiveRole } = useViewAs();
-  const canConfirm = canSee(effectiveRole, "special_confirm");
-  console.log("[loading] role", effectiveRole, "canConfirm", canConfirm);
+  const { user, role } = useAuth();
+  const canConfirm = canSee(role, "special_confirm");
+
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [items, setItems] = useState<ToolRow[] | null>(null);
