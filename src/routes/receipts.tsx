@@ -708,36 +708,69 @@ function InvoiceTab({
                   {entry.receipts.map((g) => {
                     const rec = g.receipt;
                     const vendor = rec?.vendor || g.lines[0]?.vendor || "Unknown vendor";
+                    const total = rec?.total || "";
+                    const photo = rec?.photo || "";
+                    const receiptId = rec?.receiptId || g.key;
                     return (
-                      <div key={g.key} style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>
-                          {vendor} · {fmtDate(g.dateStr)}
+                      <div key={g.key} style={{ ...RECEIPT_CARD, marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
+                              {vendor}
+                            </div>
+                            <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+                              {fmtDate(g.dateStr)}
+                              {total && ` · ${fmtMoney(total)}`}
+                              {photo && (
+                                <>
+                                  {" · "}
+                                  <a
+                                    href={photo}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: LIME, textDecoration: "underline" }}
+                                  >
+                                    receipt ↗
+                                  </a>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ReceiptMenu
+                            receipt={rec}
+                            receiptId={receiptId}
+                            onSaved={onSaved}
+                            onError={onError}
+                            refetch={refetch}
+                          />
                         </div>
                         <div style={{ display: "grid", gap: 6 }}>
                           {g.lines.map((l) => (
-                            <label key={l.row} style={{ ...LINE_ROW, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                              <input
-                                type="checkbox"
-                                checked={checked.has(l.row)}
-                                onChange={() => toggleRow(l.row)}
-                                style={{ width: 18, height: 18, accentColor: LIME, marginTop: 3 }}
-                              />
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 13, color: TEXT }}>
-                                  {l.description || "(no description)"}
-                                </div>
-                                <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                                  {l.quantity && `${l.quantity} × `}
-                                  {l.unitPrice && fmtMoney(l.unitPrice)}
-                                  {l.total && ` = ${fmtMoney(l.total)}`}
+                            <div key={l.row} style={{ ...LINE_ROW }}>
+                              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked.has(l.row)}
+                                  onChange={() => toggleRow(l.row)}
+                                  style={{ width: 18, height: 18, accentColor: LIME, marginTop: 3 }}
+                                />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <LineBody line={l} />
                                 </div>
                               </div>
-                            </label>
+                              <LineActions
+                                line={l}
+                                onSaved={onSaved}
+                                onError={onError}
+                                refetch={refetch}
+                              />
+                            </div>
                           ))}
                         </div>
                       </div>
                     );
                   })}
+
                 </div>
               )}
             </div>
