@@ -107,6 +107,56 @@ function fmtMoney(v: string): string {
   return `$${n.toFixed(2)}`;
 }
 
+async function postAction<T = Record<string, unknown>>(payload: unknown): Promise<T> {
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json()) as { ok?: boolean; error?: string } & T;
+  if (!json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+/** Downscale image to max 1600px, JPEG ~85%, return base64 (no data-url prefix). */
+async function downscaleToBase64(
+  file: File,
+  maxDim = 1600,
+  quality = 0.85,
+): Promise<{ data: string; mime: string; name: string }> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(fr.error || new Error("read failed"));
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("image decode failed"));
+    el.src = dataUrl;
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas ctx unavailable");
+  ctx.drawImage(img, 0, 0, w, h);
+  const jpeg = canvas.toDataURL("image/jpeg", quality);
+  const base64 = jpeg.split(",", 2)[1] ?? "";
+  return { data: base64, mime: "image/jpeg", name: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
+}
+
+type WriteHandlers = {
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+  refetch: () => void;
+};
+
+
 type Toast = { msg: string; err: boolean } | null;
 
 function ReceiptsPage() {
