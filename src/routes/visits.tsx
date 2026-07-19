@@ -99,6 +99,12 @@ type CardState = {
 
 function VisitsPage() {
   const { user } = useAuth();
+  const { effectiveRole } = useViewAs();
+  const navigate = useNavigate();
+  const allowed = canSee(effectiveRole, "visits");
+  useEffect(() => {
+    if (!allowed) void navigate({ to: "/" });
+  }, [allowed, navigate]);
   const [rows, setRows] = useState<QueueRow[] | null>(null);
   const [clients, setClients] = useState<string[]>([]);
   const [lastYes, setLastYes] = useState<string | null>(null);
