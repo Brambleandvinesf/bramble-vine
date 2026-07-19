@@ -286,6 +286,7 @@ function ReceiptsPage() {
             void refetch();
           }}
           onError={(msg) => setToast({ msg, err: true })}
+          refetch={() => void refetch()}
         />
       )}
 
@@ -298,8 +299,10 @@ function ReceiptsPage() {
             void refetch();
           }}
           onError={(msg) => setToast({ msg, err: true })}
+          refetch={() => void refetch()}
         />
       )}
+
 
       {toast && (
         <div style={{ ...TOAST, borderColor: toast.err ? RED : LIME_DIM, color: toast.err ? RED : LIME }}>
