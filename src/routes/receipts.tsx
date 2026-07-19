@@ -423,49 +423,52 @@ function DesignateTab({
           const vendor = rec?.vendor || g.lines[0]?.vendor || "Unknown vendor";
           const total = rec?.total || "";
           const photo = rec?.photo || "";
+          const receiptId = rec?.receiptId || g.key;
           return (
-            <div key={g.key} style={{ ...CARD, marginBottom: 10 }}>
-              <button
-                onClick={() => toggle(g.key)}
-                style={{
-                  ...GROUP_HEAD_BTN,
-                }}
-              >
-                <span style={{ color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
-                  {vendor}
-                </span>
-                <span style={{ color: MUTED, fontSize: 12 }}>
-                  {fmtDate(g.dateStr)}
-                </span>
-                {total && (
-                  <span style={{ color: TEXT, fontSize: 12 }}>{fmtMoney(total)}</span>
-                )}
-                {photo && (
-                  <a
-                    href={photo}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ color: LIME, fontSize: 11, textDecoration: "underline" }}
-                  >
-                    receipt ↗
-                  </a>
-                )}
-                <span style={{ marginLeft: "auto", color: MUTED, fontSize: 11 }}>
-                  {g.lines.length} line{g.lines.length === 1 ? "" : "s"} · {isOpen ? "▾" : "▸"}
-                </span>
-              </button>
+            <div key={g.key} style={{ ...RECEIPT_CARD, marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => toggle(g.key)}
+                  style={{ ...GROUP_HEAD_BTN, flex: 1 }}
+                >
+                  <span style={{ color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
+                    {vendor}
+                  </span>
+                  <span style={{ color: MUTED, fontSize: 12 }}>
+                    {fmtDate(g.dateStr)}
+                  </span>
+                  {total && (
+                    <span style={{ color: TEXT, fontSize: 12 }}>{fmtMoney(total)}</span>
+                  )}
+                  {photo && (
+                    <a
+                      href={photo}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: LIME, fontSize: 11, textDecoration: "underline" }}
+                    >
+                      receipt ↗
+                    </a>
+                  )}
+                  <span style={{ marginLeft: "auto", color: MUTED, fontSize: 11 }}>
+                    {g.lines.length} line{g.lines.length === 1 ? "" : "s"} · {isOpen ? "▾" : "▸"}
+                  </span>
+                </button>
+                <ReceiptMenu
+                  receipt={rec}
+                  receiptId={receiptId}
+                  onSaved={onSaved}
+                  onError={onError}
+                  refetch={refetch}
+                />
+              </div>
 
               {isOpen && (
                 <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                   {g.lines.map((l) => (
                     <div key={l.row} style={LINE_ROW}>
-                      <div style={{ fontSize: 13, color: TEXT }}>{l.description || "(no description)"}</div>
-                      <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                        {l.quantity && `${l.quantity} × `}
-                        {l.unitPrice && fmtMoney(l.unitPrice)}
-                        {l.total && ` = ${fmtMoney(l.total)}`}
-                      </div>
+                      <LineBody line={l} />
                       <div style={{ marginTop: 6 }}>
                         <select
                           value={picks[l.row] ?? ""}
@@ -487,6 +490,12 @@ function DesignateTab({
                           ))}
                         </select>
                       </div>
+                      <LineActions
+                        line={l}
+                        onSaved={onSaved}
+                        onError={onError}
+                        refetch={refetch}
+                      />
                     </div>
                   ))}
                 </div>
@@ -494,6 +503,7 @@ function DesignateTab({
             </div>
           );
         })}
+
       </div>
 
       {selectedCount > 0 && (
