@@ -32,7 +32,6 @@ const TILES_BY_ROLE: Record<Role, TileSpec[]> = {
     { key: "messages", title: "MESSAGES" },
   ],
   lead: [
-    { key: "special", title: "SPECIAL LOADING CONFIRM", special: true, pending: true },
     { key: "first", title: "TODAY'S FIRST VISIT" },
     { key: "loading", title: "LOADING STATUS" },
     { key: "unread", title: "UNREAD MESSAGES" },
