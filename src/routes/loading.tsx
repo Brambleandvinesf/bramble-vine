@@ -1,6 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
+import { canSee } from "../lib/permissions";
 
 export const Route = createFileRoute("/loading")({
   head: () => ({
@@ -16,15 +17,25 @@ export const Route = createFileRoute("/loading")({
  * Backend contract — DO NOT modify without confirmation.
  * The Apps Script web app is the ONLY backend. No other network
  * destinations, no direct Google API calls, no Make webhooks.
- * Reads: GET  <SCRIPT_URL>?action=getData -> { tools, projects, clients }
+ * Reads: GET  <SCRIPT_URL>?action=getData -> { tools, projects, clients, confirm }
  * Writes: POST <SCRIPT_URL> with Content-Type: text/plain
  *         body: { action: "setLoaded", materialId, row, loaded }
  * Text/plain is intentional — it avoids a CORS preflight.
  * The Apps Script decides which clients count as "today"; we filter
- * tools to that set. No client-side date logic.
+ * tools to that set and to projects whose Status is "Confirmed".
+ * No client-side date logic.
  * ============================================================ */
 const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
+
+const POLL_MS = 10000;
+
+type ConfirmState = {
+  day?: string;
+  confirmed?: boolean;
+  at?: string;
+  clients?: unknown[];
+};
 
 type ToolRow = {
   row: number;
@@ -40,13 +51,24 @@ type ToolRow = {
 
 type GetDataResponse = {
   tools?: Array<Record<string, unknown>>;
+  projects?: Array<Record<string, unknown>>;
   clients?: Array<unknown>;
+  confirm?: ConfirmState;
 };
 
 function normalize(d: GetDataResponse): ToolRow[] {
   const clients = new Set(
     (d.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
   );
+
+  const projectStatus: Record<string, string> = {};
+  (d.projects ?? []).forEach((p) => {
+    const id = String(p["Project ID"] ?? "").trim();
+    if (id) {
+      projectStatus[id] = String(p["Status"] ?? "").trim();
+    }
+  });
+
   return (d.tools ?? [])
     .map((t) => ({
       row: Number(t.row ?? 0),
@@ -59,32 +81,46 @@ function normalize(d: GetDataResponse): ToolRow[] {
       notes: String(t["Notes"] ?? ""),
       loaded: t["Loaded Status"] === true,
     }))
-    .filter((it) => it.item && clients.has(it.client));
+    .filter(
+      (it) =>
+        it.item &&
+        clients.has(it.client) &&
+        projectStatus[it.project] === "Confirmed",
+    );
 }
 
 function LoadingPage() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const canConfirm = canSee(role, "special_confirm");
+
+
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [items, setItems] = useState<ToolRow[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [writeErr, setWriteErr] = useState<string | null>(null);
 
-  const fetchedRef = useRef(false);
+  // Poll getData so the screen unlocks automatically once confirmed.
   useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
     let cancelled = false;
-    (async () => {
+    const tick = async () => {
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getData`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as GetDataResponse;
-        if (!cancelled) setItems(normalize(json));
+        if (cancelled) return;
+        setConfirm(json.confirm ?? null);
+        setItems(normalize(json));
+        setLoadErr(null);
       } catch (e) {
-        if (!cancelled) setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        if (cancelled) return;
+        setLoadErr(e instanceof Error ? e.message : "Failed to load");
       }
-    })();
+    };
+    tick();
+    const id = setInterval(tick, POLL_MS);
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
@@ -134,38 +170,6 @@ function LoadingPage() {
 
   return (
     <div style={PAGE}>
-      <header style={HEADER}>
-        <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-          LOADING CHECKLIST
-        </div>
-        <div style={SUBROW}>
-          <span>
-            <b style={{ color: LIME }}>{totals.done}</b>
-            {" of "}
-            {totals.total} loaded
-          </span>
-        </div>
-        <div style={METER}>
-          <div
-            style={{
-              height: "100%",
-              width: totals.total ? `${(100 * totals.done) / totals.total}%` : "0%",
-              background: LIME,
-              transition: "width .25s ease",
-            }}
-          />
-        </div>
-        {user && (
-          <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
-            SIGNED IN AS {user.toUpperCase()}
-          </div>
-        )}
-      </header>
-
-      {writeErr && (
-        <div style={ERRBAR}>Save failed — {writeErr}. Toggle reverted.</div>
-      )}
-
       {loadErr && (
         <div style={STATE}>
           Could not load checklist.
@@ -176,97 +180,168 @@ function LoadingPage() {
         </div>
       )}
 
-      {!loadErr && items === null && <div style={STATE}>Loading…</div>}
-
-      {!loadErr && items !== null && items.length === 0 && (
-        <div style={STATE}>
-          Nothing to load.
-          <br />
-          <b style={{ color: LIME }}>Truck is ready.</b>
-        </div>
+      {!loadErr && !confirm && (
+        <div style={STATE}>Loading…</div>
       )}
 
-      {Object.keys(grouped).map((client) => {
-        const projects = grouped[client];
-        return (
-          <section key={client} style={{ margin: "18px 12px 0" }}>
-            <div style={CLIENT_HEAD}>
-              <span style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
-                {client}
+      {!loadErr && confirm && !confirm.confirmed && (
+        <WaitingState canConfirm={canConfirm} />
+      )}
+
+      {!loadErr && confirm?.confirmed && (
+        <>
+          <header style={HEADER}>
+            <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+              LOADING CHECKLIST
+            </div>
+            <div style={SUBROW}>
+              <span>
+                <b style={{ color: LIME }}>{totals.done}</b>
+                {" of "}
+                {totals.total} loaded
               </span>
             </div>
-            {Object.keys(projects).map((project) => {
-              const rows = projects[project];
-              const done = rows.filter((r) => r.loaded).length;
-              return (
-                <div key={project} style={{ marginBottom: 12 }}>
-                  <div style={PROJECT_HEAD}>
-                    <span style={{ color: DIM_GREEN, fontSize: 12, letterSpacing: 1 }}>
-                      {project}
-                    </span>
-                    <span style={{ fontSize: 12, color: MUTED, marginLeft: "auto" }}>
-                      {done} of {rows.length} loaded
-                    </span>
-                  </div>
-                  <div style={ROWS}>
-                    {rows.map((it, i) => {
-                      const onsite = /-\s*onsite/i.test(it.item);
-                      const name = it.item.replace(/\s*-\s*onsite\s*$/i, "");
-                      const meta = [it.qty, it.size].filter(Boolean).join(" · ");
-                      const noId = !it.materialId;
-                      return (
-                        <div
-                          key={`${it.row}-${i}`}
-                          onClick={() => !noId && toggle(it.row)}
-                          style={{
-                            ...ITEM,
-                            borderBottom: i === rows.length - 1 ? "none" : `1px solid ${LINE}`,
-                            cursor: noId ? "default" : "pointer",
-                            opacity: noId ? 0.6 : 1,
-                          }}
-                        >
-                          <div
-                            style={{
-                              ...BOX,
-                              background: it.loaded ? LIME : "transparent",
-                              borderColor: it.loaded ? LIME : LIME_DIM,
-                            }}
-                          >
-                            {it.loaded ? "✓" : ""}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={METER}>
+              <div
+                style={{
+                  height: "100%",
+                  width: totals.total ? `${(100 * totals.done) / totals.total}%` : "0%",
+                  background: LIME,
+                  transition: "width .25s ease",
+                }}
+              />
+            </div>
+            {user && (
+              <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
+                SIGNED IN AS {user.toUpperCase()}
+              </div>
+            )}
+          </header>
+
+          {writeErr && (
+            <div style={ERRBAR}>Save failed — {writeErr}. Toggle reverted.</div>
+          )}
+
+          {items === null && <div style={STATE}>Loading…</div>}
+
+          {items !== null && items.length === 0 && (
+            <div style={STATE}>
+              Nothing to load.
+              <br />
+              <b style={{ color: LIME }}>Everything's loaded.</b>
+            </div>
+          )}
+
+          {Object.keys(grouped).map((client) => {
+            const projects = grouped[client];
+            return (
+              <section key={client} style={{ margin: "18px 12px 0" }}>
+                <div style={CLIENT_HEAD}>
+                  <span style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
+                    {client}
+                  </span>
+                </div>
+                {Object.keys(projects).map((project) => {
+                  const rows = projects[project];
+                  const done = rows.filter((r) => r.loaded).length;
+                  return (
+                    <div key={project} style={{ marginBottom: 12 }}>
+                      <div style={PROJECT_HEAD}>
+                        <span style={{ color: DIM_GREEN, fontSize: 12, letterSpacing: 1 }}>
+                          {project}
+                        </span>
+                        <span style={{ fontSize: 12, color: MUTED, marginLeft: "auto" }}>
+                          {done} of {rows.length} loaded
+                        </span>
+                      </div>
+                      <div style={ROWS}>
+                        {rows.map((it, i) => {
+                          const onsite = /-\s*onsite/i.test(it.item);
+                          const name = it.item.replace(/\s*-\s*onsite\s*$/i, "");
+                          const meta = [it.qty, it.size].filter(Boolean).join(" · ");
+                          const noId = !it.materialId;
+                          return (
                             <div
+                              key={`${it.row}-${i}`}
+                              onClick={() => !noId && toggle(it.row)}
                               style={{
-                                fontSize: 15,
-                                lineHeight: 1.35,
-                                wordWrap: "break-word",
-                                color: it.loaded ? MUTED : TEXT,
-                                textDecoration: it.loaded ? "line-through" : "none",
+                                ...ITEM,
+                                borderBottom: i === rows.length - 1 ? "none" : `1px solid ${LINE}`,
+                                cursor: noId ? "default" : "pointer",
+                                opacity: noId ? 0.6 : 1,
                               }}
                             >
-                              {name}
-                              {onsite && <span style={TAG}>ONSITE</span>}
-                              {noId && (
-                                <span style={{ ...TAG, background: AMBER, color: "#0a0a0a" }}>
-                                  NO ID
-                                </span>
-                              )}
+                              <div
+                                style={{
+                                  ...BOX,
+                                  background: it.loaded ? LIME : "transparent",
+                                  borderColor: it.loaded ? LIME : LIME_DIM,
+                                }}
+                              >
+                                {it.loaded ? "✓" : ""}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontSize: 15,
+                                    lineHeight: 1.35,
+                                    wordWrap: "break-word",
+                                    color: it.loaded ? MUTED : TEXT,
+                                    textDecoration: it.loaded ? "line-through" : "none",
+                                  }}
+                                >
+                                  {name}
+                                  {onsite && <span style={TAG}>ONSITE</span>}
+                                  {noId && (
+                                    <span style={{ ...TAG, background: AMBER, color: "#0a0a0a" }}>
+                                      NO ID
+                                    </span>
+                                  )}
+                                </div>
+                                {meta && <div style={META}>{meta}</div>}
+                                {it.notes && <div style={NOTES}>{it.notes}</div>}
+                              </div>
                             </div>
-                            {meta && <div style={META}>{meta}</div>}
-                            {it.notes && <div style={NOTES}>{it.notes}</div>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-        );
-      })}
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            );
+          })}
 
-      <div style={{ height: 40 }} />
+          <div style={{ height: 40 }} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function WaitingState({ canConfirm }: { canConfirm: boolean }) {
+  return (
+    <div style={WAITING}>
+      <div
+        style={{
+          color: LIME,
+          fontSize: 18,
+          fontWeight: "bold",
+          letterSpacing: 2,
+          marginBottom: 12,
+          textTransform: "uppercase",
+        }}
+      >
+        Waiting on loading confirmation
+      </div>
+      <div style={{ color: MUTED, fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
+        Today's list unlocks once a lead confirms the day's projects.
+      </div>
+      {canConfirm && (
+        <Link to="/confirm" style={CONFIRM_BUTTON}>
+          REVIEW & CONFIRM NOW
+        </Link>
+      )}
     </div>
   );
 }
@@ -326,6 +401,32 @@ const STATE: React.CSSProperties = {
   color: MUTED,
   fontSize: 14,
   lineHeight: 1.6,
+};
+const WAITING: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "calc(100vh - 60px - 56px)",
+  textAlign: "center",
+  padding: "20px",
+};
+const CONFIRM_BUTTON: React.CSSProperties = {
+  marginTop: 24,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
+  padding: "10px 18px",
+  background: "transparent",
+  border: `1px solid ${LIME}`,
+  color: LIME,
+  borderRadius: 6,
+  textDecoration: "none",
+  fontSize: 12,
+  letterSpacing: 1,
+  fontWeight: "bold",
+  textTransform: "uppercase",
 };
 const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
