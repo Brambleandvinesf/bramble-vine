@@ -108,9 +108,12 @@ function LoadingPage() {
         const res = await fetch(`${SCRIPT_URL}?action=getData`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as GetDataResponse;
+        console.log("[loading] raw json", json);
+        const normalized = normalize(json);
+        console.log("[loading] normalized", normalized);
         if (cancelled) return;
         setConfirm(json.confirm ?? null);
-        setItems(normalize(json));
+        setItems(normalized);
         setLoadErr(null);
       } catch (e) {
         if (cancelled) return;
