@@ -531,12 +531,15 @@ function InvoiceTab({
   receiptById,
   onSaved,
   onError,
+  refetch,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
+  refetch: () => void;
 }) {
+
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [queuedOpen, setQueuedOpen] = useState(false);
