@@ -21,7 +21,7 @@ export const Route = createFileRoute("/confirm")({
  *         body: { action: "confirmDay", statuses, updates,
  *                 newProjects, deletes, sendText }
  * ============================================================ */
-const SCRIPT_URL =
+export const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
 
 type Item = { name: string; qty: string; size: string; notes: string };
@@ -118,6 +118,28 @@ function timeLabel(iso?: string): string {
     minute: "2-digit",
     timeZone: "America/Los_Angeles",
   }).format(d);
+}
+
+function summarizeReport(report?: Record<string, unknown> | null): string {
+  if (!report || typeof report !== "object") return "";
+  const parts: string[] = [];
+  const updates = Number(report.updates);
+  if (updates > 0) parts.push(`${updates} updated`);
+  const statuses = Number(report.statuses);
+  if (statuses > 0) parts.push(`${statuses} confirmed/skipped`);
+  const deletes = Number(report.deletes);
+  if (deletes > 0) parts.push(`${deletes} deleted`);
+  const newProjects = Array.isArray(report.newProjects) ? report.newProjects.length : 0;
+  if (newProjects > 0) parts.push(`${newProjects} added`);
+  const added = Number(report.added);
+  if (added > 0) parts.push(`${added} added`);
+  const rebuilt =
+    report.rebuilt && typeof report.rebuilt === "object" ? Object.keys(report.rebuilt).length : 0;
+  if (rebuilt > 0) parts.push(`${rebuilt} client${rebuilt === 1 ? "" : "s"} rebuilt`);
+  const texts =
+    report.texts && typeof report.texts === "object" ? Object.keys(report.texts).length : 0;
+  if (texts > 0) parts.push("crew texted");
+  return parts.join(" · ");
 }
 
 function ConfirmPage() {
@@ -354,12 +376,14 @@ function ConfirmPage() {
       });
       const json = (await res.json()) as {
         ok?: boolean;
-        report?: string;
+        report?: Record<string, unknown>;
+        error?: string;
         state?: ConfirmState;
       };
-      if (!json.ok) throw new Error(json.report || "not ok");
+      if (!json.ok) throw new Error(json.error || "not ok");
+      const reportSummary = summarizeReport(json.report);
       setSubmitFlash({
-        msg: json.report ? `Confirmed. ${json.report}` : "Confirmed.",
+        msg: reportSummary ? `Confirmed. ${reportSummary}` : "Confirmed.",
         err: false,
       });
       if (json.state) setState(json.state);

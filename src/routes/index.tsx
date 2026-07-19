@@ -1,7 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, type ReactNode } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth, type Role } from "../lib/auth";
 import { useViewAs, VIEW_AS_ROLES } from "../lib/view-as";
+import { canSee } from "../lib/permissions";
+import { SCRIPT_URL } from "./confirm";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,6 +53,32 @@ function HomePage() {
   const { role: actualRole, name } = useAuth();
   const { effectiveRole, setViewAs, viewAs } = useViewAs();
   const role = effectiveRole;
+
+  const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  useEffect(() => {
+    if (!canSee(role, "special_confirm")) return;
+    let cancelled = false;
+    setConfirmLoading(true);
+    fetch(`${SCRIPT_URL}?action=getConfirm`)
+      .then((res) => res.json())
+      .then((json: { state?: { confirmed?: boolean } }) => {
+        if (cancelled) return;
+        setConfirmState(json.state ?? null);
+      })
+      .catch((e) => {
+        console.error("[home confirm] error", e);
+        if (cancelled) return;
+        setConfirmState(null);
+      })
+      .finally(() => {
+        if (!cancelled) setConfirmLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
 
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
 
@@ -118,6 +146,39 @@ function HomePage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+        {canSee(role, "special_confirm") && !confirmLoading && confirmState && (
+          <Link to="/confirm" style={{ textDecoration: "none" }}>
+            <div
+              style={{
+                background: PANEL,
+                border: `1px solid ${confirmState.confirmed ? LIME : "#ffb03f"}`,
+                borderRadius: 10,
+                padding: "14px 16px",
+                minHeight: 56,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 16, color: confirmState.confirmed ? LIME : "#ffb03f" }}>
+                {confirmState.confirmed ? "✓" : "!"}
+              </span>
+              <span
+                style={{
+                  color: confirmState.confirmed ? LIME : "#ffb03f",
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {confirmState.confirmed
+                  ? "Loading list confirmed"
+                  : "Loading list not confirmed — review today's projects"}
+              </span>
+            </div>
+          </Link>
+        )}
         {tiles.map((t) => (
           <Tile key={t.key} title={t.title} pulse={t.special && t.pending}>
             —
