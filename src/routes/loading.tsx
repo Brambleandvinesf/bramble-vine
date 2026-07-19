@@ -94,6 +94,7 @@ function LoadingPage() {
   const { user } = useAuth();
   const { effectiveRole } = useViewAs();
   const canConfirm = canSee(effectiveRole, "special_confirm");
+  console.log("[loading] role", effectiveRole, "canConfirm", canConfirm);
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [items, setItems] = useState<ToolRow[] | null>(null);
