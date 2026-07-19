@@ -64,8 +64,9 @@ function HomePage() {
     fetch(`${SCRIPT_URL}?action=getConfirm`)
       .then((res) => res.json())
       .then((json: { state?: { confirmed?: boolean } }) => {
-        console.log("[home confirm] ok", json);
+        console.log("[home confirm] ok cancelled=", cancelled, json);
         if (cancelled) return;
+        console.log("[home confirm] setting state", json.state);
         setConfirmState(json.state ?? null);
       })
       .catch((e) => {
@@ -74,9 +75,11 @@ function HomePage() {
         setConfirmState(null);
       })
       .finally(() => {
+        console.log("[home confirm] finally cancelled=", cancelled);
         if (!cancelled) setConfirmLoading(false);
       });
     return () => {
+      console.log("[home confirm] cleanup");
       cancelled = true;
     };
   }, [role]);
