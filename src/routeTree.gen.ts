@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
+import { Route as MoreRouteImport } from './routes/more'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoadingRouteImport } from './routes/loading'
@@ -19,6 +20,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const ReceiptsRoute = ReceiptsRouteImport.update({
   id: '/receipts',
   path: '/receipts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoreRoute = MoreRouteImport.update({
+  id: '/more',
+  path: '/more',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessagesRoute = MessagesRouteImport.update({
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/more': typeof MoreRoute
   '/receipts': typeof ReceiptsRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/more': typeof MoreRoute
   '/receipts': typeof ReceiptsRoute
 }
 export interface FileRoutesById {
@@ -70,13 +78,28 @@ export interface FileRoutesById {
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
+  '/more': typeof MoreRoute
   '/receipts': typeof ReceiptsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/field' | '/loading' | '/login' | '/messages' | '/receipts'
+  fullPaths:
+    | '/'
+    | '/field'
+    | '/loading'
+    | '/login'
+    | '/messages'
+    | '/more'
+    | '/receipts'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/field' | '/loading' | '/login' | '/messages' | '/receipts'
+  to:
+    | '/'
+    | '/field'
+    | '/loading'
+    | '/login'
+    | '/messages'
+    | '/more'
+    | '/receipts'
   id:
     | '__root__'
     | '/'
@@ -84,6 +107,7 @@ export interface FileRouteTypes {
     | '/loading'
     | '/login'
     | '/messages'
+    | '/more'
     | '/receipts'
   fileRoutesById: FileRoutesById
 }
@@ -93,6 +117,7 @@ export interface RootRouteChildren {
   LoadingRoute: typeof LoadingRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
+  MoreRoute: typeof MoreRoute
   ReceiptsRoute: typeof ReceiptsRoute
 }
 
@@ -103,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/receipts'
       fullPath: '/receipts'
       preLoaderRoute: typeof ReceiptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/more': {
+      id: '/more'
+      path: '/more'
+      fullPath: '/more'
+      preLoaderRoute: typeof MoreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/messages': {
@@ -149,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoadingRoute: LoadingRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
+  MoreRoute: MoreRoute,
   ReceiptsRoute: ReceiptsRoute,
 }
 export const routeTree = rootRouteImport
