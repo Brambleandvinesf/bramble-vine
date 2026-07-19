@@ -54,30 +54,45 @@ function HomePage() {
   const role = effectiveRole;
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(true);
 
+  // Persistent self-updating banner: fetch on mount, on window focus, and every 60s.
+  // Effect does NOT depend on the viewed role so VIEW AS switches never blank it.
   useEffect(() => {
-    if (!canSee(role, "special_confirm")) return;
     let cancelled = false;
-    setConfirmLoading(true);
-    fetch(`${SCRIPT_URL}?action=getConfirm`)
-      .then((res) => res.json())
-      .then((json: { state?: { confirmed?: boolean } }) => {
+
+    const tick = async () => {
+      if (!cancelled) setConfirmLoading(true);
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { state?: { confirmed?: boolean } };
         if (cancelled) return;
         setConfirmState(json.state ?? null);
-      })
-      .catch((e) => {
+      } catch (e) {
         console.error("[home confirm] error", e);
         if (cancelled) return;
-        setConfirmState(null);
-      })
-      .finally(() => {
+        // Fail toward warning, never toward hidden.
+        setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
+      } finally {
         if (!cancelled) setConfirmLoading(false);
-      });
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 60_000);
+
+    const onFocus = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onFocus);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [role]);
+  }, []);
 
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
 
