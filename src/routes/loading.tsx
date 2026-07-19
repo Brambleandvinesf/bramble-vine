@@ -68,7 +68,10 @@ function LoadingPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [writeErr, setWriteErr] = useState<string | null>(null);
 
+  const fetchedRef = useRef(false);
   useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     let cancelled = false;
     (async () => {
       try {
