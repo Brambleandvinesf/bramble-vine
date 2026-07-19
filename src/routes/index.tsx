@@ -54,6 +54,31 @@ function HomePage() {
   const { effectiveRole, setViewAs, viewAs } = useViewAs();
   const role = effectiveRole;
 
+  const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  useEffect(() => {
+    if (!canSee(role, "special_confirm")) return;
+    let cancelled = false;
+    setConfirmLoading(true);
+    fetch(`${SCRIPT_URL}?action=getConfirm`)
+      .then((res) => res.json())
+      .then((json: { state?: { confirmed?: boolean } }) => {
+        if (cancelled) return;
+        setConfirmState(json.state ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setConfirmState(null);
+      })
+      .finally(() => {
+        if (!cancelled) setConfirmLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
+
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
 
   if (!role) return null;
