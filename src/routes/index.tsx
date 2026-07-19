@@ -32,7 +32,6 @@ const TILES_BY_ROLE: Record<Role, TileSpec[]> = {
     { key: "messages", title: "MESSAGES" },
   ],
   lead: [
-    { key: "special", title: "SPECIAL LOADING CONFIRM", special: true, pending: true },
     { key: "first", title: "TODAY'S FIRST VISIT" },
     { key: "loading", title: "LOADING STATUS" },
     { key: "unread", title: "UNREAD MESSAGES" },
@@ -55,30 +54,45 @@ function HomePage() {
   const role = effectiveRole;
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
-  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(true);
 
+  // Persistent self-updating banner: fetch on mount, on window focus, and every 60s.
+  // Effect does NOT depend on the viewed role so VIEW AS switches never blank it.
   useEffect(() => {
-    if (!canSee(role, "special_confirm")) return;
     let cancelled = false;
-    setConfirmLoading(true);
-    fetch(`${SCRIPT_URL}?action=getConfirm`)
-      .then((res) => res.json())
-      .then((json: { state?: { confirmed?: boolean } }) => {
+
+    const tick = async () => {
+      if (!cancelled) setConfirmLoading(true);
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { state?: { confirmed?: boolean } };
         if (cancelled) return;
         setConfirmState(json.state ?? null);
-      })
-      .catch((e) => {
+      } catch (e) {
         console.error("[home confirm] error", e);
         if (cancelled) return;
-        setConfirmState(null);
-      })
-      .finally(() => {
+        // Fail toward warning, never toward hidden.
+        setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
+      } finally {
         if (!cancelled) setConfirmLoading(false);
-      });
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 60_000);
+
+    const onFocus = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onFocus);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [role]);
+  }, []);
 
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
 
@@ -146,39 +160,11 @@ function HomePage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-        {canSee(role, "special_confirm") && !confirmLoading && confirmState && (
-          <Link to="/confirm" style={{ textDecoration: "none" }}>
-            <div
-              style={{
-                background: PANEL,
-                border: `1px solid ${confirmState.confirmed ? LIME : "#ffb03f"}`,
-                borderRadius: 10,
-                padding: "14px 16px",
-                minHeight: 56,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <span style={{ fontSize: 16, color: confirmState.confirmed ? LIME : "#ffb03f" }}>
-                {confirmState.confirmed ? "✓" : "!"}
-              </span>
-              <span
-                style={{
-                  color: confirmState.confirmed ? LIME : "#ffb03f",
-                  fontSize: 13,
-                  fontWeight: "bold",
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                }}
-              >
-                {confirmState.confirmed
-                  ? "Loading list confirmed"
-                  : "Loading list not confirmed — review today's projects"}
-              </span>
-            </div>
-          </Link>
-        )}
+        <ConfirmBanner
+          loading={confirmLoading}
+          confirmed={confirmState?.confirmed ?? null}
+          role={role}
+        />
         {tiles.map((t) => (
           <Tile key={t.key} title={t.title} pulse={t.special && t.pending}>
             —
@@ -186,6 +172,67 @@ function HomePage() {
         ))}
       </div>
     </div>
+  );
+}
+
+function ConfirmBanner({
+  loading,
+  confirmed,
+  role,
+}: {
+  loading: boolean;
+  confirmed: boolean | null;
+  role: Role;
+}) {
+  const clickable = canSee(role, "special_confirm");
+  const checking = loading && confirmed === null;
+  const isConfirmed = confirmed === true;
+  const isWarning = !isConfirmed;
+
+  const icon = checking ? "•" : isConfirmed ? "✓" : "!";
+  const color = isConfirmed ? LIME : "#ffb03f";
+  const text = checking
+    ? "Checking today's confirmation…"
+    : isConfirmed
+    ? "Loading list confirmed ✓"
+    : "Loading list not confirmed — review today's projects";
+
+  const banner = (
+    <div
+      style={{
+        background: PANEL,
+        border: `1px solid ${color}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        minHeight: 56,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <span style={{ fontSize: 16, color, width: 18, textAlign: "center" }}>
+        {icon}
+      </span>
+      <span
+        style={{
+          color,
+          fontSize: 13,
+          fontWeight: "bold",
+          letterSpacing: 1,
+          textTransform: "uppercase",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+
+  return clickable ? (
+    <Link to="/confirm" style={{ textDecoration: "none" }}>
+      {banner}
+    </Link>
+  ) : (
+    banner
   );
 }
 
