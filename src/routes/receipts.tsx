@@ -321,13 +321,16 @@ function DesignateTab({
   designations,
   onSaved,
   onError,
+  refetch,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   designations: string[];
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
+  refetch: () => void;
 }) {
+
   const [picks, setPicks] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
