@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
+import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as MoreRouteImport } from './routes/more'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
@@ -27,6 +28,11 @@ const VisitsRoute = VisitsRouteImport.update({
 const ReceiptsRoute = ReceiptsRouteImport.update({
   id: '/receipts',
   path: '/receipts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MoreRoute = MoreRouteImport.update({
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/more': typeof MoreRoute
+  '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
   '/visits': typeof VisitsRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/more': typeof MoreRoute
+  '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
   '/visits': typeof VisitsRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
   '/more': typeof MoreRoute
+  '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
   '/visits': typeof VisitsRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/messages'
     | '/more'
+    | '/projects'
     | '/receipts'
     | '/visits'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/messages'
     | '/more'
+    | '/projects'
     | '/receipts'
     | '/visits'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/messages'
     | '/more'
+    | '/projects'
     | '/receipts'
     | '/visits'
   fileRoutesById: FileRoutesById
@@ -143,6 +155,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
   MoreRoute: typeof MoreRoute
+  ProjectsRoute: typeof ProjectsRoute
   ReceiptsRoute: typeof ReceiptsRoute
   VisitsRoute: typeof VisitsRoute
 }
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/receipts'
       fullPath: '/receipts'
       preLoaderRoute: typeof ReceiptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/more': {
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,
   MoreRoute: MoreRoute,
+  ProjectsRoute: ProjectsRoute,
   ReceiptsRoute: ReceiptsRoute,
   VisitsRoute: VisitsRoute,
 }
