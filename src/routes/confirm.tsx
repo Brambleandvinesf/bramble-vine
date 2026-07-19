@@ -376,12 +376,14 @@ function ConfirmPage() {
       });
       const json = (await res.json()) as {
         ok?: boolean;
-        report?: string;
+        report?: Record<string, unknown>;
+        error?: string;
         state?: ConfirmState;
       };
-      if (!json.ok) throw new Error(json.report || "not ok");
+      if (!json.ok) throw new Error(json.error || "not ok");
+      const reportSummary = summarizeReport(json.report);
       setSubmitFlash({
-        msg: json.report ? `Confirmed. ${json.report}` : "Confirmed.",
+        msg: reportSummary ? `Confirmed. ${reportSummary}` : "Confirmed.",
         err: false,
       });
       if (json.state) setState(json.state);
