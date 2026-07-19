@@ -145,6 +145,39 @@ function HomePage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+        {canSee(role, "special_confirm") && !confirmLoading && confirmState && (
+          <Link to="/confirm" style={{ textDecoration: "none" }}>
+            <div
+              style={{
+                background: PANEL,
+                border: `1px solid ${confirmState.confirmed ? LIME : "#ffb03f"}`,
+                borderRadius: 10,
+                padding: "14px 16px",
+                minHeight: 56,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 16, color: confirmState.confirmed ? LIME : "#ffb03f" }}>
+                {confirmState.confirmed ? "✓" : "!"}
+              </span>
+              <span
+                style={{
+                  color: confirmState.confirmed ? LIME : "#ffb03f",
+                  fontSize: 13,
+                  fontWeight: "bold",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {confirmState.confirmed
+                  ? "Loading list confirmed"
+                  : "Loading list not confirmed — review today's projects"}
+              </span>
+            </div>
+          </Link>
+        )}
         {tiles.map((t) => (
           <Tile key={t.key} title={t.title} pulse={t.special && t.pending}>
             —
