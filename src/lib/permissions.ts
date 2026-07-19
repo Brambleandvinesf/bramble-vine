@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   messages:        { lead: 1, assistant: 1, office: 1, management: 1 },
   rcpt_designate:  { lead: 1, assistant: 1, office: 1, management: 1 },
   rcpt_invoice:    { lead: 0, assistant: 0, office: 1, management: 1 },
+  projects:        { lead: 1, assistant: 0, office: 1, management: 1 },
   admin:           { lead: 0, assistant: 0, office: 0, management: 1 },
 } as const;
 
