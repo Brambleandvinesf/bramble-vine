@@ -1074,4 +1074,3 @@ const STATE: React.CSSProperties = {
 };
 
 // Silence unused var warning for canSee import (kept for future gating).
-void canSee;
