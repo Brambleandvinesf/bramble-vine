@@ -147,11 +147,70 @@ function AppFrame() {
     <>
       <NavBar />
       {ready && (user || onLogin) ? <Outlet /> : null}
+      {ready && user && !onLogin ? <BottomTabBar /> : null}
     </>
   );
 }
 
-function NavBar() {
+type TabDef = { to: string; label: string; screens: ScreenId[] };
+const TABS: TabDef[] = [
+  { to: "/", label: "HOME", screens: ["dashboard"] },
+  { to: "/loading", label: "LOADING", screens: ["loading"] },
+  {
+    to: "/field",
+    label: "FIELD",
+    screens: ["route_enroute", "route_arrived", "route_visit", "route_debrief", "route_next"],
+  },
+  { to: "/messages", label: "MESSAGES", screens: ["messages"] },
+  { to: "/receipts", label: "RECEIPTS", screens: ["rcpt_designate", "rcpt_invoice"] },
+  { to: "/more", label: "MORE", screens: ["admin"] },
+];
+
+function BottomTabBar() {
+  const { effectiveRole } = useViewAs();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const visible = TABS.filter((t) => t.screens.some((s) => canSee(effectiveRole, s)));
+  return (
+    <nav
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 100,
+        display: "flex",
+        background: "#121212",
+        borderTop: "1px solid #222",
+        fontFamily: "'Courier New', Courier, monospace",
+      }}
+    >
+      {visible.map((t) => {
+        const active = t.to === "/" ? pathname === "/" : pathname === t.to || pathname.startsWith(t.to + "/");
+        return (
+          <Link
+            key={t.to}
+            to={t.to}
+            style={{
+              flex: 1,
+              minHeight: 56,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: active ? "#7cff00" : "#4a7a1e",
+              textDecoration: "none",
+              fontSize: 11,
+              letterSpacing: 2,
+              fontWeight: "bold",
+            }}
+          >
+            {t.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
   const { user, signOut } = useAuth();
   return (
     <nav
