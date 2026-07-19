@@ -211,6 +211,7 @@ function BottomTabBar() {
   );
 }
 
+function NavBar() {
   const { user, signOut } = useAuth();
   return (
     <nav
