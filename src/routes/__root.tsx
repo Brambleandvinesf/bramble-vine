@@ -13,6 +13,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "../lib/auth";
+import { ViewAsProvider, useViewAs } from "../lib/view-as";
+import { canSee, type ScreenId } from "../lib/permissions";
 
 function NotFoundComponent() {
   return (
