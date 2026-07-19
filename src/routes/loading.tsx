@@ -60,8 +60,6 @@ function normalize(d: GetDataResponse): ToolRow[] {
   const clients = new Set(
     (d.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
   );
-  console.log("[normalize] clients", Array.from(clients));
-  console.log("[normalize] projects", d.projects);
 
   const projectStatus: Record<string, string> = {};
   (d.projects ?? []).forEach((p) => {
@@ -70,26 +68,25 @@ function normalize(d: GetDataResponse): ToolRow[] {
       projectStatus[id] = String(p["Status"] ?? "").trim();
     }
   });
-  console.log("[normalize] projectStatus", projectStatus);
 
-  const mapped = (d.tools ?? []).map((t) => ({
-    row: Number(t.row ?? 0),
-    materialId: String(t["Material ID"] ?? ""),
-    client: String(t["Client Name"] ?? "").trim(),
-    project: String(t["Project ID"] ?? ""),
-    item: String(t["Item Name"] ?? ""),
-    qty: String(t["Quantity"] ?? ""),
-    size: String(t["Size"] ?? ""),
-    notes: String(t["Notes"] ?? ""),
-    loaded: t["Loaded Status"] === true,
-  }));
-  console.log("[normalize] mapped", mapped);
-  return mapped.filter(
-    (it) =>
-      it.item &&
-      clients.has(it.client) &&
-      projectStatus[it.project] === "Confirmed",
-  );
+  return (d.tools ?? [])
+    .map((t) => ({
+      row: Number(t.row ?? 0),
+      materialId: String(t["Material ID"] ?? ""),
+      client: String(t["Client Name"] ?? "").trim(),
+      project: String(t["Project ID"] ?? ""),
+      item: String(t["Item Name"] ?? ""),
+      qty: String(t["Quantity"] ?? ""),
+      size: String(t["Size"] ?? ""),
+      notes: String(t["Notes"] ?? ""),
+      loaded: t["Loaded Status"] === true,
+    }))
+    .filter(
+      (it) =>
+        it.item &&
+        clients.has(it.client) &&
+        projectStatus[it.project] === "Confirmed",
+    );
 }
 
 function LoadingPage() {
