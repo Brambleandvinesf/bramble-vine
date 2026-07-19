@@ -6,18 +6,23 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
  * boundary — the Apps Script endpoint is the source of truth for data.
  */
 
-const ALLOWLIST = [
-  "brandon@brambleandvine.com",
-  "info@brambleandvinesf.com",
-  "crew1@brambleandvine.com",
-  "crew2@brambleandvine.com",
-  "crew3@brambleandvine.com",
-] as const;
+export type Role = "management" | "lead" | "assistant" | "office";
+
+type CrewEntry = { email: string; role: Role; name: string };
+
+const ALLOWLIST: CrewEntry[] = [
+  { email: "brandon@brambleandvinesf.com", role: "management", name: "Brandon" },
+  { email: "angel@brambleandvinesf.com", role: "lead", name: "Angel" },
+  { email: "thornsandtendrils@brambleandvinesf.com", role: "assistant", name: "Field Crew" },
+  { email: "info@brambleandvinesf.com", role: "office", name: "Office" },
+];
 
 const STORAGE_KEY = "bv.crew.email";
 
 type AuthCtx = {
   user: string | null;
+  role: Role | null;
+  name: string | null;
   ready: boolean;
   signIn: (email: string) => { ok: true } | { ok: false; error: string };
   signOut: () => void;
@@ -25,18 +30,30 @@ type AuthCtx = {
 
 const Ctx = createContext<AuthCtx | null>(null);
 
+function lookup(email: string): CrewEntry | undefined {
+  const n = email.trim().toLowerCase();
+  return ALLOWLIST.find((e) => e.email === n);
+}
+
 export function isAllowed(email: string): boolean {
-  return (ALLOWLIST as readonly string[]).includes(email.trim().toLowerCase());
+  return !!lookup(email);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<string | null>(null);
+  const [entry, setEntry] = useState<CrewEntry | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && isAllowed(stored)) setUser(stored);
+      if (stored) {
+        const e = lookup(stored);
+        if (e) {
+          setUser(e.email);
+          setEntry(e);
+        }
+      }
     } catch {
       // ignore
     }
@@ -44,16 +61,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback((email: string) => {
-    const normalized = email.trim().toLowerCase();
-    if (!isAllowed(normalized)) {
+    const e = lookup(email);
+    if (!e) {
       return { ok: false as const, error: "This email is not on the crew allowlist." };
     }
     try {
-      localStorage.setItem(STORAGE_KEY, normalized);
+      localStorage.setItem(STORAGE_KEY, e.email);
     } catch {
       // ignore
     }
-    setUser(normalized);
+    setUser(e.email);
+    setEntry(e);
     return { ok: true as const };
   }, []);
 
@@ -64,9 +82,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignore
     }
     setUser(null);
+    setEntry(null);
   }, []);
 
-  return <Ctx.Provider value={{ user, ready, signIn, signOut }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider
+      value={{
+        user,
+        role: entry?.role ?? null,
+        name: entry?.name ?? null,
+        ready,
+        signIn,
+        signOut,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useAuth() {
