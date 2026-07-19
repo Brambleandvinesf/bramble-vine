@@ -107,6 +107,56 @@ function fmtMoney(v: string): string {
   return `$${n.toFixed(2)}`;
 }
 
+async function postAction<T = Record<string, unknown>>(payload: unknown): Promise<T> {
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json()) as { ok?: boolean; error?: string } & T;
+  if (!json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+/** Downscale image to max 1600px, JPEG ~85%, return base64 (no data-url prefix). */
+async function downscaleToBase64(
+  file: File,
+  maxDim = 1600,
+  quality = 0.85,
+): Promise<{ data: string; mime: string; name: string }> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result));
+    fr.onerror = () => reject(fr.error || new Error("read failed"));
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("image decode failed"));
+    el.src = dataUrl;
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas ctx unavailable");
+  ctx.drawImage(img, 0, 0, w, h);
+  const jpeg = canvas.toDataURL("image/jpeg", quality);
+  const base64 = jpeg.split(",", 2)[1] ?? "";
+  return { data: base64, mime: "image/jpeg", name: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
+}
+
+type WriteHandlers = {
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+  refetch: () => void;
+};
+
+
 type Toast = { msg: string; err: boolean } | null;
 
 function ReceiptsPage() {
@@ -236,6 +286,7 @@ function ReceiptsPage() {
             void refetch();
           }}
           onError={(msg) => setToast({ msg, err: true })}
+          refetch={() => void refetch()}
         />
       )}
 
@@ -248,8 +299,10 @@ function ReceiptsPage() {
             void refetch();
           }}
           onError={(msg) => setToast({ msg, err: true })}
+          refetch={() => void refetch()}
         />
       )}
+
 
       {toast && (
         <div style={{ ...TOAST, borderColor: toast.err ? RED : LIME_DIM, color: toast.err ? RED : LIME }}>
@@ -268,13 +321,16 @@ function DesignateTab({
   designations,
   onSaved,
   onError,
+  refetch,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   designations: string[];
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
+  refetch: () => void;
 }) {
+
   const [picks, setPicks] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -367,49 +423,52 @@ function DesignateTab({
           const vendor = rec?.vendor || g.lines[0]?.vendor || "Unknown vendor";
           const total = rec?.total || "";
           const photo = rec?.photo || "";
+          const receiptId = rec?.receiptId || g.key;
           return (
-            <div key={g.key} style={{ ...CARD, marginBottom: 10 }}>
-              <button
-                onClick={() => toggle(g.key)}
-                style={{
-                  ...GROUP_HEAD_BTN,
-                }}
-              >
-                <span style={{ color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
-                  {vendor}
-                </span>
-                <span style={{ color: MUTED, fontSize: 12 }}>
-                  {fmtDate(g.dateStr)}
-                </span>
-                {total && (
-                  <span style={{ color: TEXT, fontSize: 12 }}>{fmtMoney(total)}</span>
-                )}
-                {photo && (
-                  <a
-                    href={photo}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ color: LIME, fontSize: 11, textDecoration: "underline" }}
-                  >
-                    receipt ↗
-                  </a>
-                )}
-                <span style={{ marginLeft: "auto", color: MUTED, fontSize: 11 }}>
-                  {g.lines.length} line{g.lines.length === 1 ? "" : "s"} · {isOpen ? "▾" : "▸"}
-                </span>
-              </button>
+            <div key={g.key} style={{ ...RECEIPT_CARD, marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => toggle(g.key)}
+                  style={{ ...GROUP_HEAD_BTN, flex: 1 }}
+                >
+                  <span style={{ color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
+                    {vendor}
+                  </span>
+                  <span style={{ color: MUTED, fontSize: 12 }}>
+                    {fmtDate(g.dateStr)}
+                  </span>
+                  {total && (
+                    <span style={{ color: TEXT, fontSize: 12 }}>{fmtMoney(total)}</span>
+                  )}
+                  {photo && (
+                    <a
+                      href={photo}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ color: LIME, fontSize: 11, textDecoration: "underline" }}
+                    >
+                      receipt ↗
+                    </a>
+                  )}
+                  <span style={{ marginLeft: "auto", color: MUTED, fontSize: 11 }}>
+                    {g.lines.length} line{g.lines.length === 1 ? "" : "s"} · {isOpen ? "▾" : "▸"}
+                  </span>
+                </button>
+                <ReceiptMenu
+                  receipt={rec}
+                  receiptId={receiptId}
+                  onSaved={onSaved}
+                  onError={onError}
+                  refetch={refetch}
+                />
+              </div>
 
               {isOpen && (
                 <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                   {g.lines.map((l) => (
                     <div key={l.row} style={LINE_ROW}>
-                      <div style={{ fontSize: 13, color: TEXT }}>{l.description || "(no description)"}</div>
-                      <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                        {l.quantity && `${l.quantity} × `}
-                        {l.unitPrice && fmtMoney(l.unitPrice)}
-                        {l.total && ` = ${fmtMoney(l.total)}`}
-                      </div>
+                      <LineBody line={l} />
                       <div style={{ marginTop: 6 }}>
                         <select
                           value={picks[l.row] ?? ""}
@@ -431,6 +490,12 @@ function DesignateTab({
                           ))}
                         </select>
                       </div>
+                      <LineActions
+                        line={l}
+                        onSaved={onSaved}
+                        onError={onError}
+                        refetch={refetch}
+                      />
                     </div>
                   ))}
                 </div>
@@ -438,6 +503,7 @@ function DesignateTab({
             </div>
           );
         })}
+
       </div>
 
       {selectedCount > 0 && (
@@ -475,12 +541,15 @@ function InvoiceTab({
   receiptById,
   onSaved,
   onError,
+  refetch,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
+  refetch: () => void;
 }) {
+
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [queuedOpen, setQueuedOpen] = useState(false);
@@ -639,36 +708,69 @@ function InvoiceTab({
                   {entry.receipts.map((g) => {
                     const rec = g.receipt;
                     const vendor = rec?.vendor || g.lines[0]?.vendor || "Unknown vendor";
+                    const total = rec?.total || "";
+                    const photo = rec?.photo || "";
+                    const receiptId = rec?.receiptId || g.key;
                     return (
-                      <div key={g.key} style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>
-                          {vendor} · {fmtDate(g.dateStr)}
+                      <div key={g.key} style={{ ...RECEIPT_CARD, marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
+                              {vendor}
+                            </div>
+                            <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+                              {fmtDate(g.dateStr)}
+                              {total && ` · ${fmtMoney(total)}`}
+                              {photo && (
+                                <>
+                                  {" · "}
+                                  <a
+                                    href={photo}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: LIME, textDecoration: "underline" }}
+                                  >
+                                    receipt ↗
+                                  </a>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ReceiptMenu
+                            receipt={rec}
+                            receiptId={receiptId}
+                            onSaved={onSaved}
+                            onError={onError}
+                            refetch={refetch}
+                          />
                         </div>
                         <div style={{ display: "grid", gap: 6 }}>
                           {g.lines.map((l) => (
-                            <label key={l.row} style={{ ...LINE_ROW, display: "flex", gap: 8, alignItems: "flex-start" }}>
-                              <input
-                                type="checkbox"
-                                checked={checked.has(l.row)}
-                                onChange={() => toggleRow(l.row)}
-                                style={{ width: 18, height: 18, accentColor: LIME, marginTop: 3 }}
-                              />
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 13, color: TEXT }}>
-                                  {l.description || "(no description)"}
-                                </div>
-                                <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                                  {l.quantity && `${l.quantity} × `}
-                                  {l.unitPrice && fmtMoney(l.unitPrice)}
-                                  {l.total && ` = ${fmtMoney(l.total)}`}
+                            <div key={l.row} style={{ ...LINE_ROW }}>
+                              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked.has(l.row)}
+                                  onChange={() => toggleRow(l.row)}
+                                  style={{ width: 18, height: 18, accentColor: LIME, marginTop: 3 }}
+                                />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <LineBody line={l} />
                                 </div>
                               </div>
-                            </label>
+                              <LineActions
+                                line={l}
+                                onSaved={onSaved}
+                                onError={onError}
+                                refetch={refetch}
+                              />
+                            </div>
                           ))}
                         </div>
                       </div>
                     );
                   })}
+
                 </div>
               )}
             </div>
@@ -928,3 +1030,479 @@ const MODAL: React.CSSProperties = {
   maxWidth: 400,
   width: "100%",
 };
+
+/* ============================================================
+ * Receipt / Line management components
+ * ============================================================ */
+
+const RECEIPT_CARD: React.CSSProperties = {
+  background: "#121212",
+  border: `2px solid ${LIME}`,
+  borderRadius: 10,
+  padding: 12,
+  boxShadow: `0 0 12px rgba(124,255,0,.18), inset 0 0 0 1px rgba(124,255,0,.08)`,
+};
+
+const ICON_BTN: React.CSSProperties = {
+  background: "transparent",
+  color: LIME,
+  border: `1px solid ${LIME_DIM}`,
+  borderRadius: 6,
+  minWidth: 32,
+  minHeight: 32,
+  padding: "0 8px",
+  fontFamily: "inherit",
+  fontSize: 14,
+  cursor: "pointer",
+  fontWeight: "bold",
+};
+
+const TINY_BTN: React.CSSProperties = {
+  background: "transparent",
+  color: LIME,
+  border: `1px solid ${LIME_DIM}`,
+  borderRadius: 5,
+  padding: "4px 8px",
+  fontFamily: "inherit",
+  fontSize: 10,
+  letterSpacing: 1,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const TINY_BTN_RED: React.CSSProperties = {
+  ...TINY_BTN,
+  color: RED,
+  borderColor: "rgba(255,59,48,.5)",
+};
+
+const INPUT: React.CSSProperties = {
+  width: "100%",
+  background: "#0a0a0a",
+  color: TEXT,
+  border: `1px solid ${LINE}`,
+  borderRadius: 6,
+  padding: "8px 10px",
+  fontFamily: "inherit",
+  fontSize: 13,
+  boxSizing: "border-box",
+  minHeight: 36,
+};
+
+function LineBody({ line }: { line: Line }) {
+  return (
+    <>
+      <div style={{ fontSize: 13, color: TEXT }}>
+        {line.description || "(no description)"}
+      </div>
+      <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+        {line.quantity && `${line.quantity} × `}
+        {line.unitPrice && fmtMoney(line.unitPrice)}
+        {line.total && ` = ${fmtMoney(line.total)}`}
+        {line.notes && ` · ${line.notes}`}
+      </div>
+    </>
+  );
+}
+
+/* ---- Receipt "⋯" menu: edit, add photo, delete ---- */
+
+function ReceiptMenu({
+  receipt,
+  receiptId,
+  onSaved,
+  onError,
+  refetch,
+}: {
+  receipt?: Receipt;
+  receiptId: string;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+  refetch: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<null | "edit" | "delete">(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const closeAll = () => {
+    setOpen(false);
+    setMode(null);
+  };
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!receiptId) {
+      onError("Missing receipt id — cannot attach photo");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data, mime, name } = await downscaleToBase64(file);
+      await postAction({ action: "attachPhoto", receiptId, data, mime, name });
+      onSaved("Photo attached");
+      closeAll();
+    } catch (err) {
+      onError(err instanceof Error ? `Photo upload failed — ${err.message}` : "Photo upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        aria-label="Receipt actions"
+        style={ICON_BTN}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        disabled={uploading}
+      >
+        {uploading ? "…" : "⋯"}
+      </button>
+      {open && (
+        <>
+          <div
+            onClick={closeAll}
+            style={{ position: "fixed", inset: 0, zIndex: 400 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              right: 0,
+              top: 36,
+              zIndex: 401,
+              background: "#121212",
+              border: `1px solid ${LIME_DIM}`,
+              borderRadius: 8,
+              padding: 6,
+              minWidth: 160,
+              boxShadow: "0 8px 24px rgba(0,0,0,.6)",
+              display: "grid",
+              gap: 4,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MenuItem onClick={() => { setMode("edit"); setOpen(false); }}>
+              Edit receipt
+            </MenuItem>
+            <MenuItem onClick={() => { fileRef.current?.click(); }}>
+              {uploading ? "Uploading…" : "Add photo"}
+            </MenuItem>
+            <MenuItem danger onClick={() => { setMode("delete"); setOpen(false); }}>
+              Delete receipt
+            </MenuItem>
+          </div>
+        </>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={onPickFile}
+        style={{ display: "none" }}
+      />
+
+      {mode === "edit" && (
+        <ReceiptEditModal
+          receipt={receipt}
+          onClose={closeAll}
+          onSaved={(msg) => { onSaved(msg); closeAll(); refetch(); }}
+          onError={onError}
+        />
+      )}
+      {mode === "delete" && (
+        <ConfirmModal
+          title="DELETE RECEIPT"
+          body={`Delete this receipt and all of its lines? This can't be undone.`}
+          confirmLabel="DELETE"
+          danger
+          onCancel={closeAll}
+          onConfirm={async () => {
+            try {
+              await postAction({ action: "deleteReceipt", receiptId });
+              onSaved("Receipt deleted");
+              closeAll();
+              refetch();
+            } catch (err) {
+              onError(err instanceof Error ? `Delete failed — ${err.message}` : "Delete failed");
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function MenuItem({
+  children,
+  onClick,
+  danger,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: "transparent",
+        color: danger ? RED : TEXT,
+        border: "none",
+        textAlign: "left",
+        padding: "8px 10px",
+        fontFamily: "inherit",
+        fontSize: 12,
+        letterSpacing: 1,
+        cursor: "pointer",
+        borderRadius: 4,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function ReceiptEditModal({
+  receipt,
+  onClose,
+  onSaved,
+  onError,
+}: {
+  receipt?: Receipt;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [vendor, setVendor] = useState(receipt?.vendor ?? "");
+  const [date, setDate] = useState(receipt?.date ?? "");
+  const [total, setTotal] = useState(receipt?.total ?? "");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!receipt) return onError("Missing receipt row");
+    const payload: Record<string, unknown> = { action: "editReceipt", row: receipt.row };
+    if (vendor.trim() !== receipt.vendor) payload.vendor = vendor.trim();
+    if (date.trim() !== receipt.date) payload.date = date.trim();
+    if (total.trim() !== receipt.total) payload.total = total.trim();
+    if (notes.trim()) payload.notes = notes.trim();
+    const changed = Object.keys(payload).length > 2;
+    if (!changed) return onClose();
+    setBusy(true);
+    try {
+      await postAction(payload);
+      onSaved("Receipt updated");
+    } catch (err) {
+      onError(err instanceof Error ? `Update failed — ${err.message}` : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={MODAL_BACKDROP} onClick={onClose}>
+      <div style={MODAL} onClick={(e) => e.stopPropagation()}>
+        <div style={{ color: LIME, fontWeight: "bold", letterSpacing: 1, marginBottom: 12 }}>
+          EDIT RECEIPT
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <Field label="Vendor">
+            <input style={INPUT} value={vendor} onChange={(e) => setVendor(e.target.value)} />
+          </Field>
+          <Field label="Date">
+            <input style={INPUT} value={date} onChange={(e) => setDate(e.target.value)} placeholder="YYYY-MM-DD" />
+          </Field>
+          <Field label="Total">
+            <input style={INPUT} value={total} onChange={(e) => setTotal(e.target.value)} inputMode="decimal" />
+          </Field>
+          <Field label="Notes (append)">
+            <input style={INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </Field>
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+          <button style={GHOST_BTN_SM} onClick={onClose} disabled={busy}>CANCEL</button>
+          <button style={SOLID_BTN_SM} onClick={submit} disabled={busy}>
+            {busy ? "SAVING…" : "SAVE"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Per-line edit / delete controls ---- */
+
+function LineActions({
+  line,
+  onSaved,
+  onError,
+  refetch,
+}: {
+  line: Line;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+  refetch: () => void;
+}) {
+  const [mode, setMode] = useState<null | "edit" | "delete">(null);
+  const [busy, setBusy] = useState(false);
+  const [description, setDescription] = useState(line.description);
+  const [qty, setQty] = useState(line.quantity);
+  const [unitPrice, setUnitPrice] = useState(line.unitPrice);
+  const [notes, setNotes] = useState(line.notes);
+
+  const saveEdit = async () => {
+    const payload: Record<string, unknown> = { action: "editLine", row: line.row };
+    if (description.trim() !== line.description) payload.description = description.trim();
+    if (qty.trim() !== line.quantity) payload.qty = qty.trim();
+    if (unitPrice.trim() !== line.unitPrice) payload.unitPrice = unitPrice.trim();
+    if (notes.trim() !== line.notes) payload.notes = notes.trim();
+    if (Object.keys(payload).length <= 2) {
+      setMode(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      await postAction(payload);
+      onSaved("Line updated");
+      setMode(null);
+      refetch();
+    } catch (err) {
+      onError(err instanceof Error ? `Update failed — ${err.message}` : "Update failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDelete = async () => {
+    setBusy(true);
+    try {
+      await postAction({ action: "deleteLine", row: line.row });
+      onSaved("Line deleted");
+      setMode(null);
+      refetch();
+    } catch (err) {
+      onError(err instanceof Error ? `Delete failed — ${err.message}` : "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+        <button style={TINY_BTN} onClick={() => setMode("edit")} disabled={busy}>
+          EDIT
+        </button>
+        <button style={TINY_BTN_RED} onClick={() => setMode("delete")} disabled={busy}>
+          DELETE
+        </button>
+      </div>
+
+      {mode === "edit" && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: 10,
+            border: `1px solid ${LIME_DIM}`,
+            borderRadius: 6,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          <Field label="Description">
+            <input style={INPUT} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Field label="Qty">
+              <input style={INPUT} value={qty} onChange={(e) => setQty(e.target.value)} inputMode="decimal" />
+            </Field>
+            <Field label="Unit price">
+              <input style={INPUT} value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} inputMode="decimal" />
+            </Field>
+          </div>
+          <Field label="Notes">
+            <input style={INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </Field>
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <button style={TINY_BTN} onClick={() => setMode(null)} disabled={busy}>CANCEL</button>
+            <button style={{ ...TINY_BTN, background: LIME, color: "#0a0a0a", borderColor: LIME }} onClick={saveEdit} disabled={busy}>
+              {busy ? "SAVING…" : "SAVE"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === "delete" && (
+        <ConfirmModal
+          title="DELETE LINE"
+          body={`Delete "${line.description || "this line"}"? This can't be undone.`}
+          confirmLabel="DELETE"
+          danger
+          onCancel={() => setMode(null)}
+          onConfirm={doDelete}
+        />
+      )}
+    </>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: "grid", gap: 4 }}>
+      <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>{label.toUpperCase()}</span>
+      {children}
+    </label>
+  );
+}
+
+function ConfirmModal({
+  title,
+  body,
+  confirmLabel,
+  danger,
+  onCancel,
+  onConfirm,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div style={MODAL_BACKDROP} onClick={onCancel}>
+      <div style={MODAL} onClick={(e) => e.stopPropagation()}>
+        <div style={{ color: danger ? RED : LIME, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 }}>
+          {title}
+        </div>
+        <div style={{ color: TEXT, fontSize: 14, marginBottom: 16 }}>{body}</div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button style={GHOST_BTN_SM} onClick={onCancel} disabled={busy}>CANCEL</button>
+          <button
+            style={{
+              ...SOLID_BTN_SM,
+              ...(danger ? { background: RED, color: "#fff" } : null),
+            }}
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try { await onConfirm(); } finally { setBusy(false); }
+            }}
+          >
+            {busy ? "…" : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
