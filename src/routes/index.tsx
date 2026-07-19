@@ -1,7 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, type ReactNode } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth, type Role } from "../lib/auth";
 import { useViewAs, VIEW_AS_ROLES } from "../lib/view-as";
+import { canSee } from "../lib/permissions";
+import { SCRIPT_URL } from "./confirm";
 
 export const Route = createFileRoute("/")({
   head: () => ({
