@@ -175,6 +175,67 @@ function HomePage() {
   );
 }
 
+function ConfirmBanner({
+  loading,
+  confirmed,
+  role,
+}: {
+  loading: boolean;
+  confirmed: boolean | null;
+  role: Role;
+}) {
+  const clickable = canSee(role, "special_confirm");
+  const checking = loading && confirmed === null;
+  const isConfirmed = confirmed === true;
+  const isWarning = !isConfirmed;
+
+  const icon = checking ? "•" : isConfirmed ? "✓" : "!";
+  const color = isConfirmed ? LIME : "#ffb03f";
+  const text = checking
+    ? "Checking today's confirmation…"
+    : isConfirmed
+    ? "Loading list confirmed ✓"
+    : "Loading list not confirmed — review today's projects";
+
+  const banner = (
+    <div
+      style={{
+        background: PANEL,
+        border: `1px solid ${color}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        minHeight: 56,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <span style={{ fontSize: 16, color, width: 18, textAlign: "center" }}>
+        {icon}
+      </span>
+      <span
+        style={{
+          color,
+          fontSize: 13,
+          fontWeight: "bold",
+          letterSpacing: 1,
+          textTransform: "uppercase",
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
+
+  return clickable ? (
+    <Link to="/confirm" style={{ textDecoration: "none" }}>
+      {banner}
+    </Link>
+  ) : (
+    banner
+  );
+}
+
 function Tile({ title, pulse, children }: { title: string; pulse?: boolean; children: ReactNode }) {
   return (
     <div
