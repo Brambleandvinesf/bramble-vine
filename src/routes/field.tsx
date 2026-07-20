@@ -784,7 +784,342 @@ function RosterPicker({
 }
 
 
-/* ============================================================ */
+/* ============================================================
+ * WHO'S ON THIS PHONE — sticky per-phone identity picker
+ * ============================================================ */
+function WhoAmI({
+  employees,
+  isLead,
+  onManageCrew,
+  send,
+  onIdentified,
+  onLoading,
+}: {
+  employees: Employee[];
+  isLead: boolean;
+  onManageCrew?: () => void;
+  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  onIdentified: (m: Me) => void;
+  onLoading: () => void;
+}) {
+  const [pick, setPick] = useState<Employee | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [clockPending, setClockPending] = useState<Me | null>(null);
+
+  const clockAndGo = async (m: Me) => {
+    setBusy(true);
+    setErr(null);
+    const r = await send(
+      { action: "qbClock", userId: m.id, dir: "in", client: OVERHEAD_CLIENT },
+      { silent: true },
+    );
+    setBusy(false);
+    if (r.ok) {
+      setClockPending(null);
+      onLoading();
+    } else {
+      setClockPending(m);
+      setErr("Couldn't clock in — you're on the roster, tap RETRY.");
+    }
+  };
+
+  const submit = async () => {
+    if (!pick) return;
+    setBusy(true);
+    setErr(null);
+    const j = await send({ action: "joinRoster", id: pick.id, name: pick.name }, { silent: true });
+    if (!j.ok) {
+      setBusy(false);
+      setErr("Couldn't join roster — try again.");
+      return;
+    }
+    const me = { id: pick.id, name: pick.name };
+    saveMe(me);
+    onIdentified(me);
+    setBusy(false);
+    await clockAndGo(me);
+  };
+
+  return (
+    <div style={{ padding: "20px 14px" }}>
+      <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2, textAlign: "center" }}>
+        WHO'S ON THIS PHONE?
+      </div>
+      <div style={{ color: MUTED, textAlign: "center", marginTop: 6, fontSize: 12 }}>
+        Tap your name. This phone stays yours for the day.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 16 }}>
+        {employees.map((e) => {
+          const on = pick?.id === e.id;
+          return (
+            <button
+              key={e.id}
+              onClick={() => { setPick(e); setErr(null); setClockPending(null); }}
+              disabled={busy}
+              style={{
+                ...BIG_BTN,
+                background: on ? LIME : "transparent",
+                color: on ? BG : LIME,
+                borderColor: on ? LIME : LIME_DIM,
+              }}
+            >
+              {on ? "● " : ""}{e.name.toUpperCase()}
+            </button>
+          );
+        })}
+        {employees.length === 0 && <div style={STATE}>No employees returned by backend.</div>}
+      </div>
+
+      {clockPending ? (
+        <button
+          disabled={busy}
+          onClick={() => void clockAndGo(clockPending)}
+          style={{ ...PRIMARY_BTN, marginTop: 20, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? "RETRYING…" : "RETRY CLOCK IN"}
+        </button>
+      ) : (
+        <button
+          disabled={busy || !pick}
+          onClick={() => void submit()}
+          style={{ ...PRIMARY_BTN, marginTop: 20, opacity: !pick || busy ? 0.45 : 1 }}
+        >
+          {busy ? "…" : "CLOCK IN & START LOADING"}
+        </button>
+      )}
+
+      {err && (
+        <div style={{ color: RED, fontSize: 12, marginTop: 10, textAlign: "center" }}>{err}</div>
+      )}
+
+      {isLead && onManageCrew && (
+        <button
+          onClick={onManageCrew}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: DIM_GREEN,
+            fontFamily: "inherit",
+            fontSize: 11,
+            letterSpacing: 1,
+            textDecoration: "underline",
+            marginTop: 18,
+            width: "100%",
+            cursor: "pointer",
+            padding: 8,
+          }}
+        >
+          manage full crew
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+ * CLOCKING AS — sticky identity header
+ * ============================================================ */
+function ClockingAsHeader({
+  me,
+  roster,
+  onChange,
+}: {
+  me: Me;
+  roster: RosterMember[];
+  onChange: () => void;
+}) {
+  const row = roster.find((r) => r.id === me.id);
+  const open = !!row?.in && !row?.out;
+  return (
+    <div
+      style={{
+        padding: "6px 14px 0",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKING AS:</span>
+      <span style={{ color: LIME, fontSize: 12, letterSpacing: 1 }}>{me.name.toUpperCase()}</span>
+      <button
+        onClick={onChange}
+        disabled={open}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: open ? "rgba(255,59,48,.7)" : DIM_GREEN,
+          fontFamily: "inherit",
+          fontSize: 11,
+          letterSpacing: 1,
+          textDecoration: open ? "none" : "underline",
+          cursor: open ? "default" : "pointer",
+          padding: 0,
+          marginLeft: 4,
+        }}
+      >
+        {open ? "clock out first" : "change"}
+      </button>
+    </div>
+  );
+}
+
+/* ============================================================
+ * PERSONAL CLOCK PANEL — replaces whole-crew grids
+ * ============================================================ */
+function PersonalClockPanel({
+  me,
+  roster,
+  clientMatch,
+  now,
+  isPreview,
+  send,
+  setBanner,
+}: {
+  me: Me;
+  roster: RosterMember[];
+  clientMatch: string | null;
+  now: number;
+  isPreview: boolean;
+  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
+}) {
+  const row = roster.find((r) => r.id === me.id);
+  const open = !!row?.in && !row?.out;
+  const onOverhead = open && isOverheadClient(row?.client);
+  const onClient = open && !onOverhead;
+  const [busy, setBusy] = useState(false);
+
+  const doClockIn = async (client: string) => {
+    if (isPreview) return;
+    setBusy(true);
+    if (!roster.some((r) => r.id === me.id)) {
+      const j = await send({ action: "joinRoster", id: me.id, name: me.name }, { silent: true });
+      if (!j.ok) {
+        setBusy(false);
+        setBanner({ kind: "err", text: "Couldn't join roster — retry." });
+        return;
+      }
+    }
+    const r = await send({ action: "qbClock", userId: me.id, dir: "in", client });
+    setBusy(false);
+    if (!r.ok) setBanner({ kind: "err", text: "Clock in failed — retry." });
+  };
+
+  const doClockOut = async (client: string) => {
+    if (isPreview) return;
+    setBusy(true);
+    const r = await send({ action: "qbClock", userId: me.id, dir: "out", client });
+    setBusy(false);
+    if (!r.ok) setBanner({ kind: "err", text: "Clock out failed — retry." });
+  };
+
+  const doSwitch = async (fromClient: string, toClient: string) => {
+    if (isPreview) return;
+    setBusy(true);
+    const outR = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient }, { silent: true });
+    if (!outR.ok) {
+      setBusy(false);
+      setBanner({ kind: "err", text: `Clock out from ${fromClient} failed — retry.` });
+      return;
+    }
+    const inR = await send({ action: "qbClock", userId: me.id, dir: "in", client: toClient }, { silent: true });
+    setBusy(false);
+    if (!inR.ok) {
+      setBanner({ kind: "err", text: `Clocked out but couldn't clock in to ${toClient} — retry.` });
+    } else {
+      setBanner(null);
+    }
+  };
+
+  const since = row?.in
+    ? `Since ${fmtTime(row.in)} · ${elapsed(row.in, now)}`
+    : null;
+
+  const disabled = busy || isPreview;
+
+  let primary: { label: string; onClick: () => void; enabled: boolean } | null = null;
+  let secondary: { label: string; onClick: () => void } | null = null;
+
+  if (!open) {
+    primary = {
+      label: "CLOCK IN — OVERHEAD",
+      onClick: () => void doClockIn(OVERHEAD_CLIENT),
+      enabled: true,
+    };
+  } else if (onOverhead && clientMatch) {
+    primary = {
+      label: "SWITCH TO CLIENT CLOCK",
+      onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
+      enabled: true,
+    };
+    secondary = { label: "CLOCK OUT", onClick: () => void doClockOut(OVERHEAD_CLIENT) };
+  } else if (onOverhead && !clientMatch) {
+    primary = {
+      label: "CLOCK OUT",
+      onClick: () => void doClockOut(OVERHEAD_CLIENT),
+      enabled: true,
+    };
+  } else if (onClient) {
+    const c = row?.client ?? clientMatch ?? "";
+    primary = {
+      label: "CLOCK OUT",
+      onClick: () => void doClockOut(c),
+      enabled: true,
+    };
+    secondary = {
+      label: "SWITCH TO OVERHEAD",
+      onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
+    };
+  }
+
+  return (
+    <div style={{ ...PANEL_BOX, marginTop: 4 }}>
+      <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>YOUR CLOCK</div>
+      {primary && (
+        <button
+          onClick={primary.onClick}
+          disabled={disabled || !primary.enabled}
+          style={{
+            ...PRIMARY_BTN,
+            marginTop: 10,
+            width: "100%",
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          {primary.label}
+        </button>
+      )}
+      {secondary && (
+        <button
+          onClick={secondary.onClick}
+          disabled={disabled}
+          style={{
+            ...BIG_BTN,
+            width: "100%",
+            marginTop: 8,
+            minHeight: 44,
+            fontSize: 12,
+            letterSpacing: 2,
+            color: DIM_GREEN,
+            borderColor: LIME_DIM,
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          {secondary.label}
+        </button>
+      )}
+      {since && (
+        <div style={{ color: MUTED, fontSize: 11, marginTop: 8, textAlign: "center" }}>{since}</div>
+      )}
+    </div>
+  );
+}
+
+
+
 function ClientHeader({
   event,
   clientMatch,
