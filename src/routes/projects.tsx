@@ -3,6 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { ItemPicker } from "../components/ItemPicker";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "projects:getProjects";
 
 
 export const Route = createFileRoute("/projects")({
@@ -104,12 +108,23 @@ function ProjectsPage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tools, setTools] = useState<ToolRow[]>([]);
-  const [clients, setClients] = useState<string[]>([]);
-  const [todaysClients, setTodaysClients] = useState<string[]>([]);
+  const cached = sessionCache.get<GetProjectsResponse>(CK);
+  const [projects, setProjects] = useState<Project[]>(
+    () => (cached?.projects ?? []).map(normProject),
+  );
+  const [tools, setTools] = useState<ToolRow[]>(
+    () => (cached?.tools ?? []).map(normTool),
+  );
+  const [clients, setClients] = useState<string[]>(
+    () => (cached?.clients ?? []).map((c) => String(c).trim()).filter(Boolean),
+  );
+  const [todaysClients, setTodaysClients] = useState<string[]>(
+    () => (cached?.todaysClients ?? []).map((c) => String(c).trim()).filter(Boolean),
+  );
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState<boolean>(() => !!cached);
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"" | "SPECIAL" | "RECURRING">("");
@@ -164,15 +179,22 @@ function ProjectsPage() {
   }, []);
 
   const load = useCallback(async () => {
-    const res = await fetch(`${SCRIPT_URL}?action=getProjects`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = (await res.json()) as GetProjectsResponse;
-    setProjects((json.projects ?? []).map(normProject));
-    setTools((json.tools ?? []).map(normTool));
-    setClients((json.clients ?? []).map((c) => String(c).trim()).filter(Boolean));
-    setTodaysClients(
-      (json.todaysClients ?? []).map((c) => String(c).trim()).filter(Boolean),
-    );
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getProjects`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as GetProjectsResponse;
+      sessionCache.set(CK, json);
+      setProjects((json.projects ?? []).map(normProject));
+      setTools((json.tools ?? []).map(normTool));
+      setClients((json.clients ?? []).map((c) => String(c).trim()).filter(Boolean));
+      setTodaysClients(
+        (json.todaysClients ?? []).map((c) => String(c).trim()).filter(Boolean),
+      );
+      setOffline(false);
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   const fetchedRef = useRef(false);
@@ -183,7 +205,8 @@ function ProjectsPage() {
       try {
         await load();
       } catch (e) {
-        setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        if (sessionCache.has(CK)) setOffline(true);
+        else setLoadErr(e instanceof Error ? e.message : "Failed to load");
       } finally {
         setLoaded(true);
       }
