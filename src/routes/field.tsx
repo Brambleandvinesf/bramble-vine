@@ -850,6 +850,7 @@ function StateVisit({
   projects,
   tools,
   busy,
+  isPreview,
   onClockOut,
   onToggleTool,
   onNoShow,
@@ -863,10 +864,12 @@ function StateVisit({
   projects: ProjectRow[];
   tools: ToolRowRaw[];
   busy: boolean;
+  isPreview: boolean;
   onClockOut: (m: RosterMember) => void;
   onToggleTool: (t: NormTool) => void;
   onNoShow: () => void;
 }) {
+
   const clientProjects = clientMatch
     ? projects.filter((p) => s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase())
     : [];
