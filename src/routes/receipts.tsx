@@ -549,7 +549,8 @@ function DesignateTab({
                         line={l}
                         onSaved={onSaved}
                         onError={onError}
-                        refetch={refetch}
+                        writer={writer}
+                        setLines={setLines}
                       />
                     </div>
                   ))}
