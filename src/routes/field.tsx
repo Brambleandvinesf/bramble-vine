@@ -122,6 +122,57 @@ async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; e
   }
 }
 
+/* ---------- client arrival/departure text ---------- */
+const TEXTED_KEY = "field:texted";
+const textedStops = new Set<string>(loadTextedStops());
+function loadTextedStops(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(TEXTED_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+function saveTextedStops() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(TEXTED_KEY, JSON.stringify(Array.from(textedStops)));
+  } catch { /* ignore */ }
+}
+function textStopKey(client: string | null, kind: "arrived" | "done", stopIndex: number): string {
+  return `${stopIndex}:${kind}:${(client ?? "").toLowerCase()}`;
+}
+function hasTexted(client: string | null, kind: "arrived" | "done", stopIndex: number): boolean {
+  return textedStops.has(textStopKey(client, kind, stopIndex));
+}
+function markTexted(client: string | null, kind: "arrived" | "done", stopIndex: number) {
+  textedStops.add(textStopKey(client, kind, stopIndex));
+  saveTextedStops();
+}
+async function textClient(
+  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>,
+  kind: "arrived" | "done",
+  client: string | null,
+  stopIndex: number,
+  isPreview: boolean,
+): Promise<boolean> {
+  if (isPreview) return false;
+  if (hasTexted(client, kind, stopIndex)) return false;
+  const r = await send({ action: "textClient", kind }, { silent: true });
+  if (r.ok) {
+    markTexted(client, kind, stopIndex);
+    toast.success("Client texted");
+    return true;
+  }
+  const err =
+    r.raw && typeof r.raw === "object" && "error" in (r.raw as Record<string, unknown>)
+      ? String((r.raw as Record<string, unknown>).error)
+      : "unknown";
+  toast.error(`client text failed: ${err}`);
+  return false;
+}
+
 function matchClient(title: string, clients: string[]): string | null {
   const t = (title || "").toLowerCase();
   for (const c of clients) {
