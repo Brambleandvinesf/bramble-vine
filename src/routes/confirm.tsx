@@ -438,8 +438,12 @@ function ConfirmPage() {
   return (
     <div style={PAGE}>
       <header style={HEADER}>
-        <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-          CONFIRM DAY
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+            CONFIRM DAY
+          </div>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
         </div>
         <div style={{ marginTop: 4, color: TEXT, fontSize: 14 }}>{todayLabel()}</div>
         <div style={{ marginTop: 2, fontSize: 12, color: MUTED }}>
