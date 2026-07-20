@@ -774,7 +774,7 @@ function ConfirmPage() {
                     ))}
                     <button
                       style={{ ...GHOST_BTN_SM, marginTop: 4 }}
-                      onClick={() => setPickerFor({ client, key: n.key })}
+                      onClick={() => setPickerFor({ mode: "new", client, key: n.key })}
                     >
                       + ADD ITEM
                     </button>
