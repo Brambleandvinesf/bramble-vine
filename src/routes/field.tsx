@@ -1476,6 +1476,7 @@ function ProjectCard({
 function StateArrived({
   roster,
   clientMatch,
+  stopIndex,
   isLead,
   delegated,
   busy,
@@ -1489,6 +1490,7 @@ function StateArrived({
 }: {
   roster: RosterMember[];
   clientMatch: string | null;
+  stopIndex: number;
   isLead: boolean;
   delegated: boolean;
   busy: boolean;
@@ -1501,6 +1503,7 @@ function StateArrived({
   onNoShow: () => void;
 }) {
   const anyIn = roster.some((m) => !!m.in);
+  const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
   return (
     <div style={{ padding: "10px 14px" }}>
       {onBackToCrew && (
