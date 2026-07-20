@@ -720,6 +720,11 @@ function StateEnRoute({
   busy,
   onHere,
   headerNote,
+  onBackToCrew,
+  backNotice,
+  onSkip,
+  skipDisabled,
+  isPreview,
 }: {
   event?: EventItem;
   clientMatch: string | null;
@@ -728,6 +733,11 @@ function StateEnRoute({
   busy: boolean;
   onHere: () => void;
   headerNote?: string;
+  onBackToCrew?: () => void;
+  backNotice?: string | null;
+  onSkip?: () => void;
+  skipDisabled?: boolean;
+  isPreview?: boolean;
 }) {
   if (!event) return <div style={STATE}>No upcoming stop.</div>;
   const address = event.location ?? "";
@@ -738,16 +748,36 @@ function StateEnRoute({
     "https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=" +
     encodeURIComponent(address);
 
-  const clientProjects = clientMatch
-    ? projects.filter(
-        (p) =>
-          s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase() &&
-          s(p["Status"]).toUpperCase() !== "SKIP",
-      )
-    : [];
+  void projects;
 
   return (
     <div style={{ padding: "10px 14px" }}>
+      {onBackToCrew && (
+        <div style={{ marginBottom: 6 }}>
+          <button
+            onClick={onBackToCrew}
+            disabled={!!isPreview}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: DIM_GREEN,
+              fontFamily: "inherit",
+              fontSize: 12,
+              letterSpacing: 1,
+              padding: "4px 0",
+              cursor: isPreview ? "default" : "pointer",
+              opacity: isPreview ? 0.5 : 1,
+            }}
+          >
+            ← CREW
+          </button>
+          {backNotice && (
+            <div style={{ color: RED, fontSize: 12, marginTop: 4, opacity: 0.85 }}>
+              {backNotice}
+            </div>
+          )}
+        </div>
+      )}
       {headerNote && (
         <div style={{ color: LIME, fontSize: 12, letterSpacing: 2, marginBottom: 6 }}>{headerNote}</div>
       )}
@@ -807,11 +837,31 @@ function StateEnRoute({
           >
             START VISIT
           </button>
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              disabled={!!skipDisabled || !!isPreview}
+              style={{
+                ...BIG_BTN,
+                width: "100%",
+                marginTop: 10,
+                minHeight: 44,
+                fontSize: 12,
+                letterSpacing: 2,
+                color: DIM_GREEN,
+                borderColor: LIME_DIM,
+                opacity: skipDisabled || isPreview ? 0.5 : 1,
+              }}
+            >
+              SKIP THIS CLIENT
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
+
 
 function ProjectCard({ p }: { p: ProjectRow }) {
   const action = s(p["Project Action"]) || s(p["Action"]) || "—";
