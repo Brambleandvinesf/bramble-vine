@@ -162,6 +162,7 @@ const TABS: TabDef[] = [
     label: "FIELD",
     screens: ["route_enroute", "route_arrived", "route_visit", "route_debrief", "route_next"],
   },
+  { to: "/schedule", label: "SCHEDULE", screens: ["schedule"] },
   { to: "/visits", label: "CONFIRM VISITS", screens: ["visits"] },
   { to: "/projects", label: "PROJECTS", screens: ["projects"] },
   { to: "/messages", label: "MESSAGES", screens: ["messages"] },
