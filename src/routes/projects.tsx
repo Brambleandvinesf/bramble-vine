@@ -302,7 +302,7 @@ function ProjectsPage() {
     (p: Project) => {
       const e = editing[p.projectId];
       if (!e) return;
-      const diff: Record<string, unknown> = { action: "editProject", projectId: p.projectId };
+      const diff: Record<string, unknown> = { action: "editProject", projectId: p.projectId, client: p.client };
       const patch: Partial<Project> = {};
       if (e.action !== p.action) { diff.projectAction = e.action; patch.action = e.action; }
       if (e.garden !== p.garden) { diff.garden = e.garden; patch.garden = e.garden; }
@@ -310,7 +310,7 @@ function ProjectsPage() {
       if (e.category !== p.category) { diff.category = e.category; patch.category = e.category; }
       if (e.notes !== p.notes) { diff.notes = e.notes; patch.notes = e.notes; }
       if (e.status !== p.status) { diff.status = e.status; patch.status = e.status; }
-      if (Object.keys(diff).length <= 2) {
+      if (Object.keys(diff).length <= 3) {
         cancelEdit(p.projectId);
         return;
       }
@@ -354,7 +354,7 @@ function ProjectsPage() {
       markSync(p.projectId, true);
       void enqueue(p.projectId, async () => {
         try {
-          await firePost({ action: "deleteProject", projectId: p.projectId });
+          await firePost({ action: "deleteProject", projectId: p.projectId, client: p.client });
         } catch (err) {
           setProjects((prev) => [...prev, snapshot]);
           setTools((prev) => [...prev, ...snapshotTools]);

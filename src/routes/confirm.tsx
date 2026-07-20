@@ -91,6 +91,7 @@ type Edit = {
   notes: string;
   status: "Confirmed" | "SKIP";
   expanded: boolean;
+  notesOpen: boolean;
 };
 
 type NewItem = { name: string; qty: string; size: string; notes: string };
@@ -176,13 +177,19 @@ function ConfirmPage() {
         notes: p.notes,
         status: "Confirmed",
         expanded: p.showOnReview,
+        notesOpen: !!p.notes,
       };
     }
     return initial;
   });
   const [deletes, setDeletes] = useState<Set<string>>(new Set());
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
-  const [pickerFor, setPickerFor] = useState<{ client: string; key: string } | null>(null);
+  const [pickerFor, setPickerFor] = useState<
+    | { mode: "new"; client: string; key: string }
+    | { mode: "existing"; client: string; projectId: string }
+    | null
+  >(null);
+  const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [expandedMore, setExpandedMore] = useState<Set<string>>(new Set());
   const [sendText, setSendText] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -211,6 +218,7 @@ function ConfirmPage() {
           notes: p.notes,
           status: "Confirmed",
           expanded: p.showOnReview,
+          notesOpen: !!p.notes,
         };
       }
       return next;
@@ -347,16 +355,103 @@ function ConfirmPage() {
     });
   }, []);
 
+  const markSync = useCallback((key: string, on: boolean) => {
+    setSyncing((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const editProjectLive = useCallback(
+    async (p: Project, patch: Record<string, string>, applyToEdit?: (e: Edit) => Partial<Edit>) => {
+      if (!p.projectId) return;
+      const key = p.projectId;
+      // optimistic
+      if (applyToEdit) {
+        setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...applyToEdit(prev[key]) } }));
+      }
+      markSync(key, true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "editProject", projectId: p.projectId, client: p.client, ...patch }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) throw new Error(json.error || "not ok");
+      } catch (err) {
+        setSubmitFlash({
+          msg: err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save",
+          err: true,
+        });
+      } finally {
+        markSync(key, false);
+      }
+    },
+    [markSync],
+  );
+
+  const addItemToExisting = useCallback(
+    async (client: string, projectId: string, picked: NewItem) => {
+      // optimistic append pill
+      const snapshot = projects;
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.projectId === projectId
+            ? { ...p, items: [...p.items, picked] }
+            : p,
+        ),
+      );
+      markSync(projectId, true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "addItems",
+            client,
+            projectId,
+            items: [{ name: picked.name, qty: picked.qty, size: picked.size }],
+          }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) throw new Error(json.error || "not ok");
+      } catch (err) {
+        setProjects(snapshot);
+        setSubmitFlash({
+          msg: err instanceof Error ? `Couldn't add item — ${err.message}` : "Couldn't add item",
+          err: true,
+        });
+      } finally {
+        markSync(projectId, false);
+      }
+    },
+    [projects, markSync],
+  );
+
+  const distinctTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) if (p.type.trim()) set.add(p.type.trim());
+    return [...set].sort();
+  }, [projects]);
+
+
   const submit = useCallback(async () => {
     // Build payload
     const statuses: Array<{ projectId: string; status: "Confirmed" | "SKIP" }> = [];
     const updates: Array<Record<string, string>> = [];
+    const deletesArr: Array<{ projectId: string; client: string }> = [];
     for (const p of projects) {
       const key = p.projectId || `row-${p.row}`;
       const e = edits[key];
       if (!e) continue;
       if (!p.projectId) continue;
-      if (deletes.has(p.projectId)) continue;
+      if (deletes.has(p.projectId)) {
+        deletesArr.push({ projectId: p.projectId, client: p.client });
+        continue;
+      }
       statuses.push({ projectId: p.projectId, status: e.status });
       const diff: Record<string, string> = {};
       if (e.action !== p.action) diff.action = e.action;
@@ -365,7 +460,7 @@ function ConfirmPage() {
       if (e.category !== p.category) diff.category = e.category;
       if (e.notes !== p.notes) diff.notes = e.notes;
       if (Object.keys(diff).length) {
-        updates.push({ projectId: p.projectId, ...diff });
+        updates.push({ projectId: p.projectId, client: p.client, ...diff });
       }
     }
     const newProjects: Array<Record<string, unknown>> = [];
@@ -391,7 +486,7 @@ function ConfirmPage() {
       statuses,
       updates,
       newProjects,
-      deletes: Array.from(deletes),
+      deletes: deletesArr,
       sendText,
     };
     setSubmitting(true);
@@ -537,17 +632,16 @@ function ConfirmPage() {
                         SKIP
                       </SegBtn>
                       <div style={{ flex: 1 }} />
-                      <SegBtn
-                        active={e.type.toUpperCase() === "SPECIAL"}
-                        onClick={() =>
-                          setEdit(key, {
-                            type:
-                              e.type.toUpperCase() === "SPECIAL" ? "RECURRING" : "SPECIAL",
-                          })
-                        }
-                      >
-                        {e.type.toUpperCase() === "SPECIAL" ? "SPECIAL" : "RECURRING"}
-                      </SegBtn>
+                      <TypeSelect
+                        value={e.type}
+                        options={distinctTypes}
+                        syncing={p.projectId ? syncing.has(p.projectId) : false}
+                        disabled={isDeleted || !p.projectId}
+                        onChange={(val) => {
+                          if (val === e.type) return;
+                          void editProjectLive(p, { type: val }, () => ({ type: val }));
+                        }}
+                      />
                     </div>
 
                     <label style={LABEL}>ACTION</label>
@@ -572,6 +666,18 @@ function ConfirmPage() {
                         })}
                       </div>
                     )}
+                    {p.projectId && !isDeleted && (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          style={GHOST_BTN_SM}
+                          onClick={() =>
+                            setPickerFor({ mode: "existing", client, projectId: p.projectId })
+                          }
+                        >
+                          + ADD ITEM
+                        </button>
+                      </div>
+                    )}
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
@@ -592,14 +698,29 @@ function ConfirmPage() {
                         />
                       </div>
                     </div>
-                    <label style={LABEL}>NOTES</label>
-                    <textarea
-                      value={e.notes}
-                      onChange={(ev) => setEdit(key, { notes: ev.target.value })}
-                      style={{ ...INPUT, resize: "vertical" }}
-                      rows={2}
-                      disabled={isDeleted}
-                    />
+                    {e.notesOpen ? (
+                      <>
+                        <label style={LABEL}>NOTES</label>
+                        <textarea
+                          value={e.notes}
+                          onChange={(ev) => setEdit(key, { notes: ev.target.value })}
+                          style={{ ...INPUT, resize: "vertical" }}
+                          rows={2}
+                          disabled={isDeleted}
+                          autoFocus={!e.notes}
+                        />
+                      </>
+                    ) : (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          style={GHOST_BTN_SM}
+                          onClick={() => setEdit(key, { notesOpen: true })}
+                          disabled={isDeleted}
+                        >
+                          + ADD NOTES
+                        </button>
+                      </div>
+                    )}
 
                     <div
                       style={{
@@ -766,7 +887,7 @@ function ConfirmPage() {
                     ))}
                     <button
                       style={{ ...GHOST_BTN_SM, marginTop: 4 }}
-                      onClick={() => setPickerFor({ client, key: n.key })}
+                      onClick={() => setPickerFor({ mode: "new", client, key: n.key })}
                     >
                       + ADD ITEM
                     </button>
@@ -838,12 +959,101 @@ function ConfirmPage() {
         <ItemPicker
           onCancel={() => setPickerFor(null)}
           onAdd={(picked) => {
-            appendNewItem(pickerFor.client, pickerFor.key, picked);
+            if (pickerFor.mode === "new") {
+              appendNewItem(pickerFor.client, pickerFor.key, picked);
+            } else {
+              void addItemToExisting(pickerFor.client, pickerFor.projectId, picked);
+            }
             setPickerFor(null);
           }}
         />
       )}
     </div>
+  );
+}
+
+function TypeSelect({
+  value,
+  options,
+  disabled,
+  syncing,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  disabled?: boolean;
+  syncing?: boolean;
+  onChange: (val: string) => void;
+}) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const opts = Array.from(new Set([...options, value].filter(Boolean)));
+  if (customOpen) {
+    return (
+      <div style={{ display: "flex", gap: 4 }}>
+        <input
+          autoFocus
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          placeholder="Type…"
+          style={{
+            ...INPUT,
+            width: 140,
+            padding: "4px 8px",
+            minHeight: 36,
+            fontSize: 11,
+            letterSpacing: 1,
+            color: LIME,
+          }}
+        />
+        <button
+          style={{ ...GHOST_BTN_SM, minHeight: 36 }}
+          onClick={() => {
+            const v = custom.trim();
+            setCustomOpen(false);
+            setCustom("");
+            if (v) onChange(v);
+          }}
+        >
+          OK
+        </button>
+      </div>
+    );
+  }
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => {
+        if (e.target.value === "__custom__") {
+          setCustom("");
+          setCustomOpen(true);
+          return;
+        }
+        onChange(e.target.value);
+      }}
+      style={{
+        background: "transparent",
+        color: syncing ? MUTED : LIME,
+        border: `1px solid ${LIME}`,
+        borderRadius: 6,
+        padding: "0 8px",
+        minHeight: 36,
+        fontFamily: "inherit",
+        fontSize: 11,
+        letterSpacing: 2,
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      {!value && <option value="">—</option>}
+      {opts.map((o) => (
+        <option key={o} value={o}>
+          {o.toUpperCase()}
+        </option>
+      ))}
+      <option value="__custom__">CUSTOM…</option>
+    </select>
   );
 }
 
