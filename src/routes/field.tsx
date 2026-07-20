@@ -579,33 +579,7 @@ function FieldBody({
             <ClientHeader event={currentEvent} clientMatch={clientMatch} state={state} />
           )}
 
-          {state === "enroute" && (
-            <StateEnRoute
-              event={currentEvent}
-              clientMatch={clientMatch}
-              isLead={isLead}
-              projects={data.projects ?? []}
-              busy={busy}
-              onHere={() => {
-                if (!currentEvent || !clientMatch) return;
-                void send({
-                  action: "setRoute",
-                  state: "arrived",
-                  client: clientMatch,
-                  eventId: currentEvent.id,
-                  stopIndex,
-                });
-              }}
-              onBackToCrew={handleBackToCrew}
-              backNotice={backNotice}
-              onSkip={handleSkip}
-              skipDisabled={busy}
-              isPreview={isPreview}
-            />
-
-          )}
-
-          {state === "arrived" && (
+          {(state === "enroute" || state === "arrived") && (
             <StateArrived
               roster={roster}
               clientMatch={clientMatch}
@@ -613,11 +587,28 @@ function FieldBody({
               delegated={!!route.delegated}
               busy={busy}
               clockSlot={personalClockSlot}
+              onBackToCrew={handleBackToCrew}
+              backNotice={backNotice}
+              isPreview={isPreview}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
-              onStart={() => void send({ action: "setRoute", state: "visit" })}
+              onStart={async () => {
+                if (state === "enroute") {
+                  if (!currentEvent || !clientMatch) return;
+                  const r = await send({
+                    action: "setRoute",
+                    state: "arrived",
+                    client: clientMatch,
+                    eventId: currentEvent.id,
+                    stopIndex,
+                  });
+                  if (!r.ok) return;
+                }
+                void send({ action: "setRoute", state: "visit" });
+              }}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
+
 
           {state === "visit" && (
             <StateVisit
