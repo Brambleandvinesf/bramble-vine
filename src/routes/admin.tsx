@@ -342,7 +342,35 @@ function AdminPage() {
                                 />
                               ))}
                             </div>
+                            {OPEN_TARGETS[c.key] ? (
+                              <button
+                                type="button"
+                                aria-label={`Open ${c.label}`}
+                                onClick={() =>
+                                  void navigate({ to: OPEN_TARGETS[c.key] as "/" })
+                                }
+                                style={{
+                                  marginLeft: "auto",
+                                  background: "transparent",
+                                  border: "1px solid #2a2a2a",
+                                  color: "#7cff00",
+                                  borderRadius: 4,
+                                  width: 32,
+                                  height: 32,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  fontFamily: "inherit",
+                                  fontSize: 14,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ›
+                              </button>
+                            ) : null}
                           </div>
+
                         );
                       })}
                     </div>
