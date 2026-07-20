@@ -4,6 +4,10 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "field:getField";
 
 export const Route = createFileRoute("/field")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Field" }] }),
@@ -162,21 +166,31 @@ function FieldPage() {
     if (search.step) setPreviewStep(search.step);
   }, [search.step]);
 
-  const [data, setData] = useState<GetFieldResponse | null>(null);
+  const [data, setData] = useState<GetFieldResponse | null>(
+    () => sessionCache.get<GetFieldResponse>(CK) ?? null,
+  );
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<{ kind: "info" | "err"; text: string } | null>(null);
   const [now, setNow] = useState<number>(Date.now());
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const fetchOnce = useCallback(async () => {
+    setRefreshing(true);
     try {
       const res = await fetch(`${SCRIPT_URL}?action=getField`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as GetFieldResponse;
+      sessionCache.set(CK, json);
       setData(json);
       setLoadErr(null);
+      setOffline(false);
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : "Failed to load");
+      if (sessionCache.has(CK)) setOffline(true);
+      else setLoadErr(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -213,6 +227,12 @@ function FieldPage() {
   return (
     <div style={PAGE}>
       <TopBar user={user} state={previewState ?? data?.route?.state} delegated={!!data?.route?.delegated} />
+      {(refreshing || offline) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 0" }}>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: MUTED, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>offline — last data</span>}
+        </div>
+      )}
       {isPreview && (
         <PreviewBadge
           previewState={previewState!}

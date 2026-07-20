@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({
@@ -183,6 +185,8 @@ function SchedulePage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
   const reqIdRef = useRef(0);
 
   const { start, end } = useMemo(() => {
@@ -191,8 +195,23 @@ function SchedulePage() {
     return { start: mon, end: addDaysKey(mon, 7) };
   }, [view, anchor]);
 
+  const cacheKey = `schedule:getSchedule:${start}:${end}`;
+
+  // Seed cached range instantly when start/end changes.
+  useEffect(() => {
+    const cached = sessionCache.get<EventItem[]>(cacheKey);
+    if (cached) {
+      setEvents(cached);
+      setLoadErr(null);
+    } else {
+      setEvents([]);
+    }
+  }, [cacheKey]);
+
   const fetchRange = useCallback(async () => {
     const myId = ++reqIdRef.current;
+    const key = `schedule:getSchedule:${start}:${end}`;
+    setRefreshing(true);
     try {
       const url = `${SCRIPT_URL}?action=getSchedule&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
       const res = await fetch(url);
@@ -201,11 +220,16 @@ function SchedulePage() {
       if (myId !== reqIdRef.current) return;
       const list = Array.isArray(json.events) ? json.events : [];
       list.sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+      sessionCache.set(key, list);
       setEvents(list);
       setLoadErr(null);
+      setOffline(false);
     } catch (e) {
       if (myId !== reqIdRef.current) return;
-      setLoadErr(e instanceof Error ? e.message : "Failed to load");
+      if (sessionCache.has(key)) setOffline(true);
+      else setLoadErr(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      if (myId === reqIdRef.current) setRefreshing(false);
     }
   }, [start, end]);
 
@@ -281,11 +305,20 @@ function SchedulePage() {
           letterSpacing: 2,
           margin: "4px 2px 16px",
           fontWeight: "bold",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
         }}
       >
         {view === "day"
           ? fmtLongDate(anchor)
           : `WEEK OF ${fmtLongDate(mondayOfKey(anchor))}`}
+        <RefreshDot refreshing={refreshing} offline={offline} />
+        {offline && (
+          <span style={{ color: "#8f8f8f", fontSize: 10, letterSpacing: 1 }}>
+            OFFLINE — LAST DATA
+          </span>
+        )}
       </h1>
 
       {loadErr ? (

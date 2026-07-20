@@ -2,6 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { canSee } from "../lib/permissions";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "loading:getData";
 
 export const Route = createFileRoute("/loading")({
   head: () => ({
@@ -94,26 +98,35 @@ function LoadingPage() {
   const canConfirm = canSee(role, "special_confirm");
 
 
-  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
-  const [items, setItems] = useState<ToolRow[] | null>(null);
+  const cached = sessionCache.get<GetDataResponse>(CK);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(() => cached?.confirm ?? null);
+  const [items, setItems] = useState<ToolRow[] | null>(() => (cached ? normalize(cached) : null));
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [writeErr, setWriteErr] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   // Poll getData so the screen unlocks automatically once confirmed.
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
+      if (!cancelled) setRefreshing(true);
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getData`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as GetDataResponse;
         if (cancelled) return;
+        sessionCache.set(CK, json);
         setConfirm(json.confirm ?? null);
         setItems(normalize(json));
         setLoadErr(null);
+        setOffline(false);
       } catch (e) {
         if (cancelled) return;
-        setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        if (sessionCache.has(CK)) setOffline(true);
+        else setLoadErr(e instanceof Error ? e.message : "Failed to load");
+      } finally {
+        if (!cancelled) setRefreshing(false);
       }
     };
     tick();
@@ -191,8 +204,11 @@ function LoadingPage() {
       {!loadErr && confirm?.confirmed && (
         <>
           <header style={HEADER}>
-            <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-              LOADING CHECKLIST
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+                LOADING CHECKLIST
+              </div>
+              <RefreshDot refreshing={refreshing} offline={offline} />
             </div>
             <div style={SUBROW}>
               <span>
@@ -200,6 +216,7 @@ function LoadingPage() {
                 {" of "}
                 {totals.total} loaded
               </span>
+              {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
             </div>
             <div style={METER}>
               <div

@@ -4,6 +4,10 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "receipts:getReceipts";
 
 export const Route = createFileRoute("/receipts")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Receipts" }] }),
@@ -189,11 +193,20 @@ function ReceiptsPage() {
   const initialTab: "designate" | "invoice" = canDesignate ? "designate" : "invoice";
   const [tab, setTab] = useState<"designate" | "invoice">(initialTab);
 
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [lines, setLines] = useState<Line[]>([]);
-  const [designations, setDesignations] = useState<string[]>([]);
+  const cached = sessionCache.get<GetReceiptsResponse>(CK);
+  const [receipts, setReceipts] = useState<Receipt[]>(
+    () => (cached?.receipts ?? []).map(normReceipt),
+  );
+  const [lines, setLines] = useState<Line[]>(
+    () => (cached?.lines ?? []).map(normLine),
+  );
+  const [designations, setDesignations] = useState<string[]>(
+    () => (cached?.designations ?? []).map(s).filter(Boolean),
+  );
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !cached);
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const fetchedRef = useRef(false);
@@ -235,12 +248,19 @@ function ReceiptsPage() {
   const writer: Writer = useMemo(() => ({ syncing, dispatch }), [syncing, dispatch]);
 
   const load = useCallback(async () => {
-    const res = await fetch(`${SCRIPT_URL}?action=getReceipts`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = (await res.json()) as GetReceiptsResponse;
-    setReceipts((json.receipts ?? []).map(normReceipt));
-    setLines((json.lines ?? []).map(normLine));
-    setDesignations((json.designations ?? []).map(s).filter(Boolean));
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as GetReceiptsResponse;
+      sessionCache.set(CK, json);
+      setReceipts((json.receipts ?? []).map(normReceipt));
+      setLines((json.lines ?? []).map(normLine));
+      setDesignations((json.designations ?? []).map(s).filter(Boolean));
+      setOffline(false);
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -250,7 +270,8 @@ function ReceiptsPage() {
       try {
         await load();
       } catch (e) {
-        setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        if (sessionCache.has(CK)) setOffline(true);
+        else setLoadErr(e instanceof Error ? e.message : "Failed to load");
       } finally {
         setLoading(false);
       }
@@ -258,12 +279,13 @@ function ReceiptsPage() {
   }, [load]);
 
   const refetch = useCallback(async () => {
-    setLoading(true);
+    if (!sessionCache.has(CK)) setLoading(true);
     try {
       await load();
       setLoadErr(null);
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : "Failed to load");
+      if (sessionCache.has(CK)) setOffline(true);
+      else setLoadErr(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
@@ -284,8 +306,12 @@ function ReceiptsPage() {
   return (
     <div style={PAGE}>
       <header style={HEADER}>
-        <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-          RECEIPTS
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+            RECEIPTS
+          </div>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
         </div>
         <div style={{ marginTop: 2, fontSize: 12, color: MUTED }}>
           {tab === "designate"

@@ -10,6 +10,10 @@ import {
 } from "react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "messages:getInbox";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
@@ -231,14 +235,19 @@ function MessagesPage() {
 }
 
 function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
+  const cached = sessionCache.get<InboxResponse>(CK);
   // Feed state
-  const [items, setItems] = useState<InboxItem[]>([]);
-  const [labels, setLabels] = useState<string[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [clients, setClients] = useState<string[]>([]);
-  const [nextVisit, setNextVisit] = useState<{ title: string; start: string } | null>(null);
+  const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
+  const [labels, setLabels] = useState<string[]>(() => cached?.labels ?? []);
+  const [contacts, setContacts] = useState<Contact[]>(() => cached?.contacts ?? []);
+  const [clients, setClients] = useState<string[]>(() => cached?.clients ?? []);
+  const [nextVisit, setNextVisit] = useState<{ title: string; start: string } | null>(
+    () => cached?.nextVisit ?? null,
+  );
   const [feedError, setFeedError] = useState(false);
-  const [feedLoaded, setFeedLoaded] = useState(false);
+  const [feedLoaded, setFeedLoaded] = useState<boolean>(() => !!cached);
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   // Optimistic
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -331,28 +340,36 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
   }, []);
 
   const loadInbox = useCallback(async () => {
-    const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox").then((x) => x.json());
-    const its = r.inbox || [];
-    setItems(its);
-    setLabels(r.labels || []);
-    if (r.contacts) setContacts(r.contacts);
-    if (r.clients) setClients(r.clients);
-    setNextVisit(r.nextVisit || null);
-    setFeedError(false);
-    setFeedLoaded(true);
-    // clear optimistic sets on fresh load: rows that are actually gone stay gone,
-    // rows the server still sends are visible again
-    setHidden(new Set());
-    setRemoved(new Set());
-    setAwaitingOverride({});
-    detectNew(its);
+    setRefreshing(true);
+    try {
+      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox").then((x) => x.json());
+      sessionCache.set(CK, r);
+      const its = r.inbox || [];
+      setItems(its);
+      setLabels(r.labels || []);
+      if (r.contacts) setContacts(r.contacts);
+      if (r.clients) setClients(r.clients);
+      setNextVisit(r.nextVisit || null);
+      setFeedError(false);
+      setFeedLoaded(true);
+      setOffline(false);
+      // clear optimistic sets on fresh load: rows that are actually gone stay gone,
+      // rows the server still sends are visible again
+      setHidden(new Set());
+      setRemoved(new Set());
+      setAwaitingOverride({});
+      detectNew(its);
+    } finally {
+      setRefreshing(false);
+    }
   }, [detectNew]);
 
   const safeLoad = useCallback(async () => {
     try {
       await loadInbox();
     } catch {
-      setFeedError(true);
+      if (sessionCache.has(CK)) setOffline(true);
+      else setFeedError(true);
       setFeedLoaded(true);
     }
   }, [loadInbox]);
@@ -976,6 +993,10 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
           {badgeCount}
         </span>
         {countdownEl}
+        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: T.dim, fontSize: 10 }}>offline — last data</span>}
+        </span>
       </header>
 
       {/* controls row */}
