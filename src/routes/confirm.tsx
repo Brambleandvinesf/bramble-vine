@@ -601,16 +601,25 @@ function ConfirmPage() {
           const newList = newByClient[client] ?? [];
           return (
             <section key={client} style={{ margin: "16px 12px 0" }}>
+              <div style={CLIENT_CARD}>
               <div style={CLIENT_HEAD}>
                 <span
-                  style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}
+                  style={{
+                    color: LIME_BRIGHT,
+                    fontSize: 22,
+                    fontWeight: "bold",
+                    letterSpacing: 2,
+                    textAlign: "center",
+                    width: "100%",
+                  }}
                 >
                   {client}
                 </span>
-                <span style={{ fontSize: 11, color: MUTED, marginLeft: "auto" }}>
+                <div style={{ fontSize: 11, color: MUTED, textAlign: "center", width: "100%", marginTop: 4 }}>
                   {list.length} project{list.length === 1 ? "" : "s"}
-                </span>
+                </div>
               </div>
+
 
               {rendered.map((p) => {
                 const key = p.projectId || `row-${p.row}`;
