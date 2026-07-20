@@ -1852,6 +1852,14 @@ function FeedCard({
               CLIENT
             </span>
           )}
+          {lineLast4 && (
+            <span
+              title={it.line}
+              style={{ border: `1px solid ${T.dim}`, color: T.dim, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}
+            >
+              {"\u2026" + lineLast4}
+            </span>
+          )}
           <span style={{ position: "absolute", right: 0, top: 0, fontSize: ".8rem", opacity: 0.75, whiteSpace: "nowrap" }}>
             {rel(it.date)}
           </span>
