@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useReviewableToday } from "../lib/reviewable-today";
 
 const CK = "loading:getData";
 
@@ -134,6 +135,7 @@ function normalize(d: GetDataResponse): ToolRow[] {
 function LoadingPage() {
   const { user, role } = useAuth();
   const canConfirm = canSee(role, "special_confirm");
+  const reviewable = useReviewableToday();
 
 
   const cached = sessionCache.get<GetDataResponse>(CK);
@@ -251,15 +253,19 @@ function LoadingPage() {
         </div>
       )}
 
-      {!loadErr && !confirm && (
+      {!loadErr && !confirm && reviewable === null && (
         <div style={STATE}>Loading…</div>
       )}
 
-      {!loadErr && confirm && !confirm.confirmed && (
+      {!loadErr && reviewable === false && (
+        <div style={STATE}>Nothing to load today</div>
+      )}
+
+      {!loadErr && reviewable !== false && confirm && !confirm.confirmed && (
         <WaitingState canConfirm={canConfirm} />
       )}
 
-      {!loadErr && confirm?.confirmed && (
+      {!loadErr && reviewable !== false && confirm?.confirmed && (
         <>
           <header style={HEADER}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

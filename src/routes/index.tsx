@@ -6,6 +6,7 @@ import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useReviewableToday } from "../lib/reviewable-today";
 
 const CK_CONFIRM = "home:getConfirm";
 const CK_INBOX = "home:getInbox:count";
@@ -58,6 +59,7 @@ function HomePage() {
   const { role: actualRole, name } = useAuth();
   const { effectiveRole, setViewAs, viewAs } = useViewAs();
   const role = effectiveRole;
+  const reviewable = useReviewableToday();
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(
     () => sessionCache.get<{ confirmed?: boolean }>(CK_CONFIRM) ?? null,
@@ -226,11 +228,13 @@ function HomePage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-        <ConfirmBanner
-          loading={confirmLoading}
-          confirmed={confirmState?.confirmed ?? null}
-          role={role}
-        />
+        {reviewable !== false && (
+          <ConfirmBanner
+            loading={confirmLoading}
+            confirmed={confirmState?.confirmed ?? null}
+            role={role}
+          />
+        )}
         {canMsg && <BadgeTile to="/messages" title="MESSAGES" count={msgCount} unit="awaiting" />}
         {canRcpt && <BadgeTile to="/receipts" title="RECEIPTS" count={rcptCount} unit="to designate" />}
         {tiles.map((t) => (

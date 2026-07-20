@@ -6,6 +6,7 @@ import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useReviewableToday } from "../lib/reviewable-today";
 
 const CK = "confirm:getConfirm";
 
@@ -153,6 +154,7 @@ function ConfirmPage() {
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "special_confirm");
+  const reviewable = useReviewableToday();
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
@@ -529,6 +531,14 @@ function ConfirmPage() {
   }, [projects, edits, deletes, newByClient, sendText, load]);
 
   if (!allowed) return null;
+
+  if (reviewable === false) {
+    return (
+      <div style={PAGE}>
+        <div style={STATE}>No special loading today</div>
+      </div>
+    );
+  }
 
   return (
     <div style={PAGE}>
