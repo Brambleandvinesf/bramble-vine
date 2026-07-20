@@ -1700,6 +1700,7 @@ function StateDebrief({
   onFinish,
   previewStep,
   employees = [],
+  notes = [],
 }: {
   clientMatch: string | null;
   event?: EventItem;
@@ -1716,6 +1717,7 @@ function StateDebrief({
   }) => Promise<void>;
   previewStep?: DebriefStepKey | null;
   employees?: Employee[];
+  notes?: VisitNote[];
 }) {
   const clocked = roster.filter((m) => m.in);
   const nowIso = useMemo(() => new Date().toISOString(), []);
@@ -1736,6 +1738,17 @@ function StateDebrief({
     [projects, clientMatch],
   );
 
+  const updateNotes = useMemo(() => notes.filter((n) => n.type === "update"), [notes]);
+  const itemNotes = useMemo(() => notes.filter((n) => n.type === "item"), [notes]);
+  const futureNotes = useMemo(() => notes.filter((n) => n.type === "future"), [notes]);
+  const officeNotes = useMemo(() => notes.filter((n) => n.type === "office"), [notes]);
+
+  const appendPhotos = (base: string, photos?: string[]): string => {
+    if (!photos || !photos.length) return base;
+    const lines = photos.map((u) => `photo: ${u}`).join("\n");
+    return base ? `${base}\n${lines}` : lines;
+  };
+
   const [updates, setUpdates] = useState<DebriefUpdate[]>([]);
   const setSpecial = (projectId: string, status: string, notes?: string) => {
     setUpdates((cur) => {
@@ -1744,13 +1757,41 @@ function StateDebrief({
       return [...rest, { projectId, status, notes }];
     });
   };
+  const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
+  const appendToProjectNotes = (text: string) => {
+    const pid = focusedProjectId;
+    if (!pid || !text.trim()) return;
+    setUpdates((cur) => {
+      const existing = cur.find((u) => u.projectId === pid);
+      const status = existing?.status ?? "IN PROGRESS";
+      const prev = existing?.notes ?? "";
+      const merged = prev ? `${prev}\n${text}` : text;
+      const rest = cur.filter((u) => u.projectId !== pid);
+      return [...rest, { projectId: pid, status, notes: merged }];
+    });
+  };
 
-  const [itemsUsed, setItemsUsed] = useState<ItemUsed[]>([]);
+  const [itemsUsed, setItemsUsed] = useState<ItemUsed[]>(() =>
+    itemNotes
+      .filter((n) => n.item)
+      .map((n) => ({
+        name: n.item!,
+        qty: appendPhotos(n.qty ?? "", n.photos),
+      })),
+  );
 
-
-  const [newProjects, setNewProjects] = useState<NewProject[]>([]);
+  const [newProjects, setNewProjects] = useState<NewProject[]>(() =>
+    futureNotes.map((n) => ({
+      action: n.text ?? "",
+      notes: appendPhotos("", n.photos),
+      items: [],
+    })),
+  );
   const [clientUpdates, setClientUpdates] = useState<string[]>([]);
-  const [officeTasks, setOfficeTasks] = useState<string[]>([]);
+  const [officeTasks, setOfficeTasks] = useState<string[]>(() =>
+    officeNotes.map((n) => appendPhotos(n.text ?? "", n.photos)),
+  );
+
 
   const total = billing.reduce((a, b) => a + b.hours, 0);
 
