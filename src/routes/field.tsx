@@ -248,11 +248,11 @@ function FieldPage() {
 }
 
 const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
-  { key: "billing", label: "Labor Hours" },
-  { key: "updates", label: "Project Updates" },
-  { key: "new", label: "New Projects" },
+  { key: "billing", label: "Hours" },
+  { key: "updates", label: "Projects Completed" },
   { key: "items", label: "Items Used" },
-  { key: "office", label: "Office Tasks" },
+  { key: "new", label: "Future Projects" },
+  { key: "office", label: "Messages" },
 ];
 
 function PreviewBadge({
