@@ -539,8 +539,28 @@ function FieldBody({
 
 
 
+  const personalClockSlot = me ? (
+    <PersonalClockPanel
+      me={me}
+      roster={roster}
+      clientMatch={clientMatch}
+      now={now}
+      isPreview={isPreview}
+      send={send}
+      setBanner={setBanner}
+    />
+  ) : null;
+
+  const handleChangeIdentity = () => {
+    clearMe();
+    setMe(null);
+  };
+
   return (
     <div>
+      {me && (
+        <ClockingAsHeader me={me} roster={roster} onChange={handleChangeIdentity} />
+      )}
       {/* ROUTE COMPLETE handled separately */}
       {routeComplete ? (
         <RouteComplete
