@@ -1247,6 +1247,7 @@ function StateDebrief({
   busy,
   onFinish,
   previewStep,
+  employees = [],
 }: {
   clientMatch: string | null;
   event?: EventItem;
