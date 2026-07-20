@@ -1287,7 +1287,7 @@ function ReceiptMenu({
         }}
         disabled={uploading}
       >
-        {uploading ? "…" : isSyncing ? <span style={{ color: DIM_GREEN }}>●</span> : "⋯"}
+        {uploading ? "…" : isSyncing ? <span style={{ color: LIME_DIM }}>●</span> : "⋯"}
       </button>
       {open && (
         <>
