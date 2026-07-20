@@ -1673,6 +1673,7 @@ function StateVisit({
 type NormTool = {
   row: number;
   materialId: string;
+  client: string;
   project: string;
   item: string;
   qty: string;
