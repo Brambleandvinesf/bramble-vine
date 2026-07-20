@@ -387,7 +387,6 @@ function DesignateTab({
 
   const [picks, setPicks] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
   const initedRef = useRef(false);
 
   const pending = useMemo(
