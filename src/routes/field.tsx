@@ -463,15 +463,17 @@ function FieldBody({
 
           {state === "debrief" && (
             <>
-              {canDebrief ? (
+              {canDebrief || isPreview ? (
                 <StateDebrief
                   clientMatch={clientMatch}
                   event={currentEvent}
                   roster={roster}
                   projects={data.projects ?? []}
                   tools={data.tools ?? []}
-                  busy={busy}
+                  busy={busy || isPreview}
+                  previewStep={isPreview ? previewStep : null}
                   onFinish={async (payload) => {
+                    if (isPreview) return;
                     const r = await send({
                       action: "saveDebrief",
                       client: clientMatch,
@@ -506,6 +508,7 @@ function FieldBody({
               )}
             </>
           )}
+
 
           {state === "next" && currentEvent && (
             <StateEnRoute
