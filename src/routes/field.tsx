@@ -615,12 +615,20 @@ function RosterPicker({
   employees,
   onSet,
   busy,
+  initialSelected,
+  onCancel,
 }: {
   employees: Employee[];
   onSet: (people: Employee[]) => void;
   busy: boolean;
+  initialSelected?: string[];
+  onCancel?: () => void;
 }) {
-  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [sel, setSel] = useState<Record<string, boolean>>(() => {
+    const out: Record<string, boolean> = {};
+    (initialSelected ?? []).forEach((id) => { out[id] = true; });
+    return out;
+  });
   const toggle = (id: string) => setSel((p) => ({ ...p, [id]: !p[id] }));
   const chosen = employees.filter((e) => sel[e.id]);
   return (
@@ -662,9 +670,18 @@ function RosterPicker({
       >
         SET ROSTER ({chosen.length})
       </button>
+      {onCancel && (
+        <button
+          onClick={onCancel}
+          style={{ ...SMALL_BTN, marginTop: 12, width: "100%", color: MUTED, borderColor: LINE }}
+        >
+          CANCEL
+        </button>
+      )}
     </div>
   );
 }
+
 
 /* ============================================================ */
 function ClientHeader({
