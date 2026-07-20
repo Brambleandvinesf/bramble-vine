@@ -442,12 +442,16 @@ function ConfirmPage() {
     // Build payload
     const statuses: Array<{ projectId: string; status: "Confirmed" | "SKIP" }> = [];
     const updates: Array<Record<string, string>> = [];
+    const deletesArr: Array<{ projectId: string; client: string }> = [];
     for (const p of projects) {
       const key = p.projectId || `row-${p.row}`;
       const e = edits[key];
       if (!e) continue;
       if (!p.projectId) continue;
-      if (deletes.has(p.projectId)) continue;
+      if (deletes.has(p.projectId)) {
+        deletesArr.push({ projectId: p.projectId, client: p.client });
+        continue;
+      }
       statuses.push({ projectId: p.projectId, status: e.status });
       const diff: Record<string, string> = {};
       if (e.action !== p.action) diff.action = e.action;
@@ -456,7 +460,7 @@ function ConfirmPage() {
       if (e.category !== p.category) diff.category = e.category;
       if (e.notes !== p.notes) diff.notes = e.notes;
       if (Object.keys(diff).length) {
-        updates.push({ projectId: p.projectId, ...diff });
+        updates.push({ projectId: p.projectId, client: p.client, ...diff });
       }
     }
     const newProjects: Array<Record<string, unknown>> = [];
@@ -482,7 +486,7 @@ function ConfirmPage() {
       statuses,
       updates,
       newProjects,
-      deletes: Array.from(deletes),
+      deletes: deletesArr,
       sendText,
     };
     setSubmitting(true);
