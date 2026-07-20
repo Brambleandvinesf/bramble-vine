@@ -1423,6 +1423,9 @@ function StateArrived({
   delegated,
   busy,
   clockSlot,
+  onBackToCrew,
+  backNotice,
+  isPreview,
   onDelegate,
   onStart,
   onNoShow,
@@ -1433,6 +1436,9 @@ function StateArrived({
   delegated: boolean;
   busy: boolean;
   clockSlot?: React.ReactNode;
+  onBackToCrew?: () => void;
+  backNotice?: string | null;
+  isPreview?: boolean;
   onDelegate: (v: boolean) => void;
   onStart: () => void;
   onNoShow: () => void;
@@ -1440,6 +1446,32 @@ function StateArrived({
   const anyIn = roster.some((m) => !!m.in);
   return (
     <div style={{ padding: "10px 14px" }}>
+      {onBackToCrew && (
+        <div style={{ marginBottom: 6 }}>
+          <button
+            onClick={onBackToCrew}
+            disabled={!!isPreview}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: DIM_GREEN,
+              fontFamily: "inherit",
+              fontSize: 12,
+              letterSpacing: 1,
+              padding: "4px 0",
+              cursor: isPreview ? "default" : "pointer",
+              opacity: isPreview ? 0.5 : 1,
+            }}
+          >
+            ← CREW
+          </button>
+          {backNotice && (
+            <div style={{ color: RED, fontSize: 12, marginTop: 4, opacity: 0.85 }}>
+              {backNotice}
+            </div>
+          )}
+        </div>
+      )}
       {!clientMatch && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
       {clockSlot}
 
