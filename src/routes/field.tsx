@@ -160,6 +160,48 @@ function hoursBetween(inIso?: string | null, outIso?: string | null): number {
   return Math.max(0, Math.round(h / 0.25) * 0.25);
 }
 
+/* ---------- identity (LA-date sticky) ---------- */
+const OVERHEAD_CLIENT = "Bramble and Vine";
+const ME_KEY = "field.me";
+type Me = { id: string; name: string };
+type MeStored = Me & { date: string };
+function laDateKey(): string {
+  try {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+function loadMe(): Me | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(ME_KEY);
+    if (!raw) return null;
+    const m = JSON.parse(raw) as MeStored;
+    if (!m || !m.id || !m.name) return null;
+    if (m.date !== laDateKey()) {
+      window.sessionStorage.removeItem(ME_KEY);
+      return null;
+    }
+    return { id: m.id, name: m.name };
+  } catch {
+    return null;
+  }
+}
+function saveMe(m: Me) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(ME_KEY, JSON.stringify({ ...m, date: laDateKey() }));
+  } catch { /* ignore */ }
+}
+function clearMe() {
+  if (typeof window === "undefined") return;
+  try { window.sessionStorage.removeItem(ME_KEY); } catch { /* ignore */ }
+}
+function isOverheadClient(c?: string | null): boolean {
+  return (c ?? "").trim().toLowerCase() === OVERHEAD_CLIENT.toLowerCase();
+}
+
 /* ============================================================ */
 function FieldPage() {
   const { effectiveRole } = useViewAs();
