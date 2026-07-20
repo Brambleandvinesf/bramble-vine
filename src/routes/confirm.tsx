@@ -184,7 +184,12 @@ function ConfirmPage() {
   });
   const [deletes, setDeletes] = useState<Set<string>>(new Set());
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
-  const [pickerFor, setPickerFor] = useState<{ client: string; key: string } | null>(null);
+  const [pickerFor, setPickerFor] = useState<
+    | { mode: "new"; client: string; key: string }
+    | { mode: "existing"; client: string; projectId: string }
+    | null
+  >(null);
+  const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [expandedMore, setExpandedMore] = useState<Set<string>>(new Set());
   const [sendText, setSendText] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
