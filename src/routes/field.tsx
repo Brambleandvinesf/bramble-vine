@@ -453,6 +453,7 @@ function FieldBody({
               projects={data.projects ?? []}
               tools={data.tools ?? []}
               busy={busy}
+              isPreview={isPreview}
               onClockOut={(m) => {
                 if (!clientMatch) return;
                 void send({ action: "qbClock", userId: m.id, dir: "out", client: clientMatch });
@@ -461,6 +462,7 @@ function FieldBody({
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
+
 
           {state === "debrief" && (
             <>
@@ -848,6 +850,7 @@ function StateVisit({
   projects,
   tools,
   busy,
+  isPreview,
   onClockOut,
   onToggleTool,
   onNoShow,
@@ -861,10 +864,12 @@ function StateVisit({
   projects: ProjectRow[];
   tools: ToolRowRaw[];
   busy: boolean;
+  isPreview: boolean;
   onClockOut: (m: RosterMember) => void;
   onToggleTool: (t: NormTool) => void;
   onNoShow: () => void;
 }) {
+
   const clientProjects = clientMatch
     ? projects.filter((p) => s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase())
     : [];
@@ -898,8 +903,10 @@ function StateVisit({
           </div>
         </div>
       </div>
+      <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
 
       <div style={{ ...SECTION_HEAD, marginTop: 16 }}>PROJECTS</div>
+
       {clientProjects.length === 0 ? (
         <div style={{ color: MUTED, fontSize: 12, padding: "8px 4px" }}>No projects listed.</div>
       ) : (
@@ -1031,7 +1038,183 @@ type NormTool = {
   loaded: boolean;
 };
 
+
 /* ============================================================ */
+type VisitPhoto = {
+  id: string;
+  thumb: string;
+  status: "uploading" | "ok" | "error";
+  retry?: () => void;
+};
+
+async function downscaleToJpegBase64(file: File, maxEdge = 2048, quality = 0.85): Promise<{ base64: string; dataUrl: string }> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("image load failed"));
+    im.src = dataUrl;
+  });
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no 2d context");
+  ctx.drawImage(img, 0, 0, w, h);
+  const out = canvas.toDataURL("image/jpeg", quality);
+  const base64 = out.split(",")[1] ?? "";
+  return { base64, dataUrl: out };
+}
+
+function VisitCamera({ clientName, disabled }: { clientName: string; disabled: boolean }) {
+  const [photos, setPhotos] = useState<VisitPhoto[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const upload = useCallback(
+    async (id: string, base64: string, client: string) => {
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "visitPhoto", data: base64, mime: "image/jpeg", client }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
+        if (json.ok) {
+          setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, status: "ok" } : p)));
+        } else {
+          throw new Error("upload failed");
+        }
+      } catch {
+        setPhotos((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...p, status: "error", retry: () => void upload(id, base64, client) }
+              : p,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
+  const handleFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || disabled) return;
+      const client = clientName;
+      for (const file of Array.from(files)) {
+        try {
+          const { base64, dataUrl } = await downscaleToJpegBase64(file);
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          setPhotos((prev) => [...prev, { id, thumb: dataUrl, status: "uploading" }]);
+          void upload(id, base64, client);
+        } catch {
+          // skip unreadable file
+        }
+      }
+    },
+    [clientName, disabled, upload],
+  );
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+        style={{
+          ...PRIMARY_BTN,
+          opacity: disabled ? 0.4 : 1,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        📷 CAMERA
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      {photos.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+          {photos.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => p.status === "error" && p.retry?.()}
+              style={{
+                position: "relative",
+                flex: "0 0 auto",
+                width: 72,
+                height: 72,
+                borderRadius: 8,
+                overflow: "hidden",
+                border: `1px solid ${p.status === "error" ? "#ff4d4d" : LIME_DIM}`,
+                cursor: p.status === "error" ? "pointer" : "default",
+              }}
+            >
+              <img src={p.thumb} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background:
+                    p.status === "uploading"
+                      ? "rgba(0,0,0,.45)"
+                      : p.status === "ok"
+                        ? "rgba(0,0,0,.25)"
+                        : "rgba(120,0,0,.45)",
+                  color: p.status === "ok" ? LIME : "#fff",
+                  fontSize: p.status === "uploading" ? 12 : 22,
+                  fontWeight: "bold",
+                }}
+              >
+                {p.status === "uploading" ? "…" : p.status === "ok" ? "✓" : "↻"}
+              </div>
+              {p.status === "error" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    background: "#ff4d4d",
+                    color: "#000",
+                    fontSize: 10,
+                    textAlign: "center",
+                    padding: "1px 0",
+                    fontWeight: "bold",
+                  }}
+                >
+                  RETRY
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================ */
+
 function RosterClockStatus({ roster }: { roster: RosterMember[] }) {
   return (
     <div style={{ marginTop: 10 }}>
