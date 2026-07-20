@@ -348,6 +348,9 @@ function FieldBody({
   busy,
   role,
   setBanner,
+  previewState,
+  previewStep,
+  isPreview,
 }: {
   data: GetFieldResponse;
   now: number;
@@ -355,26 +358,31 @@ function FieldBody({
   busy: boolean;
   role: ReturnType<typeof useViewAs>["effectiveRole"];
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
+  previewState: RouteState | null;
+  previewStep: DebriefStepKey;
+  isPreview: boolean;
 }) {
   const route = data.route ?? {};
-  const state: RouteState = route.state ?? "enroute";
+  const liveState: RouteState = route.state ?? "enroute";
+  const state: RouteState = previewState ?? liveState;
   const events = data.events ?? [];
   const employees = data.employees ?? [];
   const clients = data.clients ?? [];
   const roster = route.roster ?? [];
   const stopIndex = route.stopIndex ?? 0;
-  const currentEvent = events[stopIndex];
+  const currentEvent = events[stopIndex] ?? events[0];
   const clientMatch = currentEvent ? matchClient(currentEvent.title, clients) : null;
 
   const isLead = canSee(role, "route_debrief");
   const canDebrief = canSee(role, "route_debrief") || route.delegated === true;
 
-  /* --- roster picker gate --- */
-  if (roster.length === 0) {
+  /* --- roster picker gate (skipped in preview so all states are reachable) --- */
+  if (roster.length === 0 && !isPreview) {
     return <RosterPicker employees={employees} onSet={(people) => send({ action: "setRoster", people })} busy={busy} />;
   }
 
-  const routeComplete = stopIndex >= events.length;
+  const routeComplete = !isPreview && stopIndex >= events.length;
+
 
   return (
     <div>
