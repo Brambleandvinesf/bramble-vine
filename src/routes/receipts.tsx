@@ -248,12 +248,19 @@ function ReceiptsPage() {
   const writer: Writer = useMemo(() => ({ syncing, dispatch }), [syncing, dispatch]);
 
   const load = useCallback(async () => {
-    const res = await fetch(`${SCRIPT_URL}?action=getReceipts`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = (await res.json()) as GetReceiptsResponse;
-    setReceipts((json.receipts ?? []).map(normReceipt));
-    setLines((json.lines ?? []).map(normLine));
-    setDesignations((json.designations ?? []).map(s).filter(Boolean));
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as GetReceiptsResponse;
+      sessionCache.set(CK, json);
+      setReceipts((json.receipts ?? []).map(normReceipt));
+      setLines((json.lines ?? []).map(normLine));
+      setDesignations((json.designations ?? []).map(s).filter(Boolean));
+      setOffline(false);
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -263,7 +270,8 @@ function ReceiptsPage() {
       try {
         await load();
       } catch (e) {
-        setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        if (sessionCache.has(CK)) setOffline(true);
+        else setLoadErr(e instanceof Error ? e.message : "Failed to load");
       } finally {
         setLoading(false);
       }
@@ -271,12 +279,13 @@ function ReceiptsPage() {
   }, [load]);
 
   const refetch = useCallback(async () => {
-    setLoading(true);
+    if (!sessionCache.has(CK)) setLoading(true);
     try {
       await load();
       setLoadErr(null);
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : "Failed to load");
+      if (sessionCache.has(CK)) setOffline(true);
+      else setLoadErr(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
@@ -297,8 +306,12 @@ function ReceiptsPage() {
   return (
     <div style={PAGE}>
       <header style={HEADER}>
-        <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-          RECEIPTS
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+            RECEIPTS
+          </div>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
         </div>
         <div style={{ marginTop: 2, fontSize: 12, color: MUTED }}>
           {tab === "designate"
