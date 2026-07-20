@@ -1205,10 +1205,10 @@ const SUCCESS_BANNER: React.CSSProperties = {
 };
 const CLIENT_CARD: React.CSSProperties = {
   background: "#0f1509",
-  border: `2px solid ${LIME_BRIGHT}`,
+  border: `3px solid #d9ff70`,
   borderRadius: 14,
   padding: 14,
-  boxShadow: "0 0 0 1px rgba(191,255,60,.15), 0 0 24px rgba(191,255,60,.08)",
+  boxShadow: "0 0 0 2px rgba(191,255,60,.18), 0 0 28px rgba(191,255,60,.14)",
 };
 const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
@@ -1220,7 +1220,7 @@ const CLIENT_HEAD: React.CSSProperties = {
 };
 const CARD: React.CSSProperties = {
   background: "#121212",
-  border: `1px solid ${LINE}`,
+  border: `1px solid rgba(124,255,0,0.45)`,
   borderRadius: 10,
   padding: 12,
 };
