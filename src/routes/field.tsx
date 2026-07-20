@@ -639,6 +639,7 @@ function FieldBody({
             <StateArrived
               roster={roster}
               clientMatch={clientMatch}
+              stopIndex={stopIndex}
               isLead={isLead}
               delegated={!!route.delegated}
               busy={busy}
@@ -659,7 +660,8 @@ function FieldBody({
                   });
                   if (!r.ok) return;
                 }
-                void send({ action: "setRoute", state: "visit" });
+                const r = await send({ action: "setRoute", state: "visit" });
+                if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
               }}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
