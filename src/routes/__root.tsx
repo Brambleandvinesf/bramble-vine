@@ -33,7 +33,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { ViewAsProvider, useViewAs } from "../lib/view-as";
 import { canSee, type ScreenId } from "../lib/permissions";
-import { ReviewableTodayProvider, useReviewableToday } from "../lib/reviewable-today";
+import { ReviewableTodayProvider } from "../lib/reviewable-today";
 
 function NotFoundComponent() {
   return (
@@ -264,18 +264,11 @@ function BottomTabBar() {
   const { effectiveRole } = useViewAs();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [sheetOpen, setSheetOpen] = useState(false);
-  const reviewable = useReviewableToday();
-
-  const gateReviewable = (t: TabDef) => {
-    // Hide loading & confirm-load surfaces when there's nothing to review today.
-    if (reviewable === false && (t.to === "/loading" || t.to === "/confirm")) return false;
-    return true;
-  };
-  const primary = PRIMARY_TABS.filter(
-    (t) => t.screens.some((s) => canSee(effectiveRole, s)) && gateReviewable(t),
+  const primary = PRIMARY_TABS.filter((t) =>
+    t.screens.some((s) => canSee(effectiveRole, s)),
   );
-  const overflow = OVERFLOW_TABS.filter(
-    (t) => t.screens.some((s) => canSee(effectiveRole, s)) && gateReviewable(t),
+  const overflow = OVERFLOW_TABS.filter((t) =>
+    t.screens.some((s) => canSee(effectiveRole, s)),
   );
 
   // Cap to 5 slots. If overflow exists, reserve one slot for MORE.
