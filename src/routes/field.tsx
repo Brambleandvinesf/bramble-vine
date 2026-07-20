@@ -1096,20 +1096,6 @@ function PersonalClockPanel({
   return (
     <div style={{ ...PANEL_BOX, marginTop: 4 }}>
       <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>YOUR CLOCK</div>
-      {primary && (
-        <button
-          onClick={primary.onClick}
-          disabled={disabled || !primary.enabled}
-          style={{
-            ...PRIMARY_BTN,
-            marginTop: 10,
-            width: "100%",
-            opacity: disabled ? 0.5 : 1,
-          }}
-        >
-          {primary.label}
-        </button>
-      )}
       {secondary && (
         <button
           onClick={secondary.onClick}
@@ -1117,7 +1103,7 @@ function PersonalClockPanel({
           style={{
             ...PRIMARY_BTN,
             width: "100%",
-            marginTop: 8,
+            marginTop: 10,
             opacity: disabled ? 0.5 : 1,
             whiteSpace: "normal",
             lineHeight: 1.2,
@@ -1126,6 +1112,20 @@ function PersonalClockPanel({
           }}
         >
           {secondary.label}
+        </button>
+      )}
+      {primary && (
+        <button
+          onClick={primary.onClick}
+          disabled={disabled || !primary.enabled}
+          style={{
+            ...PRIMARY_BTN,
+            width: "100%",
+            marginTop: 8,
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          {primary.label}
         </button>
       )}
       {since && (
