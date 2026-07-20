@@ -227,6 +227,12 @@ function FieldPage() {
   return (
     <div style={PAGE}>
       <TopBar user={user} state={previewState ?? data?.route?.state} delegated={!!data?.route?.delegated} />
+      {(refreshing || offline) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 0" }}>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: MUTED, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>offline — last data</span>}
+        </div>
+      )}
       {isPreview && (
         <PreviewBadge
           previewState={previewState!}
