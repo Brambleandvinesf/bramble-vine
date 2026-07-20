@@ -59,7 +59,24 @@ const GROUPS: Group[] = [
   { id: "admin", label: "Admin", children: [{ key: "admin", label: "Admin" }] },
 ];
 
+const OPEN_TARGETS: Record<string, string> = {
+  dashboard: "/",
+  special_confirm: "/confirm",
+  loading: "/loading",
+  visits: "/visits",
+  projects: "/projects",
+  messages: "/messages",
+  rcpt_designate: "/receipts",
+  rcpt_invoice: "/receipts",
+  route_enroute: "/field",
+  route_arrived: "/field",
+  route_visit: "/field",
+  route_next: "/field",
+  route_debrief: "/field",
+};
+
 const KNOWN_KEYS = new Set(GROUPS.flatMap((g) => g.children.map((c) => c.key)));
+
 
 function Dot({ on }: { on: boolean }) {
   return (
