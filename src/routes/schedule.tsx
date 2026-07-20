@@ -500,9 +500,11 @@ function EventRow({
           {ev.location ? (
             <a
               href={mapsHref(ev.location)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                window.open(mapsHref(ev.location), "_blank", "noopener,noreferrer");
+              }}
               style={{
                 display: "inline-block",
                 marginTop: 4,
@@ -514,6 +516,7 @@ function EventRow({
               {ev.location}
             </a>
           ) : null}
+
         </span>
       </button>
       {isOpen && desc.length > 0 ? (
