@@ -744,11 +744,11 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     const saved = fwdPick;
     setFwdPick(null);
     flash("Forwarded to crew \u2713");
-    const res = await postAction({ action: "replyQuo", participants: CREW, text });
+    const res = await postAction({ action: "replyQuo", participants: CREW, text, email });
     if (res && res.ok && res.sent) return;
     setFwdPick({ ...saved, err: "Forward failed — try again." });
     flash("Message NOT sent to crew!", true);
-  }, [fwdPick, flash]);
+  }, [fwdPick, flash, email]);
 
   /* ---- add project ---- */
   const openProject = useCallback((it: InboxItem) => {
