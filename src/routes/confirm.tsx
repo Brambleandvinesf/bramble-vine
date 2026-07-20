@@ -846,7 +846,11 @@ function ConfirmPage() {
         <ItemPicker
           onCancel={() => setPickerFor(null)}
           onAdd={(picked) => {
-            appendNewItem(pickerFor.client, pickerFor.key, picked);
+            if (pickerFor.mode === "new") {
+              appendNewItem(pickerFor.client, pickerFor.key, picked);
+            } else {
+              void addItemToExisting(pickerFor.client, pickerFor.projectId, picked);
+            }
             setPickerFor(null);
           }}
         />
