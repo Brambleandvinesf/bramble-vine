@@ -49,6 +49,8 @@ const RED = "#ff3b30";
 
 /* ---------- types ---------- */
 type RouteState = "enroute" | "arrived" | "visit" | "debrief" | "next";
+type DebriefStepKey = "billing" | "updates" | "items" | "new" | "office";
+type FieldSearch = { preview?: RouteState; step?: DebriefStepKey };
 type Employee = { id: string; name: string };
 type RosterMember = { id: string; name: string; in?: string | null; out?: string | null; tsId?: string | null };
 type EventItem = { id: string; title: string; start?: string; end?: string; location?: string; color?: string };
