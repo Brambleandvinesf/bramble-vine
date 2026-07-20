@@ -2,6 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { canSee } from "../lib/permissions";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "loading:getData";
 
 export const Route = createFileRoute("/loading")({
   head: () => ({
