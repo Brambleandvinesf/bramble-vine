@@ -223,6 +223,7 @@ function AppFrame() {
       <NavBar />
       {ready && (user || onLogin) ? <Outlet /> : null}
       {ready && user && !onLogin ? <BottomTabBar /> : null}
+      <Toaster position="top-center" richColors />
     </>
   );
 }
