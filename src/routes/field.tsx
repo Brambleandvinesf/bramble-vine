@@ -1689,6 +1689,62 @@ function NewProjectForm({
 }
 
 
+function ItemsUsedPicker({
+  items,
+  onChange,
+  disabled,
+}: {
+  items: ItemUsed[];
+  onChange: (v: ItemUsed[]) => void;
+  disabled: boolean;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <div>
+      {items.map((i, idx) => (
+        <div key={idx} style={{ ...ROW_LINE, borderBottom: `1px solid ${LINE}`, gap: 6 }}>
+          <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
+            {i.name}
+          </div>
+          <input
+            placeholder="Qty"
+            value={i.qty ?? ""}
+            onChange={(e) =>
+              onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
+            }
+            disabled={disabled}
+            style={{ ...INPUT, width: 72, marginTop: 0 }}
+          />
+          <button
+            onClick={() => onChange(items.filter((_, j) => j !== idx))}
+            disabled={disabled}
+            style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => setPickerOpen(true)}
+        disabled={disabled}
+        style={{ ...SMALL_BTN, marginTop: 8, opacity: disabled ? 0.4 : 1 }}
+      >
+        + ADD ITEM
+      </button>
+      {pickerOpen && (
+        <ItemPicker
+          onCancel={() => setPickerOpen(false)}
+          onAdd={(picked) => {
+            onChange([...items, { name: picked.name, qty: picked.qty || undefined }]);
+            setPickerOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
 function TextList({
   items,
   onChange,
