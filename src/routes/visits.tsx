@@ -172,8 +172,7 @@ function VisitsPage() {
 
   const pending = useMemo(() => (rows ?? []).filter(isPending), [rows]);
 
-  const gateOpen =
-    !yesThisWeek(lastYes) && (forceGate || (pending.length === 0 && !suppressGate));
+  const gateOpen = !yesThisWeek(lastYes);
 
   const onReload = useCallback(async () => {
     setReloading(true);
