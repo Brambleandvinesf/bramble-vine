@@ -422,12 +422,65 @@ function FieldBody({
     [allNotes, clientMatch],
   );
 
+  const [rosterEdit, setRosterEdit] = useState(false);
+  const [backNotice, setBackNotice] = useState<string | null>(null);
+
   /* --- roster picker gate (skipped in preview so all states are reachable) --- */
   if (roster.length === 0 && !isPreview) {
     return <RosterPicker employees={employees} onSet={(people) => send({ action: "setRoster", people })} busy={busy} />;
   }
+  if (rosterEdit && !isPreview) {
+    return (
+      <RosterPicker
+        employees={employees}
+        busy={busy}
+        initialSelected={roster.map((r) => r.id)}
+        onCancel={() => { setRosterEdit(false); setBackNotice(null); }}
+        onSet={async (people) => {
+          const r = await send({ action: "setRoster", people });
+          if (r.ok) { setRosterEdit(false); setBackNotice(null); }
+        }}
+      />
+    );
+  }
+
+  const anyClockedIn = roster.some((m) => !!m.in && !m.out);
+  const nextEvent = events[stopIndex + 1];
+  const nextClientMatch = nextEvent ? matchClient(nextEvent.title, clients) : null;
+  const isLastStop = stopIndex + 1 >= events.length;
+
+  const handleBackToCrew = () => {
+    if (isPreview) return;
+    if (anyClockedIn) {
+      setBackNotice("Crew is clocked in — clock out before changing the roster.");
+      return;
+    }
+    setBackNotice(null);
+    setRosterEdit(true);
+  };
+
+  const handleSkip = () => {
+    if (isPreview) return;
+    const label = clientMatch ?? currentEvent?.title ?? "this client";
+    const msg = isLastStop
+      ? `Skip ${label}? No stops remain.`
+      : `Skip ${label}? The visit stays on the calendar.`;
+    if (!window.confirm(msg)) return;
+    if (isLastStop) {
+      void send({ action: "setRoute", stopIndex: stopIndex + 1, state: "next" });
+    } else {
+      void send({
+        action: "setRoute",
+        stopIndex: stopIndex + 1,
+        state: "enroute",
+        client: nextClientMatch,
+        eventId: nextEvent!.id,
+      });
+    }
+  };
 
   const routeComplete = !isPreview && stopIndex >= events.length;
+
 
 
 
@@ -468,7 +521,13 @@ function FieldBody({
                   stopIndex,
                 });
               }}
+              onBackToCrew={handleBackToCrew}
+              backNotice={backNotice}
+              onSkip={handleSkip}
+              skipDisabled={busy}
+              isPreview={isPreview}
             />
+
           )}
 
           {state === "arrived" && (
@@ -615,12 +674,20 @@ function RosterPicker({
   employees,
   onSet,
   busy,
+  initialSelected,
+  onCancel,
 }: {
   employees: Employee[];
   onSet: (people: Employee[]) => void;
   busy: boolean;
+  initialSelected?: string[];
+  onCancel?: () => void;
 }) {
-  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const [sel, setSel] = useState<Record<string, boolean>>(() => {
+    const out: Record<string, boolean> = {};
+    (initialSelected ?? []).forEach((id) => { out[id] = true; });
+    return out;
+  });
   const toggle = (id: string) => setSel((p) => ({ ...p, [id]: !p[id] }));
   const chosen = employees.filter((e) => sel[e.id]);
   return (
@@ -662,9 +729,18 @@ function RosterPicker({
       >
         SET ROSTER ({chosen.length})
       </button>
+      {onCancel && (
+        <button
+          onClick={onCancel}
+          style={{ ...SMALL_BTN, marginTop: 12, width: "100%", color: MUTED, borderColor: LINE }}
+        >
+          CANCEL
+        </button>
+      )}
     </div>
   );
 }
+
 
 /* ============================================================ */
 function ClientHeader({
@@ -703,6 +779,11 @@ function StateEnRoute({
   busy,
   onHere,
   headerNote,
+  onBackToCrew,
+  backNotice,
+  onSkip,
+  skipDisabled,
+  isPreview,
 }: {
   event?: EventItem;
   clientMatch: string | null;
@@ -711,6 +792,11 @@ function StateEnRoute({
   busy: boolean;
   onHere: () => void;
   headerNote?: string;
+  onBackToCrew?: () => void;
+  backNotice?: string | null;
+  onSkip?: () => void;
+  skipDisabled?: boolean;
+  isPreview?: boolean;
 }) {
   if (!event) return <div style={STATE}>No upcoming stop.</div>;
   const address = event.location ?? "";
@@ -721,16 +807,36 @@ function StateEnRoute({
     "https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=" +
     encodeURIComponent(address);
 
-  const clientProjects = clientMatch
-    ? projects.filter(
-        (p) =>
-          s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase() &&
-          s(p["Status"]).toUpperCase() !== "SKIP",
-      )
-    : [];
+  void projects;
 
   return (
     <div style={{ padding: "10px 14px" }}>
+      {onBackToCrew && (
+        <div style={{ marginBottom: 6 }}>
+          <button
+            onClick={onBackToCrew}
+            disabled={!!isPreview}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: DIM_GREEN,
+              fontFamily: "inherit",
+              fontSize: 12,
+              letterSpacing: 1,
+              padding: "4px 0",
+              cursor: isPreview ? "default" : "pointer",
+              opacity: isPreview ? 0.5 : 1,
+            }}
+          >
+            ← CREW
+          </button>
+          {backNotice && (
+            <div style={{ color: RED, fontSize: 12, marginTop: 4, opacity: 0.85 }}>
+              {backNotice}
+            </div>
+          )}
+        </div>
+      )}
       {headerNote && (
         <div style={{ color: LIME, fontSize: 12, letterSpacing: 2, marginBottom: 6 }}>{headerNote}</div>
       )}
@@ -790,11 +896,31 @@ function StateEnRoute({
           >
             START VISIT
           </button>
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              disabled={!!skipDisabled || !!isPreview}
+              style={{
+                ...BIG_BTN,
+                width: "100%",
+                marginTop: 10,
+                minHeight: 44,
+                fontSize: 12,
+                letterSpacing: 2,
+                color: DIM_GREEN,
+                borderColor: LIME_DIM,
+                opacity: skipDisabled || isPreview ? 0.5 : 1,
+              }}
+            >
+              SKIP THIS CLIENT
+            </button>
+          )}
         </div>
       )}
     </div>
   );
 }
+
 
 function ProjectCard({ p }: { p: ProjectRow }) {
   const action = s(p["Project Action"]) || s(p["Action"]) || "—";
