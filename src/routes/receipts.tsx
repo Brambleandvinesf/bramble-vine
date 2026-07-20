@@ -897,7 +897,7 @@ function InvoiceTab({
               <button style={GHOST_BTN_SM} onClick={() => setConfirmOpen(false)}>
                 CANCEL
               </button>
-              <button style={SOLID_BTN_SM} onClick={submit} disabled={submitting}>
+              <button style={SOLID_BTN_SM} onClick={submit}>
                 QUEUE
               </button>
             </div>
