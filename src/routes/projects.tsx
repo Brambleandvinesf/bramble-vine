@@ -117,7 +117,7 @@ function ProjectsPage() {
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<Record<string, EditDraft>>({});
-  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<Toast | null>(null);
   const [showNew, setShowNew] = useState(false);
 
@@ -125,6 +125,41 @@ function ProjectsPage() {
     const id = Date.now();
     setToast({ msg, err, id });
     setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), 5000);
+  }, []);
+
+  // Per-key serial write queue (last-in dispatches after previous resolves).
+  const queueRef = useRef<Record<string, Promise<unknown>>>({});
+  const enqueue = useCallback((key: string, fn: () => Promise<void>) => {
+    const prev = queueRef.current[key] ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(fn);
+    queueRef.current[key] = next;
+    return next;
+  }, []);
+
+  const markSync = useCallback((key: string, on: boolean) => {
+    setSyncing((prev) => {
+      const n = { ...prev };
+      if (on) n[key] = true;
+      else delete n[key];
+      return n;
+    });
+  }, []);
+
+  const firePost = useCallback(async (payload: Record<string, unknown>) => {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      rebuilt?: string;
+      client?: string;
+      projectId?: string;
+      error?: string;
+    };
+    if (!json.ok) throw new Error(json.error || "Not ok");
+    return json;
   }, []);
 
   const load = useCallback(async () => {
@@ -239,71 +274,82 @@ function ProjectsPage() {
     setEditing((prev) => ({ ...prev, [projectId]: { ...prev[projectId], ...patch } }));
   }, []);
 
-  const runWrite = useCallback(
-    async (busyKey: string, payload: Record<string, unknown>) => {
-      setBusy((prev) => new Set(prev).add(busyKey));
-      try {
-        const res = await fetch(SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify(payload),
-        });
-        const json = (await res.json()) as {
-          ok?: boolean;
-          rebuilt?: string;
-          client?: string;
-          error?: string;
-        };
-        if (!json.ok) throw new Error(json.error || "Not ok");
-        showToast(json.rebuilt ? `Saved — ${json.rebuilt}` : "Saved.");
-        await load();
-        return true;
-      } catch (e) {
-        showToast(e instanceof Error ? `Failed — ${e.message}` : "Failed.", true);
-        return false;
-      } finally {
-        setBusy((prev) => {
-          const n = new Set(prev);
-          n.delete(busyKey);
-          return n;
-        });
-      }
-    },
-    [load, showToast],
-  );
-
   const saveEdit = useCallback(
-    async (p: Project) => {
+    (p: Project) => {
       const e = editing[p.projectId];
       if (!e) return;
       const diff: Record<string, unknown> = { action: "editProject", projectId: p.projectId };
-      if (e.action !== p.action) diff.projectAction = e.action;
-      if (e.garden !== p.garden) diff.garden = e.garden;
-      if (e.type !== p.type) diff.type = e.type;
-      if (e.category !== p.category) diff.category = e.category;
-      if (e.notes !== p.notes) diff.notes = e.notes;
-      if (e.status !== p.status) diff.status = e.status;
+      const patch: Partial<Project> = {};
+      if (e.action !== p.action) { diff.projectAction = e.action; patch.action = e.action; }
+      if (e.garden !== p.garden) { diff.garden = e.garden; patch.garden = e.garden; }
+      if (e.type !== p.type) { diff.type = e.type; patch.type = e.type; }
+      if (e.category !== p.category) { diff.category = e.category; patch.category = e.category; }
+      if (e.notes !== p.notes) { diff.notes = e.notes; patch.notes = e.notes; }
+      if (e.status !== p.status) { diff.status = e.status; patch.status = e.status; }
       if (Object.keys(diff).length <= 2) {
         cancelEdit(p.projectId);
         return;
       }
-      const ok = await runWrite(p.projectId, diff);
-      if (ok) cancelEdit(p.projectId);
+      // Optimistic: apply patch locally, close edit form, dispatch in background.
+      const snapshot = p;
+      setProjects((prev) =>
+        prev.map((pp) => (pp.projectId === p.projectId ? { ...pp, ...patch } : pp)),
+      );
+      cancelEdit(p.projectId);
+      markSync(p.projectId, true);
+      void enqueue(p.projectId, async () => {
+        try {
+          await firePost(diff);
+        } catch (err) {
+          setProjects((prev) =>
+            prev.map((pp) => (pp.projectId === p.projectId ? snapshot : pp)),
+          );
+          showToast(
+            err instanceof Error
+              ? `Couldn't save edit to ${p.projectId} — restored`
+              : `Couldn't save edit to ${p.projectId} — restored`,
+            true,
+          );
+        } finally {
+          markSync(p.projectId, false);
+        }
+      });
     },
-    [editing, runWrite, cancelEdit],
+    [editing, cancelEdit, enqueue, firePost, markSync, showToast],
   );
 
   const deleteProject = useCallback(
-    async (p: Project) => {
+    (p: Project) => {
       if (!p.projectId) return;
       if (!window.confirm(`Delete this project?\n\n${p.action || "(no action)"}`)) return;
-      await runWrite(p.projectId, { action: "deleteProject", projectId: p.projectId });
+      const snapshot = p;
+      const snapshotTools = tools.filter((t) => t.projectId === p.projectId);
+      // Optimistic remove.
+      setProjects((prev) => prev.filter((pp) => pp.projectId !== p.projectId));
+      setTools((prev) => prev.filter((t) => t.projectId !== p.projectId));
+      markSync(p.projectId, true);
+      void enqueue(p.projectId, async () => {
+        try {
+          await firePost({ action: "deleteProject", projectId: p.projectId });
+        } catch (err) {
+          setProjects((prev) => [...prev, snapshot]);
+          setTools((prev) => [...prev, ...snapshotTools]);
+          showToast(
+            err instanceof Error
+              ? `Couldn't delete ${p.projectId} — restored`
+              : `Couldn't delete ${p.projectId} — restored`,
+            true,
+          );
+        } finally {
+          markSync(p.projectId, false);
+        }
+      });
     },
-    [runWrite],
+    [tools, enqueue, firePost, markSync, showToast],
   );
 
   const createProject = useCallback(
-    async (form: {
+    (form: {
       client: string;
       projectAction: string;
       garden: string;
@@ -325,10 +371,52 @@ function ProjectsPage() {
       if (form.category) payload.category = form.category;
       if (form.notes) payload.notes = form.notes;
       if (items.length) payload.items = items;
-      const ok = await runWrite(`__new__${Date.now()}`, payload);
-      if (ok) setShowNew(false);
+
+      const tempId = `__new__${Date.now()}`;
+      const optimistic: Project = {
+        row: 0,
+        client: form.client,
+        projectId: tempId,
+        category: form.category,
+        action: form.projectAction,
+        garden: form.garden,
+        type: form.type,
+        notes: form.notes,
+        status: "",
+      };
+      const optimisticTools: ToolRow[] = items.map((it, i) => ({
+        row: 0,
+        client: form.client,
+        projectId: tempId,
+        name: it.name,
+        qty: it.qty,
+        size: it.size,
+        notes: it.notes,
+        loaded: "",
+        materialId: `${tempId}-${i}`,
+      }));
+      setProjects((prev) => [...prev, optimistic]);
+      setTools((prev) => [...prev, ...optimisticTools]);
+      setShowNew(false);
+      markSync(tempId, true);
+      void enqueue(tempId, async () => {
+        try {
+          await firePost(payload);
+        } catch (err) {
+          setProjects((prev) => prev.filter((p) => p.projectId !== tempId));
+          setTools((prev) => prev.filter((t) => t.projectId !== tempId));
+          showToast(
+            err instanceof Error
+              ? `Couldn't create project — ${err.message}`
+              : `Couldn't create project — restored`,
+            true,
+          );
+        } finally {
+          markSync(tempId, false);
+        }
+      });
     },
-    [runWrite],
+    [enqueue, firePost, markSync, showToast],
   );
 
   if (denied) return null;
