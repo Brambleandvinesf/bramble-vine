@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
@@ -119,6 +120,57 @@ async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; e
   } catch (e) {
     return { ok: false, raw: null, error: e instanceof Error ? e.message : "network" };
   }
+}
+
+/* ---------- client arrival/departure text ---------- */
+const TEXTED_KEY = "field:texted";
+const textedStops = new Set<string>(loadTextedStops());
+function loadTextedStops(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(TEXTED_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+function saveTextedStops() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(TEXTED_KEY, JSON.stringify(Array.from(textedStops)));
+  } catch { /* ignore */ }
+}
+function textStopKey(client: string | null, kind: "arrived" | "done", stopIndex: number): string {
+  return `${stopIndex}:${kind}:${(client ?? "").toLowerCase()}`;
+}
+function hasTexted(client: string | null, kind: "arrived" | "done", stopIndex: number): boolean {
+  return textedStops.has(textStopKey(client, kind, stopIndex));
+}
+function markTexted(client: string | null, kind: "arrived" | "done", stopIndex: number) {
+  textedStops.add(textStopKey(client, kind, stopIndex));
+  saveTextedStops();
+}
+async function textClient(
+  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>,
+  kind: "arrived" | "done",
+  client: string | null,
+  stopIndex: number,
+  isPreview: boolean,
+): Promise<boolean> {
+  if (isPreview) return false;
+  if (hasTexted(client, kind, stopIndex)) return false;
+  const r = await send({ action: "textClient", kind }, { silent: true });
+  if (r.ok) {
+    markTexted(client, kind, stopIndex);
+    toast.success("Client texted");
+    return true;
+  }
+  const err =
+    r.raw && typeof r.raw === "object" && "error" in (r.raw as Record<string, unknown>)
+      ? String((r.raw as Record<string, unknown>).error)
+      : "unknown";
+  toast.error(`client text failed: ${err}`);
+  return false;
 }
 
 function matchClient(title: string, clients: string[]): string | null {
@@ -556,6 +608,10 @@ function FieldBody({
     setMe(null);
   };
 
+  const handleVisitComplete = async () => {
+    void textClient(send, "done", clientMatch, stopIndex, isPreview);
+  };
+
   return (
     <div>
       {me && (
@@ -583,6 +639,7 @@ function FieldBody({
             <StateArrived
               roster={roster}
               clientMatch={clientMatch}
+              stopIndex={stopIndex}
               isLead={isLead}
               delegated={!!route.delegated}
               busy={busy}
@@ -603,7 +660,8 @@ function FieldBody({
                   });
                   if (!r.ok) return;
                 }
-                void send({ action: "setRoute", state: "visit" });
+                const r = await send({ action: "setRoute", state: "visit" });
+                if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
               }}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
@@ -614,6 +672,7 @@ function FieldBody({
             <StateVisit
               event={currentEvent}
               clientMatch={clientMatch}
+              stopIndex={stopIndex}
               arrivedAt={route.arrivedAt}
               now={now}
               roster={roster}
@@ -625,6 +684,7 @@ function FieldBody({
               notes={stopNotes}
               clockSlot={personalClockSlot}
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
+              onVisitComplete={handleVisitComplete}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
@@ -1418,6 +1478,7 @@ function ProjectCard({
 function StateArrived({
   roster,
   clientMatch,
+  stopIndex,
   isLead,
   delegated,
   busy,
@@ -1431,6 +1492,7 @@ function StateArrived({
 }: {
   roster: RosterMember[];
   clientMatch: string | null;
+  stopIndex: number;
   isLead: boolean;
   delegated: boolean;
   busy: boolean;
@@ -1443,6 +1505,7 @@ function StateArrived({
   onNoShow: () => void;
 }) {
   const anyIn = roster.some((m) => !!m.in);
+  const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
   return (
     <div style={{ padding: "10px 14px" }}>
       {onBackToCrew && (
@@ -1493,10 +1556,10 @@ function StateArrived({
 
           <button
             onClick={onStart}
-            disabled={!anyIn || busy}
-            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: !anyIn ? 0.45 : 1 }}
+            disabled={!anyIn || busy || alreadyTexted || !!isPreview}
+            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (!anyIn || alreadyTexted) ? 0.45 : 1 }}
           >
-            START VISIT
+            {alreadyTexted ? "CLIENT TEXTED" : "START VISIT & TEXT CLIENT"}
           </button>
         </>
       )}
@@ -1514,6 +1577,7 @@ function StateArrived({
 function StateVisit({
   event,
   clientMatch,
+  stopIndex,
   arrivedAt,
   now,
   roster,
@@ -1525,10 +1589,12 @@ function StateVisit({
   notes,
   clockSlot,
   onToggleTool,
+  onVisitComplete,
   onNoShow,
 }: {
   event?: EventItem;
   clientMatch: string | null;
+  stopIndex: number;
   arrivedAt?: string | null;
   now: number;
   roster: RosterMember[];
@@ -1540,8 +1606,10 @@ function StateVisit({
   notes: VisitNote[];
   clockSlot?: React.ReactNode;
   onToggleTool: (t: NormTool) => void;
+  onVisitComplete?: () => void;
   onNoShow: () => void;
 }) {
+  const alreadyTextedDone = hasTexted(clientMatch, "done", stopIndex);
 
   const clientKey = clientMatch ? clientMatch.trim().toLowerCase() : "";
   const clientProjects = clientKey
@@ -1682,8 +1750,15 @@ function StateVisit({
       )}
 
       {isLead && !showOut && (
-        <button onClick={() => setShowOut(true)} style={{ ...PRIMARY_BTN, marginTop: 14 }}>
-          GARDEN VISIT COMPLETE
+        <button
+          onClick={() => {
+            onVisitComplete?.();
+            setShowOut(true);
+          }}
+          disabled={alreadyTextedDone || !!isPreview}
+          style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (alreadyTextedDone || isPreview) ? 0.45 : 1 }}
+        >
+          {alreadyTextedDone ? "CLIENT TEXTED" : "END VISIT & TEXT CLIENT"}
         </button>
       )}
 

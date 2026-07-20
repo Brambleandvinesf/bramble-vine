@@ -25,6 +25,7 @@ import {
   Minimize2,
   X,
 } from "lucide-react";
+import { Toaster } from "sonner";
 
 
 import appCss from "../styles.css?url";
@@ -222,6 +223,7 @@ function AppFrame() {
       <NavBar />
       {ready && (user || onLogin) ? <Outlet /> : null}
       {ready && user && !onLogin ? <BottomTabBar /> : null}
+      <Toaster position="top-center" richColors />
     </>
   );
 }
