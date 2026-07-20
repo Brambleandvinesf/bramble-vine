@@ -1575,6 +1575,7 @@ function StateArrived({
 function StateVisit({
   event,
   clientMatch,
+  stopIndex,
   arrivedAt,
   now,
   roster,
@@ -1586,10 +1587,12 @@ function StateVisit({
   notes,
   clockSlot,
   onToggleTool,
+  onVisitComplete,
   onNoShow,
 }: {
   event?: EventItem;
   clientMatch: string | null;
+  stopIndex: number;
   arrivedAt?: string | null;
   now: number;
   roster: RosterMember[];
@@ -1601,6 +1604,7 @@ function StateVisit({
   notes: VisitNote[];
   clockSlot?: React.ReactNode;
   onToggleTool: (t: NormTool) => void;
+  onVisitComplete?: () => void;
   onNoShow: () => void;
 }) {
 
