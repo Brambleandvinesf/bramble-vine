@@ -197,6 +197,8 @@ function HomePage() {
           confirmed={confirmState?.confirmed ?? null}
           role={role}
         />
+        {canMsg && <BadgeTile to="/messages" title="MESSAGES" count={msgCount} unit="awaiting" />}
+        {canRcpt && <BadgeTile to="/receipts" title="RECEIPTS" count={rcptCount} unit="to designate" />}
         {tiles.map((t) => (
           <Tile key={t.key} title={t.title} pulse={t.special && t.pending}>
             —
@@ -206,6 +208,61 @@ function HomePage() {
     </div>
   );
 }
+
+function BadgeTile({
+  to,
+  title,
+  count,
+  unit,
+}: {
+  to: string;
+  title: string;
+  count: number | null;
+  unit: string;
+}) {
+  const has = typeof count === "number" && count > 0;
+  return (
+    <Link
+      to={to}
+      style={{
+        textDecoration: "none",
+        display: "block",
+        background: PANEL,
+        border: `1px solid ${has ? LIME : BORDER}`,
+        borderRadius: 10,
+        padding: "12px 14px",
+        minHeight: 72,
+        opacity: has ? 1 : 0.55,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ color: LIME, fontSize: 12, letterSpacing: 2, fontWeight: "bold" }}>
+          {title}
+        </div>
+        {has && (
+          <span
+            style={{
+              marginLeft: "auto",
+              background: LIME,
+              color: "#0a0a0a",
+              borderRadius: 12,
+              padding: "2px 10px",
+              fontSize: 12,
+              fontWeight: "bold",
+              letterSpacing: 1,
+            }}
+          >
+            {count}
+          </span>
+        )}
+      </div>
+      <div style={{ color: MUTED, fontSize: 13, marginTop: 6 }}>
+        {count === null ? "…" : has ? `${count} ${unit}` : "All clear"}
+      </div>
+    </Link>
+  );
+}
+
 
 function ConfirmBanner({
   loading,
