@@ -175,6 +175,26 @@ function LoadingPage() {
     };
   }, []);
 
+  // Also poll getField so the pinned footer can show the current stop.
+  const fieldCached = sessionCache.get<GetFieldResponse>(FIELD_CK) ?? null;
+  const [field, setField] = useState<GetFieldResponse | null>(fieldCached);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getField`);
+        if (!res.ok) return;
+        const json = (await res.json()) as GetFieldResponse;
+        if (cancelled) return;
+        sessionCache.set(FIELD_CK, json);
+        setField(json);
+      } catch { /* keep last */ }
+    };
+    tick();
+    const id = setInterval(tick, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   const toggle = useCallback(async (row: number) => {
     let prev = false;
     let materialId = "";
