@@ -513,12 +513,12 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     setItems((prev) => [optimistic, ...prev]);
     setCompose(null);
     flash("Message sent to " + name + " \u2713");
-    const res = await postAction({ action: "replyQuo", participants: [phone], text });
+    const res = await postAction({ action: "replyQuo", participants: [phone], text, email });
     if (!(res && res.ok && res.sent)) {
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
       flash("Message NOT sent to " + name + "!", true);
     }
-  }, [compose, normalizePhone, flash]);
+  }, [compose, normalizePhone, flash, email]);
 
 
   /* ---- file / trash / done / spam / confirm ---- */
