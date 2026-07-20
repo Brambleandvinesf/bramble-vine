@@ -770,7 +770,32 @@ function ConfirmPage() {
                         )
                       )}
                     </div>
+                    <div
+                      style={{
+                        marginTop: 14,
+                        paddingTop: 12,
+                        borderTop: `1px solid ${LINE}`,
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <BigSegBtn
+                        active={!skip}
+                        onClick={() => setEdit(key, { status: "Confirmed" })}
+                      >
+                        CONFIRM
+                      </BigSegBtn>
+                      <BigSegBtn
+                        active={skip}
+                        danger
+                        onClick={() => setEdit(key, { status: "SKIP" })}
+                      >
+                        SKIP
+                      </BigSegBtn>
+                    </div>
                   </div>
+
                 );
               })}
 
