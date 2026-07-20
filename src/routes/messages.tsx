@@ -702,21 +702,23 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (it.source === "quo") {
         const r = await fetch(
           SCRIPT_URL + "?action=getQuoThread&participants=" + encodeURIComponent((it.participants || []).join(",")) +
+            "&email=" + encodeURIComponent(email) +
             (it.line ? "&line=" + encodeURIComponent(it.line) : ""),
         ).then((x) => x.json());
         if (r.error) throw new Error(r.error);
         setViewerBody({ kind: "quo", messages: r.messages || [], from: it.from });
       } else {
-        const r = await fetch(SCRIPT_URL + "?action=getMessage&threadId=" + encodeURIComponent(it.threadId)).then((x) =>
-          x.json(),
-        );
+        const r = await fetch(
+          SCRIPT_URL + "?action=getMessage&threadId=" + encodeURIComponent(it.threadId) +
+            "&email=" + encodeURIComponent(email),
+        ).then((x) => x.json());
         if (r.error) throw new Error(r.error);
         setViewerBody({ kind: "gmail", messages: r.messages || [] });
       }
     } catch {
       setViewerBody({ kind: "error" });
     }
-  }, []);
+  }, [email]);
   const closeViewer = useCallback(() => {
     setOpenItem(null);
     setViewerBody(null);
