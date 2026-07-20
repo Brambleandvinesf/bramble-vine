@@ -253,19 +253,19 @@ function LoadingPage() {
         </div>
       )}
 
-      {!loadErr && !confirm && reviewable === null && (
+      {!loadErr && !confirm && (
         <div style={STATE}>Loading…</div>
       )}
 
-      {!loadErr && reviewable === false && (
-        <div style={STATE}>Nothing to load today</div>
-      )}
-
-      {!loadErr && reviewable !== false && confirm && !confirm.confirmed && (
+      {!loadErr && confirm && !confirm.confirmed && (
         <WaitingState canConfirm={canConfirm} />
       )}
 
-      {!loadErr && reviewable !== false && confirm?.confirmed && (
+      {!loadErr && confirm?.confirmed && reviewable === false && (
+        <div style={STATE}>Base load only — nothing extra today</div>
+      )}
+
+      {!loadErr && confirm?.confirmed && reviewable !== false && (
         <>
           <header style={HEADER}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -532,13 +532,6 @@ function ConfirmPage() {
 
   if (!allowed) return null;
 
-  if (reviewable === false) {
-    return (
-      <div style={PAGE}>
-        <div style={STATE}>No special loading today</div>
-      </div>
-    );
-  }
 
   return (
     <div style={PAGE}>
@@ -575,6 +568,13 @@ function ConfirmPage() {
       )}
 
       {!loadErr && state === null && <div style={STATE}>Loading…</div>}
+
+      {!loadErr && state !== null && reviewable === false && (
+        <div style={STATE}>
+          No special loading in the books for today, anything you want to add for
+          today's clients?
+        </div>
+      )}
 
       {!loadErr &&
         state !== null &&
@@ -966,7 +966,11 @@ function ConfirmPage() {
           onClick={submit}
           disabled={submitting || !!loadErr || state === null}
         >
-          {submitting ? "CONFIRMING…" : "CONFIRM SPECIAL LOADING/PROJECTS"}
+          {submitting
+            ? "CONFIRMING…"
+            : reviewable === false
+              ? "CONFIRM BASE LOAD & NOTIFY CREW"
+              : "CONFIRM SPECIAL LOADING/PROJECTS"}
         </button>
       </div>
       {pickerFor && (
