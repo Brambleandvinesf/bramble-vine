@@ -558,6 +558,27 @@ function DesignateTab({
                       />
                     </div>
                   ))}
+                  {(() => {
+                    const groupRows = g.lines.map((l) => l.row);
+                    const groupCount = groupRows.filter((r) => picks[r]).length;
+                    return (
+                      <button
+                        style={{
+                          ...SOLID_BTN,
+                          width: "100%",
+                          marginTop: 4,
+                          opacity: groupCount ? 1 : 0.4,
+                          cursor: groupCount ? "pointer" : "not-allowed",
+                        }}
+                        disabled={!groupCount}
+                        onClick={() => submitGroup(groupRows)}
+                      >
+                        {groupCount
+                          ? `SAVE ${groupCount} DESIGNATION${groupCount === 1 ? "" : "S"}`
+                          : "ASSIGN A CLIENT TO SUBMIT"}
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -565,30 +586,6 @@ function DesignateTab({
         })}
 
       </div>
-
-      {selectedCount > 0 && (
-        <div style={FOOTER}>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              maxWidth: 720,
-              margin: "0 auto",
-            }}
-          >
-            <div style={{ color: TEXT, fontSize: 13 }}>
-              {selectedCount} line{selectedCount === 1 ? "" : "s"} ready
-            </div>
-            <button
-              style={{ ...SOLID_BTN, marginLeft: "auto" }}
-              onClick={submit}
-            >
-              SAVE DESIGNATIONS
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
