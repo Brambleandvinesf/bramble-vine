@@ -156,7 +156,7 @@ type TabDef = { to: string; label: string; screens: ScreenId[] };
 const TABS: TabDef[] = [
   { to: "/", label: "HOME", screens: ["dashboard"] },
   { to: "/loading", label: "LOADING", screens: ["loading"] },
-  { to: "/confirm", label: "CONFIRM", screens: ["special_confirm"] },
+  { to: "/confirm", label: "CONFIRM lOAD", screens: ["special_confirm"] },
   {
     to: "/field",
     label: "FIELD",
