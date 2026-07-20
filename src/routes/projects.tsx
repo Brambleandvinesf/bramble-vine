@@ -501,7 +501,7 @@ function ProjectsPage() {
               {open && (
                 <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                   {list.map((p) => {
-                    const isBusy = busy.has(p.projectId);
+                    const isBusy = !!syncing[p.projectId];
                     const draft = editing[p.projectId];
                     const items = toolsByProject[p.projectId] ?? [];
                     return (
