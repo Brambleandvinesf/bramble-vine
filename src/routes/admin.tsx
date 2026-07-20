@@ -40,10 +40,11 @@ const GROUPS: Group[] = [
       { key: "route_enroute", label: "En Route" },
       { key: "route_arrived", label: "Arrived" },
       { key: "route_visit", label: "Visit Mode" },
-      { key: "route_debrief", label: "Debrief" },
       { key: "route_next", label: "Next Stop" },
     ],
   },
+  { id: "debrief", label: "Debrief", children: [{ key: "route_debrief", label: "Debrief" }] },
+
   { id: "visits", label: "CONFIRM VISITS", children: [{ key: "visits", label: "Visits" }] },
   { id: "projects", label: "Projects", children: [{ key: "projects", label: "Projects" }] },
   { id: "messages", label: "Messages", children: [{ key: "messages", label: "Messages" }] },
