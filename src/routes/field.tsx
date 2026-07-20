@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
+import { ItemPicker } from "../components/ItemPicker";
 
 export const Route = createFileRoute("/field")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Field" }] }),
