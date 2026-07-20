@@ -387,9 +387,145 @@ function LoadingPage() {
             );
           })}
 
-          <div style={{ height: 40 }} />
+          <div style={{ height: 200 }} />
         </>
       )}
+      {field && <RouteFooter field={field} />}
+    </div>
+  );
+}
+
+function RouteFooter({ field }: { field: GetFieldResponse }) {
+  const route = field.route ?? {};
+  const state = route.state ?? "";
+  const events = field.events ?? [];
+  const clients = field.clients ?? [];
+  const stopIndex = Number(route.stopIndex ?? 0);
+  const currentEvent = events[stopIndex];
+  const nextEvent = events[stopIndex + 1];
+  const isLastStop = stopIndex + 1 >= events.length;
+
+  const [navFlag, setNavFlag] = useState<string | null>(null);
+  const [etaBusy, setEtaBusy] = useState(false);
+  const [etaMsg, setEtaMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [skipBusy, setSkipBusy] = useState(false);
+
+  const navKey = currentEvent ? `bv.loading.navigated:${currentEvent.id}` : "";
+  useEffect(() => {
+    if (!navKey || typeof window === "undefined") { setNavFlag(null); return; }
+    try {
+      setNavFlag(window.sessionStorage.getItem(navKey));
+    } catch { setNavFlag(null); }
+    setEtaMsg(null);
+  }, [navKey]);
+
+  if (!currentEvent) return null;
+  if (state !== "enroute" && state !== "next") return null;
+
+  const clientMatch = matchClient(currentEvent.title, clients);
+  const address = currentEvent.location ?? "";
+  const mapsUrl = address
+    ? "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(address)
+    : "";
+
+  const onNavigate = () => {
+    if (!mapsUrl) return;
+    window.open(mapsUrl, "_blank", "noopener,noreferrer");
+    try {
+      window.sessionStorage.setItem(navKey, String(Date.now()));
+      setNavFlag(String(Date.now()));
+    } catch { /* ignore */ }
+  };
+
+  const onSkip = async () => {
+    if (skipBusy) return;
+    const label = clientMatch ?? currentEvent.title ?? "this client";
+    const msg = isLastStop
+      ? `Skip ${label}? No stops remain.`
+      : `Skip ${label}? The visit stays on the calendar.`;
+    if (!window.confirm(msg)) return;
+    setSkipBusy(true);
+    const body = isLastStop
+      ? { action: "setRoute", stopIndex: stopIndex + 1, state: "next" }
+      : {
+          action: "setRoute",
+          stopIndex: stopIndex + 1,
+          state: "enroute",
+          client: nextEvent ? matchClient(nextEvent.title, clients) : null,
+          eventId: nextEvent?.id,
+        };
+    await postScript(body);
+    // Field polls getField; footer will refresh on next tick.
+    setSkipBusy(false);
+  };
+
+  const onTextEta = async () => {
+    if (etaBusy) return;
+    setEtaBusy(true);
+    setEtaMsg(null);
+    const r = await postScript({ action: "textEta" });
+    const raw = (r.raw ?? {}) as { ok?: boolean; to?: string; error?: string };
+    if (r.ok && raw.ok !== false) {
+      setEtaMsg({ ok: true, text: `ETA sent to ${raw.to ?? "client"}` });
+    } else {
+      setEtaMsg({ ok: false, text: raw.error || r.error || "Send failed" });
+    }
+    setEtaBusy(false);
+  };
+
+  return (
+    <div style={FOOTER_WRAP}>
+      <div style={FOOTER_BOX}>
+        <div style={{ color: LIME, fontSize: 11, letterSpacing: 2, fontWeight: "bold" }}>
+          {state === "next" ? "NEXT STOP" : "CURRENT STOP"}
+        </div>
+        <div style={{ color: TEXT, fontSize: 15, fontWeight: "bold", marginTop: 4, lineHeight: 1.3 }}>
+          {clientMatch ?? currentEvent.title}
+        </div>
+        {address && (
+          <div style={{ color: MUTED, fontSize: 12, marginTop: 2, lineHeight: 1.35, wordBreak: "break-word" }}>
+            {address}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={onSkip}
+          disabled={skipBusy}
+          style={FOOTER_SKIP_BTN}
+        >
+          SKIP →
+        </button>
+        <button
+          type="button"
+          onClick={onNavigate}
+          disabled={!address}
+          style={{ ...FOOTER_NAV_BTN, opacity: address ? 1 : 0.45 }}
+        >
+          NAVIGATE
+        </button>
+        {navFlag && (
+          <button
+            type="button"
+            onClick={onTextEta}
+            disabled={etaBusy}
+            style={{ ...FOOTER_ETA_BTN, opacity: etaBusy ? 0.6 : 1 }}
+          >
+            {etaBusy ? "SENDING…" : "TEXT ETA"}
+          </button>
+        )}
+        {etaMsg && (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              color: etaMsg.ok ? LIME : RED,
+              letterSpacing: 1,
+            }}
+          >
+            {etaMsg.ok ? "✓ " : ""}{etaMsg.text}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
