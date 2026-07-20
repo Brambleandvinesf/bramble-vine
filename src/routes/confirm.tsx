@@ -554,9 +554,24 @@ function ConfirmPage() {
                     <input
                       value={e.action}
                       onChange={(ev) => setEdit(key, { action: ev.target.value })}
-                      style={INPUT}
+                      style={ACTION_INPUT}
                       disabled={isDeleted}
                     />
+                    {p.items.length > 0 && (
+                      <div style={ITEMS_ROW}>
+                        {p.items.map((it, i) => {
+                          const label = [it.qty, it.name, it.size]
+                            .map((s) => String(s ?? "").trim())
+                            .filter(Boolean)
+                            .join(" · ");
+                          return (
+                            <span key={i} style={ITEM_PILL} title={it.notes || undefined}>
+                              {label || it.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
@@ -585,16 +600,6 @@ function ConfirmPage() {
                       rows={2}
                       disabled={isDeleted}
                     />
-
-                    {p.items.length > 0 && (
-                      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {p.items.map((it, i) => (
-                          <span key={i} style={CHIP}>
-                            {[it.qty, "×", it.name, it.size].filter(Boolean).join(" ")}
-                          </span>
-                        ))}
-                      </div>
-                    )}
 
                     <div
                       style={{
@@ -878,6 +883,7 @@ function SegBtn({
 
 /* ---------- styles ---------- */
 const LIME = "#7cff00";
+const LIME_BRIGHT = "#bfff3c";
 const LIME_DIM = "rgba(124,255,0,.35)";
 const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
@@ -940,6 +946,37 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 const ROW2: React.CSSProperties = { display: "flex", gap: 8 };
+const ACTION_INPUT: React.CSSProperties = {
+  width: "100%",
+  background: "#0a0a0a",
+  color: LIME_BRIGHT,
+  border: `1px solid ${LINE}`,
+  borderRadius: 6,
+  padding: "10px 10px",
+  fontFamily: "inherit",
+  fontSize: 14,
+  fontWeight: "bold",
+  boxSizing: "border-box",
+};
+const ITEMS_ROW: React.CSSProperties = {
+  marginTop: 8,
+  marginLeft: 12,
+  paddingLeft: 8,
+  borderLeft: `1px solid ${LIME_DIM}`,
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 6,
+};
+const ITEM_PILL: React.CSSProperties = {
+  display: "inline-block",
+  fontSize: 11,
+  color: LIME_BRIGHT,
+  background: "#0a0a0a",
+  border: `1px solid ${LIME_BRIGHT}`,
+  borderRadius: 999,
+  padding: "3px 10px",
+  letterSpacing: 0.5,
+};
 const CHIP: React.CSSProperties = {
   display: "inline-block",
   fontSize: 11,
