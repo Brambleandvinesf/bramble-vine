@@ -808,7 +808,7 @@ function ConfirmPage() {
           onClick={submit}
           disabled={submitting || !!loadErr || state === null}
         >
-          {submitting ? "CONFIRMING…" : "CONFIRM DAY"}
+          {submitting ? "CONFIRMING…" : "Confirm Loading/Projects"}
         </button>
       </div>
     </div>
