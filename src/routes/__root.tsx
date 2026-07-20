@@ -166,7 +166,7 @@ const TABS: TabDef[] = [
   { to: "/projects", label: "PROJECTS", screens: ["projects"] },
   { to: "/messages", label: "MESSAGES", screens: ["messages"] },
   { to: "/receipts", label: "RECEIPTS", screens: ["rcpt_designate", "rcpt_invoice"] },
-  { to: "/more", label: "MORE", screens: ["admin"] },
+  { to: "/admin", label: "ADMIN", screens: ["admin"] },
 ];
 
 function BottomTabBar() {
