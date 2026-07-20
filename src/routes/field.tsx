@@ -906,6 +906,7 @@ function StateVisit({
   tools,
   busy,
   isPreview,
+  notes,
   onClockOut,
   onToggleTool,
   onNoShow,
@@ -920,6 +921,7 @@ function StateVisit({
   tools: ToolRowRaw[];
   busy: boolean;
   isPreview: boolean;
+  notes: VisitNote[];
   onClockOut: (m: RosterMember) => void;
   onToggleTool: (t: NormTool) => void;
   onNoShow: () => void;
@@ -947,6 +949,7 @@ function StateVisit({
   );
 
   const [showOut, setShowOut] = useState(false);
+  const [noteComposerOpen, setNoteComposerOpen] = useState(false);
 
   return (
     <div style={{ padding: "10px 14px" }}>
@@ -958,7 +961,33 @@ function StateVisit({
           </div>
         </div>
       </div>
-      <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <div style={{ flex: 1 }}>
+          <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
+        </div>
+        <button
+          type="button"
+          onClick={() => setNoteComposerOpen(true)}
+          disabled={isPreview}
+          style={{
+            ...PRIMARY_BTN,
+            width: 120,
+            flex: "0 0 auto",
+            opacity: isPreview ? 0.4 : 1,
+            marginTop: 12,
+          }}
+        >
+          + NOTE
+        </button>
+      </div>
+      {noteComposerOpen && (
+        <NoteComposer
+          onClose={() => setNoteComposerOpen(false)}
+          disabled={isPreview}
+        />
+      )}
+      <NotesStrip notes={notes} disabled={isPreview} />
+
 
       <div style={{ ...SECTION_HEAD, marginTop: 16 }}>PROJECTS</div>
 
