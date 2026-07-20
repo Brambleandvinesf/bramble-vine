@@ -430,38 +430,42 @@ function DesignateTab({
     });
   }, []);
 
-  const selectedCount = Object.values(picks).filter(Boolean).length;
-
-  const submit = useCallback(() => {
-    const items = Object.entries(picks)
-      .filter(([, d]) => d)
-      .map(([row, d]) => ({ row: Number(row), designation: d }));
-    if (!items.length) return;
-    const rowsMap = new Map(items.map((i) => [i.row, i.designation]));
-    // Snapshot only affected lines for rollback.
-    const snapshot = lines.filter((l) => rowsMap.has(l.row)).map((l) => ({ ...l }));
-    setLines((prev) =>
-      prev.map((l) => (rowsMap.has(l.row) ? { ...l, finalDesignation: rowsMap.get(l.row)! } : l)),
-    );
-    setPicks({});
-    writer.dispatch(
-      `designate-${Date.now()}`,
-      { action: "designate", items, notify: true },
-      {
-        rollback: () =>
-          setLines((prev) => {
-            const byRow = new Map(snapshot.map((l) => [l.row, l]));
-            return prev.map((l) => byRow.get(l.row) ?? l);
-          }),
-        onSuccessMsg: (json) => {
-          const n = Number((json.designated as number | undefined) ?? items.length);
-          return `${n} line${n === 1 ? "" : "s"} designated${json.notified ? " — office notified" : ""}`;
+  const submitGroup = useCallback(
+    (groupRows: number[]) => {
+      const items = groupRows
+        .map((row) => ({ row, designation: picks[row] }))
+        .filter((i) => i.designation);
+      if (!items.length) return;
+      const rowsMap = new Map(items.map((i) => [i.row, i.designation]));
+      const snapshot = lines.filter((l) => rowsMap.has(l.row)).map((l) => ({ ...l }));
+      setLines((prev) =>
+        prev.map((l) => (rowsMap.has(l.row) ? { ...l, finalDesignation: rowsMap.get(l.row)! } : l)),
+      );
+      setPicks((prev) => {
+        const next = { ...prev };
+        for (const r of groupRows) delete next[r];
+        return next;
+      });
+      writer.dispatch(
+        `designate-${Date.now()}`,
+        { action: "designate", items, notify: true },
+        {
+          rollback: () =>
+            setLines((prev) => {
+              const byRow = new Map(snapshot.map((l) => [l.row, l]));
+              return prev.map((l) => byRow.get(l.row) ?? l);
+            }),
+          onSuccessMsg: (json) => {
+            const n = Number((json.designated as number | undefined) ?? items.length);
+            return `${n} line${n === 1 ? "" : "s"} designated${json.notified ? " — office notified" : ""}`;
+          },
+          onErrorMsg: (err) => `Couldn't save designations — restored (${err.message})`,
         },
-        onErrorMsg: (err) =>
-          `Couldn't save designations — restored (${err.message})`,
-      },
-    );
-  }, [picks, lines, setLines, writer]);
+      );
+    },
+    [picks, lines, setLines, writer],
+  );
+
 
   if (!groups.length) {
     return <div style={STATE}>No lines waiting for designation.</div>;
