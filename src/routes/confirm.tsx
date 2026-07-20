@@ -972,6 +972,91 @@ function ConfirmPage() {
   );
 }
 
+function TypeSelect({
+  value,
+  options,
+  disabled,
+  syncing,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  disabled?: boolean;
+  syncing?: boolean;
+  onChange: (val: string) => void;
+}) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const opts = Array.from(new Set([...options, value].filter(Boolean)));
+  if (customOpen) {
+    return (
+      <div style={{ display: "flex", gap: 4 }}>
+        <input
+          autoFocus
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          placeholder="Type…"
+          style={{
+            ...INPUT,
+            width: 140,
+            padding: "4px 8px",
+            minHeight: 36,
+            fontSize: 11,
+            letterSpacing: 1,
+            color: LIME,
+          }}
+        />
+        <button
+          style={{ ...GHOST_BTN_SM, minHeight: 36 }}
+          onClick={() => {
+            const v = custom.trim();
+            setCustomOpen(false);
+            setCustom("");
+            if (v) onChange(v);
+          }}
+        >
+          OK
+        </button>
+      </div>
+    );
+  }
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => {
+        if (e.target.value === "__custom__") {
+          setCustom("");
+          setCustomOpen(true);
+          return;
+        }
+        onChange(e.target.value);
+      }}
+      style={{
+        background: "transparent",
+        color: syncing ? MUTED : LIME,
+        border: `1px solid ${LIME}`,
+        borderRadius: 6,
+        padding: "0 8px",
+        minHeight: 36,
+        fontFamily: "inherit",
+        fontSize: 11,
+        letterSpacing: 2,
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      {!value && <option value="">—</option>}
+      {opts.map((o) => (
+        <option key={o} value={o}>
+          {o.toUpperCase()}
+        </option>
+      ))}
+      <option value="__custom__">CUSTOM…</option>
+    </select>
+  );
+}
+
 function SegBtn({
   active,
   danger,
