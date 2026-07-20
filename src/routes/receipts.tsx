@@ -792,7 +792,9 @@ function InvoiceTab({
                             receiptId={receiptId}
                             onSaved={onSaved}
                             onError={onError}
-                            refetch={refetch}
+                            writer={writer}
+                            setLines={setLines}
+                            setReceipts={setReceipts}
                           />
                         </div>
                         <div style={{ display: "grid", gap: 6 }}>
@@ -813,7 +815,8 @@ function InvoiceTab({
                                 line={l}
                                 onSaved={onSaved}
                                 onError={onError}
-                                refetch={refetch}
+                                writer={writer}
+                                setLines={setLines}
                               />
                             </div>
                           ))}
