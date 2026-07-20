@@ -248,7 +248,7 @@ function FieldPage() {
 }
 
 const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
-  { key: "billing", label: "Billing Hours" },
+  { key: "billing", label: "Labor Hours" },
   { key: "updates", label: "Project Updates" },
   { key: "new", label: "New Projects" },
   { key: "items", label: "Items Used" },
