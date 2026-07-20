@@ -278,16 +278,19 @@ function ConfirmPage() {
     });
   }, []);
 
-  const addNewItem = useCallback((client: string, key: string) => {
-    setNewByClient((prev) => {
-      const list = (prev[client] ?? []).map((n) =>
-        n.key === key
-          ? { ...n, items: [...n.items, { name: "", qty: "", size: "", notes: "" }] }
-          : n,
-      );
-      return { ...prev, [client]: list };
-    });
-  }, []);
+  const appendNewItem = useCallback(
+    (client: string, key: string, item: NewItem) => {
+      setNewByClient((prev) => {
+        const list = (prev[client] ?? []).map((n) =>
+          n.key === key ? { ...n, items: [...n.items, item] } : n,
+        );
+        return { ...prev, [client]: list };
+      });
+    },
+    [],
+  );
+
+
 
   const updateNewItem = useCallback(
     (client: string, key: string, idx: number, patch: Partial<NewItem>) => {
