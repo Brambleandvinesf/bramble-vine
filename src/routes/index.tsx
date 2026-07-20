@@ -228,11 +228,13 @@ function HomePage() {
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
-        <ConfirmBanner
-          loading={confirmLoading}
-          confirmed={confirmState?.confirmed ?? null}
-          role={role}
-        />
+        {reviewable !== false && (
+          <ConfirmBanner
+            loading={confirmLoading}
+            confirmed={confirmState?.confirmed ?? null}
+            role={role}
+          />
+        )}
         {canMsg && <BadgeTile to="/messages" title="MESSAGES" count={msgCount} unit="awaiting" />}
         {canRcpt && <BadgeTile to="/receipts" title="RECEIPTS" count={rcptCount} unit="to designate" />}
         {tiles.map((t) => (
