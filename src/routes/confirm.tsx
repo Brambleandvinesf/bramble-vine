@@ -4,6 +4,10 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "confirm:getConfirm";
 
 export const Route = createFileRoute("/confirm")({
   head: () => ({
@@ -152,10 +156,30 @@ function ConfirmPage() {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
 
-  const [state, setState] = useState<ConfirmState | null>(null);
-  const [todaysClients, setTodaysClients] = useState<string[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [edits, setEdits] = useState<Record<string, Edit>>({});
+  const cached = sessionCache.get<GetConfirmResponse>(CK);
+  const [state, setState] = useState<ConfirmState | null>(() => cached?.state ?? null);
+  const [todaysClients, setTodaysClients] = useState<string[]>(
+    () => (cached?.todaysClients ?? []).map((c) => String(c).trim()).filter(Boolean),
+  );
+  const [projects, setProjects] = useState<Project[]>(
+    () => (cached?.projects ?? []).map(normProject),
+  );
+  const [edits, setEdits] = useState<Record<string, Edit>>(() => {
+    const initial: Record<string, Edit> = {};
+    for (const p of (cached?.projects ?? []).map(normProject)) {
+      const key = p.projectId || `row-${p.row}`;
+      initial[key] = {
+        action: p.action,
+        garden: p.garden,
+        type: p.type,
+        category: p.category,
+        notes: p.notes,
+        status: "Confirmed",
+        expanded: p.showOnReview,
+      };
+    }
+    return initial;
+  });
   const [deletes, setDeletes] = useState<Set<string>>(new Set());
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
   const [pickerFor, setPickerFor] = useState<{ client: string; key: string } | null>(null);
@@ -164,6 +188,8 @@ function ConfirmPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitFlash, setSubmitFlash] = useState<{ msg: string; err: boolean } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const fetchedRef = useRef(false);
 
@@ -192,10 +218,17 @@ function ConfirmPage() {
   }, []);
 
   const load = useCallback(async () => {
-    const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = (await res.json()) as GetConfirmResponse;
-    applyData(json);
+    setRefreshing(true);
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as GetConfirmResponse;
+      sessionCache.set(CK, json);
+      applyData(json);
+      setOffline(false);
+    } finally {
+      setRefreshing(false);
+    }
   }, [applyData]);
 
   useEffect(() => {
@@ -205,7 +238,8 @@ function ConfirmPage() {
       try {
         await load();
       } catch (e) {
-        setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        if (sessionCache.has(CK)) setOffline(true);
+        else setLoadErr(e instanceof Error ? e.message : "Failed to load");
       }
     })();
   }, [load]);
