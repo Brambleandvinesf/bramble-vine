@@ -475,6 +475,7 @@ function FieldBody({
                   tools={data.tools ?? []}
                   busy={busy || isPreview}
                   previewStep={isPreview ? previewStep : null}
+                  employees={data.employees ?? []}
                   onFinish={async (payload) => {
                     if (isPreview) return;
                     const r = await send({
