@@ -59,6 +59,7 @@ function HomePage() {
   const { role: actualRole, name } = useAuth();
   const { effectiveRole, setViewAs, viewAs } = useViewAs();
   const role = effectiveRole;
+  const reviewable = useReviewableToday();
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(
     () => sessionCache.get<{ confirmed?: boolean }>(CK_CONFIRM) ?? null,
