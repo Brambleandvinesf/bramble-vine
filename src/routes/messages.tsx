@@ -12,6 +12,7 @@ import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useAuth } from "../lib/auth";
 
 const CK = "messages:getInbox";
 
