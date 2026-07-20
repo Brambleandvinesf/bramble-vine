@@ -1387,38 +1387,24 @@ function MenuItem({
 function ReceiptEditModal({
   receipt,
   onClose,
-  onSaved,
-  onError,
+  onSubmit,
 }: {
   receipt?: Receipt;
   onClose: () => void;
-  onSaved: (msg: string) => void;
-  onError: (msg: string) => void;
+  onSubmit: (patch: { vendor?: string; date?: string; total?: string; notes?: string }) => void;
 }) {
   const [vendor, setVendor] = useState(receipt?.vendor ?? "");
   const [date, setDate] = useState(receipt?.date ?? "");
   const [total, setTotal] = useState(receipt?.total ?? "");
   const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
-    if (!receipt) return onError("Missing receipt row");
-    const payload: Record<string, unknown> = { action: "editReceipt", row: receipt.row };
-    if (vendor.trim() !== receipt.vendor) payload.vendor = vendor.trim();
-    if (date.trim() !== receipt.date) payload.date = date.trim();
-    if (total.trim() !== receipt.total) payload.total = total.trim();
-    if (notes.trim()) payload.notes = notes.trim();
-    const changed = Object.keys(payload).length > 2;
-    if (!changed) return onClose();
-    setBusy(true);
-    try {
-      await postAction(payload);
-      onSaved("Receipt updated");
-    } catch (err) {
-      onError(err instanceof Error ? `Update failed — ${err.message}` : "Update failed");
-    } finally {
-      setBusy(false);
-    }
+  const submit = () => {
+    onSubmit({
+      vendor: vendor.trim(),
+      date: date.trim(),
+      total: total.trim(),
+      notes: notes.trim() || undefined,
+    });
   };
 
   return (
@@ -1442,10 +1428,8 @@ function ReceiptEditModal({
           </Field>
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button style={GHOST_BTN_SM} onClick={onClose} disabled={busy}>CANCEL</button>
-          <button style={SOLID_BTN_SM} onClick={submit} disabled={busy}>
-            {busy ? "SAVING…" : "SAVE"}
-          </button>
+          <button style={GHOST_BTN_SM} onClick={onClose}>CANCEL</button>
+          <button style={SOLID_BTN_SM} onClick={submit}>SAVE</button>
         </div>
       </div>
     </div>
@@ -1456,58 +1440,56 @@ function ReceiptEditModal({
 
 function LineActions({
   line,
-  onSaved,
+  onSaved: _onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
 }: {
   line: Line;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
 }) {
+  void _onSaved;
   const [mode, setMode] = useState<null | "edit" | "delete">(null);
-  const [busy, setBusy] = useState(false);
   const [description, setDescription] = useState(line.description);
   const [qty, setQty] = useState(line.quantity);
   const [unitPrice, setUnitPrice] = useState(line.unitPrice);
   const [notes, setNotes] = useState(line.notes);
 
-  const saveEdit = async () => {
+  const isSyncing = !!writer.syncing[`line-${line.row}`];
+
+  const saveEdit = () => {
     const payload: Record<string, unknown> = { action: "editLine", row: line.row };
-    if (description.trim() !== line.description) payload.description = description.trim();
-    if (qty.trim() !== line.quantity) payload.qty = qty.trim();
-    if (unitPrice.trim() !== line.unitPrice) payload.unitPrice = unitPrice.trim();
-    if (notes.trim() !== line.notes) payload.notes = notes.trim();
-    if (Object.keys(payload).length <= 2) {
-      setMode(null);
-      return;
-    }
-    setBusy(true);
-    try {
-      await postAction(payload);
-      onSaved("Line updated");
-      setMode(null);
-      refetch();
-    } catch (err) {
-      onError(err instanceof Error ? `Update failed — ${err.message}` : "Update failed");
-    } finally {
-      setBusy(false);
-    }
+    const patch: Partial<Line> = {};
+    if (description.trim() !== line.description) { payload.description = description.trim(); patch.description = description.trim(); }
+    if (qty.trim() !== line.quantity) { payload.qty = qty.trim(); patch.quantity = qty.trim(); }
+    if (unitPrice.trim() !== line.unitPrice) { payload.unitPrice = unitPrice.trim(); patch.unitPrice = unitPrice.trim(); }
+    if (notes.trim() !== line.notes) { payload.notes = notes.trim(); patch.notes = notes.trim(); }
+    if (Object.keys(payload).length <= 2) { setMode(null); return; }
+    const snapshot = { ...line };
+    setLines((prev) => prev.map((l) => (l.row === line.row ? { ...l, ...patch } : l)));
+    setMode(null);
+    writer.dispatch(`line-${line.row}`, payload, {
+      rollback: () => setLines((prev) => prev.map((l) => (l.row === snapshot.row ? snapshot : l))),
+      onSuccessMsg: "Line updated",
+      onErrorMsg: (err) => `Update failed — restored (${err.message})`,
+    });
   };
 
-  const doDelete = async () => {
-    setBusy(true);
-    try {
-      await postAction({ action: "deleteLine", row: line.row });
-      onSaved("Line deleted");
-      setMode(null);
-      refetch();
-    } catch (err) {
-      onError(err instanceof Error ? `Delete failed — ${err.message}` : "Delete failed");
-    } finally {
-      setBusy(false);
-    }
+  const doDelete = () => {
+    const snapshot = { ...line };
+    setLines((prev) => prev.filter((l) => l.row !== line.row));
+    setMode(null);
+    writer.dispatch(`line-${line.row}`, { action: "deleteLine", row: line.row }, {
+      rollback: () => setLines((prev) => [...prev, snapshot]),
+      onSuccessMsg: "Line deleted",
+      onErrorMsg: (err) => `Delete failed — restored (${err.message})`,
+    });
   };
+
+  void onError;
 
   return (
     <>
