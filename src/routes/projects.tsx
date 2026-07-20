@@ -505,7 +505,22 @@ function ProjectsPage() {
                     const draft = editing[p.projectId];
                     const items = toolsByProject[p.projectId] ?? [];
                     return (
-                      <div key={p.projectId || p.row} style={{ ...CARD, opacity: isBusy ? 0.5 : 1 }}>
+                      <div key={p.projectId || p.row} style={{ ...CARD, position: "relative", opacity: isBusy ? 0.85 : 1 }}>
+                        {isBusy && (
+                          <span
+                            title="Syncing…"
+                            style={{
+                              position: "absolute",
+                              top: 8,
+                              right: 8,
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: LIME_DIM,
+                              boxShadow: `0 0 6px ${LIME_DIM}`,
+                            }}
+                          />
+                        )}
                         {draft ? (
                           <EditForm
                             draft={draft}
