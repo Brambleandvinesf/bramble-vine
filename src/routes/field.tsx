@@ -1554,10 +1554,10 @@ function StateArrived({
 
           <button
             onClick={onStart}
-            disabled={!anyIn || busy}
-            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: !anyIn ? 0.45 : 1 }}
+            disabled={!anyIn || busy || alreadyTexted || !!isPreview}
+            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (!anyIn || alreadyTexted) ? 0.45 : 1 }}
           >
-            START VISIT
+            {alreadyTexted ? "CLIENT TEXTED" : "START VISIT & TEXT CLIENT"}
           </button>
         </>
       )}
