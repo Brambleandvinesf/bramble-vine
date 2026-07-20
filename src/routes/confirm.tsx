@@ -628,17 +628,16 @@ function ConfirmPage() {
                         SKIP
                       </SegBtn>
                       <div style={{ flex: 1 }} />
-                      <SegBtn
-                        active={e.type.toUpperCase() === "SPECIAL"}
-                        onClick={() =>
-                          setEdit(key, {
-                            type:
-                              e.type.toUpperCase() === "SPECIAL" ? "RECURRING" : "SPECIAL",
-                          })
-                        }
-                      >
-                        {e.type.toUpperCase() === "SPECIAL" ? "SPECIAL" : "RECURRING"}
-                      </SegBtn>
+                      <TypeSelect
+                        value={e.type}
+                        options={distinctTypes}
+                        syncing={p.projectId ? syncing.has(p.projectId) : false}
+                        disabled={isDeleted || !p.projectId}
+                        onChange={(val) => {
+                          if (val === e.type) return;
+                          void editProjectLive(p, { type: val }, () => ({ type: val }));
+                        }}
+                      />
                     </div>
 
                     <label style={LABEL}>ACTION</label>
@@ -663,6 +662,18 @@ function ConfirmPage() {
                         })}
                       </div>
                     )}
+                    {p.projectId && !isDeleted && (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          style={GHOST_BTN_SM}
+                          onClick={() =>
+                            setPickerFor({ mode: "existing", client, projectId: p.projectId })
+                          }
+                        >
+                          + ADD ITEM
+                        </button>
+                      </div>
+                    )}
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
@@ -683,14 +694,29 @@ function ConfirmPage() {
                         />
                       </div>
                     </div>
-                    <label style={LABEL}>NOTES</label>
-                    <textarea
-                      value={e.notes}
-                      onChange={(ev) => setEdit(key, { notes: ev.target.value })}
-                      style={{ ...INPUT, resize: "vertical" }}
-                      rows={2}
-                      disabled={isDeleted}
-                    />
+                    {e.notesOpen ? (
+                      <>
+                        <label style={LABEL}>NOTES</label>
+                        <textarea
+                          value={e.notes}
+                          onChange={(ev) => setEdit(key, { notes: ev.target.value })}
+                          style={{ ...INPUT, resize: "vertical" }}
+                          rows={2}
+                          disabled={isDeleted}
+                          autoFocus={!e.notes}
+                        />
+                      </>
+                    ) : (
+                      <div style={{ marginTop: 8 }}>
+                        <button
+                          style={GHOST_BTN_SM}
+                          onClick={() => setEdit(key, { notesOpen: true })}
+                          disabled={isDeleted}
+                        >
+                          + ADD NOTES
+                        </button>
+                      </div>
+                    )}
 
                     <div
                       style={{
