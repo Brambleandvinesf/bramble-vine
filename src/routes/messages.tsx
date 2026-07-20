@@ -367,7 +367,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew]);
+  }, [detectNew, email]);
 
   const safeLoad = useCallback(async () => {
     try {
