@@ -1088,7 +1088,7 @@ function PersonalClockPanel({
       enabled: true,
     };
     secondary = {
-      label: "SWITCH TO OVERHEAD",
+      label: "SWITCH TO BRAMBLE & VINE",
       onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
     };
   }
@@ -1115,15 +1115,14 @@ function PersonalClockPanel({
           onClick={secondary.onClick}
           disabled={disabled}
           style={{
-            ...BIG_BTN,
+            ...PRIMARY_BTN,
             width: "100%",
             marginTop: 8,
-            minHeight: 44,
-            fontSize: 12,
-            letterSpacing: 2,
-            color: DIM_GREEN,
-            borderColor: LIME_DIM,
             opacity: disabled ? 0.5 : 1,
+            whiteSpace: "normal",
+            lineHeight: 1.2,
+            padding: "10px 12px",
+            minHeight: 56,
           }}
         >
           {secondary.label}
