@@ -1144,6 +1144,8 @@ function StateDebrief({
     });
   };
 
+  const showStep = (k: DebriefStepKey) => !previewStep || previewStep === k;
+
   return (
     <div style={{ padding: "10px 14px" }}>
       <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>DEBRIEF</div>
@@ -1152,6 +1154,7 @@ function StateDebrief({
       </div>
 
       {/* 1. BILLING */}
+      {showStep("billing") && (
       <Step n={1} title="BILLING HOURS">
         {billing.map((b, i) => (
           <div key={i} style={ROW_LINE}>
@@ -1187,8 +1190,10 @@ function StateDebrief({
           Billing only — payroll stays in QB Time.
         </div>
       </Step>
+      )}
 
-      {/* 2. SPECIAL */}
+      {/* 2. SPECIAL / UPDATES */}
+      {showStep("updates") && (
       <Step n={2} title="SPECIAL PROJECTS">
         {specialProjects.length === 0 && (
           <div style={{ color: MUTED, fontSize: 12 }}>No special projects.</div>
@@ -1240,8 +1245,10 @@ function StateDebrief({
           );
         })}
       </Step>
+      )}
 
       {/* 3. ITEMS USED */}
+      {showStep("items") && (
       <Step n={3} title="ITEMS USED">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {suggestedItems.map((name) => {
@@ -1311,8 +1318,10 @@ function StateDebrief({
           </div>
         )}
       </Step>
+      )}
 
       {/* 4. NEW PROJECTS */}
+      {showStep("new") && (
       <Step n={4} title="NEW PROJECTS FOR NEXT TIME">
         {newProjects.map((p, idx) => (
           <NewProjectForm
@@ -1329,8 +1338,10 @@ function StateDebrief({
           + ADD PROJECT
         </button>
       </Step>
+      )}
 
       {/* 5. CLIENT UPDATES */}
+      {showStep("office") && (
       <Step n={5} title="UPDATES FOR THE CLIENT">
         <TextList
           items={clientUpdates}
@@ -1338,16 +1349,20 @@ function StateDebrief({
           placeholder="Something to tell the client…"
         />
       </Step>
+      )}
 
       {/* 6. OFFICE TASKS */}
+      {showStep("office") && (
       <Step n={6} title="ACTION ITEMS FOR OFFICE">
         <TextList items={officeTasks} onChange={setOfficeTasks} placeholder="Follow-up for office…" />
       </Step>
+      )}
 
       <button onClick={handleFinish} disabled={busy} style={{ ...PRIMARY_BTN, marginTop: 20 }}>
         FINISH DEBRIEF
       </button>
     </div>
+
   );
 }
 
