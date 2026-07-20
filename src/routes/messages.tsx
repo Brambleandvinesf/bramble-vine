@@ -224,7 +224,7 @@ const fontStack = "'Courier New', Courier, monospace";
 /* ============ Component ============ */
 function MessagesPage() {
   const { effectiveRole } = useViewAs();
-  const { user } = useAuth();
+  const { email } = useAuth();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
@@ -234,9 +234,9 @@ function MessagesPage() {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
   if (!allowed) return null;
-  if (!user) return null;
+  if (!email) return null;
 
-  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={user} />;
+  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={email} />;
 }
 
 function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boolean; showLineBadge: boolean; email: string }) {
@@ -459,8 +459,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       );
       const res = await postAction(
         it.source === "quo"
-          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, ...(it.line ? { from: it.line } : {}) }
-          : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments },
+          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, email, ...(it.line ? { from: it.line } : {}) }
+          : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments, email },
       );
       if (res && res.ok && res.sent) {
         if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
@@ -473,7 +473,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       flash("Message NOT sent to " + it.from + "!", true);
       return false;
     },
-    [flash, staged],
+    [flash, staged, email],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
@@ -513,12 +513,12 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     setItems((prev) => [optimistic, ...prev]);
     setCompose(null);
     flash("Message sent to " + name + " \u2713");
-    const res = await postAction({ action: "replyQuo", participants: [phone], text });
+    const res = await postAction({ action: "replyQuo", participants: [phone], text, email });
     if (!(res && res.ok && res.sent)) {
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
       flash("Message NOT sent to " + name + "!", true);
     }
-  }, [compose, normalizePhone, flash]);
+  }, [compose, normalizePhone, flash, email]);
 
 
   /* ---- file / trash / done / spam / confirm ---- */
@@ -702,21 +702,23 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (it.source === "quo") {
         const r = await fetch(
           SCRIPT_URL + "?action=getQuoThread&participants=" + encodeURIComponent((it.participants || []).join(",")) +
+            "&email=" + encodeURIComponent(email) +
             (it.line ? "&line=" + encodeURIComponent(it.line) : ""),
         ).then((x) => x.json());
         if (r.error) throw new Error(r.error);
         setViewerBody({ kind: "quo", messages: r.messages || [], from: it.from });
       } else {
-        const r = await fetch(SCRIPT_URL + "?action=getMessage&threadId=" + encodeURIComponent(it.threadId)).then((x) =>
-          x.json(),
-        );
+        const r = await fetch(
+          SCRIPT_URL + "?action=getMessage&threadId=" + encodeURIComponent(it.threadId) +
+            "&email=" + encodeURIComponent(email),
+        ).then((x) => x.json());
         if (r.error) throw new Error(r.error);
         setViewerBody({ kind: "gmail", messages: r.messages || [] });
       }
     } catch {
       setViewerBody({ kind: "error" });
     }
-  }, []);
+  }, [email]);
   const closeViewer = useCallback(() => {
     setOpenItem(null);
     setViewerBody(null);
@@ -742,11 +744,11 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     const saved = fwdPick;
     setFwdPick(null);
     flash("Forwarded to crew \u2713");
-    const res = await postAction({ action: "replyQuo", participants: CREW, text });
+    const res = await postAction({ action: "replyQuo", participants: CREW, text, email });
     if (res && res.ok && res.sent) return;
     setFwdPick({ ...saved, err: "Forward failed — try again." });
     flash("Message NOT sent to crew!", true);
-  }, [fwdPick, flash]);
+  }, [fwdPick, flash, email]);
 
   /* ---- add project ---- */
   const openProject = useCallback((it: InboxItem) => {

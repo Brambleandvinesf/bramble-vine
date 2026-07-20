@@ -21,6 +21,7 @@ const STORAGE_KEY = "bv.crew.email";
 
 type AuthCtx = {
   user: string | null;
+  email: string | null;
   role: Role | null;
   name: string | null;
   ready: boolean;
@@ -89,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider
       value={{
         user,
+        email: entry?.email ?? user,
         role: entry?.role ?? null,
         name: entry?.name ?? null,
         ready,
