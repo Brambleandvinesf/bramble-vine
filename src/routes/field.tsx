@@ -1261,11 +1261,14 @@ function StateDebrief({
     officeTasks: string[];
   }) => Promise<void>;
   previewStep?: DebriefStepKey | null;
+  employees?: Employee[];
 }) {
   const clocked = roster.filter((m) => m.in);
+  const nowIso = useMemo(() => new Date().toISOString(), []);
   const [billing, setBilling] = useState<DebriefBilling[]>(
-    () => clocked.map((m) => ({ name: m.name, hours: hoursBetween(m.in, m.out) })),
+    () => clocked.map((m) => ({ name: m.name, hours: hoursBetween(m.in, m.out ?? nowIso) })),
   );
+  const [showAddPerson, setShowAddPerson] = useState(false);
 
   const specialProjects = useMemo(
     () =>
