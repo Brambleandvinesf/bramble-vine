@@ -122,41 +122,51 @@ function mapsHref(loc: string): string {
   return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(loc)}`;
 }
 
-/** Sanitize: allow ONLY <a href="..."> tags. Strip everything else. Preserve line breaks. */
+/** Sanitize: allow ONLY <a href="..."> tags. Preserve structure from legacy HTML
+ *  (<br>, <p>, <li>, <ul>, <ol>, <h1..h6>, <div>) as newlines / bullets.
+ *  Plain-text descriptions with \n pass through unchanged. */
 function sanitizeDescription(html: string): Array<{ kind: "text"; value: string } | { kind: "link"; href: string; text: string }> {
   if (!html) return [];
-  const out: Array<{ kind: "text"; value: string } | { kind: "link"; href: string; text: string }> = [];
-  // Strip <br> to \n first, then handle <a>, then strip other tags.
-  const withBreaks = html.replace(/<br\s*\/?\s*>/gi, "\n");
-  const anchorRe = /<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  const stripTags = (s: string) => s.replace(/<[^>]+>/g, "");
   const decode = (s: string) =>
     s
+      .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, " ");
-  while ((m = anchorRe.exec(withBreaks)) !== null) {
+      .replace(/&#39;/g, "'");
+  const structuralize = (s: string) =>
+    s
+      .replace(/<br\s*\/?\s*>/gi, "\n")
+      .replace(/<li\b[^>]*>/gi, "\n• ")
+      .replace(/<\/(p|div|li|ul|ol|h[1-6])\s*>/gi, "\n");
+  const stripTags = (s: string) => s.replace(/<[^>]+>/g, "");
+  const collapse = (s: string) => s.replace(/\n{3,}/g, "\n\n");
+  const finalize = (s: string) => collapse(decode(stripTags(structuralize(s))));
+
+  const out: Array<{ kind: "text"; value: string } | { kind: "link"; href: string; text: string }> = [];
+  const anchorRe = /<a\s+[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)')[^>]*>([\s\S]*?)<\/a>/gi;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = anchorRe.exec(html)) !== null) {
     if (m.index > last) {
-      out.push({ kind: "text", value: decode(stripTags(withBreaks.slice(last, m.index))) });
+      const chunk = finalize(html.slice(last, m.index));
+      if (chunk) out.push({ kind: "text", value: chunk });
     }
-    const href = m[1] ?? m[2] ?? "";
-    const text = decode(stripTags(m[3] ?? ""));
-    // Only allow http(s) and mailto/tel
-    const safe = /^(https?:|mailto:|tel:)/i.test(href.trim());
-    if (safe) out.push({ kind: "link", href: href.trim(), text: text || href.trim() });
+    const href = (m[1] ?? m[2] ?? "").trim();
+    const text = finalize(m[3] ?? "") || href;
+    const safe = /^(https?:|mailto:|tel:)/i.test(href);
+    if (safe) out.push({ kind: "link", href, text });
     else out.push({ kind: "text", value: text });
     last = m.index + m[0].length;
   }
-  if (last < withBreaks.length) {
-    out.push({ kind: "text", value: decode(stripTags(withBreaks.slice(last))) });
+  if (last < html.length) {
+    const chunk = finalize(html.slice(last));
+    if (chunk) out.push({ kind: "text", value: chunk });
   }
   return out;
 }
+
 
 function SchedulePage() {
   const { role } = useAuth();
