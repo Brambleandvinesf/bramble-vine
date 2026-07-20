@@ -165,47 +165,32 @@ export function useProducts(enabled: boolean): UseProductsResult {
   };
 }
 
-/** Recommended quick-pick keys, in display order. */
+/** Recommended quick-pick catalog names, in display order. */
 export const RECOMMENDED_KEYS: string[] = [
-  "bag",
-  "single",
-  "eb stone",
-  "bubbler",
-  "goof plug",
-  '1/4" solid line',
-  '1/4" barbed connector',
-  "yard bag removal",
+  "Yard Bag, single",
+  "Yard bag removal, single",
+  "Bubbler",
+  "Goof Plugs, single",
+  '1/4" Barbed Connector, single',
+  '1/4" Solid Irrigation Line, 1ft',
+  '1/4" Solid Irrigation Line,  100ft roll',
 ];
 
 /**
- * Resolve recommended chip keys against the catalog.
- * - "eb stone" returns EVERY catalog item containing "eb stone".
- * - All others: exact case-insensitive match first, then contains.
- * - Deduped by catalog name. Keys with no match are omitted.
+ * Resolve recommended chip keys against the catalog by case-insensitive
+ * EXACT name equality. Each chip displays the catalog string verbatim.
+ * Keys with no match are omitted. Deduped by catalog name.
  */
 export function resolveRecommended(products: ProductRow[]): ProductRow[] {
   const out: ProductRow[] = [];
   const seen = new Set<string>();
-  const push = (p: ProductRow) => {
-    if (seen.has(p.name)) return;
-    seen.add(p.name);
-    out.push(p);
-  };
   for (const key of RECOMMENDED_KEYS) {
-    const kl = key.toLowerCase();
-    if (kl === "eb stone") {
-      for (const p of products) {
-        if (p.name.toLowerCase().includes(kl)) push(p);
-      }
-      continue;
-    }
-    const exact = products.find((p) => p.name.toLowerCase() === kl);
-    if (exact) {
-      push(exact);
-      continue;
-    }
-    const contains = products.find((p) => p.name.toLowerCase().includes(kl));
-    if (contains) push(contains);
+    const match = products.find(
+      (p) => p.name.toLowerCase() === key.toLowerCase()
+    );
+    if (!match || seen.has(match.name)) continue;
+    seen.add(match.name);
+    out.push(match);
   }
   return out;
 }
