@@ -33,6 +33,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider, useAuth } from "../lib/auth";
 import { ViewAsProvider, useViewAs } from "../lib/view-as";
 import { canSee, type ScreenId } from "../lib/permissions";
+import { ReviewableTodayProvider, useReviewableToday } from "../lib/reviewable-today";
 
 function NotFoundComponent() {
   return (
