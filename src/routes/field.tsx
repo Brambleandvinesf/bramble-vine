@@ -565,10 +565,8 @@ function StateEnRoute({
         NAVIGATE
       </button>
       {address && (
-        <a
-          href={fallbackHref}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          onClick={() => window.open(fallbackHref, "_blank", "noopener,noreferrer")}
           style={{
             display: "block",
             textAlign: "center",
@@ -576,11 +574,17 @@ function StateEnRoute({
             textDecoration: "underline",
             marginTop: 8,
             fontSize: 12,
+            background: "transparent",
+            border: "none",
+            width: "100%",
+            fontFamily: "inherit",
+            cursor: "pointer",
           }}
         >
           open in google maps
-        </a>
+        </button>
       )}
+
 
 
       {isLead && (
