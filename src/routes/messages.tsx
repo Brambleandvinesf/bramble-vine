@@ -993,6 +993,10 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
           {badgeCount}
         </span>
         {countdownEl}
+        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && <span style={{ color: T.dim, fontSize: 10 }}>offline — last data</span>}
+        </span>
       </header>
 
       {/* controls row */}
