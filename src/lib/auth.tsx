@@ -21,6 +21,7 @@ const STORAGE_KEY = "bv.crew.email";
 
 type AuthCtx = {
   user: string | null;
+  email: string | null;
   role: Role | null;
   name: string | null;
   ready: boolean;
