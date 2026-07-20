@@ -596,19 +596,22 @@ function InvoiceTab({
   receiptById,
   onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
+  setReceipts,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 }) {
 
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [queuedOpen, setQueuedOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const ready = useMemo(
