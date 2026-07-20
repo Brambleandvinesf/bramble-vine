@@ -827,6 +827,27 @@ function InvoiceTab({
                             </div>
                           ))}
                         </div>
+                        {(() => {
+                          const groupRows = g.lines.map((l) => l.row);
+                          const groupCount = groupRows.filter((r) => checked.has(r)).length;
+                          return (
+                            <button
+                              style={{
+                                ...SOLID_BTN,
+                                width: "100%",
+                                marginTop: 10,
+                                opacity: groupCount ? 1 : 0.4,
+                                cursor: groupCount ? "pointer" : "not-allowed",
+                              }}
+                              disabled={!groupCount}
+                              onClick={() => submitReceipt(groupRows)}
+                            >
+                              {groupCount
+                                ? `ADD ${groupCount} TO INVOICES`
+                                : "SELECT LINES TO INVOICE"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -865,54 +886,10 @@ function InvoiceTab({
           </div>
         )}
       </div>
-
-      {selectedCount > 0 && (
-        <div style={FOOTER}>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              maxWidth: 720,
-              margin: "0 auto",
-            }}
-          >
-            <div style={{ color: TEXT, fontSize: 13 }}>
-              {selectedCount} selected
-            </div>
-            <button
-              style={{ ...SOLID_BTN, marginLeft: "auto" }}
-              onClick={() => setConfirmOpen(true)}
-            >
-              ADD TO INVOICES
-            </button>
-          </div>
-        </div>
-      )}
-
-      {confirmOpen && (
-        <div style={MODAL_BACKDROP} onClick={() => setConfirmOpen(false)}>
-          <div style={MODAL} onClick={(e) => e.stopPropagation()}>
-            <div style={{ color: LIME, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 }}>
-              CONFIRM
-            </div>
-            <div style={{ color: TEXT, fontSize: 14, marginBottom: 16 }}>
-              Queue {selectedCount} line{selectedCount === 1 ? "" : "s"} for QuickBooks invoicing?
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button style={GHOST_BTN_SM} onClick={() => setConfirmOpen(false)}>
-                CANCEL
-              </button>
-              <button style={SOLID_BTN_SM} onClick={submit}>
-                QUEUE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
+
 
 /* ---------- shared bits ---------- */
 
