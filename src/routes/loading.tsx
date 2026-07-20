@@ -135,6 +135,7 @@ function normalize(d: GetDataResponse): ToolRow[] {
 function LoadingPage() {
   const { user, role } = useAuth();
   const canConfirm = canSee(role, "special_confirm");
+  const reviewable = useReviewableToday();
 
 
   const cached = sessionCache.get<GetDataResponse>(CK);
