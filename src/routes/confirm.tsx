@@ -532,13 +532,6 @@ function ConfirmPage() {
 
   if (!allowed) return null;
 
-  if (reviewable === false) {
-    return (
-      <div style={PAGE}>
-        <div style={STATE}>No special loading today</div>
-      </div>
-    );
-  }
 
   return (
     <div style={PAGE}>
