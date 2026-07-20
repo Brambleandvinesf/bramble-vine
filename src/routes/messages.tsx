@@ -224,19 +224,22 @@ const fontStack = "'Courier New', Courier, monospace";
 /* ============ Component ============ */
 function MessagesPage() {
   const { effectiveRole } = useViewAs();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
+  const showLineBadge = effectiveRole === "management";
 
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
   if (!allowed) return null;
+  if (!user) return null;
 
-  return <MessagesInner showReceipt={showReceipt} />;
+  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={user} />;
 }
 
-function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
+function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boolean; showLineBadge: boolean; email: string }) {
   const cached = sessionCache.get<InboxResponse>(CK);
   // Feed state
   const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
