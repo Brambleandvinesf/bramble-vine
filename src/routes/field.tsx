@@ -1298,6 +1298,375 @@ function VisitCamera({ clientName, disabled }: { clientName: string; disabled: b
 }
 
 /* ============================================================ */
+const NOTE_TYPE_META: Record<VisitNoteType, { label: string; short: string }> = {
+  update: { label: "PROJECT UPDATE", short: "UPDATE" },
+  item: { label: "ITEM USED", short: "ITEM" },
+  future: { label: "FUTURE PROJECT", short: "FUTURE" },
+  office: { label: "MESSAGE (office/client)", short: "MESSAGE" },
+};
+
+function NoteComposer({
+  onClose,
+  disabled,
+}: {
+  onClose: () => void;
+  disabled: boolean;
+}) {
+  const [type, setType] = useState<VisitNoteType>("update");
+  const [text, setText] = useState("");
+  const [qty, setQty] = useState("");
+  const [item, setItem] = useState<string>("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const canSave =
+    !saving && !disabled && (type === "item" ? !!item.trim() : !!text.trim());
+
+  const submit = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    const body: Record<string, unknown> = { action: "visitNote", type };
+    if (type === "item") {
+      body.item = item;
+      if (qty.trim()) body.qty = qty.trim();
+    } else {
+      body.text = text.trim();
+    }
+    await postScript(body);
+    setSaving(false);
+    onClose();
+  };
+
+  const CHIP = (t: VisitNoteType) => (
+    <button
+      key={t}
+      type="button"
+      onClick={() => setType(t)}
+      style={{
+        background: type === t ? LIME : "transparent",
+        color: type === t ? BG : LIME,
+        border: `1px solid ${LIME_DIM}`,
+        borderRadius: 999,
+        padding: "6px 10px",
+        fontFamily: "inherit",
+        fontSize: 11,
+        fontWeight: "bold",
+        letterSpacing: 1,
+        cursor: "pointer",
+      }}
+    >
+      {NOTE_TYPE_META[t].short}
+    </button>
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.75)",
+        zIndex: 250,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: BG,
+          borderTop: `1px solid ${LINE}`,
+          width: "100%",
+          maxWidth: 560,
+          padding: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", marginBottom: 10 }}>
+          <div style={{ color: LIME, fontSize: 14, fontWeight: "bold", letterSpacing: 2 }}>
+            + VISIT NOTE
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              marginLeft: "auto",
+              background: "transparent",
+              color: MUTED,
+              border: "none",
+              fontSize: 20,
+              cursor: "pointer",
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {(Object.keys(NOTE_TYPE_META) as VisitNoteType[]).map(CHIP)}
+        </div>
+
+        {type === "item" ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              style={{
+                width: "100%",
+                background: PANEL,
+                color: item ? LIME : MUTED,
+                border: `1px solid ${LINE}`,
+                borderRadius: 6,
+                padding: "10px 12px",
+                fontFamily: "inherit",
+                fontSize: 13,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              {item || "Select item from catalog…"}
+            </button>
+            <input
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder="Qty"
+              inputMode="decimal"
+              style={{
+                width: "100%",
+                background: BG,
+                color: TEXT,
+                border: `1px solid ${LINE}`,
+                borderRadius: 6,
+                padding: "10px 12px",
+                fontFamily: "inherit",
+                fontSize: 14,
+                marginTop: 8,
+                boxSizing: "border-box",
+              }}
+            />
+          </>
+        ) : (
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={
+              type === "update"
+                ? "Project status update…"
+                : type === "future"
+                  ? "Future project idea…"
+                  : "Message for office/client…"
+            }
+            style={{
+              width: "100%",
+              minHeight: 90,
+              background: BG,
+              color: TEXT,
+              border: `1px solid ${LINE}`,
+              borderRadius: 6,
+              padding: "10px 12px",
+              fontFamily: "inherit",
+              fontSize: 14,
+              resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!canSave}
+          style={{
+            ...PRIMARY_BTN,
+            marginTop: 12,
+            opacity: canSave ? 1 : 0.4,
+            cursor: canSave ? "pointer" : "not-allowed",
+          }}
+        >
+          {saving ? "SAVING…" : "SAVE NOTE"}
+        </button>
+
+        {pickerOpen && (
+          <ItemPicker
+            onCancel={() => setPickerOpen(false)}
+            onAdd={(p) => {
+              setItem(p.name);
+              if (!qty && p.qty) setQty(p.qty);
+              setPickerOpen(false);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NotesStrip({
+  notes,
+  disabled,
+}: {
+  notes: VisitNote[];
+  disabled: boolean;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [photoTargetId, setPhotoTargetId] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  // local optimistic photo count per note
+  const [pendingPhotoIds, setPendingPhotoIds] = useState<Record<string, number>>({});
+
+  const remove = async (id: string) => {
+    if (disabled) return;
+    setBusyId(id);
+    await postScript({ action: "visitNote", delete: id });
+    setBusyId(null);
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    const noteId = photoTargetId;
+    setPhotoTargetId(null);
+    if (!files || !noteId || disabled) return;
+    for (const file of Array.from(files)) {
+      try {
+        const { base64 } = await downscaleToJpegBase64(file);
+        setPendingPhotoIds((prev) => ({
+          ...prev,
+          [noteId]: (prev[noteId] ?? 0) + 1,
+        }));
+        void postScript({
+          action: "visitPhoto",
+          data: base64,
+          mime: "image/jpeg",
+          noteId,
+        });
+      } catch {
+        // skip
+      }
+    }
+  };
+
+  if (!notes.length && !Object.keys(pendingPhotoIds).length) return null;
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={SECTION_HEAD}>NOTES ({notes.length})</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {notes.map((n) => {
+          const meta = NOTE_TYPE_META[n.type];
+          const photoCount = (n.photos?.length ?? 0) + (pendingPhotoIds[n.id] ?? 0);
+          const body =
+            n.type === "item"
+              ? `${n.item ?? ""}${n.qty ? ` × ${n.qty}` : ""}`
+              : (n.text ?? "");
+          return (
+            <div
+              key={n.id}
+              style={{
+                background: PANEL,
+                border: `1px solid ${LINE}`,
+                borderRadius: 8,
+                padding: "8px 10px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: DIM_GREEN,
+                    fontSize: 9,
+                    letterSpacing: 2,
+                    fontWeight: "bold",
+                  }}
+                >
+                  {meta?.short ?? n.type.toUpperCase()}
+                  {photoCount > 0 && (
+                    <span style={{ color: LIME, marginLeft: 6 }}>
+                      · 📷 {photoCount}
+                    </span>
+                  )}
+                  {n.createdAt && (
+                    <span style={{ color: MUTED, marginLeft: 6, letterSpacing: 1 }}>
+                      · {formatNoteTime(n.createdAt)}
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    color: TEXT,
+                    fontSize: 13,
+                    marginTop: 2,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {body}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhotoTargetId(n.id);
+                  requestAnimationFrame(() => fileRef.current?.click());
+                }}
+                disabled={disabled}
+                aria-label="Add photo"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: LIME,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  fontSize: 16,
+                  padding: 4,
+                  opacity: disabled ? 0.4 : 1,
+                }}
+              >
+                📷
+              </button>
+              <button
+                type="button"
+                onClick={() => void remove(n.id)}
+                disabled={disabled || busyId === n.id}
+                aria-label="Delete note"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: MUTED,
+                  cursor: "pointer",
+                  fontSize: 16,
+                  padding: 4,
+                  opacity: disabled ? 0.4 : 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+    </div>
+  );
+}
+
+function formatNoteTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+
+/* ============================================================ */
 
 function RosterClockStatus({ roster }: { roster: RosterMember[] }) {
   return (
