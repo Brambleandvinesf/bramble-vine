@@ -439,6 +439,19 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
         it.source === "quo"
           ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId }
           : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments },
+      );
+      if (res && res.ok && res.sent) {
+        if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
+        return true;
+      }
+      // rollback
+      setAwaitingOverride((s) => ({ ...s, [it.id]: wasAwaiting }));
+      if (attachments.length) setStaged((s) => ({ ...s, [it.threadId]: attachments }));
+      if (opts?.fromViewer) setVReply(t);
+      flash("Message NOT sent to " + it.from + "!", true);
+      return false;
+    },
+    [flash, staged],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
@@ -484,19 +497,7 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
       flash("Message NOT sent to " + name + "!", true);
     }
   }, [compose, normalizePhone, flash]);
-      if (res && res.ok && res.sent) {
-        if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
-        return true;
-      }
-      // rollback
-      setAwaitingOverride((s) => ({ ...s, [it.id]: wasAwaiting }));
-      if (attachments.length) setStaged((s) => ({ ...s, [it.threadId]: attachments }));
-      if (opts?.fromViewer) setVReply(t);
-      flash("Message NOT sent to " + it.from + "!", true);
-      return false;
-    },
-    [flash, staged],
-  );
+
 
   /* ---- file / trash / done / spam / confirm ---- */
   const pickLabel = useCallback((it: InboxItem): Promise<string> => {
