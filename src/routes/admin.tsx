@@ -46,7 +46,7 @@ const GROUPS: Group[] = [
         key: "route_debrief",
         label: "Debrief",
         sub: [
-          { key: "route_debrief", label: "Billing Hours", step: "billing", dimmed: true },
+          { key: "route_debrief", label: "Labor Hours", step: "billing", dimmed: true },
           { key: "route_debrief", label: "Project Updates", step: "updates", dimmed: true },
           { key: "route_debrief", label: "New Projects", step: "new", dimmed: true },
           { key: "route_debrief", label: "Items Used", step: "items", dimmed: true },
