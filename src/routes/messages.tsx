@@ -459,8 +459,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       );
       const res = await postAction(
         it.source === "quo"
-          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, ...(it.line ? { from: it.line } : {}) }
-          : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments },
+          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, email, ...(it.line ? { from: it.line } : {}) }
+          : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments, email },
       );
       if (res && res.ok && res.sent) {
         if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
