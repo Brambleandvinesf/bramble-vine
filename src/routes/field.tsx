@@ -1521,25 +1521,31 @@ function StateVisit({
   onNoShow: () => void;
 }) {
 
-  const clientProjects = clientMatch
-    ? projects.filter((p) => s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase())
+  const clientKey = clientMatch ? clientMatch.trim().toLowerCase() : "";
+  const clientProjects = clientKey
+    ? projects.filter((p) => s(p["Client Name"]).trim().toLowerCase() === clientKey)
     : [];
-  const projectIds = new Set(clientProjects.map((p) => s(p["Project ID"])).filter(Boolean));
+  const projectIds = new Set(clientProjects.map((p) => s(p["Project ID"]).trim()).filter(Boolean));
   const normTools = useMemo<NormTool[]>(
     () =>
       (tools ?? [])
         .map((t) => ({
           row: Number(t.row ?? 0),
           materialId: s(t["Material ID"]),
-          project: s(t["Project ID"]),
+          client: s(t["Client Name"]).trim(),
+          project: s(t["Project ID"]).trim(),
           item: s(t["Item Name"]),
           qty: s(t["Quantity"]),
           size: s(t["Size"]),
           notes: s(t["Notes"]),
           loaded: t["Loaded Status"] === true,
         }))
-        .filter((t) => t.item && (projectIds.size === 0 || projectIds.has(t.project))),
-    [tools, projectIds],
+        .filter(
+          (t) =>
+            t.item &&
+            (clientKey === "" || t.client.toLowerCase() === clientKey),
+        ),
+    [tools, clientKey],
   );
 
   const [showOut, setShowOut] = useState(false);
@@ -1589,8 +1595,10 @@ function StateVisit({
         <div style={{ color: MUTED, fontSize: 12, padding: "8px 4px" }}>No projects listed.</div>
       ) : (
         clientProjects.map((p, i) => {
-          const pid = s(p["Project ID"]);
-          const items = normTools.filter((t) => t.project === pid && pid !== "");
+          const pid = s(p["Project ID"]).trim();
+          const items = pid
+            ? normTools.filter((t) => t.project === pid)
+            : [];
           return (
             <ProjectCard
               key={i}
