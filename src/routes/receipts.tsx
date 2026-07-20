@@ -150,10 +150,25 @@ async function downscaleToBase64(
   return { data: base64, mime: "image/jpeg", name: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
 }
 
+type Writer = {
+  syncing: Record<string, boolean>;
+  dispatch: (
+    key: string,
+    payload: Record<string, unknown>,
+    opts: {
+      rollback: () => void;
+      onSuccessMsg?: string | ((json: Record<string, unknown>) => string);
+      onErrorMsg?: string | ((err: Error) => string);
+    },
+  ) => void;
+};
+
 type WriteHandlers = {
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 };
 
 
