@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VisitsRouteImport } from './routes/visits'
+import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as MoreRouteImport } from './routes/more'
@@ -24,6 +25,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const VisitsRoute = VisitsRouteImport.update({
   id: '/visits',
   path: '/visits',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReceiptsRoute = ReceiptsRouteImport.update({
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/more': typeof MoreRoute
   '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
+  '/schedule': typeof ScheduleRoute
   '/visits': typeof VisitsRoute
 }
 export interface FileRoutesByTo {
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/more': typeof MoreRoute
   '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
+  '/schedule': typeof ScheduleRoute
   '/visits': typeof VisitsRoute
 }
 export interface FileRoutesById {
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/more': typeof MoreRoute
   '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
+  '/schedule': typeof ScheduleRoute
   '/visits': typeof VisitsRoute
 }
 export interface FileRouteTypes {
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/projects'
     | '/receipts'
+    | '/schedule'
     | '/visits'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -143,6 +153,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/projects'
     | '/receipts'
+    | '/schedule'
     | '/visits'
   id:
     | '__root__'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/projects'
     | '/receipts'
+    | '/schedule'
     | '/visits'
   fileRoutesById: FileRoutesById
 }
@@ -170,6 +182,7 @@ export interface RootRouteChildren {
   MoreRoute: typeof MoreRoute
   ProjectsRoute: typeof ProjectsRoute
   ReceiptsRoute: typeof ReceiptsRoute
+  ScheduleRoute: typeof ScheduleRoute
   VisitsRoute: typeof VisitsRoute
 }
 
@@ -180,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/visits'
       fullPath: '/visits'
       preLoaderRoute: typeof VisitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/receipts': {
@@ -266,6 +286,7 @@ const rootRouteChildren: RootRouteChildren = {
   MoreRoute: MoreRoute,
   ProjectsRoute: ProjectsRoute,
   ReceiptsRoute: ReceiptsRoute,
+  ScheduleRoute: ScheduleRoute,
   VisitsRoute: VisitsRoute,
 }
 export const routeTree = rootRouteImport
