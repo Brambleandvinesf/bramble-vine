@@ -1075,6 +1075,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               hidden={hidden.has(it.id)}
               found={foundId === it.id}
               staged={staged[it.threadId] || []}
+              showLineBadge={showLineBadge}
               onOpen={() => openViewer(it)}
               onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
               onFile={() => (it.source === "quo" ? doneItem(it) : fileItem(it))}
