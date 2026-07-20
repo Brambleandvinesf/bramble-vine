@@ -576,9 +576,8 @@ function DesignateTab({
             <button
               style={{ ...SOLID_BTN, marginLeft: "auto" }}
               onClick={submit}
-              disabled={submitting}
             >
-              {submitting ? "SAVING…" : "SAVE DESIGNATIONS"}
+              SAVE DESIGNATIONS
             </button>
           </div>
         </div>
