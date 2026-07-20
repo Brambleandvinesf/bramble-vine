@@ -411,12 +411,24 @@ function FieldBody({
   const isLead = canSee(role, "route_debrief");
   const canDebrief = canSee(role, "route_debrief") || route.delegated === true;
 
+  const allNotes = data.visitNotes ?? [];
+  const stopNotes = useMemo(
+    () =>
+      clientMatch
+        ? allNotes.filter(
+            (n) => (n.client ?? "").toLowerCase() === clientMatch.toLowerCase(),
+          )
+        : [],
+    [allNotes, clientMatch],
+  );
+
   /* --- roster picker gate (skipped in preview so all states are reachable) --- */
   if (roster.length === 0 && !isPreview) {
     return <RosterPicker employees={employees} onSet={(people) => send({ action: "setRoster", people })} busy={busy} />;
   }
 
   const routeComplete = !isPreview && stopIndex >= events.length;
+
 
 
   return (
