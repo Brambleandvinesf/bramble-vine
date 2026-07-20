@@ -1750,8 +1750,15 @@ function StateVisit({
       )}
 
       {isLead && !showOut && (
-        <button onClick={() => setShowOut(true)} style={{ ...PRIMARY_BTN, marginTop: 14 }}>
-          GARDEN VISIT COMPLETE
+        <button
+          onClick={() => {
+            onVisitComplete?.();
+            setShowOut(true);
+          }}
+          disabled={alreadyTextedDone || !!isPreview}
+          style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (alreadyTextedDone || isPreview) ? 0.45 : 1 }}
+        >
+          {alreadyTextedDone ? "CLIENT TEXTED" : "END VISIT & TEXT CLIENT"}
         </button>
       )}
 
