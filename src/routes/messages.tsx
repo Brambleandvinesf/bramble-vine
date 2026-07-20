@@ -1634,7 +1634,7 @@ function ModalOverlay({ children }: { children: ReactNode }) {
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,.75)",
-        zIndex: 80,
+        zIndex: 250,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
