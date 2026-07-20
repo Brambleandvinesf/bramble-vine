@@ -521,7 +521,13 @@ function FieldBody({
                   stopIndex,
                 });
               }}
+              onBackToCrew={handleBackToCrew}
+              backNotice={backNotice}
+              onSkip={handleSkip}
+              skipDisabled={busy}
+              isPreview={isPreview}
             />
+
           )}
 
           {state === "arrived" && (
