@@ -4,6 +4,10 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK = "receipts:getReceipts";
 
 export const Route = createFileRoute("/receipts")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Receipts" }] }),
@@ -189,11 +193,20 @@ function ReceiptsPage() {
   const initialTab: "designate" | "invoice" = canDesignate ? "designate" : "invoice";
   const [tab, setTab] = useState<"designate" | "invoice">(initialTab);
 
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
-  const [lines, setLines] = useState<Line[]>([]);
-  const [designations, setDesignations] = useState<string[]>([]);
+  const cached = sessionCache.get<GetReceiptsResponse>(CK);
+  const [receipts, setReceipts] = useState<Receipt[]>(
+    () => (cached?.receipts ?? []).map(normReceipt),
+  );
+  const [lines, setLines] = useState<Line[]>(
+    () => (cached?.lines ?? []).map(normLine),
+  );
+  const [designations, setDesignations] = useState<string[]>(
+    () => (cached?.designations ?? []).map(s).filter(Boolean),
+  );
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !cached);
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const fetchedRef = useRef(false);
