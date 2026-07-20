@@ -1523,75 +1523,14 @@ function StateDebrief({
       {/* 3. ITEMS USED */}
       {showStep("items") && (
       <Step n={3} title="ITEMS USED">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {suggestedItems.map((name) => {
-            const on = itemsUsed.some((i) => i.name === name);
-            return (
-              <button
-                key={name}
-                onClick={() =>
-                  setItemsUsed((cur) => (on ? cur.filter((i) => i.name !== name) : [...cur, { name }]))
-                }
-                style={{
-                  ...CHIP,
-                  background: on ? LIME : "transparent",
-                  color: on ? BG : LIME,
-                  borderColor: on ? LIME : LIME_DIM,
-                }}
-              >
-                {on ? "✓ " : "+ "}
-                {name}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-          <input
-            placeholder="Add item…"
-            value={customItem}
-            onChange={(e) => setCustomItem(e.target.value)}
-            style={{ ...INPUT, flex: 2, marginTop: 0 }}
-          />
-          <input
-            placeholder="Qty"
-            value={customQty}
-            onChange={(e) => setCustomQty(e.target.value)}
-            style={{ ...INPUT, flex: 1, marginTop: 0 }}
-          />
-          <button
-            onClick={() => {
-              if (!customItem.trim()) return;
-              setItemsUsed((cur) => [...cur, { name: customItem.trim(), qty: customQty.trim() || undefined }]);
-              setCustomItem("");
-              setCustomQty("");
-            }}
-            style={{ ...SMALL_BTN }}
-          >
-            ADD
-          </button>
-        </div>
-        {itemsUsed.filter((i) => !suggestedItems.includes(i.name)).length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {itemsUsed
-              .filter((i) => !suggestedItems.includes(i.name))
-              .map((i, idx) => (
-                <div key={idx} style={{ ...ROW_LINE, borderBottom: `1px solid ${LINE}` }}>
-                  <div style={{ flex: 1, color: TEXT }}>
-                    {i.name}
-                    {i.qty ? ` × ${i.qty}` : ""}
-                  </div>
-                  <button
-                    onClick={() => setItemsUsed((cur) => cur.filter((x) => x !== i))}
-                    style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-          </div>
-        )}
+        <ItemsUsedPicker
+          items={itemsUsed}
+          onChange={setItemsUsed}
+          disabled={busy}
+        />
       </Step>
       )}
+
 
       {/* 4. NEW PROJECTS */}
       {showStep("new") && (
