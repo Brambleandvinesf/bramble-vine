@@ -45,6 +45,7 @@ const GROUPS: Group[] = [
     ],
   },
   { id: "visits", label: "CONFIRM VISITS", children: [{ key: "visits", label: "Visits" }] },
+  { id: "projects", label: "Projects", children: [{ key: "projects", label: "Projects" }] },
   { id: "messages", label: "Messages", children: [{ key: "messages", label: "Messages" }] },
   {
     id: "receipts",
