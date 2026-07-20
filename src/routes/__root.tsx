@@ -151,7 +151,9 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ViewAsProvider>
-          <AppFrame />
+          <ReviewableTodayProvider>
+            <AppFrame />
+          </ReviewableTodayProvider>
         </ViewAsProvider>
       </AuthProvider>
     </QueryClientProvider>
