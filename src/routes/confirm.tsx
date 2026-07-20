@@ -177,6 +177,7 @@ function ConfirmPage() {
         notes: p.notes,
         status: "Confirmed",
         expanded: p.showOnReview,
+        notesOpen: !!p.notes,
       };
     }
     return initial;
