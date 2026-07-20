@@ -700,40 +700,25 @@ function ConfirmPage() {
                     {n.items.map((it, i) => (
                       <div
                         key={i}
-                        style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "flex-start",
+                          marginBottom: 6,
+                          padding: "8px 10px",
+                          border: `1px solid ${LINE}`,
+                          borderRadius: 6,
+                          background: "#0a0a0a",
+                        }}
                       >
-                        <input
-                          value={it.name}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { name: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 2, minWidth: 120 }}
-                          placeholder="Item name"
-                        />
-                        <input
-                          value={it.qty}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { qty: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 1, minWidth: 60 }}
-                          placeholder="Qty"
-                        />
-                        <input
-                          value={it.size}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { size: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 1, minWidth: 60 }}
-                          placeholder="Size"
-                        />
-                        <input
-                          value={it.notes}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { notes: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 2, minWidth: 120 }}
-                          placeholder="Notes"
-                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: LIME, fontSize: 12, fontWeight: "bold", wordBreak: "break-word" }}>
+                            {it.name}
+                          </div>
+                          <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+                            {[it.qty && `Qty ${it.qty}`, it.size, it.notes].filter(Boolean).join(" · ") || "—"}
+                          </div>
+                        </div>
                         <button
                           style={{
                             ...GHOST_BTN_SM,
@@ -749,10 +734,11 @@ function ConfirmPage() {
                     ))}
                     <button
                       style={{ ...GHOST_BTN_SM, marginTop: 4 }}
-                      onClick={() => addNewItem(client, n.key)}
+                      onClick={() => setPickerFor({ client, key: n.key })}
                     >
-                      + ITEM
+                      + ADD ITEM
                     </button>
+
                   </div>
                   <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
                     <button
