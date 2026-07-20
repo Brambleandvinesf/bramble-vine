@@ -459,6 +459,12 @@ function ProjectsPage() {
           <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
             PROJECTS
           </div>
+          <RefreshDot refreshing={refreshing} offline={offline} />
+          {offline && (
+            <span style={{ color: "#8f8f8f", fontSize: 10, letterSpacing: 1 }}>
+              OFFLINE — LAST DATA
+            </span>
+          )}
           <button
             style={{ ...SOLID_BTN_SM, marginLeft: "auto" }}
             onClick={() => setShowNew(true)}
