@@ -1432,6 +1432,156 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
           </ModalPanel>
         </ModalOverlay>
       )}
+
+      {/* Compose FAB */}
+      <button
+        aria-label="New message"
+        onClick={() =>
+          setCompose({ q: "", picked: null, manual: "", text: "" })
+        }
+        style={{
+          position: "fixed",
+          right: 16,
+          bottom: 72,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          background: T.lime,
+          color: T.bg,
+          border: "none",
+          fontSize: 30,
+          fontWeight: "bold",
+          cursor: "pointer",
+          zIndex: 60,
+          boxShadow: "0 4px 14px rgba(124,255,0,.35)",
+          fontFamily: fontStack,
+        }}
+      >
+        +
+      </button>
+
+      {/* Compose modal */}
+      {compose && (
+        <ModalOverlay>
+          <ModalPanel>
+            <h3 style={{ margin: 0 }}>New message</h3>
+            {compose.picked ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  border: `1px solid ${T.lime}`,
+                  borderRadius: 6,
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold" }}>{compose.picked.name}</div>
+                  <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{compose.picked.phone}</div>
+                </div>
+                <button
+                  style={ghostBtn}
+                  onClick={() => setCompose({ ...compose, picked: null })}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  value={compose.q}
+                  onChange={(e) => setCompose({ ...compose, q: e.target.value, manual: e.target.value })}
+                  placeholder="Search contacts or type phone…"
+                  style={{ ...inputStyle, minHeight: 48 }}
+                />
+                <div
+                  style={{
+                    overflowY: "auto",
+                    maxHeight: "35vh",
+                    borderTop: `1px solid ${T.border}`,
+                  }}
+                >
+                  {(() => {
+                    const ql = compose.q.trim().toLowerCase();
+                    const digits = ql.replace(/\D/g, "");
+                    const hits = contacts
+                      .filter((c) => {
+                        if (!ql) return false;
+                        if (c.n.toLowerCase().indexOf(ql) >= 0) return true;
+                        if (digits && c.r.replace(/\D/g, "").indexOf(digits) >= 0) return true;
+                        return false;
+                      })
+                      .slice(0, 40);
+                    const normalized = normalizePhone(compose.manual);
+                    return (
+                      <>
+                        {hits.map((c) => (
+                          <div
+                            key={c.r + c.n}
+                            onClick={() =>
+                              setCompose({
+                                ...compose,
+                                picked: { phone: c.r, name: c.n },
+                                q: "",
+                                manual: "",
+                              })
+                            }
+                            style={pickRowStyle}
+                          >
+                            <div style={{ fontWeight: "bold" }}>{c.n}</div>
+                            <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{c.r}</div>
+                          </div>
+                        ))}
+                        {normalized && !hits.some((c) => c.r === normalized) && (
+                          <div
+                            onClick={() =>
+                              setCompose({
+                                ...compose,
+                                picked: { phone: normalized, name: normalized },
+                                q: "",
+                                manual: "",
+                              })
+                            }
+                            style={{ ...pickRowStyle, color: "#ffb03f" }}
+                          >
+                            + Send to {normalized}
+                          </div>
+                        )}
+                        {ql && hits.length === 0 && !normalized && (
+                          <div style={{ padding: 12, fontSize: ".85rem", opacity: 0.6 }}>
+                            No matches. Enter a 10-digit US phone number.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+            <textarea
+              value={compose.text}
+              onChange={(e) => setCompose({ ...compose, text: e.target.value })}
+              placeholder="Message…"
+              rows={4}
+              style={{ ...inputStyle, resize: "vertical", minHeight: 96 }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button style={ghostBtn} onClick={() => setCompose(null)}>
+                Cancel
+              </button>
+              <button
+                style={limeBtn}
+                disabled={!(compose.picked || normalizePhone(compose.manual)) || !compose.text.trim()}
+                onClick={() => void sendCompose()}
+              >
+                Send
+              </button>
+            </div>
+          </ModalPanel>
+        </ModalOverlay>
+      )}
     </div>
   );
 }
