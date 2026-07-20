@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
+import { ItemPicker } from "../components/ItemPicker";
 
 
 export const Route = createFileRoute("/projects")({
