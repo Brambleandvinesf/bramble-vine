@@ -12,6 +12,7 @@ import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useAuth } from "../lib/auth";
 
 const CK = "messages:getInbox";
 
@@ -86,6 +87,7 @@ type InboxItem = {
   participants?: string[];
   unknowns?: string[];
   ruleLabel?: string;
+  line?: string;
 };
 type InboxResponse = {
   inbox?: InboxItem[];
@@ -222,19 +224,22 @@ const fontStack = "'Courier New', Courier, monospace";
 /* ============ Component ============ */
 function MessagesPage() {
   const { effectiveRole } = useViewAs();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
+  const showLineBadge = effectiveRole === "management";
 
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
   if (!allowed) return null;
+  if (!user) return null;
 
-  return <MessagesInner showReceipt={showReceipt} />;
+  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={user} />;
 }
 
-function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
+function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boolean; showLineBadge: boolean; email: string }) {
   const cached = sessionCache.get<InboxResponse>(CK);
   // Feed state
   const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
@@ -342,7 +347,7 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
   const loadInbox = useCallback(async () => {
     setRefreshing(true);
     try {
-      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox").then((x) => x.json());
+      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email)).then((x) => x.json());
       sessionCache.set(CK, r);
       const its = r.inbox || [];
       setItems(its);
@@ -362,7 +367,7 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew]);
+  }, [detectNew, email]);
 
   const safeLoad = useCallback(async () => {
     try {
@@ -454,7 +459,7 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
       );
       const res = await postAction(
         it.source === "quo"
-          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId }
+          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, ...(it.line ? { from: it.line } : {}) }
           : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments },
       );
       if (res && res.ok && res.sent) {
@@ -696,7 +701,8 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
     try {
       if (it.source === "quo") {
         const r = await fetch(
-          SCRIPT_URL + "?action=getQuoThread&participants=" + encodeURIComponent((it.participants || []).join(",")),
+          SCRIPT_URL + "?action=getQuoThread&participants=" + encodeURIComponent((it.participants || []).join(",")) +
+            (it.line ? "&line=" + encodeURIComponent(it.line) : ""),
         ).then((x) => x.json());
         if (r.error) throw new Error(r.error);
         setViewerBody({ kind: "quo", messages: r.messages || [], from: it.from });
@@ -1069,6 +1075,7 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
               hidden={hidden.has(it.id)}
               found={foundId === it.id}
               staged={staged[it.threadId] || []}
+              showLineBadge={showLineBadge}
               onOpen={() => openViewer(it)}
               onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
               onFile={() => (it.source === "quo" ? doneItem(it) : fileItem(it))}
@@ -1718,6 +1725,7 @@ function FeedCard({
   hidden,
   found,
   staged,
+  showLineBadge,
   onOpen,
   onSend,
   onFile,
@@ -1735,6 +1743,7 @@ function FeedCard({
   hidden: boolean;
   found: boolean;
   staged: Attachment[];
+  showLineBadge: boolean;
   onOpen: () => void;
   onSend: (text: string, clearField: () => void) => void;
   onFile: () => void;
@@ -1753,6 +1762,7 @@ function FeedCard({
   const role = internalRoleFor(it);
   const isInternal = !!role;
   const showClientTag = !!it.isClient && !isInternal;
+  const lineLast4 = quo && showLineBadge && it.line ? String(it.line).replace(/\D/g, "").slice(-4) : "";
 
   return (
     <div
@@ -1840,6 +1850,14 @@ function FeedCard({
           {showClientTag && (
             <span style={{ border: `1px solid ${T.red}`, color: T.red, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}>
               CLIENT
+            </span>
+          )}
+          {lineLast4 && (
+            <span
+              title={it.line}
+              style={{ border: `1px solid ${T.dim}`, color: T.dim, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}
+            >
+              {"\u2026" + lineLast4}
             </span>
           )}
           <span style={{ position: "absolute", right: 0, top: 0, fontSize: ".8rem", opacity: 0.75, whiteSpace: "nowrap" }}>
