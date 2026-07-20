@@ -946,7 +946,9 @@ function ConfirmPage() {
               >
                 + ADD PROJECT
               </button>
+              </div>
             </section>
+
           );
         })}
 
