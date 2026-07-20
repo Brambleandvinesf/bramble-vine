@@ -371,14 +371,18 @@ function DesignateTab({
   designations,
   onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
+  setReceipts,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   designations: string[];
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 }) {
 
   const [picks, setPicks] = useState<Record<number, string>>({});
