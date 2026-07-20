@@ -1725,6 +1725,7 @@ function FeedCard({
   hidden,
   found,
   staged,
+  showLineBadge,
   onOpen,
   onSend,
   onFile,
@@ -1742,6 +1743,7 @@ function FeedCard({
   hidden: boolean;
   found: boolean;
   staged: Attachment[];
+  showLineBadge: boolean;
   onOpen: () => void;
   onSend: (text: string, clearField: () => void) => void;
   onFile: () => void;
@@ -1760,6 +1762,7 @@ function FeedCard({
   const role = internalRoleFor(it);
   const isInternal = !!role;
   const showClientTag = !!it.isClient && !isInternal;
+  const lineLast4 = quo && showLineBadge && it.line ? String(it.line).replace(/\D/g, "").slice(-4) : "";
 
   return (
     <div
