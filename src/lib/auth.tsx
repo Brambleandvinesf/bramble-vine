@@ -90,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider
       value={{
         user,
+        email: entry?.email ?? user,
         role: entry?.role ?? null,
         name: entry?.name ?? null,
         ready,
