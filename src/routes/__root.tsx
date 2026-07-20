@@ -8,7 +8,21 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type ComponentType } from "react";
+import {
+  Home,
+  Package,
+  Truck,
+  Calendar,
+  MessageSquare,
+  CheckSquare,
+  ClipboardList,
+  Folder,
+  Receipt,
+  Shield,
+  MoreHorizontal,
+  X,
+} from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
