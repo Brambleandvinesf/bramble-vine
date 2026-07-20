@@ -554,9 +554,24 @@ function ConfirmPage() {
                     <input
                       value={e.action}
                       onChange={(ev) => setEdit(key, { action: ev.target.value })}
-                      style={INPUT}
+                      style={ACTION_INPUT}
                       disabled={isDeleted}
                     />
+                    {p.items.length > 0 && (
+                      <div style={ITEMS_ROW}>
+                        {p.items.map((it, i) => {
+                          const label = [it.qty, it.name, it.size]
+                            .map((s) => String(s ?? "").trim())
+                            .filter(Boolean)
+                            .join(" · ");
+                          return (
+                            <span key={i} style={ITEM_PILL} title={it.notes || undefined}>
+                              {label || it.name}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
@@ -585,16 +600,6 @@ function ConfirmPage() {
                       rows={2}
                       disabled={isDeleted}
                     />
-
-                    {p.items.length > 0 && (
-                      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {p.items.map((it, i) => (
-                          <span key={i} style={CHIP}>
-                            {[it.qty, "×", it.name, it.size].filter(Boolean).join(" ")}
-                          </span>
-                        ))}
-                      </div>
-                    )}
 
                     <div
                       style={{
