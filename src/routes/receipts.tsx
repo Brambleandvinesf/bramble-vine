@@ -613,7 +613,7 @@ function InvoiceTab({
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [queuedOpen, setQueuedOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+
 
   const ready = useMemo(
     () =>
