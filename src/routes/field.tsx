@@ -557,11 +557,12 @@ function StateEnRoute({
           marginTop: 12,
           width: "100%",
           opacity: address ? 1 : 0.45,
-          color: address ? LIME : DIM_GREEN,
+          background: address ? LIME : "transparent",
+          color: address ? "#000" : DIM_GREEN,
           borderColor: address ? LIME : LIME_DIM,
         }}
       >
-        START NAVIGATION
+        NAVIGATE
       </button>
       {address && (
         <a
@@ -584,18 +585,12 @@ function StateEnRoute({
 
       {isLead && (
         <div style={{ marginTop: 16 }}>
-          <div style={SECTION_HEAD}>UPCOMING PROJECTS</div>
-          {clientProjects.length === 0 ? (
-            <div style={{ color: MUTED, fontSize: 12, padding: "8px 4px" }}>No active projects for this client.</div>
-          ) : (
-            clientProjects.map((p, i) => <ProjectCard key={i} p={p} />)
-          )}
           <button
             disabled={busy || !clientMatch}
             onClick={onHere}
             style={{ ...PRIMARY_BTN, marginTop: 14, opacity: !clientMatch ? 0.45 : 1 }}
           >
-            WE'RE HERE
+            START VISIT
           </button>
         </div>
       )}
