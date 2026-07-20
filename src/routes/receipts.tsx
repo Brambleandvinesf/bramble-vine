@@ -1170,13 +1170,17 @@ function ReceiptMenu({
   receiptId,
   onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
+  setReceipts,
 }: {
   receipt?: Receipt;
   receiptId: string;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<null | "edit" | "delete">(null);
@@ -1199,7 +1203,13 @@ function ReceiptMenu({
     setUploading(true);
     try {
       const { data, mime, name } = await downscaleToBase64(file);
-      await postAction({ action: "attachPhoto", receiptId, data, mime, name });
+      const json = await postAction<{ photo?: string; url?: string }>({
+        action: "attachPhoto", receiptId, data, mime, name,
+      });
+      const url = String(json.photo ?? json.url ?? "");
+      if (url && receipt) {
+        setReceipts((prev) => prev.map((r) => (r.row === receipt.row ? { ...r, photo: url } : r)));
+      }
       onSaved("Photo attached");
       closeAll();
     } catch (err) {
@@ -1208,6 +1218,63 @@ function ReceiptMenu({
       setUploading(false);
     }
   };
+
+  const applyEdit = (patch: Partial<Pick<Receipt, "vendor" | "date" | "total">> & { notes?: string }) => {
+    if (!receipt) return onError("Missing receipt row");
+    const payload: Record<string, unknown> = { action: "editReceipt", row: receipt.row };
+    if (patch.vendor !== undefined && patch.vendor !== receipt.vendor) payload.vendor = patch.vendor;
+    if (patch.date !== undefined && patch.date !== receipt.date) payload.date = patch.date;
+    if (patch.total !== undefined && patch.total !== receipt.total) payload.total = patch.total;
+    if (patch.notes) payload.notes = patch.notes;
+    if (Object.keys(payload).length <= 2) { closeAll(); return; }
+    const snapshot = { ...receipt };
+    setReceipts((prev) => prev.map((r) => (r.row === receipt.row ? {
+      ...r,
+      vendor: (payload.vendor as string) ?? r.vendor,
+      date: (payload.date as string) ?? r.date,
+      total: (payload.total as string) ?? r.total,
+    } : r)));
+    closeAll();
+    writer.dispatch(`receipt-${receipt.row}`, payload, {
+      rollback: () => setReceipts((prev) => prev.map((r) => (r.row === snapshot.row ? snapshot : r))),
+      onSuccessMsg: "Receipt updated",
+      onErrorMsg: (err) => `Update failed — restored (${err.message})`,
+    });
+  };
+
+  const doDelete = () => {
+    if (!receipt) {
+      // fallback: delete by id, no local state to restore precisely
+      writer.dispatch(`receipt-${receiptId}`, { action: "deleteReceipt", receiptId }, {
+        rollback: () => {},
+        onSuccessMsg: "Receipt deleted",
+      });
+      closeAll();
+      return;
+    }
+    const receiptSnap = { ...receipt };
+    const linesSnap: Line[] = [];
+    setLines((prev) => {
+      const keep: Line[] = [];
+      for (const l of prev) {
+        if (l.receiptId === receiptId) linesSnap.push(l);
+        else keep.push(l);
+      }
+      return keep;
+    });
+    setReceipts((prev) => prev.filter((r) => r.row !== receipt.row));
+    closeAll();
+    writer.dispatch(`receipt-${receipt.row}`, { action: "deleteReceipt", receiptId }, {
+      rollback: () => {
+        setReceipts((prev) => [...prev, receiptSnap]);
+        setLines((prev) => [...prev, ...linesSnap]);
+      },
+      onSuccessMsg: "Receipt deleted",
+      onErrorMsg: (err) => `Delete failed — restored (${err.message})`,
+    });
+  };
+
+  const isSyncing = receipt ? !!writer.syncing[`receipt-${receipt.row}`] : !!writer.syncing[`receipt-${receiptId}`];
 
   return (
     <div style={{ position: "relative" }}>
@@ -1220,7 +1287,7 @@ function ReceiptMenu({
         }}
         disabled={uploading}
       >
-        {uploading ? "…" : "⋯"}
+        {uploading ? "…" : isSyncing ? <span style={{ color: DIM_GREEN }}>●</span> : "⋯"}
       </button>
       {open && (
         <>
@@ -1270,8 +1337,7 @@ function ReceiptMenu({
         <ReceiptEditModal
           receipt={receipt}
           onClose={closeAll}
-          onSaved={(msg) => { onSaved(msg); closeAll(); refetch(); }}
-          onError={onError}
+          onSubmit={applyEdit}
         />
       )}
       {mode === "delete" && (
@@ -1281,16 +1347,7 @@ function ReceiptMenu({
           confirmLabel="DELETE"
           danger
           onCancel={closeAll}
-          onConfirm={async () => {
-            try {
-              await postAction({ action: "deleteReceipt", receiptId });
-              onSaved("Receipt deleted");
-              closeAll();
-              refetch();
-            } catch (err) {
-              onError(err instanceof Error ? `Delete failed — ${err.message}` : "Delete failed");
-            }
-          }}
+          onConfirm={() => { doDelete(); }}
         />
       )}
     </div>
