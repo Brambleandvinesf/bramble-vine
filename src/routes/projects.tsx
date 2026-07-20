@@ -559,7 +559,7 @@ function ProjectsPage() {
           clients={clients}
           onCancel={() => setShowNew(false)}
           onSubmit={createProject}
-          submitting={Array.from(busy).some((k) => k.startsWith("__new__"))}
+          submitting={Object.keys(syncing).some((k) => k.startsWith("__new__"))}
         />
       )}
     </div>
