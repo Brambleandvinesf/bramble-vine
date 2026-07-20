@@ -195,7 +195,44 @@ function ReceiptsPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast>(null);
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const fetchedRef = useRef(false);
+
+  const showToast = useCallback((msg: string, err: boolean) => {
+    setToast({ msg, err });
+  }, []);
+
+  // Per-key serial write queue.
+  const queueRef = useRef<Record<string, Promise<unknown>>>({});
+  const dispatch = useCallback<Writer["dispatch"]>((key, payload, opts) => {
+    setSyncing((prev) => ({ ...prev, [key]: true }));
+    const prevP = queueRef.current[key] ?? Promise.resolve();
+    const next = prevP.catch(() => {}).then(async () => {
+      try {
+        const json = await postAction<Record<string, unknown>>(payload);
+        if (opts.onSuccessMsg) {
+          const msg = typeof opts.onSuccessMsg === "function" ? opts.onSuccessMsg(json) : opts.onSuccessMsg;
+          if (msg) showToast(msg, false);
+        }
+      } catch (err) {
+        opts.rollback();
+        const errObj = err instanceof Error ? err : new Error(String(err));
+        const msg = opts.onErrorMsg
+          ? (typeof opts.onErrorMsg === "function" ? opts.onErrorMsg(errObj) : opts.onErrorMsg)
+          : `Couldn't sync — restored (${errObj.message})`;
+        showToast(msg, true);
+      } finally {
+        setSyncing((prev) => {
+          const n = { ...prev };
+          delete n[key];
+          return n;
+        });
+      }
+    });
+    queueRef.current[key] = next;
+  }, [showToast]);
+
+  const writer: Writer = useMemo(() => ({ syncing, dispatch }), [syncing, dispatch]);
 
   const load = useCallback(async () => {
     const res = await fetch(`${SCRIPT_URL}?action=getReceipts`);
