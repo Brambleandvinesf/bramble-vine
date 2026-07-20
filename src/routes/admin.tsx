@@ -27,7 +27,9 @@ const ROLES: { key: RoleKey; label: string }[] = [
 type PermRow = Record<RoleKey, 0 | 1>;
 type PermMap = Record<string, PermRow>;
 
-type Group = { id: string; label: string; children: { key: string; label: string }[] };
+type SubChild = { key: string; label: string; step?: string; dimmed?: boolean };
+type Child = { key: string; label: string; sub?: SubChild[] };
+type Group = { id: string; label: string; children: Child[] };
 
 const GROUPS: Group[] = [
   { id: "dashboard", label: "Dashboard", children: [{ key: "dashboard", label: "Dashboard" }] },
@@ -40,10 +42,20 @@ const GROUPS: Group[] = [
       { key: "route_enroute", label: "En Route" },
       { key: "route_arrived", label: "Arrived" },
       { key: "route_visit", label: "Visit Mode" },
+      {
+        key: "route_debrief",
+        label: "Debrief",
+        sub: [
+          { key: "route_debrief", label: "Billing Hours", step: "billing", dimmed: true },
+          { key: "route_debrief", label: "Project Updates", step: "updates", dimmed: true },
+          { key: "route_debrief", label: "New Projects", step: "new", dimmed: true },
+          { key: "route_debrief", label: "Items Used", step: "items", dimmed: true },
+          { key: "route_debrief", label: "Office Tasks", step: "office", dimmed: true },
+        ],
+      },
       { key: "route_next", label: "Next Stop" },
     ],
   },
-  { id: "debrief", label: "Debrief", children: [{ key: "route_debrief", label: "Debrief" }] },
 
   { id: "visits", label: "CONFIRM VISITS", children: [{ key: "visits", label: "Visits" }] },
   { id: "projects", label: "Projects", children: [{ key: "projects", label: "Projects" }] },
@@ -58,6 +70,14 @@ const GROUPS: Group[] = [
   },
   { id: "admin", label: "Admin", children: [{ key: "admin", label: "Admin" }] },
 ];
+
+const FIELD_PREVIEW: Record<string, "enroute" | "arrived" | "visit" | "debrief" | "next"> = {
+  route_enroute: "enroute",
+  route_arrived: "arrived",
+  route_visit: "visit",
+  route_debrief: "debrief",
+  route_next: "next",
+};
 
 const OPEN_TARGETS: Record<string, string> = {
   dashboard: "/",
@@ -76,6 +96,7 @@ const OPEN_TARGETS: Record<string, string> = {
 };
 
 const KNOWN_KEYS = new Set(GROUPS.flatMap((g) => g.children.map((c) => c.key)));
+
 
 
 function Dot({ on }: { on: boolean }) {
