@@ -6,6 +6,21 @@ import { canSee } from "../lib/permissions";
 
 export const Route = createFileRoute("/field")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Field" }] }),
+  validateSearch: (raw: Record<string, unknown>): FieldSearch => {
+    const states = ["enroute", "arrived", "visit", "debrief", "next"] as const;
+    const steps = ["billing", "updates", "items", "new", "office"] as const;
+    const p =
+      typeof raw.preview === "string" &&
+      (states as readonly string[]).includes(raw.preview)
+        ? (raw.preview as RouteState)
+        : undefined;
+    const st =
+      typeof raw.step === "string" &&
+      (steps as readonly string[]).includes(raw.step)
+        ? (raw.step as DebriefStepKey)
+        : undefined;
+    return { preview: p, step: st };
+  },
   component: FieldPage,
 });
 
@@ -34,6 +49,8 @@ const RED = "#ff3b30";
 
 /* ---------- types ---------- */
 type RouteState = "enroute" | "arrived" | "visit" | "debrief" | "next";
+type DebriefStepKey = "billing" | "updates" | "items" | "new" | "office";
+type FieldSearch = { preview?: RouteState; step?: DebriefStepKey };
 type Employee = { id: string; name: string };
 type RosterMember = { id: string; name: string; in?: string | null; out?: string | null; tsId?: string | null };
 type EventItem = { id: string; title: string; start?: string; end?: string; location?: string; color?: string };
@@ -129,11 +146,20 @@ function FieldPage() {
   const { effectiveRole } = useViewAs();
   const router = useRouter();
   const { user } = useAuth();
+  const search = Route.useSearch();
 
   const canSeeField = canSee(effectiveRole, "route_enroute");
   useEffect(() => {
     if (!canSeeField) void router.navigate({ to: "/" });
   }, [canSeeField, router]);
+
+  const isPreview = effectiveRole === "management" && !!search.preview;
+  const previewState: RouteState | null = isPreview ? (search.preview as RouteState) : null;
+  const initialStep: DebriefStepKey = search.step ?? "billing";
+  const [previewStep, setPreviewStep] = useState<DebriefStepKey>(initialStep);
+  useEffect(() => {
+    if (search.step) setPreviewStep(search.step);
+  }, [search.step]);
 
   const [data, setData] = useState<GetFieldResponse | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -166,6 +192,7 @@ function FieldPage() {
 
   const send = useCallback(
     async (body: unknown, opts?: { silent?: boolean }): Promise<{ ok: boolean; raw: unknown }> => {
+      if (isPreview) return { ok: false, raw: null };
       setBusy(true);
       const r = await postScript(body);
       setBusy(false);
@@ -177,14 +204,22 @@ function FieldPage() {
       }
       return { ok: r.ok, raw: r.raw };
     },
-    [fetchOnce],
+    [fetchOnce, isPreview],
   );
 
   if (!canSeeField) return null;
 
   return (
     <div style={PAGE}>
-      <TopBar user={user} state={data?.route?.state} delegated={!!data?.route?.delegated} />
+      <TopBar user={user} state={previewState ?? data?.route?.state} delegated={!!data?.route?.delegated} />
+      {isPreview && (
+        <PreviewBadge
+          previewState={previewState!}
+          step={previewStep}
+          onStep={setPreviewStep}
+          onExit={() => void router.navigate({ to: "/field", search: {} })}
+        />
+      )}
       {banner && (
         <div style={banner.kind === "err" ? ERRBAR : INFOBAR}>
           {banner.text}
@@ -194,12 +229,102 @@ function FieldPage() {
       {loadErr && !data && <div style={STATE}>Loading field data…<br /><span style={{ color: RED }}>{loadErr}</span></div>}
       {!loadErr && !data && <div style={STATE}>Loading…</div>}
       {data && (
-        <FieldBody data={data} now={now} send={send} busy={busy} role={effectiveRole} setBanner={setBanner} />
+        <FieldBody
+          data={data}
+          now={now}
+          send={send}
+          busy={busy}
+          role={effectiveRole}
+          setBanner={setBanner}
+          previewState={previewState}
+          previewStep={previewStep}
+          isPreview={isPreview}
+        />
       )}
       <div style={{ height: 80 }} />
     </div>
   );
 }
+
+const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
+  { key: "billing", label: "Billing Hours" },
+  { key: "updates", label: "Project Updates" },
+  { key: "new", label: "New Projects" },
+  { key: "items", label: "Items Used" },
+  { key: "office", label: "Office Tasks" },
+];
+
+function PreviewBadge({
+  previewState,
+  step,
+  onStep,
+  onExit,
+}: {
+  previewState: RouteState;
+  step: DebriefStepKey;
+  onStep: (s: DebriefStepKey) => void;
+  onExit: () => void;
+}) {
+  return (
+    <div
+      style={{
+        margin: "10px 12px 0",
+        padding: "8px 12px",
+        border: `1px solid ${DIM_GREEN}`,
+        background: "#0f1a0a",
+        borderRadius: 6,
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 8,
+      }}
+    >
+      <button
+        onClick={onExit}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: DIM_GREEN,
+          fontFamily: "inherit",
+          fontSize: 11,
+          letterSpacing: 1,
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        PREVIEW — READ ONLY · {previewState.toUpperCase()} · TAP TO EXIT
+      </button>
+      {previewState === "debrief" && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
+          {DEBRIEF_STEPS.map((s) => {
+            const on = s.key === step;
+            return (
+              <button
+                key={s.key}
+                onClick={() => onStep(s.key)}
+                style={{
+                  border: `1px solid ${on ? LIME : DIM_GREEN}`,
+                  background: on ? LIME : "transparent",
+                  color: on ? BG : DIM_GREEN,
+                  borderRadius: 4,
+                  padding: "3px 8px",
+                  fontFamily: "inherit",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  cursor: "pointer",
+                }}
+              >
+                {s.label.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 /* ============================================================ */
 function TopBar({ user, state, delegated }: { user: string | null; state?: RouteState; delegated?: boolean }) {
@@ -223,6 +348,9 @@ function FieldBody({
   busy,
   role,
   setBanner,
+  previewState,
+  previewStep,
+  isPreview,
 }: {
   data: GetFieldResponse;
   now: number;
@@ -230,26 +358,31 @@ function FieldBody({
   busy: boolean;
   role: ReturnType<typeof useViewAs>["effectiveRole"];
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
+  previewState: RouteState | null;
+  previewStep: DebriefStepKey;
+  isPreview: boolean;
 }) {
   const route = data.route ?? {};
-  const state: RouteState = route.state ?? "enroute";
+  const liveState: RouteState = route.state ?? "enroute";
+  const state: RouteState = previewState ?? liveState;
   const events = data.events ?? [];
   const employees = data.employees ?? [];
   const clients = data.clients ?? [];
   const roster = route.roster ?? [];
   const stopIndex = route.stopIndex ?? 0;
-  const currentEvent = events[stopIndex];
+  const currentEvent = events[stopIndex] ?? events[0];
   const clientMatch = currentEvent ? matchClient(currentEvent.title, clients) : null;
 
   const isLead = canSee(role, "route_debrief");
   const canDebrief = canSee(role, "route_debrief") || route.delegated === true;
 
-  /* --- roster picker gate --- */
-  if (roster.length === 0) {
+  /* --- roster picker gate (skipped in preview so all states are reachable) --- */
+  if (roster.length === 0 && !isPreview) {
     return <RosterPicker employees={employees} onSet={(people) => send({ action: "setRoster", people })} busy={busy} />;
   }
 
-  const routeComplete = stopIndex >= events.length;
+  const routeComplete = !isPreview && stopIndex >= events.length;
+
 
   return (
     <div>
@@ -330,15 +463,17 @@ function FieldBody({
 
           {state === "debrief" && (
             <>
-              {canDebrief ? (
+              {canDebrief || isPreview ? (
                 <StateDebrief
                   clientMatch={clientMatch}
                   event={currentEvent}
                   roster={roster}
                   projects={data.projects ?? []}
                   tools={data.tools ?? []}
-                  busy={busy}
+                  busy={busy || isPreview}
+                  previewStep={isPreview ? previewStep : null}
                   onFinish={async (payload) => {
+                    if (isPreview) return;
                     const r = await send({
                       action: "saveDebrief",
                       client: clientMatch,
@@ -373,6 +508,7 @@ function FieldBody({
               )}
             </>
           )}
+
 
           {state === "next" && currentEvent && (
             <StateEnRoute
@@ -925,6 +1061,7 @@ function StateDebrief({
   tools,
   busy,
   onFinish,
+  previewStep,
 }: {
   clientMatch: string | null;
   event?: EventItem;
@@ -939,6 +1076,7 @@ function StateDebrief({
     itemsUsed: ItemUsed[];
     officeTasks: string[];
   }) => Promise<void>;
+  previewStep?: DebriefStepKey | null;
 }) {
   const clocked = roster.filter((m) => m.in);
   const [billing, setBilling] = useState<DebriefBilling[]>(
@@ -1006,6 +1144,8 @@ function StateDebrief({
     });
   };
 
+  const showStep = (k: DebriefStepKey) => !previewStep || previewStep === k;
+
   return (
     <div style={{ padding: "10px 14px" }}>
       <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>DEBRIEF</div>
@@ -1014,6 +1154,7 @@ function StateDebrief({
       </div>
 
       {/* 1. BILLING */}
+      {showStep("billing") && (
       <Step n={1} title="BILLING HOURS">
         {billing.map((b, i) => (
           <div key={i} style={ROW_LINE}>
@@ -1049,8 +1190,10 @@ function StateDebrief({
           Billing only — payroll stays in QB Time.
         </div>
       </Step>
+      )}
 
-      {/* 2. SPECIAL */}
+      {/* 2. SPECIAL / UPDATES */}
+      {showStep("updates") && (
       <Step n={2} title="SPECIAL PROJECTS">
         {specialProjects.length === 0 && (
           <div style={{ color: MUTED, fontSize: 12 }}>No special projects.</div>
@@ -1102,8 +1245,10 @@ function StateDebrief({
           );
         })}
       </Step>
+      )}
 
       {/* 3. ITEMS USED */}
+      {showStep("items") && (
       <Step n={3} title="ITEMS USED">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           {suggestedItems.map((name) => {
@@ -1173,8 +1318,10 @@ function StateDebrief({
           </div>
         )}
       </Step>
+      )}
 
       {/* 4. NEW PROJECTS */}
+      {showStep("new") && (
       <Step n={4} title="NEW PROJECTS FOR NEXT TIME">
         {newProjects.map((p, idx) => (
           <NewProjectForm
@@ -1191,8 +1338,10 @@ function StateDebrief({
           + ADD PROJECT
         </button>
       </Step>
+      )}
 
       {/* 5. CLIENT UPDATES */}
+      {showStep("office") && (
       <Step n={5} title="UPDATES FOR THE CLIENT">
         <TextList
           items={clientUpdates}
@@ -1200,16 +1349,20 @@ function StateDebrief({
           placeholder="Something to tell the client…"
         />
       </Step>
+      )}
 
       {/* 6. OFFICE TASKS */}
+      {showStep("office") && (
       <Step n={6} title="ACTION ITEMS FOR OFFICE">
         <TextList items={officeTasks} onChange={setOfficeTasks} placeholder="Follow-up for office…" />
       </Step>
+      )}
 
       <button onClick={handleFinish} disabled={busy} style={{ ...PRIMARY_BTN, marginTop: 20 }}>
         FINISH DEBRIEF
       </button>
     </div>
+
   );
 }
 

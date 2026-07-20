@@ -27,7 +27,9 @@ const ROLES: { key: RoleKey; label: string }[] = [
 type PermRow = Record<RoleKey, 0 | 1>;
 type PermMap = Record<string, PermRow>;
 
-type Group = { id: string; label: string; children: { key: string; label: string }[] };
+type SubChild = { key: string; label: string; step?: string; dimmed?: boolean };
+type Child = { key: string; label: string; sub?: SubChild[] };
+type Group = { id: string; label: string; children: Child[] };
 
 const GROUPS: Group[] = [
   { id: "dashboard", label: "Dashboard", children: [{ key: "dashboard", label: "Dashboard" }] },
@@ -40,10 +42,20 @@ const GROUPS: Group[] = [
       { key: "route_enroute", label: "En Route" },
       { key: "route_arrived", label: "Arrived" },
       { key: "route_visit", label: "Visit Mode" },
+      {
+        key: "route_debrief",
+        label: "Debrief",
+        sub: [
+          { key: "route_debrief", label: "Billing Hours", step: "billing", dimmed: true },
+          { key: "route_debrief", label: "Project Updates", step: "updates", dimmed: true },
+          { key: "route_debrief", label: "New Projects", step: "new", dimmed: true },
+          { key: "route_debrief", label: "Items Used", step: "items", dimmed: true },
+          { key: "route_debrief", label: "Office Tasks", step: "office", dimmed: true },
+        ],
+      },
       { key: "route_next", label: "Next Stop" },
     ],
   },
-  { id: "debrief", label: "Debrief", children: [{ key: "route_debrief", label: "Debrief" }] },
 
   { id: "visits", label: "CONFIRM VISITS", children: [{ key: "visits", label: "Visits" }] },
   { id: "projects", label: "Projects", children: [{ key: "projects", label: "Projects" }] },
@@ -58,6 +70,14 @@ const GROUPS: Group[] = [
   },
   { id: "admin", label: "Admin", children: [{ key: "admin", label: "Admin" }] },
 ];
+
+const FIELD_PREVIEW: Record<string, "enroute" | "arrived" | "visit" | "debrief" | "next"> = {
+  route_enroute: "enroute",
+  route_arrived: "arrived",
+  route_visit: "visit",
+  route_debrief: "debrief",
+  route_next: "next",
+};
 
 const OPEN_TARGETS: Record<string, string> = {
   dashboard: "/",
@@ -76,6 +96,7 @@ const OPEN_TARGETS: Record<string, string> = {
 };
 
 const KNOWN_KEYS = new Set(GROUPS.flatMap((g) => g.children.map((c) => c.key)));
+
 
 
 function Dot({ on }: { on: boolean }) {
@@ -312,69 +333,120 @@ function AdminPage() {
                     <div style={{ borderTop: "1px solid #2a2a2a" }}>
                       {g.children.map((c) => {
                         const row = perms[c.key];
+                        const openRow = (key: string, step?: string) => {
+                          const target = OPEN_TARGETS[key];
+                          if (!target) return;
+                          if (target === "/field") {
+                            const preview = FIELD_PREVIEW[key];
+                            void navigate({
+                              to: "/field",
+                              search: preview ? { preview, ...(step ? { step } : {}) } : {},
+                            });
+                          } else {
+                            void navigate({ to: target as "/" });
+                          }
+                        };
                         return (
-                          <div
-                            key={c.key}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              flexWrap: "wrap",
-                              gap: 10,
-                              padding: "10px 14px 10px 38px",
-                              borderTop: "1px solid #1a1a1a",
-                            }}
-                          >
+                          <div key={c.key}>
                             <div
                               style={{
-                                flex: "1 1 180px",
-                                color: "#e8e8e8",
-                                fontSize: 12,
+                                display: "flex",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: 10,
+                                padding: "10px 14px 10px 38px",
+                                borderTop: "1px solid #1a1a1a",
                               }}
                             >
-                              {c.label}
+                              <div style={{ flex: "1 1 180px", color: "#e8e8e8", fontSize: 12 }}>
+                                {c.label}
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                {ROLES.map((r) => (
+                                  <RoleCell key={r.key} role={r.label} on={!!(row && row[r.key])} />
+                                ))}
+                              </div>
+                              {OPEN_TARGETS[c.key] && c.key !== "admin" ? (
+                                <button
+                                  type="button"
+                                  aria-label={`Open ${c.label}`}
+                                  onClick={() => openRow(c.key)}
+                                  style={{
+                                    marginLeft: "auto",
+                                    background: "transparent",
+                                    border: "1px solid #2a2a2a",
+                                    color: "#7cff00",
+                                    borderRadius: 4,
+                                    width: 32,
+                                    height: 32,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                    fontSize: 14,
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  ›
+                                </button>
+                              ) : null}
                             </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                              {ROLES.map((r) => (
-                                <RoleCell
-                                  key={r.key}
-                                  role={r.label}
-                                  on={!!(row && row[r.key])}
-                                />
-                              ))}
-                            </div>
-                            {OPEN_TARGETS[c.key] ? (
-                              <button
-                                type="button"
-                                aria-label={`Open ${c.label}`}
-                                onClick={() =>
-                                  void navigate({ to: OPEN_TARGETS[c.key] as "/" })
-                                }
-                                style={{
-                                  marginLeft: "auto",
-                                  background: "transparent",
-                                  border: "1px solid #2a2a2a",
-                                  color: "#7cff00",
-                                  borderRadius: 4,
-                                  width: 32,
-                                  height: 32,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  cursor: "pointer",
-                                  fontFamily: "inherit",
-                                  fontSize: 14,
-                                  lineHeight: 1,
-                                }}
-                              >
-                                ›
-                              </button>
-                            ) : null}
+                            {c.sub?.map((sc) => {
+                              const srow = perms[sc.key];
+                              return (
+                                <div
+                                  key={`${c.key}:${sc.step ?? sc.label}`}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    flexWrap: "wrap",
+                                    gap: 10,
+                                    padding: "8px 14px 8px 62px",
+                                    borderTop: "1px solid #1a1a1a",
+                                    opacity: sc.dimmed ? 0.6 : 1,
+                                  }}
+                                >
+                                  <div style={{ flex: "1 1 180px", color: "#bdbdbd", fontSize: 12 }}>
+                                    {sc.label}
+                                  </div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                    {ROLES.map((r) => (
+                                      <RoleCell key={r.key} role={r.label} on={!!(srow && srow[r.key])} />
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    aria-label={`Open ${sc.label}`}
+                                    onClick={() => openRow(sc.key, sc.step)}
+                                    style={{
+                                      marginLeft: "auto",
+                                      background: "transparent",
+                                      border: "1px solid #2a2a2a",
+                                      color: "#7cff00",
+                                      borderRadius: 4,
+                                      width: 32,
+                                      height: 32,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      cursor: "pointer",
+                                      fontFamily: "inherit",
+                                      fontSize: 14,
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    ›
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
-
                         );
                       })}
                     </div>
                   ) : null}
+
                 </div>
               );
             })}
