@@ -6,6 +6,21 @@ import { canSee } from "../lib/permissions";
 
 export const Route = createFileRoute("/field")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Field" }] }),
+  validateSearch: (raw: Record<string, unknown>): FieldSearch => {
+    const states = ["enroute", "arrived", "visit", "debrief", "next"] as const;
+    const steps = ["billing", "updates", "items", "new", "office"] as const;
+    const p =
+      typeof raw.preview === "string" &&
+      (states as readonly string[]).includes(raw.preview)
+        ? (raw.preview as RouteState)
+        : undefined;
+    const st =
+      typeof raw.step === "string" &&
+      (steps as readonly string[]).includes(raw.step)
+        ? (raw.step as DebriefStepKey)
+        : undefined;
+    return { preview: p, step: st };
+  },
   component: FieldPage,
 });
 
