@@ -439,7 +439,51 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
         it.source === "quo"
           ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId }
           : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments },
-      );
+  );
+
+  /* ---- compose new outbound (Quo only) ---- */
+  const normalizePhone = useCallback((raw: string): string | null => {
+    const digits = String(raw || "").replace(/\D/g, "");
+    if (digits.length === 10) return "+1" + digits;
+    if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+    if (digits.length > 11 && raw.trim().startsWith("+")) return "+" + digits;
+    return null;
+  }, []);
+
+  const sendCompose = useCallback(async () => {
+    if (!compose) return;
+    const phone = compose.picked?.phone || normalizePhone(compose.manual);
+    const text = compose.text.trim();
+    if (!phone) {
+      flash("Pick a recipient or enter a valid phone number.", true);
+      return;
+    }
+    if (!text) {
+      flash("Write a message first.", true);
+      return;
+    }
+    const name = compose.picked?.name || phone;
+    const optimisticId = `optim-${Date.now()}`;
+    const optimistic: InboxItem = {
+      id: optimisticId,
+      source: "quo",
+      from: name,
+      date: new Date().toISOString(),
+      threadId: optimisticId,
+      participants: [phone],
+      awaiting: false,
+      isClient: false,
+      snippet: text,
+    };
+    setItems((prev) => [optimistic, ...prev]);
+    setCompose(null);
+    flash("Message sent to " + name + " \u2713");
+    const res = await postAction({ action: "replyQuo", participants: [phone], text });
+    if (!(res && res.ok && res.sent)) {
+      setItems((prev) => prev.filter((x) => x.id !== optimisticId));
+      flash("Message NOT sent to " + name + "!", true);
+    }
+  }, [compose, normalizePhone, flash]);
       if (res && res.ok && res.sent) {
         if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
         return true;
