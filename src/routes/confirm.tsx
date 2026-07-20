@@ -601,16 +601,25 @@ function ConfirmPage() {
           const newList = newByClient[client] ?? [];
           return (
             <section key={client} style={{ margin: "16px 12px 0" }}>
+              <div style={CLIENT_CARD}>
               <div style={CLIENT_HEAD}>
                 <span
-                  style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}
+                  style={{
+                    color: LIME_BRIGHT,
+                    fontSize: 22,
+                    fontWeight: "bold",
+                    letterSpacing: 2,
+                    textAlign: "center",
+                    width: "100%",
+                  }}
                 >
                   {client}
                 </span>
-                <span style={{ fontSize: 11, color: MUTED, marginLeft: "auto" }}>
+                <div style={{ fontSize: 11, color: MUTED, textAlign: "center", width: "100%", marginTop: 4 }}>
                   {list.length} project{list.length === 1 ? "" : "s"}
-                </span>
+                </div>
               </div>
+
 
               {rendered.map((p) => {
                 const key = p.projectId || `row-${p.row}`;
@@ -631,20 +640,7 @@ function ConfirmPage() {
                       opacity: isDeleted ? 0.4 : skip ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                      <SegBtn
-                        active={!skip}
-                        onClick={() => setEdit(key, { status: "Confirmed" })}
-                      >
-                        CONFIRM
-                      </SegBtn>
-                      <SegBtn
-                        active={skip}
-                        danger
-                        onClick={() => setEdit(key, { status: "SKIP" })}
-                      >
-                        SKIP
-                      </SegBtn>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
                       <div style={{ flex: 1 }} />
                       <TypeSelect
                         value={e.type}
@@ -657,6 +653,7 @@ function ConfirmPage() {
                         }}
                       />
                     </div>
+
 
                     <label style={LABEL}>ACTION</label>
                     <input
@@ -773,7 +770,32 @@ function ConfirmPage() {
                         )
                       )}
                     </div>
+                    <div
+                      style={{
+                        marginTop: 14,
+                        paddingTop: 12,
+                        borderTop: `1px solid ${LINE}`,
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <BigSegBtn
+                        active={!skip}
+                        onClick={() => setEdit(key, { status: "Confirmed" })}
+                      >
+                        CONFIRM
+                      </BigSegBtn>
+                      <BigSegBtn
+                        active={skip}
+                        danger
+                        onClick={() => setEdit(key, { status: "SKIP" })}
+                      >
+                        SKIP
+                      </BigSegBtn>
+                    </div>
                   </div>
+
                 );
               })}
 
@@ -924,7 +946,9 @@ function ConfirmPage() {
               >
                 + ADD PROJECT
               </button>
+              </div>
             </section>
+
           );
         })}
 
@@ -1109,6 +1133,42 @@ function SegBtn({
   );
 }
 
+function BigSegBtn({
+  active,
+  danger,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  danger?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const accent = danger ? RED : LIME_BRIGHT;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: active ? accent : "transparent",
+        color: active ? "#0a0a0a" : accent,
+        border: `2px solid ${accent}`,
+        borderRadius: 8,
+        padding: "0 28px",
+        minHeight: 48,
+        minWidth: 140,
+        fontFamily: "inherit",
+        fontSize: 14,
+        letterSpacing: 3,
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+
 /* ---------- styles ---------- */
 const LIME = "#7cff00";
 const LIME_BRIGHT = "#bfff3c";
@@ -1143,11 +1203,20 @@ const SUCCESS_BANNER: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 12,
 };
+const CLIENT_CARD: React.CSSProperties = {
+  background: "#0f1509",
+  border: `2px solid ${LIME_BRIGHT}`,
+  borderRadius: 14,
+  padding: 14,
+  boxShadow: "0 0 0 1px rgba(191,255,60,.15), 0 0 24px rgba(191,255,60,.08)",
+};
 const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
-  alignItems: "baseline",
-  gap: 10,
-  padding: "0 4px 4px",
+  flexDirection: "column",
+  alignItems: "center",
+  padding: "4px 4px 12px",
+  borderBottom: `1px solid ${LIME_DIM}`,
+  marginBottom: 8,
 };
 const CARD: React.CSSProperties = {
   background: "#121212",
@@ -1155,6 +1224,7 @@ const CARD: React.CSSProperties = {
   borderRadius: 10,
   padding: 12,
 };
+
 const LABEL: React.CSSProperties = {
   display: "block",
   fontSize: 10,
