@@ -500,6 +500,7 @@ function FieldBody({
               tools={data.tools ?? []}
               busy={busy}
               isPreview={isPreview}
+              notes={stopNotes}
               onClockOut={(m) => {
                 if (!clientMatch) return;
                 void send({ action: "qbClock", userId: m.id, dir: "out", client: clientMatch });
@@ -508,6 +509,7 @@ function FieldBody({
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
+
 
 
           {state === "debrief" && (
@@ -522,6 +524,7 @@ function FieldBody({
                   busy={busy || isPreview}
                   previewStep={isPreview ? previewStep : null}
                   employees={data.employees ?? []}
+                  notes={stopNotes}
                   onFinish={async (payload) => {
                     if (isPreview) return;
                     const r = await send({
@@ -543,10 +546,15 @@ function FieldBody({
                           });
                         }
                       }
+                      if (clientMatch) {
+                        // fire-and-forget clear of consumed notes for this client
+                        void postScript({ action: "visitNote", clearClient: clientMatch });
+                      }
                       await send({ action: "setRoute", state: "next" });
                     }
                   }}
                 />
+
               ) : (
                 <div style={PANEL_BOX}>
                   <div style={{ color: LIME, fontSize: 14, letterSpacing: 1 }}>DEBRIEF IN PROGRESS</div>
