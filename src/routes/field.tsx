@@ -74,6 +74,18 @@ type RouteDoc = {
   arrivedAt?: string | null;
 };
 
+export type VisitNoteType = "update" | "item" | "future" | "office";
+export type VisitNote = {
+  id: string;
+  client?: string;
+  type: VisitNoteType;
+  text?: string;
+  item?: string;
+  qty?: string;
+  photos?: string[];
+  createdAt?: string;
+};
+
 type GetFieldResponse = {
   route?: RouteDoc;
   events?: EventItem[];
@@ -81,8 +93,10 @@ type GetFieldResponse = {
   projects?: ProjectRow[];
   tools?: ToolRowRaw[];
   clients?: string[];
+  visitNotes?: VisitNote[];
   serverTime?: string;
 };
+
 
 /* ---------- helpers ---------- */
 async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; error?: string }> {
