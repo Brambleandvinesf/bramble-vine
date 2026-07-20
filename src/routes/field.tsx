@@ -1293,25 +1293,8 @@ function StateDebrief({
     });
   };
 
-  const suggestedItems = useMemo(() => {
-    const clientProjectIds = new Set(
-      projects
-        .filter((p) => clientMatch && s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase())
-        .map((p) => s(p["Project ID"]))
-        .filter(Boolean),
-    );
-    const names = new Set<string>();
-    (tools ?? []).forEach((t) => {
-      const pid = s(t["Project ID"]);
-      const name = s(t["Item Name"]);
-      if (name && (clientProjectIds.size === 0 || clientProjectIds.has(pid))) names.add(name);
-    });
-    return Array.from(names);
-  }, [projects, tools, clientMatch]);
-
   const [itemsUsed, setItemsUsed] = useState<ItemUsed[]>([]);
-  const [customItem, setCustomItem] = useState("");
-  const [customQty, setCustomQty] = useState("");
+
 
   const [newProjects, setNewProjects] = useState<NewProject[]>([]);
   const [clientUpdates, setClientUpdates] = useState<string[]>([]);
@@ -1523,75 +1506,14 @@ function StateDebrief({
       {/* 3. ITEMS USED */}
       {showStep("items") && (
       <Step n={3} title="ITEMS USED">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {suggestedItems.map((name) => {
-            const on = itemsUsed.some((i) => i.name === name);
-            return (
-              <button
-                key={name}
-                onClick={() =>
-                  setItemsUsed((cur) => (on ? cur.filter((i) => i.name !== name) : [...cur, { name }]))
-                }
-                style={{
-                  ...CHIP,
-                  background: on ? LIME : "transparent",
-                  color: on ? BG : LIME,
-                  borderColor: on ? LIME : LIME_DIM,
-                }}
-              >
-                {on ? "✓ " : "+ "}
-                {name}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-          <input
-            placeholder="Add item…"
-            value={customItem}
-            onChange={(e) => setCustomItem(e.target.value)}
-            style={{ ...INPUT, flex: 2, marginTop: 0 }}
-          />
-          <input
-            placeholder="Qty"
-            value={customQty}
-            onChange={(e) => setCustomQty(e.target.value)}
-            style={{ ...INPUT, flex: 1, marginTop: 0 }}
-          />
-          <button
-            onClick={() => {
-              if (!customItem.trim()) return;
-              setItemsUsed((cur) => [...cur, { name: customItem.trim(), qty: customQty.trim() || undefined }]);
-              setCustomItem("");
-              setCustomQty("");
-            }}
-            style={{ ...SMALL_BTN }}
-          >
-            ADD
-          </button>
-        </div>
-        {itemsUsed.filter((i) => !suggestedItems.includes(i.name)).length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            {itemsUsed
-              .filter((i) => !suggestedItems.includes(i.name))
-              .map((i, idx) => (
-                <div key={idx} style={{ ...ROW_LINE, borderBottom: `1px solid ${LINE}` }}>
-                  <div style={{ flex: 1, color: TEXT }}>
-                    {i.name}
-                    {i.qty ? ` × ${i.qty}` : ""}
-                  </div>
-                  <button
-                    onClick={() => setItemsUsed((cur) => cur.filter((x) => x !== i))}
-                    style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-          </div>
-        )}
+        <ItemsUsedPicker
+          items={itemsUsed}
+          onChange={setItemsUsed}
+          disabled={busy}
+        />
       </Step>
       )}
+
 
       {/* 4. NEW PROJECTS */}
       {showStep("new") && (
@@ -1758,6 +1680,62 @@ function NewProjectForm({
           onCancel={() => setPickerOpen(false)}
           onAdd={(picked) => {
             onChange({ ...value, items: [...(value.items ?? []), picked] });
+            setPickerOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+
+function ItemsUsedPicker({
+  items,
+  onChange,
+  disabled,
+}: {
+  items: ItemUsed[];
+  onChange: (v: ItemUsed[]) => void;
+  disabled: boolean;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  return (
+    <div>
+      {items.map((i, idx) => (
+        <div key={idx} style={{ ...ROW_LINE, borderBottom: `1px solid ${LINE}`, gap: 6 }}>
+          <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
+            {i.name}
+          </div>
+          <input
+            placeholder="Qty"
+            value={i.qty ?? ""}
+            onChange={(e) =>
+              onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
+            }
+            disabled={disabled}
+            style={{ ...INPUT, width: 72, marginTop: 0 }}
+          />
+          <button
+            onClick={() => onChange(items.filter((_, j) => j !== idx))}
+            disabled={disabled}
+            style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => setPickerOpen(true)}
+        disabled={disabled}
+        style={{ ...SMALL_BTN, marginTop: 8, opacity: disabled ? 0.4 : 1 }}
+      >
+        + ADD ITEM
+      </button>
+      {pickerOpen && (
+        <ItemPicker
+          onCancel={() => setPickerOpen(false)}
+          onAdd={(picked) => {
+            onChange([...items, { name: picked.name, qty: picked.qty || undefined }]);
             setPickerOpen(false);
           }}
         />
