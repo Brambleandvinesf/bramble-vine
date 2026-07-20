@@ -422,12 +422,65 @@ function FieldBody({
     [allNotes, clientMatch],
   );
 
+  const [rosterEdit, setRosterEdit] = useState(false);
+  const [backNotice, setBackNotice] = useState<string | null>(null);
+
   /* --- roster picker gate (skipped in preview so all states are reachable) --- */
   if (roster.length === 0 && !isPreview) {
     return <RosterPicker employees={employees} onSet={(people) => send({ action: "setRoster", people })} busy={busy} />;
   }
+  if (rosterEdit && !isPreview) {
+    return (
+      <RosterPicker
+        employees={employees}
+        busy={busy}
+        initialSelected={roster.map((r) => r.id)}
+        onCancel={() => { setRosterEdit(false); setBackNotice(null); }}
+        onSet={async (people) => {
+          const r = await send({ action: "setRoster", people });
+          if (r.ok) { setRosterEdit(false); setBackNotice(null); }
+        }}
+      />
+    );
+  }
+
+  const anyClockedIn = roster.some((m) => !!m.in && !m.out);
+  const nextEvent = events[stopIndex + 1];
+  const nextClientMatch = nextEvent ? matchClient(nextEvent.title, clients) : null;
+  const isLastStop = stopIndex + 1 >= events.length;
+
+  const handleBackToCrew = () => {
+    if (isPreview) return;
+    if (anyClockedIn) {
+      setBackNotice("Crew is clocked in — clock out before changing the roster.");
+      return;
+    }
+    setBackNotice(null);
+    setRosterEdit(true);
+  };
+
+  const handleSkip = () => {
+    if (isPreview) return;
+    const label = clientMatch ?? currentEvent?.title ?? "this client";
+    const msg = isLastStop
+      ? `Skip ${label}? No stops remain.`
+      : `Skip ${label}? The visit stays on the calendar.`;
+    if (!window.confirm(msg)) return;
+    if (isLastStop) {
+      void send({ action: "setRoute", stopIndex: stopIndex + 1, state: "next" });
+    } else {
+      void send({
+        action: "setRoute",
+        stopIndex: stopIndex + 1,
+        state: "enroute",
+        client: nextClientMatch,
+        eventId: nextEvent!.id,
+      });
+    }
+  };
 
   const routeComplete = !isPreview && stopIndex >= events.length;
+
 
 
 
