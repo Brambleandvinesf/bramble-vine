@@ -306,7 +306,7 @@ export function ItemPicker({
                     <>
                       <div style={SECTION_HEAD}>Recommended</div>
                       <div>
-                        {recommended.map((p) => (
+                      {recommended.map((p) => (
                           <button
                             key={`rec-${p.row}-${p.name}`}
                             style={CHIP}
@@ -315,6 +315,13 @@ export function ItemPicker({
                             {p.name}
                           </button>
                         ))}
+                        <button
+                          key="rec-eb-stone"
+                          style={CHIP}
+                          onClick={() => setQuery("eb stone")}
+                        >
+                          EB Stone…
+                        </button>
                       </div>
                     </>
                   )}
