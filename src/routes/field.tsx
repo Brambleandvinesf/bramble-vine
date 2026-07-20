@@ -903,8 +903,10 @@ function StateVisit({
           </div>
         </div>
       </div>
+      <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
 
       <div style={{ ...SECTION_HEAD, marginTop: 16 }}>PROJECTS</div>
+
       {clientProjects.length === 0 ? (
         <div style={{ color: MUTED, fontSize: 12, padding: "8px 4px" }}>No projects listed.</div>
       ) : (
