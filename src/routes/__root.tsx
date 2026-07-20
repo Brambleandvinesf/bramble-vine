@@ -21,8 +21,11 @@ import {
   Receipt,
   Shield,
   MoreHorizontal,
+  Maximize2,
+  Minimize2,
   X,
 } from "lucide-react";
+
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -437,6 +440,43 @@ function MoreSheet({
   );
 }
 
+function FullscreenButton() {
+  const [isFs, setIsFs] = useState(false);
+  useEffect(() => {
+    const onChange = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    onChange();
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggle = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+  const Icon = isFs ? Minimize2 : Maximize2;
+  return (
+    <button
+      onClick={toggle}
+      title={isFs ? "Exit full screen" : "Full screen"}
+      aria-label={isFs ? "Exit full screen" : "Full screen"}
+      style={{
+        background: "transparent",
+        color: "#7cff00",
+        border: "1px solid #2a2a2a",
+        borderRadius: 4,
+        width: 28,
+        height: 28,
+        padding: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+      }}
+    >
+      <Icon size={14} strokeWidth={2} />
+    </button>
+  );
+}
+
 function NavBar() {
   const { user, signOut } = useAuth();
   return (
@@ -485,6 +525,7 @@ function NavBar() {
             >
               {user}
             </span>
+            <FullscreenButton />
             <button
               onClick={signOut}
               style={{
@@ -502,7 +543,9 @@ function NavBar() {
               SIGN OUT
             </button>
           </>
-        ) : null}
+        ) : (
+          <FullscreenButton />
+        )}
       </div>
     </nav>
   );
