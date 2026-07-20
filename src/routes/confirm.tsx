@@ -355,6 +355,89 @@ function ConfirmPage() {
     });
   }, []);
 
+  const markSync = useCallback((key: string, on: boolean) => {
+    setSyncing((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const editProjectLive = useCallback(
+    async (p: Project, patch: Record<string, string>, applyToEdit?: (e: Edit) => Partial<Edit>) => {
+      if (!p.projectId) return;
+      const key = p.projectId;
+      // optimistic
+      if (applyToEdit) {
+        setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...applyToEdit(prev[key]) } }));
+      }
+      markSync(key, true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "editProject", projectId: p.projectId, client: p.client, ...patch }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) throw new Error(json.error || "not ok");
+      } catch (err) {
+        setSubmitFlash({
+          msg: err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save",
+          err: true,
+        });
+      } finally {
+        markSync(key, false);
+      }
+    },
+    [markSync],
+  );
+
+  const addItemToExisting = useCallback(
+    async (client: string, projectId: string, picked: NewItem) => {
+      // optimistic append pill
+      const snapshot = projects;
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.projectId === projectId
+            ? { ...p, items: [...p.items, picked] }
+            : p,
+        ),
+      );
+      markSync(projectId, true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "addItems",
+            client,
+            projectId,
+            items: [{ name: picked.name, qty: picked.qty, size: picked.size }],
+          }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) throw new Error(json.error || "not ok");
+      } catch (err) {
+        setProjects(snapshot);
+        setSubmitFlash({
+          msg: err instanceof Error ? `Couldn't add item — ${err.message}` : "Couldn't add item",
+          err: true,
+        });
+      } finally {
+        markSync(projectId, false);
+      }
+    },
+    [projects, markSync],
+  );
+
+  const distinctTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of projects) if (p.type.trim()) set.add(p.type.trim());
+    return [...set].sort();
+  }, [projects]);
+
+
   const submit = useCallback(async () => {
     // Build payload
     const statuses: Array<{ projectId: string; status: "Confirmed" | "SKIP" }> = [];
