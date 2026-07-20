@@ -154,6 +154,7 @@ function ConfirmPage() {
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "special_confirm");
+  const reviewable = useReviewableToday();
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
