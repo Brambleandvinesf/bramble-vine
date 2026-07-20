@@ -1998,6 +1998,42 @@ function StateDebrief({
 
         {currentKey === "updates" && (
           <div>
+            {updateNotes.length > 0 && (
+              <div style={{ ...PANEL_BOX, marginBottom: 10 }}>
+                <div style={{ color: DIM_GREEN, fontSize: 10, letterSpacing: 2 }}>
+                  FIELD NOTES — TAP TO APPEND TO FOCUSED PROJECT
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                  {updateNotes.map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => appendToProjectNotes(appendPhotos(n.text ?? "", n.photos))}
+                      disabled={!focusedProjectId}
+                      style={{
+                        textAlign: "left",
+                        background: "transparent",
+                        border: `1px solid ${LIME_DIM}`,
+                        borderRadius: 6,
+                        color: focusedProjectId ? LIME : DIM_GREEN,
+                        padding: "6px 8px",
+                        fontFamily: "inherit",
+                        fontSize: 12,
+                        cursor: focusedProjectId ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {n.text}
+                      {n.photos?.length ? ` · 📷 ${n.photos.length}` : ""}
+                    </button>
+                  ))}
+                </div>
+                {!focusedProjectId && (
+                  <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>
+                    Focus a project's Notes field below to enable.
+                  </div>
+                )}
+              </div>
+            )}
             {specialProjects.length === 0 && (
               <div style={{ color: MUTED, fontSize: 12 }}>No projects to update.</div>
             )}
@@ -2036,19 +2072,21 @@ function StateDebrief({
                       );
                     })}
                   </div>
-                  {cur?.status === "" && (
-                    <input
-                      placeholder="Why not?"
-                      value={cur.notes ?? ""}
-                      onChange={(e) => setSpecial(id, "", e.target.value)}
-                      style={INPUT}
-                    />
-                  )}
+                  <textarea
+                    placeholder={cur?.status === "" ? "Why not?" : "Notes (optional)"}
+                    value={cur?.notes ?? ""}
+                    onFocus={() => setFocusedProjectId(id)}
+                    onChange={(e) =>
+                      setSpecial(id, cur?.status ?? "DONE", e.target.value)
+                    }
+                    style={{ ...INPUT, minHeight: 56, marginTop: 8, resize: "vertical" }}
+                  />
                 </div>
               );
             })}
           </div>
         )}
+
 
         {currentKey === "items" && (
           <ItemsUsedPicker items={itemsUsed} onChange={setItemsUsed} disabled={busy} />
