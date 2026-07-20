@@ -4,6 +4,12 @@ import { useAuth, type Role } from "../lib/auth";
 import { useViewAs, VIEW_AS_ROLES } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
+import { sessionCache } from "../lib/session-cache";
+import { RefreshDot } from "../components/RefreshDot";
+
+const CK_CONFIRM = "home:getConfirm";
+const CK_INBOX = "home:getInbox:count";
+const CK_RECEIPTS = "home:getReceipts:count";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -53,10 +59,18 @@ function HomePage() {
   const { effectiveRole, setViewAs, viewAs } = useViewAs();
   const role = effectiveRole;
 
-  const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
-  const [confirmLoading, setConfirmLoading] = useState(true);
-  const [msgCount, setMsgCount] = useState<number | null>(null);
-  const [rcptCount, setRcptCount] = useState<number | null>(null);
+  const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(
+    () => sessionCache.get<{ confirmed?: boolean }>(CK_CONFIRM) ?? null,
+  );
+  const [confirmLoading, setConfirmLoading] = useState(() => !sessionCache.has(CK_CONFIRM));
+  const [msgCount, setMsgCount] = useState<number | null>(
+    () => sessionCache.get<number>(CK_INBOX) ?? null,
+  );
+  const [rcptCount, setRcptCount] = useState<number | null>(
+    () => sessionCache.get<number>(CK_RECEIPTS) ?? null,
+  );
+  const [refreshing, setRefreshing] = useState(false);
+  const [offline, setOffline] = useState(false);
 
   const canMsg = canSee(role, "messages");
   const canRcpt = canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice");
@@ -65,16 +79,24 @@ function HomePage() {
     let cancelled = false;
 
     const tick = async () => {
-      if (!cancelled) setConfirmLoading(true);
+      if (!cancelled) setRefreshing(true);
+      let anyOk = false;
+      let anyErr = false;
       // Confirm
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { state?: { confirmed?: boolean } };
-        if (!cancelled) setConfirmState(json.state ?? null);
+        const state = json.state ?? null;
+        if (!cancelled) setConfirmState(state);
+        if (state) sessionCache.set(CK_CONFIRM, state);
+        anyOk = true;
       } catch (e) {
         console.error("[home confirm] error", e);
-        if (!cancelled) setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
+        anyErr = true;
+        if (!cancelled && !sessionCache.has(CK_CONFIRM)) {
+          setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
+        }
       } finally {
         if (!cancelled) setConfirmLoading(false);
       }
@@ -83,11 +105,13 @@ function HomePage() {
         try {
           const r = await fetch(`${SCRIPT_URL}?action=getInbox`);
           const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
-          if (!cancelled) {
-            setMsgCount((j.inbox ?? []).length);
-          }
+          const n = (j.inbox ?? []).length;
+          if (!cancelled) setMsgCount(n);
+          sessionCache.set(CK_INBOX, n);
+          anyOk = true;
         } catch (e) {
           console.error("[home msg] error", e);
+          anyErr = true;
         }
       }
       // Receipts awaiting designation
@@ -95,17 +119,22 @@ function HomePage() {
         try {
           const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
           const j = (await r.json()) as { lines?: Array<{ finalDesignation?: string; ["Final designation"]?: string; invoiced?: string; Invoiced?: string }> };
-          if (!cancelled) {
-            const n = (j.lines ?? []).filter((l) => {
-              const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
-              const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
-              return !fd && !inv;
-            }).length;
-            setRcptCount(n);
-          }
+          const n = (j.lines ?? []).filter((l) => {
+            const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
+            const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
+            return !fd && !inv;
+          }).length;
+          if (!cancelled) setRcptCount(n);
+          sessionCache.set(CK_RECEIPTS, n);
+          anyOk = true;
         } catch (e) {
           console.error("[home rcpt] error", e);
+          anyErr = true;
         }
+      }
+      if (!cancelled) {
+        setRefreshing(false);
+        setOffline(anyErr && !anyOk);
       }
     };
 
@@ -143,6 +172,12 @@ function HomePage() {
         <div style={{ color: LIME, fontSize: 18, fontWeight: "bold", letterSpacing: 2 }}>
           HOME
         </div>
+        <RefreshDot refreshing={refreshing} offline={offline} style={{ marginLeft: 4 }} />
+        {offline && (
+          <span style={{ color: MUTED, fontSize: 10, letterSpacing: 1, textTransform: "uppercase" }}>
+            offline — last data
+          </span>
+        )}
         <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1, marginLeft: "auto" }}>
           {name?.toUpperCase()} · {role.toUpperCase()}
         </div>
