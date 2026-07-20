@@ -25,6 +25,7 @@ import {
   Minimize2,
   X,
 } from "lucide-react";
+import { Toaster } from "sonner";
 
 
 import appCss from "../styles.css?url";
