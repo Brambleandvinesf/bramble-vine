@@ -347,7 +347,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const loadInbox = useCallback(async () => {
     setRefreshing(true);
     try {
-      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox").then((x) => x.json());
+      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email)).then((x) => x.json());
       sessionCache.set(CK, r);
       const its = r.inbox || [];
       setItems(its);
