@@ -292,19 +292,8 @@ function ConfirmPage() {
 
 
 
-  const updateNewItem = useCallback(
-    (client: string, key: string, idx: number, patch: Partial<NewItem>) => {
-      setNewByClient((prev) => {
-        const list = (prev[client] ?? []).map((n) =>
-          n.key === key
-            ? { ...n, items: n.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }
-            : n,
-        );
-        return { ...prev, [client]: list };
-      });
-    },
-    [],
-  );
+
+
 
   const removeNewItem = useCallback((client: string, key: string, idx: number) => {
     setNewByClient((prev) => {
