@@ -612,10 +612,7 @@ function FieldBody({
               isLead={isLead}
               delegated={!!route.delegated}
               busy={busy}
-              onClockIn={(m) => {
-                if (!clientMatch) return;
-                void send({ action: "qbClock", userId: m.id, dir: "in", client: clientMatch });
-              }}
+              clockSlot={personalClockSlot}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
               onStart={() => void send({ action: "setRoute", state: "visit" })}
               onNoShow={() => void confirmNoShow(send, setBanner)}
@@ -635,10 +632,7 @@ function FieldBody({
               busy={busy}
               isPreview={isPreview}
               notes={stopNotes}
-              onClockOut={(m) => {
-                if (!clientMatch) return;
-                void send({ action: "qbClock", userId: m.id, dir: "out", client: clientMatch });
-              }}
+              clockSlot={personalClockSlot}
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
