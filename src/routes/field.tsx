@@ -1418,7 +1418,7 @@ function StateVisit({
   busy,
   isPreview,
   notes,
-  onClockOut,
+  clockSlot,
   onToggleTool,
   onNoShow,
 }: {
@@ -1433,7 +1433,7 @@ function StateVisit({
   busy: boolean;
   isPreview: boolean;
   notes: VisitNote[];
-  onClockOut: (m: RosterMember) => void;
+  clockSlot?: React.ReactNode;
   onToggleTool: (t: NormTool) => void;
   onNoShow: () => void;
 }) {
