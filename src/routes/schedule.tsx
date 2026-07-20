@@ -540,12 +540,15 @@ function EventRow({
               <a
                 key={i}
                 href={seg.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: LIME, textDecoration: "underline" }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open(seg.href, "_blank", "noopener,noreferrer");
+                }}
+                style={{ color: LIME, textDecoration: "underline", cursor: "pointer" }}
               >
                 {seg.text}
               </a>
+
             ) : (
               <span key={i}>{seg.value}</span>
             ),
