@@ -246,6 +246,14 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
   const [awaitingOverride, setAwaitingOverride] = useState<Record<string, boolean>>({});
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
 
+  // Compose (new outbound message)
+  const [compose, setCompose] = useState<{
+    q: string;
+    picked: { phone: string; name: string } | null;
+    manual: string;
+    text: string;
+  } | null>(null);
+
   // Flash / red-flash
   const [flashMsg, setFlashMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const flashTimer = useRef<number | null>(null);
