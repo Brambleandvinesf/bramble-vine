@@ -40,10 +40,11 @@ const GROUPS: Group[] = [
       { key: "route_enroute", label: "En Route" },
       { key: "route_arrived", label: "Arrived" },
       { key: "route_visit", label: "Visit Mode" },
-      { key: "route_debrief", label: "Debrief" },
       { key: "route_next", label: "Next Stop" },
     ],
   },
+  { id: "debrief", label: "Debrief", children: [{ key: "route_debrief", label: "Debrief" }] },
+
   { id: "visits", label: "CONFIRM VISITS", children: [{ key: "visits", label: "Visits" }] },
   { id: "projects", label: "Projects", children: [{ key: "projects", label: "Projects" }] },
   { id: "messages", label: "Messages", children: [{ key: "messages", label: "Messages" }] },
@@ -58,7 +59,24 @@ const GROUPS: Group[] = [
   { id: "admin", label: "Admin", children: [{ key: "admin", label: "Admin" }] },
 ];
 
+const OPEN_TARGETS: Record<string, string> = {
+  dashboard: "/",
+  special_confirm: "/confirm",
+  loading: "/loading",
+  visits: "/visits",
+  projects: "/projects",
+  messages: "/messages",
+  rcpt_designate: "/receipts",
+  rcpt_invoice: "/receipts",
+  route_enroute: "/field",
+  route_arrived: "/field",
+  route_visit: "/field",
+  route_next: "/field",
+  route_debrief: "/field",
+};
+
 const KNOWN_KEYS = new Set(GROUPS.flatMap((g) => g.children.map((c) => c.key)));
+
 
 function Dot({ on }: { on: boolean }) {
   return (
@@ -324,7 +342,35 @@ function AdminPage() {
                                 />
                               ))}
                             </div>
+                            {OPEN_TARGETS[c.key] ? (
+                              <button
+                                type="button"
+                                aria-label={`Open ${c.label}`}
+                                onClick={() =>
+                                  void navigate({ to: OPEN_TARGETS[c.key] as "/" })
+                                }
+                                style={{
+                                  marginLeft: "auto",
+                                  background: "transparent",
+                                  border: "1px solid #2a2a2a",
+                                  color: "#7cff00",
+                                  borderRadius: 4,
+                                  width: 32,
+                                  height: 32,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  fontFamily: "inherit",
+                                  fontSize: 14,
+                                  lineHeight: 1,
+                                }}
+                              >
+                                ›
+                              </button>
+                            ) : null}
                           </div>
+
                         );
                       })}
                     </div>
