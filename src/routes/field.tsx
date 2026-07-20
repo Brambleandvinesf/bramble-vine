@@ -1341,41 +1341,125 @@ function StateDebrief({
         {clientMatch ?? event?.title}
       </div>
 
-      {/* 1. BILLING */}
+      {/* 1. LABOR HOURS */}
       {showStep("billing") && (
-      <Step n={1} title="BILLING HOURS">
-        {billing.map((b, i) => (
-          <div key={i} style={ROW_LINE}>
-            <div style={{ flex: 1, color: TEXT }}>{b.name}</div>
-            <button
-              style={STEP_BTN}
-              onClick={() =>
-                setBilling((cur) =>
-                  cur.map((r, j) => (j === i ? { ...r, hours: Math.max(0, +(r.hours - 0.25).toFixed(2)) } : r)),
-                )
-              }
-            >
-              −
-            </button>
-            <div style={{ width: 56, textAlign: "center", color: LIME, fontWeight: "bold" }}>
-              {b.hours.toFixed(2)}
+      <Step n={1} title="LABOR HOURS">
+        <div style={{ display: "grid", gap: 10 }}>
+          {billing.map((b, i) => {
+            const dec = () =>
+              setBilling((cur) =>
+                cur.map((r, j) => (j === i ? { ...r, hours: Math.max(0, +(r.hours - 0.25).toFixed(2)) } : r)),
+              );
+            const inc = () =>
+              setBilling((cur) =>
+                cur.map((r, j) => (j === i ? { ...r, hours: Math.min(16, +(r.hours + 0.25).toFixed(2)) } : r)),
+              );
+            return (
+              <div key={`${b.name}-${i}`} style={{ ...PANEL_BOX, textAlign: "center" }}>
+                <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 10 }}>
+                  {b.name.toUpperCase()}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
+                  <button
+                    onClick={dec}
+                    aria-label="Decrease hours"
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 8,
+                      border: `1px solid ${LIME_DIM}`,
+                      background: "transparent",
+                      color: LIME,
+                      fontSize: 28,
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                    }}
+                  >
+                    −
+                  </button>
+                  <div style={{ minWidth: 120, color: LIME, fontSize: 40, fontWeight: "bold", fontVariantNumeric: "tabular-nums" }}>
+                    {b.hours.toFixed(2)}
+                  </div>
+                  <button
+                    onClick={inc}
+                    aria-label="Increase hours"
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 8,
+                      border: `1px solid ${LIME_DIM}`,
+                      background: "transparent",
+                      color: LIME,
+                      fontSize: 28,
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={() => setShowAddPerson(true)}
+          style={{
+            ...PRIMARY_BTN,
+            marginTop: 12,
+            background: "transparent",
+            color: LIME,
+            border: `1px dashed ${LIME_DIM}`,
+          }}
+        >
+          + ADD PERSON
+        </button>
+
+        {showAddPerson && (
+          <div style={{ ...PANEL_BOX, marginTop: 10 }}>
+            <div style={{ color: MUTED, fontSize: 12, marginBottom: 8 }}>PICK A PERSON</div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {(employees ?? [])
+                .filter((e) => !billing.some((b) => b.name.toLowerCase() === e.name.toLowerCase()))
+                .map((e) => (
+                  <button
+                    key={e.id}
+                    onClick={() => {
+                      setBilling((cur) => [...cur, { name: e.name, hours: 0 }]);
+                      setShowAddPerson(false);
+                    }}
+                    style={{
+                      ...SMALL_BTN,
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      background: "transparent",
+                      color: TEXT,
+                      border: `1px solid ${LIME_DIM}`,
+                    }}
+                  >
+                    {e.name}
+                  </button>
+                ))}
+              {(employees ?? []).filter((e) => !billing.some((b) => b.name.toLowerCase() === e.name.toLowerCase())).length === 0 && (
+                <div style={{ color: MUTED, fontSize: 12 }}>Everyone is already listed.</div>
+              )}
             </div>
             <button
-              style={STEP_BTN}
-              onClick={() =>
-                setBilling((cur) => cur.map((r, j) => (j === i ? { ...r, hours: +(r.hours + 0.25).toFixed(2) } : r)))
-              }
+              onClick={() => setShowAddPerson(false)}
+              style={{ ...SMALL_BTN, marginTop: 8, background: "transparent", color: MUTED }}
             >
-              +
+              Cancel
             </button>
           </div>
-        ))}
-        <div style={{ ...ROW_LINE, borderTop: `1px solid ${LINE}`, marginTop: 6 }}>
+        )}
+
+        <div style={{ ...ROW_LINE, borderTop: `1px solid ${LINE}`, marginTop: 12 }}>
           <div style={{ flex: 1, color: MUTED, fontSize: 12 }}>TOTAL</div>
           <div style={{ color: LIME, fontWeight: "bold" }}>{total.toFixed(2)}</div>
         </div>
         <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>
-          Billing only — payroll stays in QB Time.
+          Labor hours only — payroll stays in QB Time.
         </div>
       </Step>
       )}
