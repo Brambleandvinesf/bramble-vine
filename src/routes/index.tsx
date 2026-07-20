@@ -8,7 +8,7 @@ import { SCRIPT_URL } from "./confirm";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Bramble & Vine — Home" },
+      { title: "Bramble & Vine" },
       { name: "description", content: "Crew dashboard: today's route, loading, receipts, messages." },
     ],
   }),
