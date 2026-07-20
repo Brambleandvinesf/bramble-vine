@@ -608,6 +608,10 @@ function FieldBody({
     setMe(null);
   };
 
+  const handleVisitComplete = async () => {
+    void textClient(send, "done", clientMatch, stopIndex, isPreview);
+  };
+
   return (
     <div>
       {me && (
