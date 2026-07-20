@@ -224,7 +224,7 @@ const fontStack = "'Courier New', Courier, monospace";
 /* ============ Component ============ */
 function MessagesPage() {
   const { effectiveRole } = useViewAs();
-  const { user } = useAuth();
+  const { email } = useAuth();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
@@ -234,9 +234,9 @@ function MessagesPage() {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
   if (!allowed) return null;
-  if (!user) return null;
+  if (!email) return null;
 
-  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={user} />;
+  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={email} />;
 }
 
 function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boolean; showLineBadge: boolean; email: string }) {
