@@ -1590,29 +1590,8 @@ function StateVisit({
 
       {showOut && (
         <>
-          <div style={{ ...SECTION_HEAD, marginTop: 16 }}>CLOCK OUT — TAP YOUR NAME</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-            {roster.map((m) => {
-              const out = !!m.out;
-              const inOnly = !!m.in && !m.out;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => inOnly && onClockOut(m)}
-                  disabled={out || !inOnly || busy}
-                  style={{
-                    ...BIG_BTN,
-                    background: out ? LIME : "transparent",
-                    color: out ? BG : LIME,
-                    borderColor: out ? LIME : LIME_DIM,
-                    opacity: !inOnly && !out ? 0.4 : 1,
-                  }}
-                >
-                  {out ? "✓ " : ""}{m.name.toUpperCase()}
-                </button>
-              );
-            })}
-          </div>
+          <div style={{ ...SECTION_HEAD, marginTop: 16 }}>CLOCK OUT</div>
+          {clockSlot}
           <div style={{ color: MUTED, fontSize: 11, textAlign: "center", marginTop: 10 }}>
             Debrief opens automatically once everyone is out.
           </div>
