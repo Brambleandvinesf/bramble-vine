@@ -1293,25 +1293,8 @@ function StateDebrief({
     });
   };
 
-  const suggestedItems = useMemo(() => {
-    const clientProjectIds = new Set(
-      projects
-        .filter((p) => clientMatch && s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase())
-        .map((p) => s(p["Project ID"]))
-        .filter(Boolean),
-    );
-    const names = new Set<string>();
-    (tools ?? []).forEach((t) => {
-      const pid = s(t["Project ID"]);
-      const name = s(t["Item Name"]);
-      if (name && (clientProjectIds.size === 0 || clientProjectIds.has(pid))) names.add(name);
-    });
-    return Array.from(names);
-  }, [projects, tools, clientMatch]);
-
   const [itemsUsed, setItemsUsed] = useState<ItemUsed[]>([]);
-  const [customItem, setCustomItem] = useState("");
-  const [customQty, setCustomQty] = useState("");
+
 
   const [newProjects, setNewProjects] = useState<NewProject[]>([]);
   const [clientUpdates, setClientUpdates] = useState<string[]>([]);
