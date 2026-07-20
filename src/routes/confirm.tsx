@@ -1167,11 +1167,20 @@ const SUCCESS_BANNER: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 12,
 };
+const CLIENT_CARD: React.CSSProperties = {
+  background: "#0f1509",
+  border: `2px solid ${LIME_BRIGHT}`,
+  borderRadius: 14,
+  padding: 14,
+  boxShadow: "0 0 0 1px rgba(191,255,60,.15), 0 0 24px rgba(191,255,60,.08)",
+};
 const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
-  alignItems: "baseline",
-  gap: 10,
-  padding: "0 4px 4px",
+  flexDirection: "column",
+  alignItems: "center",
+  padding: "4px 4px 12px",
+  borderBottom: `1px solid ${LIME_DIM}`,
+  marginBottom: 8,
 };
 const CARD: React.CSSProperties = {
   background: "#121212",
@@ -1179,6 +1188,7 @@ const CARD: React.CSSProperties = {
   borderRadius: 10,
   padding: 12,
 };
+
 const LABEL: React.CSSProperties = {
   display: "block",
   fontSize: 10,
