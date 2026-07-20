@@ -84,8 +84,7 @@ function HomePage() {
           const r = await fetch(`${SCRIPT_URL}?action=getInbox`);
           const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
           if (!cancelled) {
-            const n = (j.inbox ?? []).filter((it) => it.awaiting === true).length;
-            setMsgCount(n);
+            setMsgCount((j.inbox ?? []).length);
           }
         } catch (e) {
           console.error("[home msg] error", e);

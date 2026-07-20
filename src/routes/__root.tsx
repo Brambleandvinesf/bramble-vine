@@ -204,6 +204,7 @@ function BottomTabBar() {
               fontSize: 11,
               letterSpacing: 2,
               fontWeight: "bold",
+              textAlign: "center",
             }}
           >
             {t.label}
