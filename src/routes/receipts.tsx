@@ -1494,10 +1494,10 @@ function LineActions({
   return (
     <>
       <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
-        <button style={TINY_BTN} onClick={() => setMode("edit")} disabled={busy}>
-          EDIT
+        <button style={TINY_BTN} onClick={() => setMode("edit")}>
+          {isSyncing ? "…" : "EDIT"}
         </button>
-        <button style={TINY_BTN_RED} onClick={() => setMode("delete")} disabled={busy}>
+        <button style={TINY_BTN_RED} onClick={() => setMode("delete")}>
           DELETE
         </button>
       </div>
@@ -1528,9 +1528,9 @@ function LineActions({
             <input style={INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-            <button style={TINY_BTN} onClick={() => setMode(null)} disabled={busy}>CANCEL</button>
-            <button style={{ ...TINY_BTN, background: LIME, color: "#0a0a0a", borderColor: LIME }} onClick={saveEdit} disabled={busy}>
-              {busy ? "SAVING…" : "SAVE"}
+            <button style={TINY_BTN} onClick={() => setMode(null)}>CANCEL</button>
+            <button style={{ ...TINY_BTN, background: LIME, color: "#0a0a0a", borderColor: LIME }} onClick={saveEdit}>
+              SAVE
             </button>
           </div>
         </div>
