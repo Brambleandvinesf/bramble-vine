@@ -757,6 +757,7 @@ function NewProjectModal({
   const [type, setType] = useState<"RECURRING" | "SPECIAL">("RECURRING");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<NewItem[]>([]);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
 
   const matches = useMemo(() => {
     const q = clientQuery.trim().toLowerCase();
