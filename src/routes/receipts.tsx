@@ -333,12 +333,11 @@ function ReceiptsPage() {
           lines={lines}
           receiptById={receiptById}
           designations={designations}
-          onSaved={(msg) => {
-            setToast({ msg, err: false });
-            void refetch();
-          }}
+          onSaved={(msg) => setToast({ msg, err: false })}
           onError={(msg) => setToast({ msg, err: true })}
-          refetch={() => void refetch()}
+          writer={writer}
+          setLines={setLines}
+          setReceipts={setReceipts}
         />
       )}
 
@@ -346,12 +345,11 @@ function ReceiptsPage() {
         <InvoiceTab
           lines={lines}
           receiptById={receiptById}
-          onSaved={(msg) => {
-            setToast({ msg, err: false });
-            void refetch();
-          }}
+          onSaved={(msg) => setToast({ msg, err: false })}
           onError={(msg) => setToast({ msg, err: true })}
-          refetch={() => void refetch()}
+          writer={writer}
+          setLines={setLines}
+          setReceipts={setReceipts}
         />
       )}
 
