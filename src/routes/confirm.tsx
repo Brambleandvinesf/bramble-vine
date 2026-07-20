@@ -802,6 +802,15 @@ function ConfirmPage() {
           {submitting ? "CONFIRMING…" : "CONFIRM SPECIAL LOADING/PROJECTS"}
         </button>
       </div>
+      {pickerFor && (
+        <ItemPicker
+          onCancel={() => setPickerFor(null)}
+          onAdd={(picked) => {
+            appendNewItem(pickerFor.client, pickerFor.key, picked);
+            setPickerFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
