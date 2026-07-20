@@ -146,6 +146,35 @@ function AppFrame() {
     }
   }, [ready, user, onLogin, router]);
 
+  // Auto-recover from stale dynamic-import chunks after a redeploy.
+  // Old index-*.js references code-split chunks that no longer exist;
+  // a one-shot hard reload pulls the new build.
+  useEffect(() => {
+    const KEY = "__bv_chunk_reload_at";
+    const isChunkError = (msg: string) =>
+      /Failed to fetch dynamically imported module|Importing a module script failed|ChunkLoadError/i.test(
+        msg,
+      );
+    const maybeReload = (msg: string) => {
+      if (!isChunkError(msg)) return;
+      const last = Number(sessionStorage.getItem(KEY) || 0);
+      if (Date.now() - last < 10_000) return; // avoid reload loops
+      sessionStorage.setItem(KEY, String(Date.now()));
+      window.location.reload();
+    };
+    const onErr = (e: ErrorEvent) => maybeReload(e.message || String(e.error));
+    const onRej = (e: PromiseRejectionEvent) => {
+      const r = e.reason;
+      maybeReload(r instanceof Error ? r.message : String(r));
+    };
+    window.addEventListener("error", onErr);
+    window.addEventListener("unhandledrejection", onRej);
+    return () => {
+      window.removeEventListener("error", onErr);
+      window.removeEventListener("unhandledrejection", onRej);
+    };
+  }, []);
+
   return (
     <>
       <NavBar />
