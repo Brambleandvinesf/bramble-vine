@@ -146,11 +146,20 @@ function FieldPage() {
   const { effectiveRole } = useViewAs();
   const router = useRouter();
   const { user } = useAuth();
+  const search = Route.useSearch();
 
   const canSeeField = canSee(effectiveRole, "route_enroute");
   useEffect(() => {
     if (!canSeeField) void router.navigate({ to: "/" });
   }, [canSeeField, router]);
+
+  const isPreview = effectiveRole === "management" && !!search.preview;
+  const previewState: RouteState | null = isPreview ? (search.preview as RouteState) : null;
+  const initialStep: DebriefStepKey = search.step ?? "billing";
+  const [previewStep, setPreviewStep] = useState<DebriefStepKey>(initialStep);
+  useEffect(() => {
+    if (search.step) setPreviewStep(search.step);
+  }, [search.step]);
 
   const [data, setData] = useState<GetFieldResponse | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -183,6 +192,7 @@ function FieldPage() {
 
   const send = useCallback(
     async (body: unknown, opts?: { silent?: boolean }): Promise<{ ok: boolean; raw: unknown }> => {
+      if (isPreview) return { ok: false, raw: null };
       setBusy(true);
       const r = await postScript(body);
       setBusy(false);
@@ -194,14 +204,22 @@ function FieldPage() {
       }
       return { ok: r.ok, raw: r.raw };
     },
-    [fetchOnce],
+    [fetchOnce, isPreview],
   );
 
   if (!canSeeField) return null;
 
   return (
     <div style={PAGE}>
-      <TopBar user={user} state={data?.route?.state} delegated={!!data?.route?.delegated} />
+      <TopBar user={user} state={previewState ?? data?.route?.state} delegated={!!data?.route?.delegated} />
+      {isPreview && (
+        <PreviewBadge
+          previewState={previewState!}
+          step={previewStep}
+          onStep={setPreviewStep}
+          onExit={() => void router.navigate({ to: "/field", search: {} })}
+        />
+      )}
       {banner && (
         <div style={banner.kind === "err" ? ERRBAR : INFOBAR}>
           {banner.text}
@@ -211,12 +229,102 @@ function FieldPage() {
       {loadErr && !data && <div style={STATE}>Loading field data…<br /><span style={{ color: RED }}>{loadErr}</span></div>}
       {!loadErr && !data && <div style={STATE}>Loading…</div>}
       {data && (
-        <FieldBody data={data} now={now} send={send} busy={busy} role={effectiveRole} setBanner={setBanner} />
+        <FieldBody
+          data={data}
+          now={now}
+          send={send}
+          busy={busy}
+          role={effectiveRole}
+          setBanner={setBanner}
+          previewState={previewState}
+          previewStep={previewStep}
+          isPreview={isPreview}
+        />
       )}
       <div style={{ height: 80 }} />
     </div>
   );
 }
+
+const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
+  { key: "billing", label: "Billing Hours" },
+  { key: "updates", label: "Project Updates" },
+  { key: "new", label: "New Projects" },
+  { key: "items", label: "Items Used" },
+  { key: "office", label: "Office Tasks" },
+];
+
+function PreviewBadge({
+  previewState,
+  step,
+  onStep,
+  onExit,
+}: {
+  previewState: RouteState;
+  step: DebriefStepKey;
+  onStep: (s: DebriefStepKey) => void;
+  onExit: () => void;
+}) {
+  return (
+    <div
+      style={{
+        margin: "10px 12px 0",
+        padding: "8px 12px",
+        border: `1px solid ${DIM_GREEN}`,
+        background: "#0f1a0a",
+        borderRadius: 6,
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 8,
+      }}
+    >
+      <button
+        onClick={onExit}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: DIM_GREEN,
+          fontFamily: "inherit",
+          fontSize: 11,
+          letterSpacing: 1,
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        PREVIEW — READ ONLY · {previewState.toUpperCase()} · TAP TO EXIT
+      </button>
+      {previewState === "debrief" && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginLeft: "auto" }}>
+          {DEBRIEF_STEPS.map((s) => {
+            const on = s.key === step;
+            return (
+              <button
+                key={s.key}
+                onClick={() => onStep(s.key)}
+                style={{
+                  border: `1px solid ${on ? LIME : DIM_GREEN}`,
+                  background: on ? LIME : "transparent",
+                  color: on ? BG : DIM_GREEN,
+                  borderRadius: 4,
+                  padding: "3px 8px",
+                  fontFamily: "inherit",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  cursor: "pointer",
+                }}
+              >
+                {s.label.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 /* ============================================================ */
 function TopBar({ user, state, delegated }: { user: string | null; state?: RouteState; delegated?: boolean }) {
