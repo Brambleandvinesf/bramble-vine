@@ -354,7 +354,7 @@ function ProjectsPage() {
       markSync(p.projectId, true);
       void enqueue(p.projectId, async () => {
         try {
-          await firePost({ action: "deleteProject", projectId: p.projectId });
+          await firePost({ action: "deleteProject", projectId: p.projectId, client: p.client });
         } catch (err) {
           setProjects((prev) => [...prev, snapshot]);
           setTools((prev) => [...prev, ...snapshotTools]);
