@@ -579,33 +579,7 @@ function FieldBody({
             <ClientHeader event={currentEvent} clientMatch={clientMatch} state={state} />
           )}
 
-          {state === "enroute" && (
-            <StateEnRoute
-              event={currentEvent}
-              clientMatch={clientMatch}
-              isLead={isLead}
-              projects={data.projects ?? []}
-              busy={busy}
-              onHere={() => {
-                if (!currentEvent || !clientMatch) return;
-                void send({
-                  action: "setRoute",
-                  state: "arrived",
-                  client: clientMatch,
-                  eventId: currentEvent.id,
-                  stopIndex,
-                });
-              }}
-              onBackToCrew={handleBackToCrew}
-              backNotice={backNotice}
-              onSkip={handleSkip}
-              skipDisabled={busy}
-              isPreview={isPreview}
-            />
-
-          )}
-
-          {state === "arrived" && (
+          {(state === "enroute" || state === "arrived") && (
             <StateArrived
               roster={roster}
               clientMatch={clientMatch}
@@ -613,11 +587,28 @@ function FieldBody({
               delegated={!!route.delegated}
               busy={busy}
               clockSlot={personalClockSlot}
+              onBackToCrew={handleBackToCrew}
+              backNotice={backNotice}
+              isPreview={isPreview}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
-              onStart={() => void send({ action: "setRoute", state: "visit" })}
+              onStart={async () => {
+                if (state === "enroute") {
+                  if (!currentEvent || !clientMatch) return;
+                  const r = await send({
+                    action: "setRoute",
+                    state: "arrived",
+                    client: clientMatch,
+                    eventId: currentEvent.id,
+                    stopIndex,
+                  });
+                  if (!r.ok) return;
+                }
+                void send({ action: "setRoute", state: "visit" });
+              }}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
+
 
           {state === "visit" && (
             <StateVisit
@@ -1432,6 +1423,9 @@ function StateArrived({
   delegated,
   busy,
   clockSlot,
+  onBackToCrew,
+  backNotice,
+  isPreview,
   onDelegate,
   onStart,
   onNoShow,
@@ -1442,6 +1436,9 @@ function StateArrived({
   delegated: boolean;
   busy: boolean;
   clockSlot?: React.ReactNode;
+  onBackToCrew?: () => void;
+  backNotice?: string | null;
+  isPreview?: boolean;
   onDelegate: (v: boolean) => void;
   onStart: () => void;
   onNoShow: () => void;
@@ -1449,6 +1446,32 @@ function StateArrived({
   const anyIn = roster.some((m) => !!m.in);
   return (
     <div style={{ padding: "10px 14px" }}>
+      {onBackToCrew && (
+        <div style={{ marginBottom: 6 }}>
+          <button
+            onClick={onBackToCrew}
+            disabled={!!isPreview}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: DIM_GREEN,
+              fontFamily: "inherit",
+              fontSize: 12,
+              letterSpacing: 1,
+              padding: "4px 0",
+              cursor: isPreview ? "default" : "pointer",
+              opacity: isPreview ? 0.5 : 1,
+            }}
+          >
+            ← CREW
+          </button>
+          {backNotice && (
+            <div style={{ color: RED, fontSize: 12, marginTop: 4, opacity: 0.85 }}>
+              {backNotice}
+            </div>
+          )}
+        </div>
+      )}
       {!clientMatch && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
       {clockSlot}
 
