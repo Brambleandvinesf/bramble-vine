@@ -1348,7 +1348,7 @@ function StateArrived({
   isLead,
   delegated,
   busy,
-  onClockIn,
+  clockSlot,
   onDelegate,
   onStart,
   onNoShow,
@@ -1358,7 +1358,7 @@ function StateArrived({
   isLead: boolean;
   delegated: boolean;
   busy: boolean;
-  onClockIn: (m: RosterMember) => void;
+  clockSlot?: React.ReactNode;
   onDelegate: (v: boolean) => void;
   onStart: () => void;
   onNoShow: () => void;
@@ -1366,29 +1366,10 @@ function StateArrived({
   const anyIn = roster.some((m) => !!m.in);
   return (
     <div style={{ padding: "10px 14px" }}>
-      <div style={SECTION_HEAD}>CLOCK IN — TAP YOUR NAME</div>
       {!clientMatch && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-        {roster.map((m) => {
-          const on = !!m.in;
-          return (
-            <button
-              key={m.id}
-              onClick={() => !on && onClockIn(m)}
-              disabled={on || busy || !clientMatch}
-              style={{
-                ...BIG_BTN,
-                background: on ? LIME : "transparent",
-                color: on ? BG : LIME,
-                borderColor: on ? LIME : LIME_DIM,
-                opacity: !clientMatch ? 0.45 : 1,
-              }}
-            >
-              {on ? "✓ " : ""}{m.name.toUpperCase()}
-            </button>
-          );
-        })}
-      </div>
+      {clockSlot}
+
+
 
       {isLead && (
         <>
