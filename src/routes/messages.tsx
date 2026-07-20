@@ -2037,7 +2037,7 @@ function Viewer({
         background: T.bg,
         display: "flex",
         flexDirection: "column",
-        zIndex: 90,
+        zIndex: 300,
         fontFamily: fontStack,
         color: T.lime,
       }}
@@ -2057,7 +2057,18 @@ function Viewer({
             {quo ? "Text conversation" : it.subject || "(no subject)"}
           </div>
         </div>
-        <button style={ghostBtn} onClick={onClose}>Close</button>
+        <button
+          style={{
+            ...ghostBtn,
+            minWidth: 80,
+            padding: "10px 14px",
+            fontSize: "1rem",
+            letterSpacing: 1,
+          }}
+          onClick={onClose}
+        >
+          ✕ CLOSE
+        </button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
         {!body || body.kind === "loading" ? (
