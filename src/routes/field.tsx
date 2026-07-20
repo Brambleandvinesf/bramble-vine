@@ -1402,6 +1402,7 @@ function NewProjectForm({
   onChange: (v: NewProject) => void;
   onRemove: () => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   return (
     <div style={{ ...PANEL_BOX, marginTop: 8, background: PANEL_2 }}>
       <input
@@ -1437,55 +1438,62 @@ function NewProjectForm({
         style={{ ...INPUT, minHeight: 60, resize: "vertical" }}
       />
       {(value.items ?? []).map((it, i) => (
-        <div key={i} style={{ display: "flex", gap: 6, marginTop: 6 }}>
-          <input
-            placeholder="Item"
-            value={it.name}
-            onChange={(e) => {
-              const items = [...(value.items ?? [])];
-              items[i] = { ...items[i], name: e.target.value };
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            gap: 6,
+            marginTop: 6,
+            padding: "8px 10px",
+            border: `1px solid ${LIME_DIM}`,
+            borderRadius: 6,
+            background: BG,
+            alignItems: "flex-start",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: LIME, fontSize: 12, fontWeight: "bold", wordBreak: "break-word" }}>
+              {it.name}
+            </div>
+            <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+              {[it.qty && `Qty ${it.qty}`, it.size, it.notes].filter(Boolean).join(" · ") || "—"}
+            </div>
+          </div>
+          <button
+            style={{ ...SMALL_BTN, color: RED, borderColor: RED, minWidth: 40 }}
+            onClick={() => {
+              const items = (value.items ?? []).filter((_, idx) => idx !== i);
               onChange({ ...value, items });
             }}
-            style={{ ...INPUT, flex: 2, marginTop: 0 }}
-          />
-          <input
-            placeholder="Qty"
-            value={it.qty ?? ""}
-            onChange={(e) => {
-              const items = [...(value.items ?? [])];
-              items[i] = { ...items[i], qty: e.target.value };
-              onChange({ ...value, items });
-            }}
-            style={{ ...INPUT, flex: 1, marginTop: 0 }}
-          />
-          <input
-            placeholder="Size"
-            value={it.size ?? ""}
-            onChange={(e) => {
-              const items = [...(value.items ?? [])];
-              items[i] = { ...items[i], size: e.target.value };
-              onChange({ ...value, items });
-            }}
-            style={{ ...INPUT, flex: 1, marginTop: 0 }}
-          />
+          >
+            ×
+          </button>
         </div>
       ))}
       <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
         <button
-          onClick={() =>
-            onChange({ ...value, items: [...(value.items ?? []), { name: "", qty: "", size: "", notes: "" }] })
-          }
+          onClick={() => setPickerOpen(true)}
           style={{ ...SMALL_BTN, flex: 1 }}
         >
-          + ITEM
+          + ADD ITEM
         </button>
         <button onClick={onRemove} style={{ ...SMALL_BTN, color: RED, borderColor: RED }}>
           REMOVE
         </button>
       </div>
+      {pickerOpen && (
+        <ItemPicker
+          onCancel={() => setPickerOpen(false)}
+          onAdd={(picked) => {
+            onChange({ ...value, items: [...(value.items ?? []), picked] });
+            setPickerOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
+
 
 function TextList({
   items,
