@@ -87,6 +87,7 @@ type InboxItem = {
   participants?: string[];
   unknowns?: string[];
   ruleLabel?: string;
+  line?: string;
 };
 type InboxResponse = {
   inbox?: InboxItem[];
