@@ -91,6 +91,7 @@ type Edit = {
   notes: string;
   status: "Confirmed" | "SKIP";
   expanded: boolean;
+  notesOpen: boolean;
 };
 
 type NewItem = { name: string; qty: string; size: string; notes: string };
