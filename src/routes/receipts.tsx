@@ -689,32 +689,37 @@ function InvoiceTab({
     [byClient],
   );
 
-  const submit = useCallback(() => {
-    const rows = Array.from(checked);
-    if (!rows.length) return;
-    setConfirmOpen(false);
-    const rowSet = new Set(rows);
-    const snapshot = lines.filter((l) => rowSet.has(l.row)).map((l) => ({ ...l }));
-    setLines((prev) => prev.map((l) => (rowSet.has(l.row) ? { ...l, invoiced: "QUEUED" } : l)));
-    setChecked(new Set());
-    writer.dispatch(`invoices-${Date.now()}`, { action: "addToInvoices", rows }, {
-      rollback: () =>
-        setLines((prev) => {
-          const byRow = new Map(snapshot.map((l) => [l.row, l]));
-          return prev.map((l) => byRow.get(l.row) ?? l);
-        }),
-      onSuccessMsg: (json) => {
-        const n = Number((json.queued as number | undefined) ?? rows.length);
-        let msg = `${n} line${n === 1 ? "" : "s"} queued for invoicing`;
-        const wh = typeof json.webhook === "number" ? json.webhook : Number(json.webhook);
-        if (!(wh >= 200 && wh < 300)) msg += " — scenario kick failed, run it manually in Make";
-        return msg;
-      },
-      onErrorMsg: (err) => `Failed — restored (${err.message})`,
-    });
-  }, [checked, lines, setLines, writer]);
+  const submitReceipt = useCallback(
+    (groupRows: number[]) => {
+      const rows = groupRows.filter((r) => checked.has(r));
+      if (!rows.length) return;
+      const rowSet = new Set(rows);
+      const snapshot = lines.filter((l) => rowSet.has(l.row)).map((l) => ({ ...l }));
+      setLines((prev) => prev.map((l) => (rowSet.has(l.row) ? { ...l, invoiced: "QUEUED" } : l)));
+      setChecked((prev) => {
+        const next = new Set(prev);
+        for (const r of rows) next.delete(r);
+        return next;
+      });
+      writer.dispatch(`invoices-${Date.now()}`, { action: "addToInvoices", rows }, {
+        rollback: () =>
+          setLines((prev) => {
+            const byRow = new Map(snapshot.map((l) => [l.row, l]));
+            return prev.map((l) => byRow.get(l.row) ?? l);
+          }),
+        onSuccessMsg: (json) => {
+          const n = Number((json.queued as number | undefined) ?? rows.length);
+          let msg = `${n} line${n === 1 ? "" : "s"} queued for invoicing`;
+          const wh = typeof json.webhook === "number" ? json.webhook : Number(json.webhook);
+          if (!(wh >= 200 && wh < 300)) msg += " — scenario kick failed, run it manually in Make";
+          return msg;
+        },
+        onErrorMsg: (err) => `Failed — restored (${err.message})`,
+      });
+    },
+    [checked, lines, setLines, writer],
+  );
 
-  const selectedCount = checked.size;
 
   return (
     <>
