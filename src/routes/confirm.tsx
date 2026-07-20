@@ -946,6 +946,37 @@ const INPUT: React.CSSProperties = {
   boxSizing: "border-box",
 };
 const ROW2: React.CSSProperties = { display: "flex", gap: 8 };
+const ACTION_INPUT: React.CSSProperties = {
+  width: "100%",
+  background: "#0a0a0a",
+  color: LIME_BRIGHT,
+  border: `1px solid ${LINE}`,
+  borderRadius: 6,
+  padding: "10px 10px",
+  fontFamily: "inherit",
+  fontSize: 14,
+  fontWeight: "bold",
+  boxSizing: "border-box",
+};
+const ITEMS_ROW: React.CSSProperties = {
+  marginTop: 8,
+  marginLeft: 12,
+  paddingLeft: 8,
+  borderLeft: `1px solid ${LIME_DIM}`,
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 6,
+};
+const ITEM_PILL: React.CSSProperties = {
+  display: "inline-block",
+  fontSize: 11,
+  color: LIME_BRIGHT,
+  background: "#0a0a0a",
+  border: `1px solid ${LIME_BRIGHT}`,
+  borderRadius: 999,
+  padding: "3px 10px",
+  letterSpacing: 0.5,
+};
 const CHIP: React.CSSProperties = {
   display: "inline-block",
   fontSize: 11,
