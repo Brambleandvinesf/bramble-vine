@@ -1609,6 +1609,7 @@ function StateVisit({
   onVisitComplete?: () => void;
   onNoShow: () => void;
 }) {
+  const alreadyTextedDone = hasTexted(clientMatch, "done", stopIndex);
 
   const clientKey = clientMatch ? clientMatch.trim().toLowerCase() : "";
   const clientProjects = clientKey
