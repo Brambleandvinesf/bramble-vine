@@ -466,11 +466,10 @@ function FieldBody({
 
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
+  const [me, setMe] = useState<Me | null>(() => loadMe());
+  const bodyRouter = useRouter();
 
-  /* --- roster picker gate (skipped in preview so all states are reachable) --- */
-  if (roster.length === 0 && !isPreview) {
-    return <RosterPicker employees={employees} onSet={(people) => send({ action: "setRoster", people })} busy={busy} />;
-  }
+  /* --- manage-full-crew fallback (lead only, always reachable via link) --- */
   if (rosterEdit && !isPreview) {
     return (
       <RosterPicker
@@ -482,6 +481,20 @@ function FieldBody({
           const r = await send({ action: "setRoster", people });
           if (r.ok) { setRosterEdit(false); setBackNotice(null); }
         }}
+      />
+    );
+  }
+
+  /* --- who's on this phone (sticky per-phone identity) --- */
+  if (!me && !isPreview) {
+    return (
+      <WhoAmI
+        employees={employees}
+        isLead={isLead}
+        onManageCrew={isLead ? () => setRosterEdit(true) : undefined}
+        send={send}
+        onIdentified={(m) => setMe(m)}
+        onLoading={() => void bodyRouter.navigate({ to: "/loading" })}
       />
     );
   }
