@@ -520,7 +520,9 @@ function StateEnRoute({
 }) {
   if (!event) return <div style={STATE}>No upcoming stop.</div>;
   const address = event.location ?? "";
-  const navHref = "google.navigation:q=" + encodeURIComponent(address);
+  const mapsUrl = address
+    ? "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(address)
+    : "";
   const fallbackHref =
     "https://www.google.com/maps/dir/?api=1&travelmode=driving&dir_action=navigate&destination=" +
     encodeURIComponent(address);
@@ -545,28 +547,40 @@ function StateEnRoute({
         </div>
       </div>
 
+      <button
+        disabled={!address}
+        onClick={() => {
+          if (mapsUrl) window.open(mapsUrl, "_blank", "noopener,noreferrer");
+        }}
+        style={{
+          ...PRIMARY_BTN,
+          marginTop: 12,
+          width: "100%",
+          opacity: address ? 1 : 0.45,
+          color: address ? LIME : DIM_GREEN,
+          borderColor: address ? LIME : LIME_DIM,
+        }}
+      >
+        START NAVIGATION
+      </button>
       {address && (
-        <>
-          <a href={navHref} style={{ ...PRIMARY_BTN, marginTop: 12, display: "flex" }}>
-            START NAVIGATION
-          </a>
-          <a
-            href={fallbackHref}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: "block",
-              textAlign: "center",
-              color: DIM_GREEN,
-              textDecoration: "underline",
-              marginTop: 8,
-              fontSize: 12,
-            }}
-          >
-            open in google maps
-          </a>
-        </>
+        <a
+          href={fallbackHref}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "block",
+            textAlign: "center",
+            color: DIM_GREEN,
+            textDecoration: "underline",
+            marginTop: 8,
+            fontSize: 12,
+          }}
+        >
+          open in google maps
+        </a>
       )}
+
 
       {isLead && (
         <div style={{ marginTop: 16 }}>
