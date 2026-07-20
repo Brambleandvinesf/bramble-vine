@@ -473,7 +473,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       flash("Message NOT sent to " + it.from + "!", true);
       return false;
     },
-    [flash, staged],
+    [flash, staged, email],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
