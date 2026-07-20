@@ -31,7 +31,7 @@ type Group = { id: string; label: string; children: { key: string; label: string
 
 const GROUPS: Group[] = [
   { id: "dashboard", label: "Dashboard", children: [{ key: "dashboard", label: "Dashboard" }] },
-  { id: "confirm", label: "Confirm", children: [{ key: "special_confirm", label: "Special Confirm" }] },
+  { id: "confirm", label: "CONFIRM LOAD", children: [{ key: "special_confirm", label: "Special Confirm" }] },
   { id: "loading", label: "Loading", children: [{ key: "loading", label: "Loading" }] },
   {
     id: "field",
@@ -44,7 +44,7 @@ const GROUPS: Group[] = [
       { key: "route_next", label: "Next Stop" },
     ],
   },
-  { id: "visits", label: "Visits", children: [{ key: "visits", label: "Visits" }] },
+  { id: "visits", label: "CONFIRM VISITS", children: [{ key: "visits", label: "Visits" }] },
   { id: "messages", label: "Messages", children: [{ key: "messages", label: "Messages" }] },
   {
     id: "receipts",
