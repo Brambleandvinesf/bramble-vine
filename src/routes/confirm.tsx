@@ -640,20 +640,7 @@ function ConfirmPage() {
                       opacity: isDeleted ? 0.4 : skip ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                      <SegBtn
-                        active={!skip}
-                        onClick={() => setEdit(key, { status: "Confirmed" })}
-                      >
-                        CONFIRM
-                      </SegBtn>
-                      <SegBtn
-                        active={skip}
-                        danger
-                        onClick={() => setEdit(key, { status: "SKIP" })}
-                      >
-                        SKIP
-                      </SegBtn>
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
                       <div style={{ flex: 1 }} />
                       <TypeSelect
                         value={e.type}
@@ -666,6 +653,7 @@ function ConfirmPage() {
                         }}
                       />
                     </div>
+
 
                     <label style={LABEL}>ACTION</label>
                     <input
