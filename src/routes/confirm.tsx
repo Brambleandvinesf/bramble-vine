@@ -1133,6 +1133,42 @@ function SegBtn({
   );
 }
 
+function BigSegBtn({
+  active,
+  danger,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  danger?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const accent = danger ? RED : LIME_BRIGHT;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: active ? accent : "transparent",
+        color: active ? "#0a0a0a" : accent,
+        border: `2px solid ${accent}`,
+        borderRadius: 8,
+        padding: "0 28px",
+        minHeight: 48,
+        minWidth: 140,
+        fontFamily: "inherit",
+        fontSize: 14,
+        letterSpacing: 3,
+        fontWeight: "bold",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+
 /* ---------- styles ---------- */
 const LIME = "#7cff00";
 const LIME_BRIGHT = "#bfff3c";
