@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
+import { ItemPicker } from "../components/ItemPicker";
 
 export const Route = createFileRoute("/confirm")({
   head: () => ({
@@ -157,6 +158,7 @@ function ConfirmPage() {
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [deletes, setDeletes] = useState<Set<string>>(new Set());
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
+  const [pickerFor, setPickerFor] = useState<{ client: string; key: string } | null>(null);
   const [expandedMore, setExpandedMore] = useState<Set<string>>(new Set());
   const [sendText, setSendText] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -276,30 +278,22 @@ function ConfirmPage() {
     });
   }, []);
 
-  const addNewItem = useCallback((client: string, key: string) => {
-    setNewByClient((prev) => {
-      const list = (prev[client] ?? []).map((n) =>
-        n.key === key
-          ? { ...n, items: [...n.items, { name: "", qty: "", size: "", notes: "" }] }
-          : n,
-      );
-      return { ...prev, [client]: list };
-    });
-  }, []);
-
-  const updateNewItem = useCallback(
-    (client: string, key: string, idx: number, patch: Partial<NewItem>) => {
+  const appendNewItem = useCallback(
+    (client: string, key: string, item: NewItem) => {
       setNewByClient((prev) => {
         const list = (prev[client] ?? []).map((n) =>
-          n.key === key
-            ? { ...n, items: n.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }
-            : n,
+          n.key === key ? { ...n, items: [...n.items, item] } : n,
         );
         return { ...prev, [client]: list };
       });
     },
     [],
   );
+
+
+
+
+
 
   const removeNewItem = useCallback((client: string, key: string, idx: number) => {
     setNewByClient((prev) => {
@@ -695,40 +689,25 @@ function ConfirmPage() {
                     {n.items.map((it, i) => (
                       <div
                         key={i}
-                        style={{ display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" }}
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          alignItems: "flex-start",
+                          marginBottom: 6,
+                          padding: "8px 10px",
+                          border: `1px solid ${LINE}`,
+                          borderRadius: 6,
+                          background: "#0a0a0a",
+                        }}
                       >
-                        <input
-                          value={it.name}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { name: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 2, minWidth: 120 }}
-                          placeholder="Item name"
-                        />
-                        <input
-                          value={it.qty}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { qty: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 1, minWidth: 60 }}
-                          placeholder="Qty"
-                        />
-                        <input
-                          value={it.size}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { size: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 1, minWidth: 60 }}
-                          placeholder="Size"
-                        />
-                        <input
-                          value={it.notes}
-                          onChange={(ev) =>
-                            updateNewItem(client, n.key, i, { notes: ev.target.value })
-                          }
-                          style={{ ...INPUT, flex: 2, minWidth: 120 }}
-                          placeholder="Notes"
-                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: LIME, fontSize: 12, fontWeight: "bold", wordBreak: "break-word" }}>
+                            {it.name}
+                          </div>
+                          <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+                            {[it.qty && `Qty ${it.qty}`, it.size, it.notes].filter(Boolean).join(" · ") || "—"}
+                          </div>
+                        </div>
                         <button
                           style={{
                             ...GHOST_BTN_SM,
@@ -744,10 +723,11 @@ function ConfirmPage() {
                     ))}
                     <button
                       style={{ ...GHOST_BTN_SM, marginTop: 4 }}
-                      onClick={() => addNewItem(client, n.key)}
+                      onClick={() => setPickerFor({ client, key: n.key })}
                     >
-                      + ITEM
+                      + ADD ITEM
                     </button>
+
                   </div>
                   <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
                     <button
@@ -811,6 +791,15 @@ function ConfirmPage() {
           {submitting ? "CONFIRMING…" : "CONFIRM SPECIAL LOADING/PROJECTS"}
         </button>
       </div>
+      {pickerFor && (
+        <ItemPicker
+          onCancel={() => setPickerFor(null)}
+          onAdd={(picked) => {
+            appendNewItem(pickerFor.client, pickerFor.key, picked);
+            setPickerFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
