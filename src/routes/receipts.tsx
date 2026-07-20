@@ -877,9 +877,8 @@ function InvoiceTab({
             <button
               style={{ ...SOLID_BTN, marginLeft: "auto" }}
               onClick={() => setConfirmOpen(true)}
-              disabled={submitting}
             >
-              {submitting ? "QUEUING…" : "ADD TO INVOICES"}
+              ADD TO INVOICES
             </button>
           </div>
         </div>
