@@ -701,7 +701,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     try {
       if (it.source === "quo") {
         const r = await fetch(
-          SCRIPT_URL + "?action=getQuoThread&participants=" + encodeURIComponent((it.participants || []).join(",")),
+          SCRIPT_URL + "?action=getQuoThread&participants=" + encodeURIComponent((it.participants || []).join(",")) +
+            (it.line ? "&line=" + encodeURIComponent(it.line) : ""),
         ).then((x) => x.json());
         if (r.error) throw new Error(r.error);
         setViewerBody({ kind: "quo", messages: r.messages || [], from: it.from });
