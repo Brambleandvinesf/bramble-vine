@@ -453,6 +453,7 @@ function FieldBody({
               projects={data.projects ?? []}
               tools={data.tools ?? []}
               busy={busy}
+              isPreview={isPreview}
               onClockOut={(m) => {
                 if (!clientMatch) return;
                 void send({ action: "qbClock", userId: m.id, dir: "out", client: clientMatch });
@@ -461,6 +462,7 @@ function FieldBody({
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
+
 
           {state === "debrief" && (
             <>
