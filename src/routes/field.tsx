@@ -672,6 +672,7 @@ function FieldBody({
             <StateVisit
               event={currentEvent}
               clientMatch={clientMatch}
+              stopIndex={stopIndex}
               arrivedAt={route.arrivedAt}
               now={now}
               roster={roster}
@@ -683,6 +684,7 @@ function FieldBody({
               notes={stopNotes}
               clockSlot={personalClockSlot}
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
+              onVisitComplete={handleVisitComplete}
               onNoShow={() => void confirmNoShow(send, setBanner)}
             />
           )}
