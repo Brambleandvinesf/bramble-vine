@@ -184,6 +184,22 @@ function AppFrame() {
     };
   }, []);
 
+  // Register the minimal service worker so Chrome/Android/iOS treat this as
+  // an installable PWA. Network-first passthrough, no caching.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+    const onLoad = () => {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.warn("SW registration failed", err);
+      });
+    };
+    if (document.readyState === "complete") onLoad();
+    else window.addEventListener("load", onLoad, { once: true });
+    return () => window.removeEventListener("load", onLoad);
+  }, []);
+
+
   return (
     <>
       <NavBar />
