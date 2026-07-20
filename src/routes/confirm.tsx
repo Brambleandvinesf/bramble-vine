@@ -158,6 +158,7 @@ function ConfirmPage() {
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [deletes, setDeletes] = useState<Set<string>>(new Set());
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
+  const [pickerFor, setPickerFor] = useState<{ client: string; key: string } | null>(null);
   const [expandedMore, setExpandedMore] = useState<Set<string>>(new Set());
   const [sendText, setSendText] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
