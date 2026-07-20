@@ -1061,6 +1061,7 @@ function StateDebrief({
   tools,
   busy,
   onFinish,
+  previewStep,
 }: {
   clientMatch: string | null;
   event?: EventItem;
@@ -1075,6 +1076,7 @@ function StateDebrief({
     itemsUsed: ItemUsed[];
     officeTasks: string[];
   }) => Promise<void>;
+  previewStep?: DebriefStepKey | null;
 }) {
   const clocked = roster.filter((m) => m.in);
   const [billing, setBilling] = useState<DebriefBilling[]>(
