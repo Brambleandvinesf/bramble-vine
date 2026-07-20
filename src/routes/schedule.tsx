@@ -305,11 +305,20 @@ function SchedulePage() {
           letterSpacing: 2,
           margin: "4px 2px 16px",
           fontWeight: "bold",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
         }}
       >
         {view === "day"
           ? fmtLongDate(anchor)
           : `WEEK OF ${fmtLongDate(mondayOfKey(anchor))}`}
+        <RefreshDot refreshing={refreshing} offline={offline} />
+        {offline && (
+          <span style={{ color: "#8f8f8f", fontSize: 10, letterSpacing: 1 }}>
+            OFFLINE — LAST DATA
+          </span>
+        )}
       </h1>
 
       {loadErr ? (
