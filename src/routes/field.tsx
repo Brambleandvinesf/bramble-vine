@@ -1326,16 +1326,99 @@ function StateEnRoute({
 }
 
 
-function ProjectCard({ p }: { p: ProjectRow }) {
+const BRIGHT_LIME = "#bfff3c";
+
+function ItemPill({
+  t,
+  disabled,
+  onClick,
+}: {
+  t: NormTool;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  const label = [t.qty, t.item, t.size].filter(Boolean).join(" ");
+  const clickable = !disabled && !!onClick && !!t.materialId;
+  return (
+    <button
+      type="button"
+      onClick={clickable ? onClick : undefined}
+      disabled={!clickable}
+      title={t.notes || undefined}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        maxWidth: "100%",
+        background: t.loaded ? BRIGHT_LIME : BG,
+        color: t.loaded ? BG : BRIGHT_LIME,
+        border: `1px solid ${BRIGHT_LIME}`,
+        borderRadius: 999,
+        padding: "4px 10px",
+        fontFamily: "inherit",
+        fontSize: 12,
+        lineHeight: 1.3,
+        cursor: clickable ? "pointer" : "default",
+        textAlign: "left",
+        textDecoration: t.loaded ? "line-through" : "none",
+        opacity: !t.materialId ? 0.55 : 1,
+      }}
+    >
+      <span style={{ whiteSpace: "normal", wordBreak: "break-word" }}>{label}</span>
+    </button>
+  );
+}
+
+function ProjectCard({
+  p,
+  items,
+  busy,
+  onToggleTool,
+}: {
+  p: ProjectRow;
+  items: NormTool[];
+  busy?: boolean;
+  onToggleTool?: (t: NormTool) => void;
+}) {
   const action = s(p["Project Action"]) || s(p["Action"]) || "—";
   const type = s(p["Type"]);
   const notes = s(p["Notes"]);
   return (
     <div style={{ ...PANEL_BOX, marginTop: 8 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-        <div style={{ color: TEXT, fontSize: 14, flex: 1 }}>{action}</div>
+        <div
+          style={{
+            color: BRIGHT_LIME,
+            fontSize: 14,
+            fontWeight: "bold",
+            flex: 1,
+            lineHeight: 1.35,
+          }}
+        >
+          {action}
+        </div>
         {type && <span style={PILL_DIM}>{type.toUpperCase()}</span>}
       </div>
+      {items.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            marginTop: 8,
+            paddingLeft: 12,
+          }}
+        >
+          {items.map((t, i) => (
+            <ItemPill
+              key={`${t.row}-${i}`}
+              t={t}
+              disabled={busy}
+              onClick={onToggleTool ? () => onToggleTool(t) : undefined}
+            />
+          ))}
+        </div>
+      )}
       {notes && <div style={{ color: DIM_GREEN, fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>{notes}</div>}
     </div>
   );
@@ -1505,76 +1588,62 @@ function StateVisit({
       {clientProjects.length === 0 ? (
         <div style={{ color: MUTED, fontSize: 12, padding: "8px 4px" }}>No projects listed.</div>
       ) : (
-        clientProjects.map((p, i) => <ProjectCard key={i} p={p} />)
+        clientProjects.map((p, i) => {
+          const pid = s(p["Project ID"]);
+          const items = normTools.filter((t) => t.project === pid && pid !== "");
+          return (
+            <ProjectCard
+              key={i}
+              p={p}
+              items={items}
+              busy={busy}
+              onToggleTool={onToggleTool}
+            />
+          );
+        })
       )}
 
-      <div style={{ ...SECTION_HEAD, marginTop: 16 }}>T&amp;M CHECKLIST</div>
-      {normTools.length === 0 ? (
-        <div style={{ color: MUTED, fontSize: 12, padding: "8px 4px" }}>No tools for this client's projects.</div>
-      ) : (
-        <div
-          style={{
-            background: PANEL,
-            border: `1px solid ${LINE}`,
-            borderRadius: 10,
-            overflow: "hidden",
-          }}
-        >
-          {normTools.map((t, i) => {
-            const noId = !t.materialId;
-            const meta = [t.qty, t.size].filter(Boolean).join(" · ");
-            return (
+      {(() => {
+        const unlinked = normTools.filter(
+          (t) => !t.project || !projectIds.has(t.project),
+        );
+        if (unlinked.length === 0) return null;
+        return (
+          <>
+            <div style={{ ...SECTION_HEAD, marginTop: 16, color: DIM_GREEN }}>
+              UNLINKED ITEMS
+            </div>
+            <div
+              style={{
+                ...PANEL_BOX,
+                marginTop: 8,
+                opacity: 0.7,
+              }}
+            >
               <div
-                key={`${t.row}-${i}`}
-                onClick={() => !noId && !busy && onToggleTool(t)}
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  minHeight: 56,
-                  padding: "12px 14px",
-                  borderBottom: i === normTools.length - 1 ? "none" : `1px solid ${LINE}`,
-                  cursor: noId ? "default" : "pointer",
-                  opacity: noId ? 0.6 : 1,
-                  userSelect: "none",
+                  flexWrap: "wrap",
+                  gap: 6,
                 }}
               >
-                <div
-                  style={{
-                    flex: "0 0 32px",
-                    height: 32,
-                    border: `2px solid ${t.loaded ? LIME : LIME_DIM}`,
-                    background: t.loaded ? LIME : "transparent",
-                    borderRadius: 6,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: BG,
-                    fontSize: 22,
-                  }}
-                >
-                  {t.loaded ? "✓" : ""}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      color: t.loaded ? MUTED : TEXT,
-                      textDecoration: t.loaded ? "line-through" : "none",
-                    }}
-                  >
-                    {t.item}
-                  </div>
-                  {meta && <div style={{ fontSize: 12, color: MUTED, marginTop: 3 }}>{meta}</div>}
-                  {t.notes && (
-                    <div style={{ fontSize: 12, color: "rgba(124,255,0,.55)", marginTop: 3 }}>{t.notes}</div>
-                  )}
-                </div>
+                {unlinked.map((t, i) => (
+                  <ItemPill
+                    key={`u-${t.row}-${i}`}
+                    t={t}
+                    disabled={busy}
+                    onClick={() => onToggleTool(t)}
+                  />
+                ))}
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div style={{ color: MUTED, fontSize: 11, marginTop: 8 }}>
+                Item's Project ID doesn't match any project on this visit.
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
 
       {isLead && (
         <button onClick={onNoShow} style={{ ...DANGER_BTN, marginTop: 14 }} disabled={busy}>
