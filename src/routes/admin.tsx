@@ -333,69 +333,120 @@ function AdminPage() {
                     <div style={{ borderTop: "1px solid #2a2a2a" }}>
                       {g.children.map((c) => {
                         const row = perms[c.key];
+                        const openRow = (key: string, step?: string) => {
+                          const target = OPEN_TARGETS[key];
+                          if (!target) return;
+                          if (target === "/field") {
+                            const preview = FIELD_PREVIEW[key];
+                            void navigate({
+                              to: "/field",
+                              search: preview ? { preview, ...(step ? { step } : {}) } : {},
+                            });
+                          } else {
+                            void navigate({ to: target as "/" });
+                          }
+                        };
                         return (
-                          <div
-                            key={c.key}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              flexWrap: "wrap",
-                              gap: 10,
-                              padding: "10px 14px 10px 38px",
-                              borderTop: "1px solid #1a1a1a",
-                            }}
-                          >
+                          <div key={c.key}>
                             <div
                               style={{
-                                flex: "1 1 180px",
-                                color: "#e8e8e8",
-                                fontSize: 12,
+                                display: "flex",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: 10,
+                                padding: "10px 14px 10px 38px",
+                                borderTop: "1px solid #1a1a1a",
                               }}
                             >
-                              {c.label}
+                              <div style={{ flex: "1 1 180px", color: "#e8e8e8", fontSize: 12 }}>
+                                {c.label}
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                {ROLES.map((r) => (
+                                  <RoleCell key={r.key} role={r.label} on={!!(row && row[r.key])} />
+                                ))}
+                              </div>
+                              {OPEN_TARGETS[c.key] && c.key !== "admin" ? (
+                                <button
+                                  type="button"
+                                  aria-label={`Open ${c.label}`}
+                                  onClick={() => openRow(c.key)}
+                                  style={{
+                                    marginLeft: "auto",
+                                    background: "transparent",
+                                    border: "1px solid #2a2a2a",
+                                    color: "#7cff00",
+                                    borderRadius: 4,
+                                    width: 32,
+                                    height: 32,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                    fontSize: 14,
+                                    lineHeight: 1,
+                                  }}
+                                >
+                                  ›
+                                </button>
+                              ) : null}
                             </div>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                              {ROLES.map((r) => (
-                                <RoleCell
-                                  key={r.key}
-                                  role={r.label}
-                                  on={!!(row && row[r.key])}
-                                />
-                              ))}
-                            </div>
-                            {OPEN_TARGETS[c.key] ? (
-                              <button
-                                type="button"
-                                aria-label={`Open ${c.label}`}
-                                onClick={() =>
-                                  void navigate({ to: OPEN_TARGETS[c.key] as "/" })
-                                }
-                                style={{
-                                  marginLeft: "auto",
-                                  background: "transparent",
-                                  border: "1px solid #2a2a2a",
-                                  color: "#7cff00",
-                                  borderRadius: 4,
-                                  width: 32,
-                                  height: 32,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  cursor: "pointer",
-                                  fontFamily: "inherit",
-                                  fontSize: 14,
-                                  lineHeight: 1,
-                                }}
-                              >
-                                ›
-                              </button>
-                            ) : null}
+                            {c.sub?.map((sc) => {
+                              const srow = perms[sc.key];
+                              return (
+                                <div
+                                  key={`${c.key}:${sc.step ?? sc.label}`}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    flexWrap: "wrap",
+                                    gap: 10,
+                                    padding: "8px 14px 8px 62px",
+                                    borderTop: "1px solid #1a1a1a",
+                                    opacity: sc.dimmed ? 0.6 : 1,
+                                  }}
+                                >
+                                  <div style={{ flex: "1 1 180px", color: "#bdbdbd", fontSize: 12 }}>
+                                    {sc.label}
+                                  </div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                    {ROLES.map((r) => (
+                                      <RoleCell key={r.key} role={r.label} on={!!(srow && srow[r.key])} />
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    aria-label={`Open ${sc.label}`}
+                                    onClick={() => openRow(sc.key, sc.step)}
+                                    style={{
+                                      marginLeft: "auto",
+                                      background: "transparent",
+                                      border: "1px solid #2a2a2a",
+                                      color: "#7cff00",
+                                      borderRadius: 4,
+                                      width: 32,
+                                      height: 32,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      cursor: "pointer",
+                                      fontFamily: "inherit",
+                                      fontSize: 14,
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    ›
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
-
                         );
                       })}
                     </div>
                   ) : null}
+
                 </div>
               );
             })}
