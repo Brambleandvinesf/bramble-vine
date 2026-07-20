@@ -459,7 +459,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       );
       const res = await postAction(
         it.source === "quo"
-          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId }
+          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, ...(it.line ? { from: it.line } : {}) }
           : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments },
       );
       if (res && res.ok && res.sent) {
