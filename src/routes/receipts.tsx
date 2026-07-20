@@ -513,7 +513,9 @@ function DesignateTab({
                   receiptId={receiptId}
                   onSaved={onSaved}
                   onError={onError}
-                  refetch={refetch}
+                  writer={writer}
+                  setLines={setLines}
+                  setReceipts={setReceipts}
                 />
               </div>
 
