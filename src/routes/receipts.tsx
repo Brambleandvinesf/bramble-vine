@@ -150,10 +150,25 @@ async function downscaleToBase64(
   return { data: base64, mime: "image/jpeg", name: file.name.replace(/\.[^.]+$/, "") + ".jpg" };
 }
 
+type Writer = {
+  syncing: Record<string, boolean>;
+  dispatch: (
+    key: string,
+    payload: Record<string, unknown>,
+    opts: {
+      rollback: () => void;
+      onSuccessMsg?: string | ((json: Record<string, unknown>) => string);
+      onErrorMsg?: string | ((err: Error) => string);
+    },
+  ) => void;
+};
+
 type WriteHandlers = {
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 };
 
 
@@ -180,7 +195,44 @@ function ReceiptsPage() {
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<Toast>(null);
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const fetchedRef = useRef(false);
+
+  const showToast = useCallback((msg: string, err: boolean) => {
+    setToast({ msg, err });
+  }, []);
+
+  // Per-key serial write queue.
+  const queueRef = useRef<Record<string, Promise<unknown>>>({});
+  const dispatch = useCallback<Writer["dispatch"]>((key, payload, opts) => {
+    setSyncing((prev) => ({ ...prev, [key]: true }));
+    const prevP = queueRef.current[key] ?? Promise.resolve();
+    const next = prevP.catch(() => {}).then(async () => {
+      try {
+        const json = await postAction<Record<string, unknown>>(payload);
+        if (opts.onSuccessMsg) {
+          const msg = typeof opts.onSuccessMsg === "function" ? opts.onSuccessMsg(json) : opts.onSuccessMsg;
+          if (msg) showToast(msg, false);
+        }
+      } catch (err) {
+        opts.rollback();
+        const errObj = err instanceof Error ? err : new Error(String(err));
+        const msg = opts.onErrorMsg
+          ? (typeof opts.onErrorMsg === "function" ? opts.onErrorMsg(errObj) : opts.onErrorMsg)
+          : `Couldn't sync — restored (${errObj.message})`;
+        showToast(msg, true);
+      } finally {
+        setSyncing((prev) => {
+          const n = { ...prev };
+          delete n[key];
+          return n;
+        });
+      }
+    });
+    queueRef.current[key] = next;
+  }, [showToast]);
+
+  const writer: Writer = useMemo(() => ({ syncing, dispatch }), [syncing, dispatch]);
 
   const load = useCallback(async () => {
     const res = await fetch(`${SCRIPT_URL}?action=getReceipts`);
@@ -281,12 +333,11 @@ function ReceiptsPage() {
           lines={lines}
           receiptById={receiptById}
           designations={designations}
-          onSaved={(msg) => {
-            setToast({ msg, err: false });
-            void refetch();
-          }}
+          onSaved={(msg) => setToast({ msg, err: false })}
           onError={(msg) => setToast({ msg, err: true })}
-          refetch={() => void refetch()}
+          writer={writer}
+          setLines={setLines}
+          setReceipts={setReceipts}
         />
       )}
 
@@ -294,12 +345,11 @@ function ReceiptsPage() {
         <InvoiceTab
           lines={lines}
           receiptById={receiptById}
-          onSaved={(msg) => {
-            setToast({ msg, err: false });
-            void refetch();
-          }}
+          onSaved={(msg) => setToast({ msg, err: false })}
           onError={(msg) => setToast({ msg, err: true })}
-          refetch={() => void refetch()}
+          writer={writer}
+          setLines={setLines}
+          setReceipts={setReceipts}
         />
       )}
 
@@ -321,19 +371,22 @@ function DesignateTab({
   designations,
   onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
+  setReceipts,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   designations: string[];
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 }) {
 
   const [picks, setPicks] = useState<Record<number, string>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
   const initedRef = useRef(false);
 
   const pending = useMemo(
@@ -379,36 +432,36 @@ function DesignateTab({
 
   const selectedCount = Object.values(picks).filter(Boolean).length;
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(() => {
     const items = Object.entries(picks)
       .filter(([, d]) => d)
       .map(([row, d]) => ({ row: Number(row), designation: d }));
     if (!items.length) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "designate", items, notify: true }),
-      });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        designated?: number;
-        notified?: boolean;
-      };
-      if (!json.ok) throw new Error(json.error || "not ok");
-      const n = Number(json.designated ?? items.length);
-      onSaved(
-        `${n} line${n === 1 ? "" : "s"} designated${json.notified ? " — office notified" : ""}`,
-      );
-      setPicks({});
-    } catch (e) {
-      onError(e instanceof Error ? `Failed — ${e.message}` : "Failed to save designations");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [picks, onSaved, onError]);
+    const rowsMap = new Map(items.map((i) => [i.row, i.designation]));
+    // Snapshot only affected lines for rollback.
+    const snapshot = lines.filter((l) => rowsMap.has(l.row)).map((l) => ({ ...l }));
+    setLines((prev) =>
+      prev.map((l) => (rowsMap.has(l.row) ? { ...l, finalDesignation: rowsMap.get(l.row)! } : l)),
+    );
+    setPicks({});
+    writer.dispatch(
+      `designate-${Date.now()}`,
+      { action: "designate", items, notify: true },
+      {
+        rollback: () =>
+          setLines((prev) => {
+            const byRow = new Map(snapshot.map((l) => [l.row, l]));
+            return prev.map((l) => byRow.get(l.row) ?? l);
+          }),
+        onSuccessMsg: (json) => {
+          const n = Number((json.designated as number | undefined) ?? items.length);
+          return `${n} line${n === 1 ? "" : "s"} designated${json.notified ? " — office notified" : ""}`;
+        },
+        onErrorMsg: (err) =>
+          `Couldn't save designations — restored (${err.message})`,
+      },
+    );
+  }, [picks, lines, setLines, writer]);
 
   if (!groups.length) {
     return <div style={STATE}>No lines waiting for designation.</div>;
@@ -460,7 +513,9 @@ function DesignateTab({
                   receiptId={receiptId}
                   onSaved={onSaved}
                   onError={onError}
-                  refetch={refetch}
+                  writer={writer}
+                  setLines={setLines}
+                  setReceipts={setReceipts}
                 />
               </div>
 
@@ -494,7 +549,8 @@ function DesignateTab({
                         line={l}
                         onSaved={onSaved}
                         onError={onError}
-                        refetch={refetch}
+                        writer={writer}
+                        setLines={setLines}
                       />
                     </div>
                   ))}
@@ -523,9 +579,8 @@ function DesignateTab({
             <button
               style={{ ...SOLID_BTN, marginLeft: "auto" }}
               onClick={submit}
-              disabled={submitting}
             >
-              {submitting ? "SAVING…" : "SAVE DESIGNATIONS"}
+              SAVE DESIGNATIONS
             </button>
           </div>
         </div>
@@ -541,19 +596,22 @@ function InvoiceTab({
   receiptById,
   onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
+  setReceipts,
 }: {
   lines: Line[];
   receiptById: Map<string, Receipt>;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 }) {
 
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [queuedOpen, setQueuedOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const ready = useMemo(
@@ -630,37 +688,30 @@ function InvoiceTab({
     [byClient],
   );
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(() => {
     const rows = Array.from(checked);
     if (!rows.length) return;
-    setSubmitting(true);
     setConfirmOpen(false);
-    try {
-      const res = await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "addToInvoices", rows }),
-      });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        queued?: number;
-        sweptStale?: number;
-        webhook?: number | string;
-      };
-      if (!json.ok) throw new Error(json.error || "not ok");
-      const n = Number(json.queued ?? rows.length);
-      let msg = `${n} line${n === 1 ? "" : "s"} queued for invoicing`;
-      const wh = typeof json.webhook === "number" ? json.webhook : Number(json.webhook);
-      if (!(wh >= 200 && wh < 300)) msg += " — scenario kick failed, run it manually in Make";
-      onSaved(msg);
-      setChecked(new Set());
-    } catch (e) {
-      onError(e instanceof Error ? `Failed — ${e.message}` : "Failed to queue invoices");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [checked, onSaved, onError]);
+    const rowSet = new Set(rows);
+    const snapshot = lines.filter((l) => rowSet.has(l.row)).map((l) => ({ ...l }));
+    setLines((prev) => prev.map((l) => (rowSet.has(l.row) ? { ...l, invoiced: "QUEUED" } : l)));
+    setChecked(new Set());
+    writer.dispatch(`invoices-${Date.now()}`, { action: "addToInvoices", rows }, {
+      rollback: () =>
+        setLines((prev) => {
+          const byRow = new Map(snapshot.map((l) => [l.row, l]));
+          return prev.map((l) => byRow.get(l.row) ?? l);
+        }),
+      onSuccessMsg: (json) => {
+        const n = Number((json.queued as number | undefined) ?? rows.length);
+        let msg = `${n} line${n === 1 ? "" : "s"} queued for invoicing`;
+        const wh = typeof json.webhook === "number" ? json.webhook : Number(json.webhook);
+        if (!(wh >= 200 && wh < 300)) msg += " — scenario kick failed, run it manually in Make";
+        return msg;
+      },
+      onErrorMsg: (err) => `Failed — restored (${err.message})`,
+    });
+  }, [checked, lines, setLines, writer]);
 
   const selectedCount = checked.size;
 
@@ -741,7 +792,9 @@ function InvoiceTab({
                             receiptId={receiptId}
                             onSaved={onSaved}
                             onError={onError}
-                            refetch={refetch}
+                            writer={writer}
+                            setLines={setLines}
+                            setReceipts={setReceipts}
                           />
                         </div>
                         <div style={{ display: "grid", gap: 6 }}>
@@ -762,7 +815,8 @@ function InvoiceTab({
                                 line={l}
                                 onSaved={onSaved}
                                 onError={onError}
-                                refetch={refetch}
+                                writer={writer}
+                                setLines={setLines}
                               />
                             </div>
                           ))}
@@ -823,9 +877,8 @@ function InvoiceTab({
             <button
               style={{ ...SOLID_BTN, marginLeft: "auto" }}
               onClick={() => setConfirmOpen(true)}
-              disabled={submitting}
             >
-              {submitting ? "QUEUING…" : "ADD TO INVOICES"}
+              ADD TO INVOICES
             </button>
           </div>
         </div>
@@ -844,7 +897,7 @@ function InvoiceTab({
               <button style={GHOST_BTN_SM} onClick={() => setConfirmOpen(false)}>
                 CANCEL
               </button>
-              <button style={SOLID_BTN_SM} onClick={submit} disabled={submitting}>
+              <button style={SOLID_BTN_SM} onClick={submit}>
                 QUEUE
               </button>
             </div>
@@ -1112,13 +1165,17 @@ function ReceiptMenu({
   receiptId,
   onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
+  setReceipts,
 }: {
   receipt?: Receipt;
   receiptId: string;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  setReceipts: React.Dispatch<React.SetStateAction<Receipt[]>>;
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<null | "edit" | "delete">(null);
@@ -1141,7 +1198,13 @@ function ReceiptMenu({
     setUploading(true);
     try {
       const { data, mime, name } = await downscaleToBase64(file);
-      await postAction({ action: "attachPhoto", receiptId, data, mime, name });
+      const json = await postAction<{ photo?: string; url?: string }>({
+        action: "attachPhoto", receiptId, data, mime, name,
+      });
+      const url = String(json.photo ?? json.url ?? "");
+      if (url && receipt) {
+        setReceipts((prev) => prev.map((r) => (r.row === receipt.row ? { ...r, photo: url } : r)));
+      }
       onSaved("Photo attached");
       closeAll();
     } catch (err) {
@@ -1150,6 +1213,63 @@ function ReceiptMenu({
       setUploading(false);
     }
   };
+
+  const applyEdit = (patch: Partial<Pick<Receipt, "vendor" | "date" | "total">> & { notes?: string }) => {
+    if (!receipt) return onError("Missing receipt row");
+    const payload: Record<string, unknown> = { action: "editReceipt", row: receipt.row };
+    if (patch.vendor !== undefined && patch.vendor !== receipt.vendor) payload.vendor = patch.vendor;
+    if (patch.date !== undefined && patch.date !== receipt.date) payload.date = patch.date;
+    if (patch.total !== undefined && patch.total !== receipt.total) payload.total = patch.total;
+    if (patch.notes) payload.notes = patch.notes;
+    if (Object.keys(payload).length <= 2) { closeAll(); return; }
+    const snapshot = { ...receipt };
+    setReceipts((prev) => prev.map((r) => (r.row === receipt.row ? {
+      ...r,
+      vendor: (payload.vendor as string) ?? r.vendor,
+      date: (payload.date as string) ?? r.date,
+      total: (payload.total as string) ?? r.total,
+    } : r)));
+    closeAll();
+    writer.dispatch(`receipt-${receipt.row}`, payload, {
+      rollback: () => setReceipts((prev) => prev.map((r) => (r.row === snapshot.row ? snapshot : r))),
+      onSuccessMsg: "Receipt updated",
+      onErrorMsg: (err) => `Update failed — restored (${err.message})`,
+    });
+  };
+
+  const doDelete = () => {
+    if (!receipt) {
+      // fallback: delete by id, no local state to restore precisely
+      writer.dispatch(`receipt-${receiptId}`, { action: "deleteReceipt", receiptId }, {
+        rollback: () => {},
+        onSuccessMsg: "Receipt deleted",
+      });
+      closeAll();
+      return;
+    }
+    const receiptSnap = { ...receipt };
+    const linesSnap: Line[] = [];
+    setLines((prev) => {
+      const keep: Line[] = [];
+      for (const l of prev) {
+        if (l.receiptId === receiptId) linesSnap.push(l);
+        else keep.push(l);
+      }
+      return keep;
+    });
+    setReceipts((prev) => prev.filter((r) => r.row !== receipt.row));
+    closeAll();
+    writer.dispatch(`receipt-${receipt.row}`, { action: "deleteReceipt", receiptId }, {
+      rollback: () => {
+        setReceipts((prev) => [...prev, receiptSnap]);
+        setLines((prev) => [...prev, ...linesSnap]);
+      },
+      onSuccessMsg: "Receipt deleted",
+      onErrorMsg: (err) => `Delete failed — restored (${err.message})`,
+    });
+  };
+
+  const isSyncing = receipt ? !!writer.syncing[`receipt-${receipt.row}`] : !!writer.syncing[`receipt-${receiptId}`];
 
   return (
     <div style={{ position: "relative" }}>
@@ -1162,7 +1282,7 @@ function ReceiptMenu({
         }}
         disabled={uploading}
       >
-        {uploading ? "…" : "⋯"}
+        {uploading ? "…" : isSyncing ? <span style={{ color: LIME_DIM }}>●</span> : "⋯"}
       </button>
       {open && (
         <>
@@ -1212,8 +1332,7 @@ function ReceiptMenu({
         <ReceiptEditModal
           receipt={receipt}
           onClose={closeAll}
-          onSaved={(msg) => { onSaved(msg); closeAll(); refetch(); }}
-          onError={onError}
+          onSubmit={applyEdit}
         />
       )}
       {mode === "delete" && (
@@ -1223,16 +1342,7 @@ function ReceiptMenu({
           confirmLabel="DELETE"
           danger
           onCancel={closeAll}
-          onConfirm={async () => {
-            try {
-              await postAction({ action: "deleteReceipt", receiptId });
-              onSaved("Receipt deleted");
-              closeAll();
-              refetch();
-            } catch (err) {
-              onError(err instanceof Error ? `Delete failed — ${err.message}` : "Delete failed");
-            }
-          }}
+          onConfirm={() => { doDelete(); }}
         />
       )}
     </div>
@@ -1272,38 +1382,24 @@ function MenuItem({
 function ReceiptEditModal({
   receipt,
   onClose,
-  onSaved,
-  onError,
+  onSubmit,
 }: {
   receipt?: Receipt;
   onClose: () => void;
-  onSaved: (msg: string) => void;
-  onError: (msg: string) => void;
+  onSubmit: (patch: { vendor?: string; date?: string; total?: string; notes?: string }) => void;
 }) {
   const [vendor, setVendor] = useState(receipt?.vendor ?? "");
   const [date, setDate] = useState(receipt?.date ?? "");
   const [total, setTotal] = useState(receipt?.total ?? "");
   const [notes, setNotes] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
-    if (!receipt) return onError("Missing receipt row");
-    const payload: Record<string, unknown> = { action: "editReceipt", row: receipt.row };
-    if (vendor.trim() !== receipt.vendor) payload.vendor = vendor.trim();
-    if (date.trim() !== receipt.date) payload.date = date.trim();
-    if (total.trim() !== receipt.total) payload.total = total.trim();
-    if (notes.trim()) payload.notes = notes.trim();
-    const changed = Object.keys(payload).length > 2;
-    if (!changed) return onClose();
-    setBusy(true);
-    try {
-      await postAction(payload);
-      onSaved("Receipt updated");
-    } catch (err) {
-      onError(err instanceof Error ? `Update failed — ${err.message}` : "Update failed");
-    } finally {
-      setBusy(false);
-    }
+  const submit = () => {
+    onSubmit({
+      vendor: vendor.trim(),
+      date: date.trim(),
+      total: total.trim(),
+      notes: notes.trim() || undefined,
+    });
   };
 
   return (
@@ -1327,10 +1423,8 @@ function ReceiptEditModal({
           </Field>
         </div>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button style={GHOST_BTN_SM} onClick={onClose} disabled={busy}>CANCEL</button>
-          <button style={SOLID_BTN_SM} onClick={submit} disabled={busy}>
-            {busy ? "SAVING…" : "SAVE"}
-          </button>
+          <button style={GHOST_BTN_SM} onClick={onClose}>CANCEL</button>
+          <button style={SOLID_BTN_SM} onClick={submit}>SAVE</button>
         </div>
       </div>
     </div>
@@ -1341,66 +1435,64 @@ function ReceiptEditModal({
 
 function LineActions({
   line,
-  onSaved,
+  onSaved: _onSaved,
   onError,
-  refetch,
+  writer,
+  setLines,
 }: {
   line: Line;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
-  refetch: () => void;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
 }) {
+  void _onSaved;
   const [mode, setMode] = useState<null | "edit" | "delete">(null);
-  const [busy, setBusy] = useState(false);
   const [description, setDescription] = useState(line.description);
   const [qty, setQty] = useState(line.quantity);
   const [unitPrice, setUnitPrice] = useState(line.unitPrice);
   const [notes, setNotes] = useState(line.notes);
 
-  const saveEdit = async () => {
+  const isSyncing = !!writer.syncing[`line-${line.row}`];
+
+  const saveEdit = () => {
     const payload: Record<string, unknown> = { action: "editLine", row: line.row };
-    if (description.trim() !== line.description) payload.description = description.trim();
-    if (qty.trim() !== line.quantity) payload.qty = qty.trim();
-    if (unitPrice.trim() !== line.unitPrice) payload.unitPrice = unitPrice.trim();
-    if (notes.trim() !== line.notes) payload.notes = notes.trim();
-    if (Object.keys(payload).length <= 2) {
-      setMode(null);
-      return;
-    }
-    setBusy(true);
-    try {
-      await postAction(payload);
-      onSaved("Line updated");
-      setMode(null);
-      refetch();
-    } catch (err) {
-      onError(err instanceof Error ? `Update failed — ${err.message}` : "Update failed");
-    } finally {
-      setBusy(false);
-    }
+    const patch: Partial<Line> = {};
+    if (description.trim() !== line.description) { payload.description = description.trim(); patch.description = description.trim(); }
+    if (qty.trim() !== line.quantity) { payload.qty = qty.trim(); patch.quantity = qty.trim(); }
+    if (unitPrice.trim() !== line.unitPrice) { payload.unitPrice = unitPrice.trim(); patch.unitPrice = unitPrice.trim(); }
+    if (notes.trim() !== line.notes) { payload.notes = notes.trim(); patch.notes = notes.trim(); }
+    if (Object.keys(payload).length <= 2) { setMode(null); return; }
+    const snapshot = { ...line };
+    setLines((prev) => prev.map((l) => (l.row === line.row ? { ...l, ...patch } : l)));
+    setMode(null);
+    writer.dispatch(`line-${line.row}`, payload, {
+      rollback: () => setLines((prev) => prev.map((l) => (l.row === snapshot.row ? snapshot : l))),
+      onSuccessMsg: "Line updated",
+      onErrorMsg: (err) => `Update failed — restored (${err.message})`,
+    });
   };
 
-  const doDelete = async () => {
-    setBusy(true);
-    try {
-      await postAction({ action: "deleteLine", row: line.row });
-      onSaved("Line deleted");
-      setMode(null);
-      refetch();
-    } catch (err) {
-      onError(err instanceof Error ? `Delete failed — ${err.message}` : "Delete failed");
-    } finally {
-      setBusy(false);
-    }
+  const doDelete = () => {
+    const snapshot = { ...line };
+    setLines((prev) => prev.filter((l) => l.row !== line.row));
+    setMode(null);
+    writer.dispatch(`line-${line.row}`, { action: "deleteLine", row: line.row }, {
+      rollback: () => setLines((prev) => [...prev, snapshot]),
+      onSuccessMsg: "Line deleted",
+      onErrorMsg: (err) => `Delete failed — restored (${err.message})`,
+    });
   };
+
+  void onError;
 
   return (
     <>
       <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
-        <button style={TINY_BTN} onClick={() => setMode("edit")} disabled={busy}>
-          EDIT
+        <button style={TINY_BTN} onClick={() => setMode("edit")}>
+          {isSyncing ? "…" : "EDIT"}
         </button>
-        <button style={TINY_BTN_RED} onClick={() => setMode("delete")} disabled={busy}>
+        <button style={TINY_BTN_RED} onClick={() => setMode("delete")}>
           DELETE
         </button>
       </div>
@@ -1431,9 +1523,9 @@ function LineActions({
             <input style={INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
           <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-            <button style={TINY_BTN} onClick={() => setMode(null)} disabled={busy}>CANCEL</button>
-            <button style={{ ...TINY_BTN, background: LIME, color: "#0a0a0a", borderColor: LIME }} onClick={saveEdit} disabled={busy}>
-              {busy ? "SAVING…" : "SAVE"}
+            <button style={TINY_BTN} onClick={() => setMode(null)}>CANCEL</button>
+            <button style={{ ...TINY_BTN, background: LIME, color: "#0a0a0a", borderColor: LIME }} onClick={saveEdit}>
+              SAVE
             </button>
           </div>
         </div>
