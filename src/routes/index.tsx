@@ -55,27 +55,58 @@ function HomePage() {
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(true);
+  const [msgCount, setMsgCount] = useState<number | null>(null);
+  const [rcptCount, setRcptCount] = useState<number | null>(null);
 
-  // Persistent self-updating banner: fetch on mount, on window focus, and every 60s.
-  // Effect does NOT depend on the viewed role so VIEW AS switches never blank it.
+  const canMsg = canSee(role, "messages");
+  const canRcpt = canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice");
+
   useEffect(() => {
     let cancelled = false;
 
     const tick = async () => {
       if (!cancelled) setConfirmLoading(true);
+      // Confirm
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { state?: { confirmed?: boolean } };
-        if (cancelled) return;
-        setConfirmState(json.state ?? null);
+        if (!cancelled) setConfirmState(json.state ?? null);
       } catch (e) {
         console.error("[home confirm] error", e);
-        if (cancelled) return;
-        // Fail toward warning, never toward hidden.
-        setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
+        if (!cancelled) setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
       } finally {
         if (!cancelled) setConfirmLoading(false);
+      }
+      // Messages awaiting
+      if (canMsg) {
+        try {
+          const r = await fetch(`${SCRIPT_URL}?action=getInbox`);
+          const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
+          if (!cancelled) {
+            const n = (j.inbox ?? []).filter((it) => it.awaiting === true).length;
+            setMsgCount(n);
+          }
+        } catch (e) {
+          console.error("[home msg] error", e);
+        }
+      }
+      // Receipts awaiting designation
+      if (canRcpt) {
+        try {
+          const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+          const j = (await r.json()) as { lines?: Array<{ finalDesignation?: string; ["Final designation"]?: string; invoiced?: string; Invoiced?: string }> };
+          if (!cancelled) {
+            const n = (j.lines ?? []).filter((l) => {
+              const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
+              const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
+              return !fd && !inv;
+            }).length;
+            setRcptCount(n);
+          }
+        } catch (e) {
+          console.error("[home rcpt] error", e);
+        }
       }
     };
 
@@ -92,7 +123,8 @@ function HomePage() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, []);
+  }, [canMsg, canRcpt]);
+
 
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
 
