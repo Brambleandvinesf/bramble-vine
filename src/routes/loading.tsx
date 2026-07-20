@@ -60,6 +60,44 @@ type GetDataResponse = {
   confirm?: ConfirmState;
 };
 
+type FieldEvent = { id: string; title: string; location?: string };
+type FieldRoute = { state?: string; stopIndex?: number; delegated?: boolean };
+type GetFieldResponse = {
+  route?: FieldRoute;
+  events?: FieldEvent[];
+  clients?: string[];
+};
+
+const FIELD_CK = "loading:getField";
+
+function matchClient(title: string, clients: string[]): string | null {
+  const t = (title || "").toLowerCase();
+  for (const c of clients) {
+    const n = (c || "").trim();
+    if (n && t.includes(n.toLowerCase())) return n;
+  }
+  return null;
+}
+
+async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; error?: string }> {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(body),
+    });
+    let json: unknown = null;
+    try { json = await res.json(); } catch { /* noop */ }
+    const okFlag = json && typeof json === "object" && "ok" in (json as Record<string, unknown>)
+      ? Boolean((json as Record<string, unknown>).ok)
+      : res.ok;
+    return { ok: !!okFlag, raw: json, error: okFlag ? undefined : `HTTP ${res.status}` };
+  } catch (e) {
+    return { ok: false, raw: null, error: e instanceof Error ? e.message : "network" };
+  }
+}
+
+
 function normalize(d: GetDataResponse): ToolRow[] {
   const clients = new Set(
     (d.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
