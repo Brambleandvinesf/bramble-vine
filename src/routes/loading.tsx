@@ -204,8 +204,11 @@ function LoadingPage() {
       {!loadErr && confirm?.confirmed && (
         <>
           <header style={HEADER}>
-            <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-              LOADING CHECKLIST
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+                LOADING CHECKLIST
+              </div>
+              <RefreshDot refreshing={refreshing} offline={offline} />
             </div>
             <div style={SUBROW}>
               <span>
@@ -213,6 +216,7 @@ function LoadingPage() {
                 {" of "}
                 {totals.total} loaded
               </span>
+              {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
             </div>
             <div style={METER}>
               <div
