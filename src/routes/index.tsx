@@ -55,27 +55,58 @@ function HomePage() {
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(true);
+  const [msgCount, setMsgCount] = useState<number | null>(null);
+  const [rcptCount, setRcptCount] = useState<number | null>(null);
 
-  // Persistent self-updating banner: fetch on mount, on window focus, and every 60s.
-  // Effect does NOT depend on the viewed role so VIEW AS switches never blank it.
+  const canMsg = canSee(role, "messages");
+  const canRcpt = canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice");
+
   useEffect(() => {
     let cancelled = false;
 
     const tick = async () => {
       if (!cancelled) setConfirmLoading(true);
+      // Confirm
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = (await res.json()) as { state?: { confirmed?: boolean } };
-        if (cancelled) return;
-        setConfirmState(json.state ?? null);
+        if (!cancelled) setConfirmState(json.state ?? null);
       } catch (e) {
         console.error("[home confirm] error", e);
-        if (cancelled) return;
-        // Fail toward warning, never toward hidden.
-        setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
+        if (!cancelled) setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
       } finally {
         if (!cancelled) setConfirmLoading(false);
+      }
+      // Messages awaiting
+      if (canMsg) {
+        try {
+          const r = await fetch(`${SCRIPT_URL}?action=getInbox`);
+          const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
+          if (!cancelled) {
+            const n = (j.inbox ?? []).filter((it) => it.awaiting === true).length;
+            setMsgCount(n);
+          }
+        } catch (e) {
+          console.error("[home msg] error", e);
+        }
+      }
+      // Receipts awaiting designation
+      if (canRcpt) {
+        try {
+          const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+          const j = (await r.json()) as { lines?: Array<{ finalDesignation?: string; ["Final designation"]?: string; invoiced?: string; Invoiced?: string }> };
+          if (!cancelled) {
+            const n = (j.lines ?? []).filter((l) => {
+              const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
+              const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
+              return !fd && !inv;
+            }).length;
+            setRcptCount(n);
+          }
+        } catch (e) {
+          console.error("[home rcpt] error", e);
+        }
       }
     };
 
@@ -92,7 +123,8 @@ function HomePage() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, []);
+  }, [canMsg, canRcpt]);
+
 
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
 
@@ -165,6 +197,8 @@ function HomePage() {
           confirmed={confirmState?.confirmed ?? null}
           role={role}
         />
+        {canMsg && <BadgeTile to="/messages" title="MESSAGES" count={msgCount} unit="awaiting" />}
+        {canRcpt && <BadgeTile to="/receipts" title="RECEIPTS" count={rcptCount} unit="to designate" />}
         {tiles.map((t) => (
           <Tile key={t.key} title={t.title} pulse={t.special && t.pending}>
             —
@@ -174,6 +208,61 @@ function HomePage() {
     </div>
   );
 }
+
+function BadgeTile({
+  to,
+  title,
+  count,
+  unit,
+}: {
+  to: string;
+  title: string;
+  count: number | null;
+  unit: string;
+}) {
+  const has = typeof count === "number" && count > 0;
+  return (
+    <Link
+      to={to}
+      style={{
+        textDecoration: "none",
+        display: "block",
+        background: PANEL,
+        border: `1px solid ${has ? LIME : BORDER}`,
+        borderRadius: 10,
+        padding: "12px 14px",
+        minHeight: 72,
+        opacity: has ? 1 : 0.55,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ color: LIME, fontSize: 12, letterSpacing: 2, fontWeight: "bold" }}>
+          {title}
+        </div>
+        {has && (
+          <span
+            style={{
+              marginLeft: "auto",
+              background: LIME,
+              color: "#0a0a0a",
+              borderRadius: 12,
+              padding: "2px 10px",
+              fontSize: 12,
+              fontWeight: "bold",
+              letterSpacing: 1,
+            }}
+          >
+            {count}
+          </span>
+        )}
+      </div>
+      <div style={{ color: MUTED, fontSize: 13, marginTop: 6 }}>
+        {count === null ? "…" : has ? `${count} ${unit}` : "All clear"}
+      </div>
+    </Link>
+  );
+}
+
 
 function ConfirmBanner({
   loading,

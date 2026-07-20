@@ -430,38 +430,42 @@ function DesignateTab({
     });
   }, []);
 
-  const selectedCount = Object.values(picks).filter(Boolean).length;
-
-  const submit = useCallback(() => {
-    const items = Object.entries(picks)
-      .filter(([, d]) => d)
-      .map(([row, d]) => ({ row: Number(row), designation: d }));
-    if (!items.length) return;
-    const rowsMap = new Map(items.map((i) => [i.row, i.designation]));
-    // Snapshot only affected lines for rollback.
-    const snapshot = lines.filter((l) => rowsMap.has(l.row)).map((l) => ({ ...l }));
-    setLines((prev) =>
-      prev.map((l) => (rowsMap.has(l.row) ? { ...l, finalDesignation: rowsMap.get(l.row)! } : l)),
-    );
-    setPicks({});
-    writer.dispatch(
-      `designate-${Date.now()}`,
-      { action: "designate", items, notify: true },
-      {
-        rollback: () =>
-          setLines((prev) => {
-            const byRow = new Map(snapshot.map((l) => [l.row, l]));
-            return prev.map((l) => byRow.get(l.row) ?? l);
-          }),
-        onSuccessMsg: (json) => {
-          const n = Number((json.designated as number | undefined) ?? items.length);
-          return `${n} line${n === 1 ? "" : "s"} designated${json.notified ? " — office notified" : ""}`;
+  const submitGroup = useCallback(
+    (groupRows: number[]) => {
+      const items = groupRows
+        .map((row) => ({ row, designation: picks[row] }))
+        .filter((i) => i.designation);
+      if (!items.length) return;
+      const rowsMap = new Map(items.map((i) => [i.row, i.designation]));
+      const snapshot = lines.filter((l) => rowsMap.has(l.row)).map((l) => ({ ...l }));
+      setLines((prev) =>
+        prev.map((l) => (rowsMap.has(l.row) ? { ...l, finalDesignation: rowsMap.get(l.row)! } : l)),
+      );
+      setPicks((prev) => {
+        const next = { ...prev };
+        for (const r of groupRows) delete next[r];
+        return next;
+      });
+      writer.dispatch(
+        `designate-${Date.now()}`,
+        { action: "designate", items, notify: true },
+        {
+          rollback: () =>
+            setLines((prev) => {
+              const byRow = new Map(snapshot.map((l) => [l.row, l]));
+              return prev.map((l) => byRow.get(l.row) ?? l);
+            }),
+          onSuccessMsg: (json) => {
+            const n = Number((json.designated as number | undefined) ?? items.length);
+            return `${n} line${n === 1 ? "" : "s"} designated${json.notified ? " — office notified" : ""}`;
+          },
+          onErrorMsg: (err) => `Couldn't save designations — restored (${err.message})`,
         },
-        onErrorMsg: (err) =>
-          `Couldn't save designations — restored (${err.message})`,
-      },
-    );
-  }, [picks, lines, setLines, writer]);
+      );
+    },
+    [picks, lines, setLines, writer],
+  );
+
 
   if (!groups.length) {
     return <div style={STATE}>No lines waiting for designation.</div>;
@@ -554,6 +558,27 @@ function DesignateTab({
                       />
                     </div>
                   ))}
+                  {(() => {
+                    const groupRows = g.lines.map((l) => l.row);
+                    const groupCount = groupRows.filter((r) => picks[r]).length;
+                    return (
+                      <button
+                        style={{
+                          ...SOLID_BTN,
+                          width: "100%",
+                          marginTop: 4,
+                          opacity: groupCount ? 1 : 0.4,
+                          cursor: groupCount ? "pointer" : "not-allowed",
+                        }}
+                        disabled={!groupCount}
+                        onClick={() => submitGroup(groupRows)}
+                      >
+                        {groupCount
+                          ? `SAVE ${groupCount} DESIGNATION${groupCount === 1 ? "" : "S"}`
+                          : "ASSIGN A CLIENT TO SUBMIT"}
+                      </button>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -561,30 +586,6 @@ function DesignateTab({
         })}
 
       </div>
-
-      {selectedCount > 0 && (
-        <div style={FOOTER}>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              maxWidth: 720,
-              margin: "0 auto",
-            }}
-          >
-            <div style={{ color: TEXT, fontSize: 13 }}>
-              {selectedCount} line{selectedCount === 1 ? "" : "s"} ready
-            </div>
-            <button
-              style={{ ...SOLID_BTN, marginLeft: "auto" }}
-              onClick={submit}
-            >
-              SAVE DESIGNATIONS
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
@@ -612,7 +613,7 @@ function InvoiceTab({
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [openClients, setOpenClients] = useState<Set<string>>(new Set());
   const [queuedOpen, setQueuedOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+
 
   const ready = useMemo(
     () =>
@@ -688,32 +689,37 @@ function InvoiceTab({
     [byClient],
   );
 
-  const submit = useCallback(() => {
-    const rows = Array.from(checked);
-    if (!rows.length) return;
-    setConfirmOpen(false);
-    const rowSet = new Set(rows);
-    const snapshot = lines.filter((l) => rowSet.has(l.row)).map((l) => ({ ...l }));
-    setLines((prev) => prev.map((l) => (rowSet.has(l.row) ? { ...l, invoiced: "QUEUED" } : l)));
-    setChecked(new Set());
-    writer.dispatch(`invoices-${Date.now()}`, { action: "addToInvoices", rows }, {
-      rollback: () =>
-        setLines((prev) => {
-          const byRow = new Map(snapshot.map((l) => [l.row, l]));
-          return prev.map((l) => byRow.get(l.row) ?? l);
-        }),
-      onSuccessMsg: (json) => {
-        const n = Number((json.queued as number | undefined) ?? rows.length);
-        let msg = `${n} line${n === 1 ? "" : "s"} queued for invoicing`;
-        const wh = typeof json.webhook === "number" ? json.webhook : Number(json.webhook);
-        if (!(wh >= 200 && wh < 300)) msg += " — scenario kick failed, run it manually in Make";
-        return msg;
-      },
-      onErrorMsg: (err) => `Failed — restored (${err.message})`,
-    });
-  }, [checked, lines, setLines, writer]);
+  const submitReceipt = useCallback(
+    (groupRows: number[]) => {
+      const rows = groupRows.filter((r) => checked.has(r));
+      if (!rows.length) return;
+      const rowSet = new Set(rows);
+      const snapshot = lines.filter((l) => rowSet.has(l.row)).map((l) => ({ ...l }));
+      setLines((prev) => prev.map((l) => (rowSet.has(l.row) ? { ...l, invoiced: "QUEUED" } : l)));
+      setChecked((prev) => {
+        const next = new Set(prev);
+        for (const r of rows) next.delete(r);
+        return next;
+      });
+      writer.dispatch(`invoices-${Date.now()}`, { action: "addToInvoices", rows }, {
+        rollback: () =>
+          setLines((prev) => {
+            const byRow = new Map(snapshot.map((l) => [l.row, l]));
+            return prev.map((l) => byRow.get(l.row) ?? l);
+          }),
+        onSuccessMsg: (json) => {
+          const n = Number((json.queued as number | undefined) ?? rows.length);
+          let msg = `${n} line${n === 1 ? "" : "s"} queued for invoicing`;
+          const wh = typeof json.webhook === "number" ? json.webhook : Number(json.webhook);
+          if (!(wh >= 200 && wh < 300)) msg += " — scenario kick failed, run it manually in Make";
+          return msg;
+        },
+        onErrorMsg: (err) => `Failed — restored (${err.message})`,
+      });
+    },
+    [checked, lines, setLines, writer],
+  );
 
-  const selectedCount = checked.size;
 
   return (
     <>
@@ -821,6 +827,27 @@ function InvoiceTab({
                             </div>
                           ))}
                         </div>
+                        {(() => {
+                          const groupRows = g.lines.map((l) => l.row);
+                          const groupCount = groupRows.filter((r) => checked.has(r)).length;
+                          return (
+                            <button
+                              style={{
+                                ...SOLID_BTN,
+                                width: "100%",
+                                marginTop: 10,
+                                opacity: groupCount ? 1 : 0.4,
+                                cursor: groupCount ? "pointer" : "not-allowed",
+                              }}
+                              disabled={!groupCount}
+                              onClick={() => submitReceipt(groupRows)}
+                            >
+                              {groupCount
+                                ? `ADD ${groupCount} TO INVOICES`
+                                : "SELECT LINES TO INVOICE"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -859,54 +886,10 @@ function InvoiceTab({
           </div>
         )}
       </div>
-
-      {selectedCount > 0 && (
-        <div style={FOOTER}>
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              maxWidth: 720,
-              margin: "0 auto",
-            }}
-          >
-            <div style={{ color: TEXT, fontSize: 13 }}>
-              {selectedCount} selected
-            </div>
-            <button
-              style={{ ...SOLID_BTN, marginLeft: "auto" }}
-              onClick={() => setConfirmOpen(true)}
-            >
-              ADD TO INVOICES
-            </button>
-          </div>
-        </div>
-      )}
-
-      {confirmOpen && (
-        <div style={MODAL_BACKDROP} onClick={() => setConfirmOpen(false)}>
-          <div style={MODAL} onClick={(e) => e.stopPropagation()}>
-            <div style={{ color: LIME, fontWeight: "bold", letterSpacing: 1, marginBottom: 10 }}>
-              CONFIRM
-            </div>
-            <div style={{ color: TEXT, fontSize: 14, marginBottom: 16 }}>
-              Queue {selectedCount} line{selectedCount === 1 ? "" : "s"} for QuickBooks invoicing?
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button style={GHOST_BTN_SM} onClick={() => setConfirmOpen(false)}>
-                CANCEL
-              </button>
-              <button style={SOLID_BTN_SM} onClick={submit}>
-                QUEUE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
+
 
 /* ---------- shared bits ---------- */
 

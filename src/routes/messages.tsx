@@ -246,6 +246,14 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
   const [awaitingOverride, setAwaitingOverride] = useState<Record<string, boolean>>({});
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
 
+  // Compose (new outbound message)
+  const [compose, setCompose] = useState<{
+    q: string;
+    picked: { phone: string; name: string } | null;
+    manual: string;
+    text: string;
+  } | null>(null);
+
   // Flash / red-flash
   const [flashMsg, setFlashMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const flashTimer = useRef<number | null>(null);
@@ -445,6 +453,51 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
     },
     [flash, staged],
   );
+
+  /* ---- compose new outbound (Quo only) ---- */
+  const normalizePhone = useCallback((raw: string): string | null => {
+    const digits = String(raw || "").replace(/\D/g, "");
+    if (digits.length === 10) return "+1" + digits;
+    if (digits.length === 11 && digits.startsWith("1")) return "+" + digits;
+    if (digits.length > 11 && raw.trim().startsWith("+")) return "+" + digits;
+    return null;
+  }, []);
+
+  const sendCompose = useCallback(async () => {
+    if (!compose) return;
+    const phone = compose.picked?.phone || normalizePhone(compose.manual);
+    const text = compose.text.trim();
+    if (!phone) {
+      flash("Pick a recipient or enter a valid phone number.", true);
+      return;
+    }
+    if (!text) {
+      flash("Write a message first.", true);
+      return;
+    }
+    const name = compose.picked?.name || phone;
+    const optimisticId = `optim-${Date.now()}`;
+    const optimistic: InboxItem = {
+      id: optimisticId,
+      source: "quo",
+      from: name,
+      date: new Date().toISOString(),
+      threadId: optimisticId,
+      participants: [phone],
+      awaiting: false,
+      isClient: false,
+      snippet: text,
+    };
+    setItems((prev) => [optimistic, ...prev]);
+    setCompose(null);
+    flash("Message sent to " + name + " \u2713");
+    const res = await postAction({ action: "replyQuo", participants: [phone], text });
+    if (!(res && res.ok && res.sent)) {
+      setItems((prev) => prev.filter((x) => x.id !== optimisticId));
+      flash("Message NOT sent to " + name + "!", true);
+    }
+  }, [compose, normalizePhone, flash]);
+
 
   /* ---- file / trash / done / spam / confirm ---- */
   const pickLabel = useCallback((it: InboxItem): Promise<string> => {
@@ -1376,6 +1429,156 @@ function MessagesInner({ showReceipt }: { showReceipt: boolean }) {
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void saveReceipt()}>Confirm &amp; Save PDF</button>
               <button style={ghostBtn} onClick={() => setRcPick(null)}>Cancel</button>
+            </div>
+          </ModalPanel>
+        </ModalOverlay>
+      )}
+
+      {/* Compose FAB */}
+      <button
+        aria-label="New message"
+        onClick={() =>
+          setCompose({ q: "", picked: null, manual: "", text: "" })
+        }
+        style={{
+          position: "fixed",
+          right: 16,
+          bottom: 72,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          background: T.lime,
+          color: T.bg,
+          border: "none",
+          fontSize: 30,
+          fontWeight: "bold",
+          cursor: "pointer",
+          zIndex: 60,
+          boxShadow: "0 4px 14px rgba(124,255,0,.35)",
+          fontFamily: fontStack,
+        }}
+      >
+        +
+      </button>
+
+      {/* Compose modal */}
+      {compose && (
+        <ModalOverlay>
+          <ModalPanel>
+            <h3 style={{ margin: 0 }}>New message</h3>
+            {compose.picked ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  border: `1px solid ${T.lime}`,
+                  borderRadius: 6,
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold" }}>{compose.picked.name}</div>
+                  <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{compose.picked.phone}</div>
+                </div>
+                <button
+                  style={ghostBtn}
+                  onClick={() => setCompose({ ...compose, picked: null })}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  autoFocus
+                  value={compose.q}
+                  onChange={(e) => setCompose({ ...compose, q: e.target.value, manual: e.target.value })}
+                  placeholder="Search contacts or type phone…"
+                  style={{ ...inputStyle, minHeight: 48 }}
+                />
+                <div
+                  style={{
+                    overflowY: "auto",
+                    maxHeight: "35vh",
+                    borderTop: `1px solid ${T.border}`,
+                  }}
+                >
+                  {(() => {
+                    const ql = compose.q.trim().toLowerCase();
+                    const digits = ql.replace(/\D/g, "");
+                    const hits = contacts
+                      .filter((c) => {
+                        if (!ql) return false;
+                        if (c.n.toLowerCase().indexOf(ql) >= 0) return true;
+                        if (digits && c.r.replace(/\D/g, "").indexOf(digits) >= 0) return true;
+                        return false;
+                      })
+                      .slice(0, 40);
+                    const normalized = normalizePhone(compose.manual);
+                    return (
+                      <>
+                        {hits.map((c) => (
+                          <div
+                            key={c.r + c.n}
+                            onClick={() =>
+                              setCompose({
+                                ...compose,
+                                picked: { phone: c.r, name: c.n },
+                                q: "",
+                                manual: "",
+                              })
+                            }
+                            style={pickRowStyle}
+                          >
+                            <div style={{ fontWeight: "bold" }}>{c.n}</div>
+                            <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{c.r}</div>
+                          </div>
+                        ))}
+                        {normalized && !hits.some((c) => c.r === normalized) && (
+                          <div
+                            onClick={() =>
+                              setCompose({
+                                ...compose,
+                                picked: { phone: normalized, name: normalized },
+                                q: "",
+                                manual: "",
+                              })
+                            }
+                            style={{ ...pickRowStyle, color: "#ffb03f" }}
+                          >
+                            + Send to {normalized}
+                          </div>
+                        )}
+                        {ql && hits.length === 0 && !normalized && (
+                          <div style={{ padding: 12, fontSize: ".85rem", opacity: 0.6 }}>
+                            No matches. Enter a 10-digit US phone number.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+            <textarea
+              value={compose.text}
+              onChange={(e) => setCompose({ ...compose, text: e.target.value })}
+              placeholder="Message…"
+              rows={4}
+              style={{ ...inputStyle, resize: "vertical", minHeight: 96 }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button style={ghostBtn} onClick={() => setCompose(null)}>
+                Cancel
+              </button>
+              <button
+                style={limeBtn}
+                disabled={!(compose.picked || normalizePhone(compose.manual)) || !compose.text.trim()}
+                onClick={() => void sendCompose()}
+              >
+                Send
+              </button>
             </div>
           </ModalPanel>
         </ModalOverlay>
