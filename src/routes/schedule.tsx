@@ -6,6 +6,7 @@ import { useReviewableToday } from "../lib/reviewable-today";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { MessagesFab } from "../components/MessagesFab";
+import { appendTeamParam } from "../lib/team";
 
 
 export const Route = createFileRoute("/schedule")({
