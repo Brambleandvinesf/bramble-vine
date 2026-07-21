@@ -2615,6 +2615,9 @@ function Viewer({
   onConfirm,
   onProject,
   onForward,
+  onForwardOffice,
+  showForwardCrew,
+  showForwardOffice,
   onAttach,
   onEmoji,
   onReceipt,
@@ -2639,6 +2642,9 @@ function Viewer({
   onConfirm: () => Promise<boolean>;
   onProject: () => void;
   onForward: () => void;
+  onForwardOffice: () => void;
+  showForwardCrew: boolean;
+  showForwardOffice: boolean;
   onAttach: () => void;
   onEmoji: () => void;
   onReceipt: (() => void) | null;
