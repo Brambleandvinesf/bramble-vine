@@ -242,6 +242,25 @@ function SchedulePage() {
     }
   }, []);
 
+  const submitBaseLoadNo = useCallback(async () => {
+    setBaseLoadSubmitting(true);
+    setBaseLoadFlash(null);
+    try {
+      await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "replyQuo",
+          participants: ["+14152343696"],
+          text: "Different loading today — standby.",
+        }),
+      });
+    } catch { /* best-effort */ }
+    setBaseLoadSubmitting(false);
+    setBaseLoadDismissed(true);
+    void navigate({ to: "/confirm" });
+  }, [navigate]);
+
 
   const [view, setView] = useState<"day" | "week">("day");
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
