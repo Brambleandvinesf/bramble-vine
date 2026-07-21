@@ -1353,33 +1353,64 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             <div style={{ fontSize: ".85rem", letterSpacing: 2, color: T.dim, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, marginBottom: 8 }}>
               DRAFTS ({orphanDrafts.length})
             </div>
-            {orphanDrafts.map((d) => (
-              <DraftCard
-                key={d.draftId}
-                draft={d}
-                onEdit={(text) => scheduleDraftSave(d.draftId, text)}
-                onEmoji={(apply) => setEmojiTarget({ apply })}
-                onSend={async (text) => {
-                  flushDraftSave(d.draftId);
-                  const t = String(text || "").trim();
-                  if (!t) {
-                    flash("Write a message first.", true);
+            {orphanDrafts.map((d) => {
+              const dItem: InboxItem = {
+                id: "draft-" + d.draftId,
+                source: "gmail",
+                from: d.to || "(no recipient)",
+                fromEmail: d.to || "",
+                subject: d.subject || "",
+                snippet: d.snippet || d.text || "",
+                date: d.date || new Date().toISOString(),
+                threadId: d.draftId,
+                awaiting: false,
+                isClient: false,
+              };
+              const stagedForDraft = staged[d.draftId] || [];
+              return (
+                <DraftCard
+                  key={d.draftId}
+                  draft={d}
+                  onEdit={(text) => scheduleDraftSave(d.draftId, text)}
+                  onEmoji={(apply) => setEmojiTarget({ apply })}
+                  onAttach={() => openAttach(dItem)}
+                  onProject={() => openProject(dItem)}
+                  onForward={() => openForward(dItem)}
+                  staged={stagedForDraft}
+                  onRemoveStaged={(idx) => removeStaged(d.draftId, idx)}
+                  onSend={async (text) => {
+                    flushDraftSave(d.draftId);
+                    const t = String(text || "").trim();
+                    if (!t) {
+                      flash("Write a message first.", true);
+                      return false;
+                    }
+                    const to = d.to || "(recipient)";
+                    const attachments = stagedForDraft;
+                    flash(
+                      "Sending draft to " + to +
+                        (attachments.length ? " with " + attachments.length + " attachment" + (attachments.length > 1 ? "s" : "") : "") +
+                        "\u2026",
+                    );
+                    const res = await postAction({ action: "sendDraft", draftId: d.draftId, text: t, email, attachments });
+                    if (res && res.ok && res.sent) {
+                      removeDraftLocal(d.draftId);
+                      setStaged((s) => {
+                        const n = { ...s };
+                        delete n[d.draftId];
+                        return n;
+                      });
+                      flash("Sent draft to " + to + " \u2713");
+                      return true;
+                    }
+                    flash("Draft NOT sent to " + to + "!", true);
                     return false;
-                  }
-                  const to = d.to || "(recipient)";
-                  flash("Sending draft to " + to + "\u2026");
-                  const res = await postAction({ action: "sendDraft", draftId: d.draftId, text: t, email });
-                  if (res && res.ok && res.sent) {
-                    removeDraftLocal(d.draftId);
-                    flash("Sent draft to " + to + " \u2713");
-                    return true;
-                  }
-                  flash("Draft NOT sent to " + to + "!", true);
-                  return false;
-                }}
-                onDiscard={() => void discardDraft(d)}
-              />
-            ))}
+                  }}
+                  onDiscard={() => void discardDraft(d)}
+                />
+              );
+            })}
+
           </div>
         )}
       </div>
