@@ -2899,40 +2899,43 @@ function DraftCard({
             {draft.snippet}
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <textarea
+          rows={2}
+          value={text}
+          onChange={(e) => { setText(e.target.value); onEdit(e.target.value); }}
+          placeholder="Draft…"
+          style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 60, maxHeight: 200, resize: "vertical" }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
           <button
             style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
+            title="Emoji"
+            aria-label="Emoji"
             onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
           >
             <IconSmile />
           </button>
-          <textarea
-            rows={2}
-            value={text}
-            onChange={(e) => { setText(e.target.value); onEdit(e.target.value); }}
-            placeholder="Draft…"
-            style={{ ...inputStyle, flex: 1, minHeight: 60, maxHeight: 200, resize: "vertical" }}
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <button
-              disabled={!text.trim() || sending}
-              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", opacity: text.trim() && !sending ? 1 : 0.4 }}
-              onClick={async () => {
-                setSending(true);
-                await onSend(text);
-                setSending(false);
-              }}
-            >
-              Send
-            </button>
-            <button
-              style={{ ...ghostBtn, minHeight: 44, padding: "8px 10px", color: "#ffb03f", borderColor: "#ffb03f" }}
-              onClick={onDiscard}
-              title="Discard draft"
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            disabled={!text.trim() || sending}
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: text.trim() && !sending ? 1 : 0.4 }}
+            title="Send"
+            aria-label="Send"
+            onClick={async () => {
+              setSending(true);
+              await onSend(text);
+              setSending(false);
+            }}
+          >
+            <Send size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
+            onClick={onDiscard}
+            title="Discard draft"
+            aria-label="Discard draft"
+          >
+            <Trash2 size={22} />
+          </button>
         </div>
       </div>
     </div>
