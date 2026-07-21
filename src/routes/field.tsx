@@ -1665,6 +1665,7 @@ function StateArrived({
   role: ReturnType<typeof useViewAs>["effectiveRole"];
   event?: EventItem;
   send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  locationCheck?: { near?: boolean; client?: string } | null;
   onDelegate: (v: boolean) => void;
   onStart: () => void;
   onNoShow: () => void;
