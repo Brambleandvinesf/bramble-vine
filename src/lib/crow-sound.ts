@@ -1,100 +1,70 @@
-let audioCtx: AudioContext | null = null;
+// Plays the existing MP3 at /crooooow_121108209.mp3.
+// Uses a single unlocked HTMLAudioElement to satisfy autoplay policies.
 
-function getAudioContext(): AudioContext | null {
+const SRC = "/crooooow_121108209.mp3";
+let audioEl: HTMLAudioElement | null = null;
+let unlocked = false;
+
+function getAudio(): HTMLAudioElement | null {
   if (typeof window === "undefined") return null;
-  if (!audioCtx) {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return null;
-    audioCtx = new Ctx();
+  if (!audioEl) {
+    audioEl = new Audio(SRC);
+    audioEl.preload = "auto";
+    audioEl.crossOrigin = "anonymous";
   }
-  return audioCtx;
-}
-
-export function ensureAudioContext(): AudioContext | null {
-  const ctx = getAudioContext();
-  if (ctx && ctx.state === "suspended") {
-    void ctx.resume();
-  }
-  return ctx;
+  return audioEl;
 }
 
 /**
- * Synthesize a loud, harsh crow shriek using the Web Audio API.
- * No external audio files or connectors required.
+ * Call once on a user gesture (tap/click/keydown) to unlock playback.
+ * Performs a muted play+pause so subsequent programmatic plays are allowed.
  */
-export function playCrowShriek() {
-  const ctx = ensureAudioContext();
-  if (!ctx) return;
-
-  const t = ctx.currentTime;
-  const duration = 1.1;
-
-  // Master gain + heavy compression so it punches through
-  const masterGain = ctx.createGain();
-  masterGain.gain.value = 1.5;
-
-  const compressor = ctx.createDynamicsCompressor();
-  compressor.threshold.value = -8;
-  compressor.knee.value = 4;
-  compressor.ratio.value = 16;
-  compressor.attack.value = 0.001;
-  compressor.release.value = 0.08;
-
-  masterGain.connect(compressor).connect(ctx.destination);
-
-  // --- Harsh oscillator shriek ---
-  const osc = ctx.createOscillator();
-  osc.type = "sawtooth";
-  // Start high, dip, then rise and fall like a corvid screech
-  osc.frequency.setValueAtTime(2200, t);
-  osc.frequency.exponentialRampToValueAtTime(320, t + 0.16);
-  osc.frequency.linearRampToValueAtTime(1400, t + 0.42);
-  osc.frequency.exponentialRampToValueAtTime(220, t + duration);
-
-  const oscGain = ctx.createGain();
-  oscGain.gain.setValueAtTime(0, t);
-  oscGain.gain.linearRampToValueAtTime(0.65, t + 0.025);
-  oscGain.gain.exponentialRampToValueAtTime(0.001, t + duration);
-
-  osc.connect(oscGain).connect(masterGain);
-
-  // --- White-noise burst with bandpass for rasp ---
-  const bufferSize = Math.ceil(ctx.sampleRate * duration);
-  const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const noiseData = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    noiseData[i] = Math.random() * 2 - 1;
+export function unlockCrowAudio(): void {
+  if (unlocked) return;
+  const a = getAudio();
+  if (!a) return;
+  const prevMuted = a.muted;
+  const prevVol = a.volume;
+  a.muted = true;
+  a.volume = 0;
+  const p = a.play();
+  const finish = () => {
+    try {
+      a.pause();
+      a.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    a.muted = prevMuted;
+    a.volume = prevVol;
+    unlocked = true;
+  };
+  if (p && typeof (p as Promise<void>).then === "function") {
+    (p as Promise<void>).then(finish).catch(() => {
+      /* leave unlocked=false; a later gesture will retry */
+    });
+  } else {
+    finish();
   }
-  const noise = ctx.createBufferSource();
-  noise.buffer = noiseBuffer;
+}
 
-  const bandpass = ctx.createBiquadFilter();
-  bandpass.type = "bandpass";
-  bandpass.frequency.value = 2500;
-  bandpass.Q.value = 0.9;
+// Back-compat shim (some callers may still import this).
+export function ensureAudioContext(): null {
+  return null;
+}
 
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.setValueAtTime(0, t);
-  noiseGain.gain.linearRampToValueAtTime(0.55, t + 0.02);
-  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + duration * 0.75);
-
-  noise.connect(bandpass).connect(noiseGain).connect(masterGain);
-
-  // --- Subtle second oscillator for throatiness ---
-  const throat = ctx.createOscillator();
-  throat.type = "square";
-  throat.frequency.setValueAtTime(520, t);
-  throat.frequency.exponentialRampToValueAtTime(180, t + duration);
-  const throatGain = ctx.createGain();
-  throatGain.gain.setValueAtTime(0, t);
-  throatGain.gain.linearRampToValueAtTime(0.2, t + 0.04);
-  throatGain.gain.exponentialRampToValueAtTime(0.001, t + duration * 0.8);
-  throat.connect(throatGain).connect(masterGain);
-
-  osc.start(t);
-  noise.start(t);
-  throat.start(t);
-  osc.stop(t + duration);
-  noise.stop(t + duration);
-  throat.stop(t + duration);
+/** Play the crow shriek MP3 at full volume. Safe to call repeatedly. */
+export function playCrowShriek(): void {
+  const a = getAudio();
+  if (!a) return;
+  try {
+    a.muted = false;
+    a.volume = 1;
+    a.currentTime = 0;
+    void a.play().catch(() => {
+      /* blocked until user gesture unlocks */
+    });
+  } catch {
+    /* ignore */
+  }
 }
