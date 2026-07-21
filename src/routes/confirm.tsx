@@ -178,7 +178,7 @@ function ConfirmPage() {
         type: p.type,
         category: p.category,
         notes: p.notes,
-        status: "Confirmed",
+        status: "Pending",
         expanded: p.showOnReview,
         notesOpen: !!p.notes,
       };
@@ -219,7 +219,7 @@ function ConfirmPage() {
           type: p.type,
           category: p.category,
           notes: p.notes,
-          status: "Confirmed",
+          status: "Pending",
           expanded: p.showOnReview,
           notesOpen: !!p.notes,
         };
