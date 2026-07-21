@@ -467,6 +467,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setEmployees(r.employees || []);
       setLastYes(r.lastYes ? String(r.lastYes) : null);
       setCanViewAll(!!r.canViewAll);
+      setInboxRoute(r.route ?? null);
+
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
