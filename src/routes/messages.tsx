@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Volume2, VolumeX, RotateCw, Smile } from "lucide-react";
+import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, Users } from "lucide-react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
@@ -2556,16 +2556,12 @@ function Viewer({
           </div>
         </div>
         <button
-          style={{
-            ...ghostBtn,
-            minWidth: 80,
-            padding: "10px 14px",
-            fontSize: "1rem",
-            letterSpacing: 1,
-          }}
+          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+          title="Close"
+          aria-label="Close"
           onClick={onClose}
         >
-          ✕ CLOSE
+          <X size={24} />
         </button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
@@ -2666,35 +2662,75 @@ function Viewer({
           style={{ ...inputStyle, flex: 1, minHeight: 72, maxHeight: 160, resize: "vertical" }}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} disabled={!reply.trim()} onClick={onSend}>
-            Send
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
+            disabled={!reply.trim()}
+            title="Send"
+            aria-label="Send"
+            onClick={onSend}
+          >
+            <Send size={22} />
           </button>
-          <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onFile}>
-            {quo ? "✓ Done" : "✓ File"}
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title={quo ? "Done" : "File"}
+            aria-label={quo ? "Done" : "File"}
+            onClick={onFile}
+          >
+            <Check size={22} />
           </button>
           {it.isClient && (
             <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} />
           )}
           {onReceipt && !quo && (
-            <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onReceipt}>
-              <IconRcpt /> Receipt
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Receipt"
+              aria-label="Receipt"
+              onClick={onReceipt}
+            >
+              <IconRcpt />
             </button>
           )}
           {!quo && (
-            <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onTrash}>
-              ✕ Trash
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Trash"
+              aria-label="Trash"
+              onClick={onTrash}
+            >
+              <Trash2 size={22} />
             </button>
           )}
           {quo && (
-            <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onSpam}>
-              <IconPoo /> Spam
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Spam"
+              aria-label="Spam"
+              onClick={onSpam}
+            >
+              <IconPoo />
             </button>
           )}
         </div>
       </div>
       <div style={{ display: "flex", gap: 12, justifyContent: "center", padding: "8px 16px 12px", background: T.bg }}>
-        <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={onProject}>+ Project</button>
-        <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={onForward}>→ Crew</button>
+        <button
+          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+          title="Add Project"
+          aria-label="Add Project"
+          onClick={onProject}
+        >
+          <FolderPlus size={22} />
+        </button>
+        <button
+          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+          title="Forward to Crew"
+          aria-label="Forward to Crew"
+          onClick={onForward}
+        >
+          <Users size={22} />
+        </button>
       </div>
     </div>
   );
