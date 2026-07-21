@@ -2851,12 +2851,22 @@ function DraftCard({
   onSend,
   onDiscard,
   onEmoji,
+  onAttach,
+  onProject,
+  onForward,
+  staged,
+  onRemoveStaged,
 }: {
   draft: Draft;
   onEdit: (text: string) => void;
   onSend: (text: string) => Promise<boolean>;
   onDiscard: () => void;
   onEmoji: (apply: (e: string) => void) => void;
+  onAttach: () => void;
+  onProject: () => void;
+  onForward: () => void;
+  staged: Attachment[];
+  onRemoveStaged: (idx: number) => void;
 }) {
   const [text, setText] = useState(draft.text || "");
   const [sending, setSending] = useState(false);
@@ -2916,6 +2926,14 @@ function DraftCard({
             <IconSmile />
           </button>
           <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Attach"
+            aria-label="Attach"
+            onClick={onAttach}
+          >
+            <IconClip />
+          </button>
+          <button
             disabled={!text.trim() || sending}
             style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: text.trim() && !sending ? 1 : 0.4 }}
             title="Send"
@@ -2930,6 +2948,22 @@ function DraftCard({
           </button>
           <button
             style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Add Project"
+            aria-label="Add Project"
+            onClick={onProject}
+          >
+            <FolderPlus size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Forward to Crew"
+            aria-label="Forward to Crew"
+            onClick={onForward}
+          >
+            <Users size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
             onClick={onDiscard}
             title="Discard draft"
             aria-label="Discard draft"
@@ -2937,7 +2971,32 @@ function DraftCard({
             <Trash2 size={22} />
           </button>
         </div>
+        {staged.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+            {staged.map((a, i) => (
+              <span
+                key={i}
+                style={{
+                  border: `1px solid ${T.dim}`,
+                  color: T.dim,
+                  borderRadius: 4,
+                  padding: "6px 8px",
+                  fontSize: ".8rem",
+                  display: "inline-flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                📎 {a.name} ({fmtSize(a.size)})
+                <b style={{ cursor: "pointer", color: T.dim, fontSize: "1rem" }} onClick={() => onRemoveStaged(i)}>
+                  ✕
+                </b>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
