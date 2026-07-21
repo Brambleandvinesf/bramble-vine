@@ -336,11 +336,11 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !apPick && !rcPick;
   }, [openItem, labelPick, emojiTarget, acState, fwdPick, apPick, rcPick]);
 
-  // Detect new unread client -> red flash
+  // Detect new unread client -> green flash
   const detectNew = useCallback((its: InboxItem[]) => {
     const ids = its.filter((i) => i.unread && i.isClient).map((i) => i.id);
     if (seenClientIdsRef.current !== null && ids.some((id) => seenClientIdsRef.current!.indexOf(id) < 0)) {
-      setRedFlash((n) => n + 1);
+      setGreenFlash((n: number) => n + 1);
     }
     seenClientIdsRef.current = ids;
   }, []);
