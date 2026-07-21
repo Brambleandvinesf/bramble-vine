@@ -404,10 +404,41 @@ function LoadingPage() {
           <div style={{ height: 200 }} />
         </>
       )}
-      {field && <RouteFooter field={field} />}
+      {confirm?.confirmed && (
+        <div style={LOADING_COMPLETE_WRAP}>
+          <button
+            type="button"
+            disabled={completing}
+            onClick={async () => {
+              setCompleting(true);
+              try {
+                await fetch(SCRIPT_URL, {
+                  method: "POST",
+                  headers: { "Content-Type": "text/plain" },
+                  body: JSON.stringify({ action: "loadingComplete" }),
+                });
+                toast.success("Loading marked complete");
+                if (effectiveRole === "assistant") {
+                  navigate({ to: "/field" });
+                }
+              } catch {
+                toast.error("Couldn't mark complete — retry");
+              } finally {
+                setCompleting(false);
+              }
+            }}
+            style={{ ...LOADING_COMPLETE_BTN, opacity: completing ? 0.6 : 1 }}
+          >
+            {completing ? "SAVING…" : "LOADING COMPLETE"}
+          </button>
+        </div>
+      )}
+      {effectiveRole !== "assistant" && field && <RouteFooter field={field} />}
+      {effectiveRole === "assistant" && <MessagesFab />}
     </div>
   );
 }
+
 
 function RouteFooter({ field }: { field: GetFieldResponse }) {
   const route = field.route ?? {};
