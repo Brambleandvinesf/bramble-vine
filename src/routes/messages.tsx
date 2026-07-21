@@ -1925,7 +1925,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                       textTransform: "uppercase",
                     }}
                   >
-                    {ch === "text" ? "📱 Text" : "✉ Email"}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+                      {ch === "text" ? <IconHandset /> : <>&#9993;</>} {ch === "text" ? "Text" : "Email"}
+                    </span>
                   </button>
                 );
               })}
