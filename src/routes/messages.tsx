@@ -937,6 +937,31 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     flash("Message NOT sent to crew!", true);
   }, [fwdPick, flash, email]);
 
+  /* ---- forward to office ---- */
+  const openOffice = useCallback((it: InboxItem) => {
+    const s = it.snippet || "";
+    const i = s.indexOf(": ");
+    const name = i > 0 ? s.slice(0, i) : it.from;
+    const text = (i > 0 ? s.slice(i + 2) : s).trim();
+    const compiled = (name + ": " + text).slice(0, 1500);
+    setOffPick({ item: it, text: compiled });
+  }, []);
+  const submitOffice = useCallback(async () => {
+    if (!offPick) return;
+    const text = offPick.text.trim();
+    if (!text) {
+      setOffPick((p) => (p ? { ...p, err: "Nothing to send." } : p));
+      return;
+    }
+    const saved = offPick;
+    setOffPick(null);
+    flash("Forwarded to office \u2713");
+    const res = await postAction({ action: "replyQuo", participants: [OFFICE_NUM], text, email });
+    if (res && res.ok && res.sent) return;
+    setOffPick({ ...saved, err: "Forward failed — try again." });
+    flash("Message NOT sent to office!", true);
+  }, [offPick, flash, email]);
+
   /* ---- add project ---- */
   const openProject = useCallback((it: InboxItem) => {
     const s = it.snippet || "";
