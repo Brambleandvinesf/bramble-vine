@@ -1048,7 +1048,27 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           {badgeCount}
         </span>
         {countdownEl}
-        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSoundEnabled((s) => !s);
+          }}
+          title={soundEnabled ? "Mute crow shriek" : "Enable crow shriek"}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: soundEnabled ? T.brightLime : T.dim,
+            fontFamily: fontStack,
+            fontWeight: "bold",
+            fontSize: "1rem",
+            cursor: "pointer",
+            padding: "4px 8px",
+            marginLeft: "auto",
+          }}
+        >
+          {soundEnabled ? "🔊" : "🔇"}
+        </button>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefreshDot refreshing={refreshing} offline={offline} />
           {offline && <span style={{ color: T.dim, fontSize: 10 }}>offline — last data</span>}
         </span>
