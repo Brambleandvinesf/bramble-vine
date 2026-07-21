@@ -74,6 +74,7 @@ type RouteDoc = {
   delegated?: boolean;
   anchored?: boolean;
   arrivedAt?: string | null;
+  locationCheck?: { near?: boolean; client?: string } | null;
 };
 
 export type VisitNoteType = "update" | "item" | "future" | "office";
@@ -676,6 +677,39 @@ function FieldBody({
     void textClient(send, "done", clientMatch, stopIndex, isPreview);
   };
 
+  /* --- geolocation reporter (foreground only, enroute→visit) --- */
+  const locActive = !isPreview && (state === "enroute" || state === "arrived" || state === "visit");
+  useEffect(() => {
+    if (!locActive) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const report = () => {
+      if (cancelled) return;
+      if (typeof document !== "undefined" && document.hidden) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return;
+          void send(
+            { action: "reportLocation", lat: pos.coords.latitude, lon: pos.coords.longitude },
+            { silent: true },
+          );
+        },
+        () => { /* denied or unavailable — silent */ },
+        { enableHighAccuracy: false, maximumAge: 30_000, timeout: 15_000 },
+      );
+    };
+    report();
+    timer = setInterval(report, 45_000);
+    const onVis = () => { if (!document.hidden) report(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [locActive, send]);
+
   return (
     <div>
       {me && (
@@ -714,6 +748,7 @@ function FieldBody({
               role={role}
               event={currentEvent}
               send={send}
+              locationCheck={route.locationCheck ?? null}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
               onStart={async () => {
                 if (state === "enroute") {
@@ -1612,6 +1647,7 @@ function StateArrived({
   role,
   event,
   send,
+  locationCheck,
   onDelegate,
   onStart,
   onNoShow,
@@ -1629,6 +1665,7 @@ function StateArrived({
   role: ReturnType<typeof useViewAs>["effectiveRole"];
   event?: EventItem;
   send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  locationCheck?: { near?: boolean; client?: string } | null;
   onDelegate: (v: boolean) => void;
   onStart: () => void;
   onNoShow: () => void;
@@ -1665,6 +1702,26 @@ function StateArrived({
   };
 
   const showNormal = navigated;
+
+  // Request geolocation permission on first render of Navigate (fail silent).
+  useEffect(() => {
+    if (isPreview) return;
+    if (navigated) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    try {
+      navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 15_000 });
+    } catch { /* ignore */ }
+    // Only trigger once when the Navigate button is first shown for this stop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopIndex]);
+
+  const nearBanner = (() => {
+    if (!locationCheck?.near) return null;
+    if (!clientMatch) return null;
+    const lc = (locationCheck.client ?? "").trim().toLowerCase();
+    if (lc && lc !== clientMatch.trim().toLowerCase()) return null;
+    return `You're near ${clientMatch} — ready to start?`;
+  })();
 
   return (
     <div style={{ padding: "10px 14px" }}>
@@ -1723,6 +1780,23 @@ function StateArrived({
           >
             {delegated ? "✓ DELEGATED (TAP TO REVOKE)" : "DELEGATE DEBRIEF (THIS VISIT)"}
           </button>
+
+          {nearBanner && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: "8px 10px",
+                border: `1px solid ${LIME_DIM}`,
+                borderRadius: 4,
+                color: LIME,
+                fontSize: 12,
+                letterSpacing: 0.5,
+                background: "rgba(124,255,0,0.06)",
+              }}
+            >
+              {nearBanner}
+            </div>
+          )}
 
           <button
             onClick={onStart}
