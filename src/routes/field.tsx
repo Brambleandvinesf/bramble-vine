@@ -1173,6 +1173,36 @@ function PersonalClockPanel({
   const onClient = open && !onOverhead;
   const [busy, setBusy] = useState(false);
 
+function PersonalClockPanel({
+  me,
+  roster,
+  clientMatch,
+  now,
+  isPreview,
+  send,
+  setBanner,
+  breakFrom,
+  setBreakFrom,
+}: {
+  me: Me;
+  roster: RosterMember[];
+  clientMatch: string | null;
+  now: number;
+  isPreview: boolean;
+  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
+  breakFrom: string | null;
+  setBreakFrom: (v: string | null) => void;
+}) {
+  const row = roster.find((r) => r.id === me.id);
+  const open = !!row?.in && !row?.out;
+  const onOverhead = open && isOverheadClient(row?.client);
+  const onClient = open && !onOverhead;
+  const onBreakState = !open && !!breakFrom;
+  const [busy, setBusy] = useState(false);
+
+  const labelFor = (c: string) => (isOverheadClient(c) ? "B&V" : c);
+
   const doClockIn = async (client: string) => {
     if (isPreview) return;
     setBusy(true);
@@ -1187,14 +1217,7 @@ function PersonalClockPanel({
     const r = await send({ action: "qbClock", userId: me.id, dir: "in", client });
     setBusy(false);
     if (!r.ok) setBanner({ kind: "err", text: "Clock in failed — retry." });
-  };
-
-  const doClockOut = async (client: string) => {
-    if (isPreview) return;
-    setBusy(true);
-    const r = await send({ action: "qbClock", userId: me.id, dir: "out", client });
-    setBusy(false);
-    if (!r.ok) setBanner({ kind: "err", text: "Clock out failed — retry." });
+    else setBreakFrom(null);
   };
 
   const doSwitch = async (fromClient: string, toClient: string) => {
@@ -1203,16 +1226,26 @@ function PersonalClockPanel({
     const outR = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient }, { silent: true });
     if (!outR.ok) {
       setBusy(false);
-      setBanner({ kind: "err", text: `Clock out from ${fromClient} failed — retry.` });
+      setBanner({ kind: "err", text: `Switch from ${labelFor(fromClient)} failed — retry.` });
       return;
     }
     const inR = await send({ action: "qbClock", userId: me.id, dir: "in", client: toClient }, { silent: true });
     setBusy(false);
     if (!inR.ok) {
-      setBanner({ kind: "err", text: `Clocked out but couldn't clock in to ${toClient} — retry.` });
+      setBanner({ kind: "err", text: `Switched out but couldn't switch in to ${labelFor(toClient)} — retry.` });
     } else {
       setBanner(null);
+      setBreakFrom(null);
     }
+  };
+
+  const startBreak = async (fromClient: string) => {
+    if (isPreview) return;
+    setBusy(true);
+    const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient });
+    setBusy(false);
+    if (r.ok) setBreakFrom(fromClient);
+    else setBanner({ kind: "err", text: "Break failed — retry." });
   };
 
   const since = row?.in
@@ -1224,7 +1257,13 @@ function PersonalClockPanel({
   let primary: { label: string; onClick: () => void; enabled: boolean } | null = null;
   let secondary: { label: string; onClick: () => void } | null = null;
 
-  if (!open) {
+  if (onBreakState && breakFrom) {
+    primary = {
+      label: `RESUME — ${labelFor(breakFrom)}`,
+      onClick: () => void doClockIn(breakFrom),
+      enabled: true,
+    };
+  } else if (!open) {
     primary = {
       label: "CLOCK IN — B&V",
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
@@ -1236,18 +1275,18 @@ function PersonalClockPanel({
       onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
       enabled: true,
     };
-    secondary = { label: "CLOCK OUT", onClick: () => void doClockOut(OVERHEAD_CLIENT) };
+    secondary = { label: "BREAK TIME", onClick: () => void startBreak(OVERHEAD_CLIENT) };
   } else if (onOverhead && !clientMatch) {
     primary = {
-      label: "CLOCK OUT",
-      onClick: () => void doClockOut(OVERHEAD_CLIENT),
+      label: "BREAK TIME",
+      onClick: () => void startBreak(OVERHEAD_CLIENT),
       enabled: true,
     };
   } else if (onClient) {
     const c = row?.client ?? clientMatch ?? "";
     primary = {
-      label: "CLOCK OUT",
-      onClick: () => void doClockOut(c),
+      label: "SWITCH TO BREAK TIME",
+      onClick: () => void startBreak(c),
       enabled: true,
     };
     secondary = {
