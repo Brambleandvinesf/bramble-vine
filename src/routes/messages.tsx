@@ -662,7 +662,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setItems((prev) => [optimistic, ...prev]);
       setCompose(null);
       flash("Email sent to " + to + " \u2713");
-      const res = await postAction({ action: "composeGmail", to, subject, text, email });
+      const attachments = compose.attachments || [];
+      const res = await postAction({ action: "composeGmail", to, subject, text, email, ...(attachments.length ? { attachments } : {}) });
       if (!(res && res.ok && res.sent)) {
         setItems((prev) => prev.filter((x) => x.id !== optimisticId));
         flash("Email NOT sent to " + to + "! (Apps Script needs a composeGmail handler)", true);
