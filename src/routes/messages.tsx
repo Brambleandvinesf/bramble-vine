@@ -524,14 +524,42 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   const sendCompose = useCallback(async () => {
     if (!compose) return;
-    const phone = compose.picked?.phone || normalizePhone(compose.manual);
     const text = compose.text.trim();
-    if (!phone) {
-      flash("Pick a recipient or enter a valid phone number.", true);
-      return;
-    }
     if (!text) {
       flash("Write a message first.", true);
+      return;
+    }
+    if (compose.channel === "email") {
+      const to = compose.emailTo.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+        flash("Enter a valid email address.", true);
+        return;
+      }
+      const subject = compose.subject.trim() || "(no subject)";
+      const optimisticId = `optim-${Date.now()}`;
+      const optimistic: InboxItem = {
+        id: optimisticId,
+        source: "gmail",
+        from: to,
+        date: new Date().toISOString(),
+        threadId: optimisticId,
+        awaiting: false,
+        isClient: false,
+        snippet: text,
+      };
+      setItems((prev) => [optimistic, ...prev]);
+      setCompose(null);
+      flash("Email sent to " + to + " \u2713");
+      const res = await postAction({ action: "composeGmail", to, subject, text, email });
+      if (!(res && res.ok && res.sent)) {
+        setItems((prev) => prev.filter((x) => x.id !== optimisticId));
+        flash("Email NOT sent to " + to + "! (Apps Script needs a composeGmail handler)", true);
+      }
+      return;
+    }
+    const phone = compose.picked?.phone || normalizePhone(compose.manual);
+    if (!phone) {
+      flash("Pick a recipient or enter a valid phone number.", true);
       return;
     }
     const name = compose.picked?.name || phone;
