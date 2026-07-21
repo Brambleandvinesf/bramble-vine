@@ -325,7 +325,7 @@ function FieldPage() {
   const fetchOnce = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await fetch(`${SCRIPT_URL}?action=getField`);
+      const res = await fetch(appendTeamParam(`${SCRIPT_URL}?action=getField`));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as GetFieldResponse;
       sessionCache.set(CK, json);
