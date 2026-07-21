@@ -2502,7 +2502,7 @@ function FeedCard({
                 }}
               >
                 📎 {a.name} ({fmtSize(a.size)})
-                <b style={{ cursor: "pointer", color: T.red, fontSize: "1rem" }} onClick={() => onRemoveStaged(i)}>
+                <b style={{ cursor: "pointer", color: T.dim, fontSize: "1rem" }} onClick={() => onRemoveStaged(i)}>
                   ✕
                 </b>
               </span>
