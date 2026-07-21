@@ -338,7 +338,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     emailTo: string;
     subject: string;
     text: string;
+    attachments: Attachment[];
   } | null>(null);
+  const composeFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Persist compose to localStorage so a crash/close doesn't lose the draft
   const composeStorageKey = `bv:compose:${email || "anon"}`;
@@ -660,7 +662,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setItems((prev) => [optimistic, ...prev]);
       setCompose(null);
       flash("Email sent to " + to + " \u2713");
-      const res = await postAction({ action: "composeGmail", to, subject, text, email });
+      const attachments = compose.attachments || [];
+      const res = await postAction({ action: "composeGmail", to, subject, text, email, ...(attachments.length ? { attachments } : {}) });
       if (!(res && res.ok && res.sent)) {
         setItems((prev) => prev.filter((x) => x.id !== optimisticId));
         flash("Email NOT sent to " + to + "! (Apps Script needs a composeGmail handler)", true);
@@ -688,7 +691,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     setItems((prev) => [optimistic, ...prev]);
     setCompose(null);
     flash("Message sent to " + name + " \u2713");
-    const res = await postAction({ action: "replyQuo", participants: [phone], text, email });
+    const attachments = compose.attachments || [];
+    const res = await postAction({ action: "replyQuo", participants: [phone], text, email, ...(attachments.length ? { attachments } : {}) });
     if (!(res && res.ok && res.sent)) {
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
       flash("Message NOT sent to " + name + "!", true);
@@ -1859,10 +1863,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
             if (raw) restored = JSON.parse(raw);
           } catch { /* ignore */ }
           if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked)) {
-            setCompose(restored);
+            setCompose({ ...restored, attachments: Array.isArray(restored.attachments) ? restored.attachments : [] });
             flash("Restored saved draft");
           } else {
-            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "" });
+            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "", attachments: [] });
           }
         }}
         style={{
@@ -1918,6 +1922,57 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 );
               })}
             </div>
+
+            {/* Quickpick pills */}
+            {(() => {
+              const QUICKPICKS: { key: string; phone: string; email: string | null }[] = [
+                { key: "Office", phone: "+14152343083", email: "info@brambleandvinesf.com" },
+                { key: "Brandon", phone: "+14152343695", email: "brandon@brambleandvinesf.com" },
+                { key: "Assistant", phone: "+14152343696", email: null },
+                { key: "Angel", phone: "+16507105061", email: null },
+              ];
+              const isEmail = compose.channel === "email";
+              const pills = QUICKPICKS.filter((p) => (isEmail ? !!p.email : true));
+              const pillStyle: CSSProperties = {
+                background: "transparent",
+                color: T.lime,
+                border: `1px solid ${T.lime}`,
+                borderRadius: 999,
+                padding: "6px 12px",
+                fontFamily: fontStack,
+                fontSize: ".8rem",
+                fontWeight: "bold",
+                letterSpacing: 1,
+                cursor: "pointer",
+                textTransform: "uppercase",
+              };
+              return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {pills.map((p) => (
+                    <button
+                      key={p.key}
+                      style={pillStyle}
+                      onClick={() => {
+                        if (isEmail) {
+                          setCompose({ ...compose, emailTo: p.email || "" });
+                        } else {
+                          setCompose({
+                            ...compose,
+                            picked: { phone: p.phone, name: p.key },
+                            q: "",
+                            manual: "",
+                          });
+                        }
+                      }}
+                    >
+                      {p.key}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
+
 
             {compose.channel === "email" ? (
               <>
@@ -2038,20 +2093,98 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               rows={4}
               style={{ ...inputStyle, resize: "vertical", minHeight: 96 }}
             />
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+
+            {compose.attachments.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {compose.attachments.map((a, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      border: `1px solid ${T.dim}`,
+                      color: T.lime,
+                      borderRadius: 4,
+                      padding: "4px 8px",
+                      fontSize: ".8rem",
+                      fontFamily: fontStack,
+                    }}
+                  >
+                    <IconClip />
+                    <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                    <button
+                      onClick={() =>
+                        setCompose((c) =>
+                          c ? { ...c, attachments: c.attachments.filter((_, j) => j !== i) } : c,
+                        )
+                      }
+                      style={{ background: "transparent", color: T.dim, border: "none", cursor: "pointer", padding: 0, fontFamily: fontStack }}
+                      aria-label={`Remove ${a.name}`}
+                      title="Remove"
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <input
+              ref={composeFileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={async (ev) => {
+                const files = ev.target.files;
+                if (!files) return;
+                const current = compose.attachments ? [...compose.attachments] : [];
+                for (const f of Array.from(files)) {
+                  if (f.size > MAX_FILE) {
+                    flash(f.name + " is over 10MB — skipped.", true);
+                    continue;
+                  }
+                  const total = current.reduce((a, x) => a + x.size, 0);
+                  if (total + f.size > MAX_TOTAL) {
+                    flash("Attachment limit reached — " + f.name + " skipped.", true);
+                    break;
+                  }
+                  const data: string = await new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onload = () => res(String(r.result).split(",")[1]);
+                    r.onerror = rej;
+                    r.readAsDataURL(f);
+                  });
+                  current.push({ name: f.name, mime: f.type || "application/octet-stream", data, size: f.size });
+                }
+                setCompose((c) => (c ? { ...c, attachments: current } : c));
+                if (composeFileInputRef.current) composeFileInputRef.current.value = "";
+              }}
+            />
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <button
-                style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: 6 }}
-                title="Insert emoji"
-                aria-label="Insert emoji"
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Emoji"
+                aria-label="Emoji"
                 onClick={() =>
                   setEmojiTarget({
                     apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
                   })
                 }
               >
-                <Smile size={16} strokeWidth={2.2} />
+                <IconSmile />
+              </button>
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Attach"
+                aria-label="Attach"
+                onClick={() => composeFileInputRef.current?.click()}
+              >
+                <IconClip />
               </button>
               <div style={{ flex: 1 }} />
+
               <button
                 style={{ ...ghostBtn, color: T.brightLime, borderColor: T.brightLime }}
                 onClick={() => {
