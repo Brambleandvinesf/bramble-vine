@@ -1115,7 +1115,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       <div style={{ marginLeft: "auto", textAlign: "right", fontSize: ".9rem", lineHeight: 1.35, color: T.lime }}>
         NEXT: {nextVisit.title}
         <br />
-        <span style={{ fontSize: "1.15rem", fontWeight: "bold", color: late ? "#ffb03f" : T.lime }}>
+        <span style={{ fontSize: "1.15rem", fontWeight: "bold", color: late ? T.brightLime : T.lime }}>
           {late ? t + " AGO" : "in " + t}
         </span>
       </div>
