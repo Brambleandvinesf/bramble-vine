@@ -173,6 +173,32 @@ async function textClient(
   return false;
 }
 
+/* ---------- assistant navigate gate (per stop, session-only) ---------- */
+const NAVIGATED_KEY = "field:navigated";
+const navigatedStops = new Set<number>(loadNavigatedStops());
+function loadNavigatedStops(): number[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.sessionStorage.getItem(NAVIGATED_KEY);
+    return raw ? (JSON.parse(raw) as number[]) : [];
+  } catch {
+    return [];
+  }
+}
+function saveNavigatedStops() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(NAVIGATED_KEY, JSON.stringify(Array.from(navigatedStops)));
+  } catch { /* ignore */ }
+}
+function markNavigated(stopIndex: number) {
+  navigatedStops.add(stopIndex);
+  saveNavigatedStops();
+}
+function hasNavigated(stopIndex: number): boolean {
+  return navigatedStops.has(stopIndex);
+}
+
 function normalizeForMatch(s: string): string {
   return s
     .toLowerCase()
