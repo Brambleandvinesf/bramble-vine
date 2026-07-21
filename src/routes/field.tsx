@@ -1042,7 +1042,7 @@ function WhoAmI({
           return (
             <button
               key={e.id}
-              onClick={() => { setPick(e); setErr(null); setClockPending(null); }}
+              onClick={() => { setPick(e); setRole(defaultRoleFor(e.name)); setErr(null); setClockPending(null); }}
               disabled={busy}
               style={{
                 ...BIG_BTN,
