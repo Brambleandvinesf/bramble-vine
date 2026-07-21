@@ -1680,7 +1680,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               onChange={(e) => setApPick({ ...apPick, notes: e.target.value })}
               style={{ ...inputStyle, minHeight: 44 }}
             />
-            {apPick.err && <div style={{ color: T.red, fontSize: ".9rem" }}>{apPick.err}</div>}
+            {apPick.err && <div style={{ color: T.brightLime, fontSize: ".9rem" }}>{apPick.err}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void submitProject()}>Save project</button>
               <button style={ghostBtn} onClick={() => setApPick(null)}>Cancel</button>
