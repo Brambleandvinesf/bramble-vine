@@ -1925,7 +1925,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                       textTransform: "uppercase",
                     }}
                   >
-                    {ch === "text" ? "📱 Text" : "✉ Email"}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+                      {ch === "text" ? <IconHandset /> : <>&#9993;</>} {ch === "text" ? "Text" : "Email"}
+                    </span>
                   </button>
                 );
               })}
@@ -2242,46 +2244,42 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               }}
             />
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Emoji"
-                aria-label="Emoji"
-                onClick={() =>
-                  setEmojiTarget({
-                    apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
-                  })
-                }
-              >
-                <IconSmile />
-              </button>
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Attach"
-                aria-label="Attach"
-                onClick={() => composeFileInputRef.current?.click()}
-              >
-                <IconClip />
-              </button>
-              <div style={{ flex: 1 }} />
-
-              <button
-                style={{ ...ghostBtn, color: T.brightLime, borderColor: T.brightLime }}
-                onClick={() => {
-                  if (window.confirm("Discard this draft? It will not be recoverable.")) {
-                    try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
-                    setCompose(null);
+            <div style={btnRowStyle}>
+              <div style={btnGroupStyle}>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Emoji"
+                  aria-label="Emoji"
+                  onClick={() =>
+                    setEmojiTarget({
+                      apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
+                    })
                   }
-                }}
-                title="Delete draft"
-              >
-                Discard
-              </button>
-              <button style={ghostBtn} onClick={() => setCompose(null)} title="Save draft and close">
-                Save &amp; Close
-              </button>
+                >
+                  <IconSmile />
+                </button>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Attach"
+                  aria-label="Attach"
+                  onClick={() => composeFileInputRef.current?.click()}
+                >
+                  <IconClip />
+                </button>
+              </div>
               <button
-                style={limeBtn}
+                style={{
+                  ...sendBtn,
+                  opacity:
+                    !compose.text.trim() ||
+                    (compose.channel === "text"
+                      ? !(compose.picked || normalizePhone(compose.manual))
+                      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
+                      ? 0.4
+                      : 1,
+                }}
+                title="Send"
+                aria-label="Send"
                 disabled={
                   !compose.text.trim() ||
                   (compose.channel === "text"
@@ -2290,8 +2288,18 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 }
                 onClick={() => void sendCompose()}
               >
-                Send
+                <Send size={22} />
               </button>
+              <div style={btnGroupStyle}>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Close (draft is saved)"
+                  aria-label="Close"
+                  onClick={() => setCompose(null)}
+                >
+                  <X size={22} />
+                </button>
+              </div>
             </div>
           </ModalPanel>
         </ModalOverlay>
@@ -2396,6 +2404,23 @@ const iconBtn: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
 };
+const sendBtn: CSSProperties = {
+  ...iconBtn,
+  minWidth: 44,
+  minHeight: 44,
+  background: T.brightLime,
+  color: T.bg,
+  borderColor: T.brightLime,
+};
+const btnRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+  marginTop: 8,
+  flexWrap: "wrap",
+};
+const btnGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
 const labelStyle: CSSProperties = { fontSize: ".85rem", opacity: 0.8, color: T.lime };
 const pickRowStyle: CSSProperties = {
   padding: "14px 16px",
@@ -2738,57 +2763,61 @@ function FeedCard({
           }}
           style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 56, maxHeight: 160, resize: "vertical" }}
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
-            <IconSmile />
-          </button>
-          {!quo && (
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
-              <IconClip />
+        <div style={btnRowStyle}>
+          <div style={btnGroupStyle}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
+              <IconSmile />
             </button>
-          )}
+            {!quo && (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
+                <IconClip />
+              </button>
+            )}
+          </div>
           <button
             disabled={!reply.trim()}
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
+            style={{ ...sendBtn, opacity: reply.trim() ? 1 : 0.4 }}
             title="Send"
             aria-label="Send"
             onClick={(ev) => { ev.stopPropagation(); onSend(reply, () => setReply("")); }}
           >
             <Send size={22} />
           </button>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title={quo ? "Done" : "File"} aria-label={quo ? "Done" : "File"} onClick={(ev) => { ev.stopPropagation(); onFile(); }}>
-            <Check size={22} />
-          </button>
-          {showConfirm && (
-            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
-          )}
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
-            <FolderPlus size={22} />
-          </button>
-          {showForwardCrew && (
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
-              <Users size={22} />
+          <div style={btnGroupStyle}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title={quo ? "Done" : "File"} aria-label={quo ? "Done" : "File"} onClick={(ev) => { ev.stopPropagation(); onFile(); }}>
+              <Check size={22} />
             </button>
-          )}
-          {showForwardOffice && (
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to office" aria-label="Forward to office" onClick={(ev) => { ev.stopPropagation(); onForwardOffice(); }}>
-              <Users size={22} />
+            {showConfirm && (
+              <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
+            )}
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
+              <FolderPlus size={22} />
             </button>
-          )}
-          {quo
-            ? it.unknowns && it.unknowns.length > 0 && (
-                <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
-                  <IconPoo />
-                </button>
-              )
-            : (
-              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Trash" aria-label="Trash" onClick={(ev) => { ev.stopPropagation(); onTrash(); }}>
-                <Trash2 size={22} />
+            {showForwardCrew && (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
+                <Users size={22} />
               </button>
             )}
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
-            <IconFs />
-          </button>
+            {showForwardOffice && (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to office" aria-label="Forward to office" onClick={(ev) => { ev.stopPropagation(); onForwardOffice(); }}>
+                <Users size={22} />
+              </button>
+            )}
+            {quo
+              ? it.unknowns && it.unknowns.length > 0 && (
+                  <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
+                    <IconPoo />
+                  </button>
+                )
+              : (
+                <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Trash" aria-label="Trash" onClick={(ev) => { ev.stopPropagation(); onTrash(); }}>
+                  <Trash2 size={22} />
+                </button>
+              )}
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
+              <IconFs />
+            </button>
+          </div>
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
@@ -3003,11 +3032,13 @@ function Viewer({
           }}
           style={{ ...inputStyle, width: "100%", minHeight: 72, maxHeight: 160, resize: "vertical" }}
         />
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={onEmoji}><IconSmile /></button>
-          {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={onAttach}><IconClip /></button>}
+        <div style={btnRowStyle}>
+          <div style={btnGroupStyle}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={onEmoji}><IconSmile /></button>
+            {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={onAttach}><IconClip /></button>}
+          </div>
           <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
+            style={{ ...sendBtn, opacity: reply.trim() ? 1 : 0.4 }}
             disabled={!reply.trim()}
             title="Send"
             aria-label="Send"
@@ -3015,75 +3046,77 @@ function Viewer({
           >
             <Send size={22} />
           </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title={quo ? "Done" : "File"}
-            aria-label={quo ? "Done" : "File"}
-            onClick={onFile}
-          >
-            <Check size={22} />
-          </button>
-          {showConfirm && (
-            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
-          )}
-          {onReceipt && !quo && (
+          <div style={btnGroupStyle}>
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Receipt"
-              aria-label="Receipt"
-              onClick={onReceipt}
+              title={quo ? "Done" : "File"}
+              aria-label={quo ? "Done" : "File"}
+              onClick={onFile}
             >
-              <IconRcpt />
+              <Check size={22} />
             </button>
-          )}
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Add Project"
-            aria-label="Add Project"
-            onClick={onProject}
-          >
-            <FolderPlus size={22} />
-          </button>
-          {showForwardCrew && (
+            {showConfirm && (
+              <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
+            )}
+            {onReceipt && !quo && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Receipt"
+                aria-label="Receipt"
+                onClick={onReceipt}
+              >
+                <IconRcpt />
+              </button>
+            )}
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Forward to Crew"
-              aria-label="Forward to Crew"
-              onClick={onForward}
+              title="Add Project"
+              aria-label="Add Project"
+              onClick={onProject}
             >
-              <Users size={22} />
+              <FolderPlus size={22} />
             </button>
-          )}
-          {showForwardOffice && (
-            <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Forward to office"
-              aria-label="Forward to office"
-              onClick={onForwardOffice}
-            >
-              <Users size={22} />
-            </button>
-          )}
-          {!quo && (
-            <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Trash"
-              aria-label="Trash"
-              onClick={onTrash}
-            >
-              <Trash2 size={22} />
-            </button>
-          )}
-          {quo && (
-            <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Spam"
-              aria-label="Spam"
-              onClick={onSpam}
-            >
-              <IconPoo />
-            </button>
-          )}
+            {showForwardCrew && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Forward to Crew"
+                aria-label="Forward to Crew"
+                onClick={onForward}
+              >
+                <Users size={22} />
+              </button>
+            )}
+            {showForwardOffice && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Forward to office"
+                aria-label="Forward to office"
+                onClick={onForwardOffice}
+              >
+                <Users size={22} />
+              </button>
+            )}
+            {!quo && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Trash"
+                aria-label="Trash"
+                onClick={onTrash}
+              >
+                <Trash2 size={22} />
+              </button>
+            )}
+            {quo && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Spam"
+                aria-label="Spam"
+                onClick={onSpam}
+              >
+                <IconPoo />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -3245,26 +3278,28 @@ function DraftCard({
           placeholder="Draft…"
           style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 60, maxHeight: 200, resize: "vertical" }}
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <button
-            style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
-            title="Emoji"
-            aria-label="Emoji"
-            onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
-          >
-            <IconSmile />
-          </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Attach"
-            aria-label="Attach"
-            onClick={onAttach}
-          >
-            <IconClip />
-          </button>
+        <div style={btnRowStyle}>
+          <div style={btnGroupStyle}>
+            <button
+              style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
+              title="Emoji"
+              aria-label="Emoji"
+              onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
+            >
+              <IconSmile />
+            </button>
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Attach"
+              aria-label="Attach"
+              onClick={onAttach}
+            >
+              <IconClip />
+            </button>
+          </div>
           <button
             disabled={!text.trim() || sending}
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: text.trim() && !sending ? 1 : 0.4 }}
+            style={{ ...sendBtn, opacity: text.trim() && !sending ? 1 : 0.4 }}
             title="Send"
             aria-label="Send"
             onClick={async () => {
@@ -3275,42 +3310,44 @@ function DraftCard({
           >
             <Send size={22} />
           </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Add Project"
-            aria-label="Add Project"
-            onClick={onProject}
-          >
-            <FolderPlus size={22} />
-          </button>
-          {showForwardCrew && (
+          <div style={btnGroupStyle}>
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Forward to Crew"
-              aria-label="Forward to Crew"
-              onClick={onForward}
+              title="Add Project"
+              aria-label="Add Project"
+              onClick={onProject}
             >
-              <Users size={22} />
+              <FolderPlus size={22} />
             </button>
-          )}
-          {showForwardOffice && (
+            {showForwardCrew && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Forward to Crew"
+                aria-label="Forward to Crew"
+                onClick={onForward}
+              >
+                <Users size={22} />
+              </button>
+            )}
+            {showForwardOffice && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Forward to office"
+                aria-label="Forward to office"
+                onClick={onForwardOffice}
+              >
+                <Users size={22} />
+              </button>
+            )}
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Forward to office"
-              aria-label="Forward to office"
-              onClick={onForwardOffice}
+              onClick={onDiscard}
+              title="Discard draft"
+              aria-label="Discard draft"
             >
-              <Users size={22} />
+              <Trash2 size={22} />
             </button>
-          )}
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            onClick={onDiscard}
-            title="Discard draft"
-            aria-label="Discard draft"
-          >
-            <Trash2 size={22} />
-          </button>
+          </div>
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
