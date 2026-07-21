@@ -282,6 +282,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   // Default view filters to threads awaiting our reply; "Show all" reveals everything
   const [showAll, setShowAll] = useState(false);
 
+  // Crow shriek on new messages
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
   // Compose (new outbound message)
   const [compose, setCompose] = useState<{
     q: string;
