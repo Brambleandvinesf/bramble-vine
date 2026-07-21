@@ -1728,9 +1728,19 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       {/* Compose FAB */}
       <button
         aria-label="New message"
-        onClick={() =>
-          setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "" })
-        }
+        onClick={() => {
+          let restored: typeof compose = null;
+          try {
+            const raw = window.localStorage.getItem(composeStorageKey);
+            if (raw) restored = JSON.parse(raw);
+          } catch { /* ignore */ }
+          if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked)) {
+            setCompose(restored);
+            flash("Restored saved draft");
+          } else {
+            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "" });
+          }
+        }}
         style={{
           position: "fixed",
           right: 16,
