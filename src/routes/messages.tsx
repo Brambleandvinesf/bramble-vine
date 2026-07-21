@@ -276,6 +276,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [awaitingOverride, setAwaitingOverride] = useState<Record<string, boolean>>({});
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(getConfirmedIds);
 
   // Compose (new outbound message)
   const [compose, setCompose] = useState<{
