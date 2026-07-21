@@ -1748,7 +1748,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               <input value={rcPick.total} onChange={(e) => setRcPick({ ...rcPick, total: e.target.value })} style={{ ...inputStyle, minHeight: 44, fontWeight: "bold" }} />
             </div>
             {rcPick.msg && (
-              <div style={{ color: rcPick.msg.warn ? "#ffb03f" : T.lime, fontSize: ".9rem" }}>{rcPick.msg.text}</div>
+              <div style={{ color: rcPick.msg.warn ? T.brightLime : T.lime, fontSize: ".9rem" }}>{rcPick.msg.text}</div>
             )}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void saveReceipt()}>Confirm &amp; Save PDF</button>
