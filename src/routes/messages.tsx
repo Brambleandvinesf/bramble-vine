@@ -691,7 +691,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     setItems((prev) => [optimistic, ...prev]);
     setCompose(null);
     flash("Message sent to " + name + " \u2713");
-    const res = await postAction({ action: "replyQuo", participants: [phone], text, email });
+    const attachments = compose.attachments || [];
+    const res = await postAction({ action: "replyQuo", participants: [phone], text, email, ...(attachments.length ? { attachments } : {}) });
     if (!(res && res.ok && res.sent)) {
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
       flash("Message NOT sent to " + name + "!", true);
