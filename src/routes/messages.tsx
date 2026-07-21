@@ -103,8 +103,9 @@ type Draft = {
   date?: string;
   text?: string;
 };
-type RosterEntry = { id: string; name: string; in?: string | null; out?: string | null };
+type RosterEntry = { id: string; name: string; in?: string | null; out?: string | null; role?: string | null };
 type Employee = { id: string; name: string; email?: string | null; mobile?: string | null };
+type InboxRoute = { client?: string; state?: string };
 type InboxResponse = {
   inbox?: InboxItem[];
   labels?: string[];
@@ -116,7 +117,9 @@ type InboxResponse = {
   roster?: RosterEntry[];
   employees?: Employee[];
   canViewAll?: boolean;
+  route?: InboxRoute | null;
 };
+
 
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
 function weekKeyLA(d: Date): string {
