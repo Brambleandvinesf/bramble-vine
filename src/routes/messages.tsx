@@ -382,6 +382,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [emojiTarget, setEmojiTarget] = useState<{ apply: (e: string) => void } | null>(null);
   const [acState, setAcState] = useState<{ queue: string[]; phone: string | null; q: string } | null>(null);
   const [fwdPick, setFwdPick] = useState<{ item: InboxItem; text: string; err?: string } | null>(null);
+  const [offPick, setOffPick] = useState<{ item: InboxItem; text: string; err?: string } | null>(null);
   const [apPick, setApPick] = useState<{
     item: InboxItem;
     action: string;
