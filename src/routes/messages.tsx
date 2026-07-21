@@ -1435,6 +1435,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             void spamItem(it);
           }}
           onConfirm={() => confirmVisit(openItem)}
+          showConfirm={!!openItem.isClient && !openItem.confirmed && yesThisWeek(lastYes)}
           onProject={() => openProject(openItem)}
           onForward={() => openForward(openItem)}
           onAttach={() => openAttach(openItem)}
