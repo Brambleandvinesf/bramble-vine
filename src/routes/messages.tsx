@@ -1369,10 +1369,12 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                 onEmoji={(apply) => setEmojiTarget({ apply })}
                 onProject={() => openProject(it)}
                 onForward={() => openForward(it)}
+                onForwardOffice={() => openOffice(it)}
+                showForwardCrew={showForwardCrew}
+                showForwardOffice={showForwardOffice}
                 onAddContact={() => openAddContact(it)}
                 onRemoveStaged={(idx) => removeStaged(it.threadId, idx)}
                 onDraftEdit={draft ? (text) => scheduleDraftSave(draft.draftId, text) : undefined}
-                onDraftDiscard={draft ? () => void discardDraft(draft) : undefined}
               />
             );
           })
