@@ -367,21 +367,24 @@ function SchedulePage() {
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <NavBtn onClick={goPrev} label="◀" />
-        <NavBtn onClick={goToday} label="TODAY" />
-        <NavBtn onClick={goNext} label="▶" />
-        <div style={{ flex: 1 }} />
-        <ViewToggle view={view} setView={setView} />
-      </div>
+      {!(isLeadOrMgmt && confirmed === false) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <NavBtn onClick={goPrev} label="◀" />
+          <NavBtn onClick={goToday} label="TODAY" />
+          <NavBtn onClick={goNext} label="▶" />
+          <div style={{ flex: 1 }} />
+          <ViewToggle view={view} setView={setView} />
+        </div>
+      )}
+
       <h1
         style={{
           color: LIME,
