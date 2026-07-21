@@ -99,6 +99,21 @@ type InboxResponse = {
 };
 type Contact = { r: string; n: string };
 
+const CONFIRMED_KEY = "bv-confirmed-visits";
+function getConfirmedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(CONFIRMED_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function saveConfirmedIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(CONFIRMED_KEY, JSON.stringify([...ids]));
+  } catch {}
+}
+
 /* ============ Icons (line art via SVG) ============ */
 function IconSmile() {
   return (
