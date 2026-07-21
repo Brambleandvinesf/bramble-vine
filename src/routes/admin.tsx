@@ -225,14 +225,46 @@ function AdminPage() {
             fontSize: 16,
             letterSpacing: 2,
             margin: 0,
-            marginBottom: 6,
+            marginBottom: 12,
           }}
         >
-          ADMIN — PERMISSIONS
+          ADMIN
         </h1>
-        <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
-          Read-only — canonical matrix lives in the backend.
-        </p>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {(["perms", "teams"] as const).map((k) => {
+            const active = tab === k;
+            return (
+              <button
+                key={k}
+                onClick={() => setTab(k)}
+                style={{
+                  background: active ? "#7cff00" : "transparent",
+                  color: active ? "#0a0a0a" : "#7cff00",
+                  border: "1px solid #7cff00",
+                  borderRadius: 4,
+                  padding: "6px 12px",
+                  fontFamily: "inherit",
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                }}
+              >
+                {k === "perms" ? "Permissions" : "Teams"}
+              </button>
+            );
+          })}
+        </div>
+
+        {tab === "teams" ? <TeamsAdmin /> : null}
+
+        {tab === "perms" ? (
+          <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
+            Read-only — canonical matrix lives in the backend.
+          </p>
+        ) : null}
+
 
         {status === "loading" && !perms ? (
           <div style={{ color: "#8f8f8f", fontSize: 12 }}>Loading…</div>
