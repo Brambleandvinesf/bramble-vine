@@ -271,7 +271,8 @@ function loadMe(): Me | null {
       window.sessionStorage.removeItem(ME_KEY);
       return null;
     }
-    return { id: m.id, name: m.name };
+    const role = m.role === "lead" || m.role === "assistant" ? m.role : undefined;
+    return { id: m.id, name: m.name, role };
   } catch {
     return null;
   }
