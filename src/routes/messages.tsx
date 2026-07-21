@@ -1322,7 +1322,11 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           it={openItem}
           body={viewerBody}
           reply={vReply}
-          setReply={setVReply}
+          setReply={(s) => {
+            setVReply(s);
+            const d = openItem.source === "gmail" ? draftByThread.get(openItem.threadId) : undefined;
+            if (d) scheduleDraftSave(d.draftId, s);
+          }}
           chips={staged[openItem.threadId] || []}
           onClose={closeViewer}
           onSend={() => {
