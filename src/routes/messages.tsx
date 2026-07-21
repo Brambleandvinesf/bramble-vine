@@ -305,7 +305,11 @@ export function MessagesPage() {
 }
 
 function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwardOffice, email }: { showReceipt: boolean; showLineBadge: boolean; showForwardCrew: boolean; showForwardOffice: boolean; email: string }) {
-  const cached = sessionCache.get<InboxResponse>(CK);
+  // Role-gated "view all inboxes" mode: off by default, local to this session
+  const [viewAll, setViewAll] = useState(false);
+  const [canViewAll, setCanViewAll] = useState(false);
+  const cacheKey = viewAll ? CK_ALL : CK_DEFAULT;
+  const cached = sessionCache.get<InboxResponse>(cacheKey);
   // Feed state
   const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
   const [labels, setLabels] = useState<string[]>(() => cached?.labels ?? []);
