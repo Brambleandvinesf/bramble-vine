@@ -4,6 +4,8 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { MessagesFab } from "../components/MessagesFab";
+
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({
