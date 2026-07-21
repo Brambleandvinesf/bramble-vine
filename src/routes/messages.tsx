@@ -102,6 +102,8 @@ type Draft = {
   date?: string;
   text?: string;
 };
+type RosterEntry = { id: string; name: string; in?: string | null; out?: string | null };
+type Employee = { id: string; name: string; email?: string | null; mobile?: string | null };
 type InboxResponse = {
   inbox?: InboxItem[];
   labels?: string[];
@@ -110,6 +112,8 @@ type InboxResponse = {
   nextVisit?: { title: string; start: string } | null;
   drafts?: Draft[];
   lastYes?: string;
+  roster?: RosterEntry[];
+  employees?: Employee[];
 };
 
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
