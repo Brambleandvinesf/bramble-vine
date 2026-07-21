@@ -1193,6 +1193,7 @@ function PersonalClockPanel({
         setBanner({ kind: "err", text: "Couldn't join roster — retry." });
         return;
       }
+      void resolveTeam(me.id);
     }
     const r = await send({ action: "qbClock", userId: me.id, dir: "in", client });
     setBusy(false);
