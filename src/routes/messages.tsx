@@ -269,7 +269,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     text: string;
   } | null>(null);
 
-  // Flash / red-flash
+  // Flash / new-client green flash
   const [flashMsg, setFlashMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const flashTimer = useRef<number | null>(null);
   const flash = useCallback((text: string, warn = false) => {
@@ -277,7 +277,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     setFlashMsg({ text, warn });
     flashTimer.current = window.setTimeout(() => setFlashMsg(null), 6000);
   }, []);
-  const [redFlash, setRedFlash] = useState(0);
+  const [greenFlash, setGreenFlash] = useState(0);
   const seenClientIdsRef = useRef<string[] | null>(null);
 
   // Viewer
