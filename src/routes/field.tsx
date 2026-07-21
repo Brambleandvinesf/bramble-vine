@@ -556,6 +556,18 @@ function FieldBody({
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(() => loadMe());
+  const [breakFrom, setBreakFromState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return window.sessionStorage.getItem("field:breakFrom") || null; } catch { return null; }
+  });
+  const setBreakFrom = (v: string | null) => {
+    setBreakFromState(v);
+    try {
+      if (typeof window === "undefined") return;
+      if (v) window.sessionStorage.setItem("field:breakFrom", v);
+      else window.sessionStorage.removeItem("field:breakFrom");
+    } catch { /* ignore */ }
+  };
   const bodyRouter = useRouter();
 
   /* --- manage-full-crew fallback (lead only, always reachable via link) --- */
