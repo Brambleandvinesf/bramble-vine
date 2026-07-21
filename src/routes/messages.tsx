@@ -395,6 +395,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (r.contacts) setContacts(r.contacts);
       if (r.clients) setClients(r.clients);
       setNextVisit(r.nextVisit || null);
+      setDrafts(r.drafts || []);
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
