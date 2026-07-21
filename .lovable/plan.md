@@ -1,101 +1,54 @@
-# /field one-person-per-phone flow
+Guided field flow redesign. Splits into surgical patches across five files:
 
-Scope fenced to `src/routes/field.tsx`. No payload shape changes to
-`joinRoster`, `qbClock`, `setRoster`. No other screens touched.
+## A. `/confirm` sizing (confirm.tsx)
+Bump three tokens ~2x:
+- `ACTION_INPUT`: fontSize 14→22, padding 10→18, add fontWeight bold retained.
+- `ITEM_PILL`: fontSize 11→18, padding "3px 10px"→"7px 16px".
+- The "+ ADD ITEM" button uses `GHOST_BTN_SM`; create a new `ADD_ITEM_BTN` variant (fontSize 20, minHeight 60, padding 0 22) and swap the two `setPickerFor(...)` add-item buttons + the new-project one to it. Other GHOST_BTN_SM uses unchanged.
 
-## 1. Sticky identity (LA-date keyed)
+## B. Schedule = post-clock-in gate (field.tsx + schedule.tsx)
+- In `WhoAmI` (field.tsx), after successful clock-in navigate to `/schedule` instead of `/loading`.
+- In `SchedulePage`: add `useReviewableToday` + a getConfirm poll for `confirm.confirmed`. When role is `assistant`/`lead` and !confirmed, render a full-screen "AWAITING LOADING INSTRUCTIONS…" panel above the schedule list. When confirmed becomes true, `navigate({ to: "/loading" })` once (guard with a ref).
 
-Add `sessionStorage`-backed helper at top of the file:
+## C. Lead's Yes/No prominence (index.tsx)
+When `reviewable === false` AND lead/management, replace the `ConfirmBanner` with a big lime `CONFIRM BASE LOAD & NOTIFY CREW` link/button that opens `/confirm`. When reviewable ≠ false, keep current banner.
 
-- `laDateKey()` → `YYYY-MM-DD` in `America/Los_Angeles`
-- key `"field.me"` stores `{ id, name, date }`
-- `loadMe()` returns `null` if date drifts; `saveMe`, `clearMe`
+## D. Loading complete → assistant to Navigate (loading.tsx + field.tsx)
+- Add a persistent bottom button "LOADING COMPLETE" on `/loading` (visible once `items` loaded, disabled while busy). Posts `{ action:"loadingComplete" }`, then:
+  - if role assistant: `navigate({ to:"/field" })` (Field's Navigate screen handles enroute state).
+  - else: stay.
+- Assistant no longer needs the current RouteFooter; keep it as-is for leads.
 
-State in `FieldBody`: `const [me, setMe] = useState<Me|null>(() => loadMe())`.
+## E. Navigate screen (field.tsx)
+Replace the current assistant navigate-gate in `StateEnRoute`/`StateArrived` with a new `AssistantNavigateScreen` rendered whenever role==="assistant" and state==="enroute":
+- Primary: "NAVIGATE & TEXT ETA TO {client}" (last stop → "NAVIGATE TO HQ", destination = fixed HQ address constant `HQ_ADDRESS`).
+- Tap opens Maps AND posts `{action:"textClient", kind:"eta"}`. Toast "ETA sent" only on real send (raw.skipped/alreadySent → silent).
+- Secondary row: "SKIP" (`setRoute stopIndex+1`, enroute, next client/eventId) and "PREVIOUS" (`setRoute stopIndex-1`, enroute, prev client/eventId).
+- Last-stop only: extra "SOMEWHERE ELSE?" that opens a small address entry and Maps-links there (no state change).
 
-## 2. New opening screen `<WhoAmI>` (replaces the current roster gate)
+## F. First-tap-wins START/SWITCH (field.tsx `StateArrived`)
+Replace the current single START VISIT button with:
+- if route.state==="arrived": "START VISIT, CLOCK IN & NOTIFY CLIENT" → setRoute({state:"visit"}) + this person's qbClock switch to client jobcode + `textClient kind:"arrived"`.
+- if state==="visit" (already started): "SWITCH TO {client}" → only qbClock switch, no setRoute, no text.
 
-Renders when `!me && !isPreview`. Layout:
+## G. Assistant visit-complete → back to Navigate (field.tsx)
+In `PersonalClockPanel` / `StateVisit` for assistants: on CLOCK OUT, fire `textClient kind:"done"` (idempotent) and then if role assistant force state back to "enroute" via `setRoute stopIndex+1` (or to HQ terminal if last stop). Lead/management flow (debrief) unchanged.
 
-- Title `WHO'S ON THIS PHONE?`
-- Single-select big rows from `data.employees` (radio-style, one highlighted)
-- Primary button `CLOCK IN & START LOADING`, disabled until a name is picked
-  and while in flight. On tap, sequentially:
-  1. `send({ action:"joinRoster", id, name })`
-  2. `send({ action:"qbClock", userId:id, dir:"in", client:"Bramble and Vine" })`
-  3. On (1) success `saveMe`+`setMe` regardless of (2)
-  4. On (2) success `router.navigate({ to:"/loading" })`
-  5. On (2) failure show inline red error + `RETRY` (calls (2) again). Copy
-     notes the person is already on the roster.
-- Small `manage full crew` link (lead only, `canSee(role,"route_debrief")`)
-  → toggles a local `showRoster` flag that renders the existing
-  `<RosterPicker>` with a `CANCEL` back to WhoAmI. Behavior of that picker
-  (including reset semantics of `setRoster`) unchanged.
+## H. HQ end-of-day (field.tsx)
+Add `StateHqTerminal` shown when assistant is at synthetic "hq" stop: single "UNLOAD COMPLETE / CLOCK OUT" button that calls qbClock dir:"out".
 
-Preview bypasses this gate (same pattern as the current roster gate).
+## I. Persistent Messages overlay (new component + field/loading/schedule)
+- New `src/components/MessagesFab.tsx`: fixed floating `MessageSquare` icon (bottom-right, above bottom bar). On click, opens a full-screen modal containing an iframe-like local mount of `MessagesPage` (import from routes) with a close button. State preserved because it's just conditionally rendered.
+- Mount `<MessagesFab />` on `/schedule`, `/loading`, `/field` pages.
 
-## 3. `CLOCKING AS` header line
-
-Small row above the state content when `me` is set:
-
-```
-CLOCKING AS: MIGUEL O — change
-```
-
-`change` calls `clearMe(); setMe(null)`. Disabled with dim-red inline note
-`Clock out first` when the current roster row for `me.id` has `in && !out`
-(overhead or client, either counts as open).
-
-## 4. `<PersonalClockPanel>` (replaces StateArrived / StateVisit crew grids)
-
-Props: `me`, `roster`, `clientMatch`, `now`, `busy`, `isPreview`, `send`.
-
-Derives from `roster.find(r => r.id === me.id)`:
-
-- `openPunch = row?.in && !row?.out`
-- `openClient = row?.client` (compared case-insensitive to `"Bramble and Vine"`
-  for overhead vs client)
-
-State-aware primary + optional secondary:
-
-| Current state | Primary | Secondary |
-| --- | --- | --- |
-| clocked out | `CLOCK IN — OVERHEAD` (qbClock in, client `Bramble and Vine`; if `me` missing from roster, `joinRoster` first) | — |
-| on overhead, `clientMatch` present | `SWITCH TO CLIENT CLOCK` (qbClock out overhead → qbClock in `clientMatch`, sequential; button disabled until both return; on partial failure banner names which leg) | `CLOCK OUT` |
-| on overhead, no `clientMatch` | `CLOCK OUT` | — |
-| on client | `CLOCK OUT` | `SWITCH TO OVERHEAD` (out client → in overhead, same sequential pattern) |
-
-Under the button: `Since 8:12a · 1h 22m` derived from `row.in` and `now`.
-Rendered in preview with the button `disabled`.
-
-Injected in place of the whole-crew grid inside `StateArrived` and
-`StateVisit`. Roster-wide status list (`RosterClockStatus`) stays where it
-already is for delegated-debrief view.
-
-## 5. Wiring
-
-- Delete the `roster.length === 0` gate and its `rosterEdit` back-flow
-  (both replaced by WhoAmI + `manage full crew`).
-- `handleBackToCrew` on `<StateEnRoute>` keeps calling into the same
-  `<RosterPicker>` reset flow via the same lead affordance (unchanged
-  guard: dim-red `Crew is clocked in` if any `roster` row has open punch).
-- `StateArrived.onClockIn` / `StateVisit.onClockOut` props are removed at
-  the call sites and replaced by rendering `<PersonalClockPanel>`.
-  Internal per-member button rows in those two components are deleted.
-
-## 6. Preview
-
-- WhoAmI gate skipped, PersonalClockPanel + ClockingAs header render with
-  writes disabled (mirror existing `isPreview` guards).
+## J. Escape hatch
+No change — bottom bar stays.
 
 ## Technical notes
+- No backend changes; all new actions (`loadingComplete`, `textClient` kinds, `setRoute` neighbor moves) already exist per user.
+- `HQ_ADDRESS` const in field.tsx.
+- New `assistant` conditional flows guarded so lead/management routes untouched where possible.
+- Messages overlay imports `MessagesPage` directly; need to export it from `src/routes/messages.tsx` (add named `export`).
+- Skip existing `RouteFooter` on `/loading` for assistants (guard with role) to avoid conflicting navigation UI once the new Navigate screen owns that flow.
 
-- No new dependencies. Uses existing `postScript`/`send`, `sessionCache`,
-  `router.navigate`.
-- `sessionStorage` reads happen in a `useState` initializer; guarded with
-  `typeof window` check to keep SSR happy.
-- Sequential double-`qbClock` calls: `await send(out)`; if `ok`, `await
-  send(in)`. Banner text on partial failure: `"Clocked out but couldn't
-  clock in — retry"` (button re-enabled).
-- LA-date drift: `loadMe` returns null when the stored date differs, so a
-  phone left overnight lands back on WhoAmI in the morning.
+Scope is large — ~500 net lines across five files. Confirm before I start writing.
