@@ -2119,6 +2119,22 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 textTransform: "uppercase",
                 opacity: disabled ? 0.4 : 1,
               });
+              if (showClientPill) {
+                if (clientContact) {
+                  pills.push({
+                    key: `client-${clientContact.r}`,
+                    label: routeClient,
+                    value: clientContact.r,
+                  });
+                } else {
+                  pills.push({
+                    key: `client-${routeClient}`,
+                    label: routeClient,
+                    value: "",
+                    clientQuery: routeClient,
+                  });
+                }
+              }
               return (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {pills.map((p) => (
@@ -2131,6 +2147,13 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                         if (p.disabled) return;
                         if (isEmail) {
                           setCompose({ ...compose, emailTo: p.value });
+                        } else if (p.clientQuery) {
+                          setCompose({
+                            ...compose,
+                            picked: null,
+                            q: p.clientQuery,
+                            manual: p.clientQuery,
+                          });
                         } else {
                           setCompose({
                             ...compose,
