@@ -3278,26 +3278,28 @@ function DraftCard({
           placeholder="Draft…"
           style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 60, maxHeight: 200, resize: "vertical" }}
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <button
-            style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
-            title="Emoji"
-            aria-label="Emoji"
-            onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
-          >
-            <IconSmile />
-          </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Attach"
-            aria-label="Attach"
-            onClick={onAttach}
-          >
-            <IconClip />
-          </button>
+        <div style={btnRowStyle}>
+          <div style={btnGroupStyle}>
+            <button
+              style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
+              title="Emoji"
+              aria-label="Emoji"
+              onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
+            >
+              <IconSmile />
+            </button>
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Attach"
+              aria-label="Attach"
+              onClick={onAttach}
+            >
+              <IconClip />
+            </button>
+          </div>
           <button
             disabled={!text.trim() || sending}
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: text.trim() && !sending ? 1 : 0.4 }}
+            style={{ ...sendBtn, opacity: text.trim() && !sending ? 1 : 0.4 }}
             title="Send"
             aria-label="Send"
             onClick={async () => {
@@ -3308,42 +3310,44 @@ function DraftCard({
           >
             <Send size={22} />
           </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Add Project"
-            aria-label="Add Project"
-            onClick={onProject}
-          >
-            <FolderPlus size={22} />
-          </button>
-          {showForwardCrew && (
+          <div style={btnGroupStyle}>
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Forward to Crew"
-              aria-label="Forward to Crew"
-              onClick={onForward}
+              title="Add Project"
+              aria-label="Add Project"
+              onClick={onProject}
             >
-              <Users size={22} />
+              <FolderPlus size={22} />
             </button>
-          )}
-          {showForwardOffice && (
+            {showForwardCrew && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Forward to Crew"
+                aria-label="Forward to Crew"
+                onClick={onForward}
+              >
+                <Users size={22} />
+              </button>
+            )}
+            {showForwardOffice && (
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Forward to office"
+                aria-label="Forward to office"
+                onClick={onForwardOffice}
+              >
+                <Users size={22} />
+              </button>
+            )}
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Forward to office"
-              aria-label="Forward to office"
-              onClick={onForwardOffice}
+              onClick={onDiscard}
+              title="Discard draft"
+              aria-label="Discard draft"
             >
-              <Users size={22} />
+              <Trash2 size={22} />
             </button>
-          )}
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            onClick={onDiscard}
-            title="Discard draft"
-            aria-label="Discard draft"
-          >
-            <Trash2 size={22} />
-          </button>
+          </div>
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
