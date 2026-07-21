@@ -2395,6 +2395,7 @@ function StateDebrief({
   notes?: VisitNote[];
 }) {
   const clocked = roster.filter((m) => m.in);
+  const { effectiveRole } = useViewAs();
   const nowIso = useMemo(() => new Date().toISOString(), []);
   const [billing, setBilling] = useState<DebriefBilling[]>(
     () => clocked.map((m) => ({ name: m.name, hours: hoursBetween(m.in, m.out ?? nowIso) })),
