@@ -2825,14 +2825,26 @@ function Viewer({
           >
             <FolderPlus size={22} />
           </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Forward to Crew"
-            aria-label="Forward to Crew"
-            onClick={onForward}
-          >
-            <Users size={22} />
-          </button>
+          {showForwardCrew && (
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Forward to Crew"
+              aria-label="Forward to Crew"
+              onClick={onForward}
+            >
+              <Users size={22} />
+            </button>
+          )}
+          {showForwardOffice && (
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Forward to office"
+              aria-label="Forward to office"
+              onClick={onForwardOffice}
+            >
+              <Users size={22} />
+            </button>
+          )}
           {!quo && (
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
