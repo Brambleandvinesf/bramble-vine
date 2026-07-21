@@ -91,7 +91,7 @@ type Edit = {
   type: string;
   category: string;
   notes: string;
-  status: "Confirmed" | "SKIP";
+  status: "Pending" | "Confirmed" | "SKIP";
   expanded: boolean;
   notesOpen: boolean;
 };
