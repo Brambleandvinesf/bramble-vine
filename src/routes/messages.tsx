@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
