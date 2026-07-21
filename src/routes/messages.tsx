@@ -1797,13 +1797,11 @@ function SparkleBurst({ active }: { active: boolean }) {
 }
 
 function ConfirmButton({
-  id,
   confirmed,
   onConfirm,
   iconOnly,
   style,
 }: {
-  id: string;
   confirmed?: boolean;
   onConfirm: () => Promise<boolean>;
   iconOnly?: boolean;
