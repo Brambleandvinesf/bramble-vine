@@ -193,7 +193,7 @@ function LoadingPage() {
     let cancelled = false;
     const tick = async () => {
       try {
-        const res = await fetch(`${SCRIPT_URL}?action=getField`);
+        const res = await fetch(appendTeamParam(`${SCRIPT_URL}?action=getField`));
         if (!res.ok) return;
         const json = (await res.json()) as GetFieldResponse;
         if (cancelled) return;
