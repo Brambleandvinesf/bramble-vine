@@ -270,7 +270,7 @@ function AdminPage() {
           <div style={{ color: "#8f8f8f", fontSize: 12 }}>Loading…</div>
         ) : null}
 
-        {status === "error" && !perms ? (
+        {tab === "perms" && status === "error" && !perms ? (
           <div
             style={{
               border: "1px solid #2a2a2a",
