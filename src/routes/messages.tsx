@@ -638,7 +638,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (it.source === "quo") body.participants = it.participants;
       else body.fromEmail = it.fromEmail;
       const res = await postAction(body);
-      if (res && res.ok && res.confirmed) {
+      if (res && res.ok && !res.error) {
         flash("Confirmed: " + res.event + " (" + rel(res.start) + ")");
         setConfirmedIds((prev) => {
           const next = new Set(prev);
