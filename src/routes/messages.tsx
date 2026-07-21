@@ -2413,57 +2413,75 @@ function FeedCard({
             {it.snippet}
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
+        <textarea
+          rows={2}
+          placeholder={draft ? "Draft…" : "Reply…"}
+          value={reply}
+          onChange={(e) => {
+            setReply(e.target.value);
+            if (onDraftEdit) onDraftEdit(e.target.value);
+          }}
+          onClick={(ev) => ev.stopPropagation()}
+          onKeyDown={(ev) => {
+            if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+              ev.preventDefault();
+              if (reply.trim()) onSend(reply, () => setReply(""));
+            }
+          }}
+          style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 56, maxHeight: 160, resize: "vertical" }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
             <IconSmile />
           </button>
           {!quo && (
-            <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
               <IconClip />
             </button>
           )}
-          <textarea
-            rows={1}
-            placeholder={draft ? "Draft…" : "Reply…"}
-            value={reply}
-            onChange={(e) => {
-              setReply(e.target.value);
-              if (onDraftEdit) onDraftEdit(e.target.value);
-            }}
-            onClick={(ev) => ev.stopPropagation()}
-            onKeyDown={(ev) => {
-              if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
-                ev.preventDefault();
-                if (reply.trim()) onSend(reply, () => setReply(""));
-              }
-            }}
-            style={{ ...inputStyle, flex: 1, minHeight: 44, maxHeight: 120, resize: "none" }}
-          />
           <button
             disabled={!reply.trim()}
-            style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", opacity: reply.trim() ? 1 : 0.4 }}
-            onClick={(ev) => {
-              ev.stopPropagation();
-              onSend(reply, () => setReply(""));
-            }}
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
+            title="Send"
+            aria-label="Send"
+            onClick={(ev) => { ev.stopPropagation(); onSend(reply, () => setReply("")); }}
           >
-            Send
+            <Send size={22} />
           </button>
-        </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
-          <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
-            + Project
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title={quo ? "Done" : "File"} aria-label={quo ? "Done" : "File"} onClick={(ev) => { ev.stopPropagation(); onFile(); }}>
+            <Check size={22} />
           </button>
-          <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
-            → Crew
+          {showConfirm && (
+            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
+          )}
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
+            <FolderPlus size={22} />
+          </button>
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
+            <Users size={22} />
+          </button>
+          {quo
+            ? it.unknowns && it.unknowns.length > 0 && (
+                <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
+                  <IconPoo />
+                </button>
+              )
+            : (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Trash" aria-label="Trash" onClick={(ev) => { ev.stopPropagation(); onTrash(); }}>
+                <Trash2 size={22} />
+              </button>
+            )}
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
+            <IconFs />
           </button>
           {draft && onDraftDiscard && (
             <button
-              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", color: "#ffb03f", borderColor: "#ffb03f" }}
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
               onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
               title="Discard draft"
+              aria-label="Discard draft"
             >
-              ✕ Discard
+              <Trash2 size={22} />
             </button>
           )}
         </div>
@@ -2491,28 +2509,6 @@ function FeedCard({
             ))}
           </div>
         )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: "stretch", justifyContent: "flex-end" }}>
-        <button style={iconBtn} title="Open full screen" onClick={onOpen}>
-          <IconFs />
-        </button>
-        {it.isClient && (
-          <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
-        )}
-        {quo
-          ? it.unknowns && it.unknowns.length > 0 && (
-              <button style={iconBtn} title="Mark as spam" onClick={onSpam}>
-                <IconPoo />
-              </button>
-            )
-          : (
-            <button style={iconBtn} title="Trash" onClick={onTrash}>
-              ✕
-            </button>
-          )}
-        <button style={iconBtn} title={quo ? "Done" : "File"} onClick={onFile}>
-          ✓
-        </button>
       </div>
     </div>
   );
