@@ -1319,6 +1319,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         ) : (
           displayItems.map((it) => {
             const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+            const showConfirm = !!it.isClient && !it.confirmed && yesThisWeek(lastYes);
             return (
               <FeedCard
                 key={it.id}
@@ -1327,6 +1328,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                 found={foundId === it.id}
                 staged={staged[it.threadId] || []}
                 showLineBadge={showLineBadge}
+                showConfirm={showConfirm}
                 draft={draft}
                 onOpen={() => openViewer(it)}
                 onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
