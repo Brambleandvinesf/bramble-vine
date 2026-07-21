@@ -517,6 +517,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
   // When viewAll mode changes, swap to the matching cache and re-fetch
   useEffect(() => {
+    if (!viewAllSwapRef.current) {
+      viewAllSwapRef.current = true;
+      return;
+    }
     const c = sessionCache.get<InboxResponse>(cacheKey);
     setItems(c?.inbox ?? []);
     setLabels(c?.labels ?? []);
