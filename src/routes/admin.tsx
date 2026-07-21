@@ -145,6 +145,7 @@ function AdminPage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
+  const [tab, setTab] = useState<"perms" | "teams">("perms");
   const [perms, setPerms] = useState<PermMap | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
