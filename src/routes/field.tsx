@@ -1525,6 +1525,9 @@ function StateArrived({
   onBackToCrew,
   backNotice,
   isPreview,
+  role,
+  event,
+  send,
   onDelegate,
   onStart,
   onNoShow,
@@ -1539,12 +1542,46 @@ function StateArrived({
   onBackToCrew?: () => void;
   backNotice?: string | null;
   isPreview?: boolean;
+  role: ReturnType<typeof useViewAs>["effectiveRole"];
+  event?: EventItem;
+  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   onDelegate: (v: boolean) => void;
   onStart: () => void;
   onNoShow: () => void;
 }) {
   const anyIn = roster.some((m) => !!m.in);
   const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
+
+  const isAssistant = role === "assistant";
+  const [navigated, setNavigated] = useState(() => hasNavigated(stopIndex));
+  useEffect(() => {
+    setNavigated(hasNavigated(stopIndex));
+  }, [stopIndex]);
+
+  const label = clientMatch ?? event?.title ?? "this client";
+  const address = event?.location ?? "";
+  const mapsUrl = address
+    ? "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(address)
+    : "";
+
+  const handleNavigate = async () => {
+    const wantsText = window.confirm(`Text ${label} your ETA?`);
+    if (wantsText) {
+      const r = await send({ action: "textClient", kind: "eta" }, { silent: true });
+      const raw = (r.raw ?? {}) as { ok?: boolean; to?: string; error?: string };
+      if (r.ok && raw.ok !== false) {
+        toast.success(`ETA sent to ${raw.to ?? label}`);
+      } else {
+        toast.error(raw.error || r.error || "ETA text failed");
+      }
+    }
+    if (mapsUrl) window.open(mapsUrl, "_blank", "noopener,noreferrer");
+    markNavigated(stopIndex);
+    setNavigated(true);
+  };
+
+  const showNormal = isLead || (isAssistant && navigated);
+
   return (
     <div style={{ padding: "10px 14px" }}>
       {onBackToCrew && (
@@ -1576,9 +1613,18 @@ function StateArrived({
       {!clientMatch && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
       {clockSlot}
 
+      {isAssistant && !navigated && (
+        <button
+          type="button"
+          onClick={handleNavigate}
+          disabled={busy || !address}
+          style={{ ...NAVIGATE_BTN, opacity: address ? 1 : 0.45, marginTop: 14 }}
+        >
+          NAVIGATE
+        </button>
+      )}
 
-
-      {isLead && (
+      {showNormal && (
         <>
           <div style={{ ...SECTION_HEAD, marginTop: 18 }}>DEBRIEF</div>
           <button
@@ -1603,7 +1649,7 @@ function StateArrived({
         </>
       )}
 
-      {isLead && (
+      {showNormal && (
         <button onClick={onNoShow} style={{ ...DANGER_BTN, marginTop: 14 }} disabled={busy}>
           NO SHOW
         </button>
