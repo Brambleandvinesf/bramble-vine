@@ -2715,8 +2715,22 @@ function Viewer({
         </div>
       </div>
       <div style={{ display: "flex", gap: 12, justifyContent: "center", padding: "8px 16px 12px", background: T.bg }}>
-        <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={onProject}>+ Project</button>
-        <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={onForward}>→ Crew</button>
+        <button
+          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+          title="Add Project"
+          aria-label="Add Project"
+          onClick={onProject}
+        >
+          <FolderPlus size={22} />
+        </button>
+        <button
+          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+          title="Forward to Crew"
+          aria-label="Forward to Crew"
+          onClick={onForward}
+        >
+          <Users size={22} />
+        </button>
       </div>
     </div>
   );
