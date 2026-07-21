@@ -2345,7 +2345,7 @@ function FeedCard({
           </div>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => setReply((v) => v + e)); }}>
+          <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
             <IconSmile />
           </button>
           {!quo && (
@@ -2355,9 +2355,12 @@ function FeedCard({
           )}
           <textarea
             rows={1}
-            placeholder="Reply…"
+            placeholder={draft ? "Draft…" : "Reply…"}
             value={reply}
-            onChange={(e) => setReply(e.target.value)}
+            onChange={(e) => {
+              setReply(e.target.value);
+              if (onDraftEdit) onDraftEdit(e.target.value);
+            }}
             onClick={(ev) => ev.stopPropagation()}
             onKeyDown={(ev) => {
               if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
@@ -2378,13 +2381,22 @@ function FeedCard({
             Send
           </button>
         </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8 }}>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
           <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
             + Project
           </button>
           <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
             → Crew
           </button>
+          {draft && onDraftDiscard && (
+            <button
+              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", color: "#ffb03f", borderColor: "#ffb03f" }}
+              onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
+              title="Discard draft"
+            >
+              ✕ Discard
+            </button>
+          )}
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
