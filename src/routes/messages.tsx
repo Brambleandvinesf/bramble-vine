@@ -1473,7 +1473,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                       </div>
                     ))}
                     {labelPick.q.trim() && !exact && (
-                      <div onClick={() => finishLabel(labelPick.q.trim())} style={{ ...pickRowStyle, color: "#ffb03f" }}>
+                      <div onClick={() => finishLabel(labelPick.q.trim())} style={{ ...pickRowStyle, color: T.dim }}>
                         + Create “{labelPick.q.trim()}”
                       </div>
                     )}
