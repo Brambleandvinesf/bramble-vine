@@ -2503,25 +2503,29 @@ function StateDebrief({
 
   return (
     <div style={{ padding: "10px 14px" }}>
-      <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>DEBRIEF</div>
-      <div style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>
-        {clientMatch ?? event?.title}
+      <div
+        style={{
+          color: LIME,
+          fontSize: 17,
+          fontWeight: 500,
+          letterSpacing: 1,
+          textAlign: "center",
+        }}
+      >
+        Debrief - {clientMatch ?? event?.title}
       </div>
 
       {/* Wizard header */}
       <div
         style={{
-          marginTop: 14,
+          marginTop: 12,
           display: "flex",
+          justifyContent: "center",
           alignItems: "center",
-          gap: 10,
           flexWrap: "wrap",
         }}
       >
-        <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>
-          STEP {current + 1} OF {DEBRIEF_STEPS.length}
-        </div>
-        <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+        <div style={{ display: "flex", gap: 6 }}>
           {DEBRIEF_STEPS.map((s, i) => {
             const on = i === current;
             const done = completed.has(i) && !isPreview;
@@ -2544,7 +2548,16 @@ function StateDebrief({
         </div>
       </div>
 
-      <div style={{ color: LIME, fontSize: 13, letterSpacing: 2, fontWeight: "bold", marginTop: 8 }}>
+      <div
+        style={{
+          color: LIME,
+          fontSize: 30,
+          fontWeight: "bold",
+          textAlign: "center",
+          letterSpacing: 2,
+          marginTop: 10,
+        }}
+      >
         {currentLabel.toUpperCase()}
       </div>
 
