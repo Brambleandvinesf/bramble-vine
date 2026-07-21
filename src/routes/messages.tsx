@@ -92,12 +92,22 @@ type InboxItem = {
   ruleLabel?: string;
   line?: string;
 };
+type Draft = {
+  draftId: string;
+  threadId?: string;
+  to?: string;
+  subject?: string;
+  snippet?: string;
+  date?: string;
+  text?: string;
+};
 type InboxResponse = {
   inbox?: InboxItem[];
   labels?: string[];
   contacts?: { r: string; n: string }[];
   clients?: string[];
   nextVisit?: { title: string; start: string } | null;
+  drafts?: Draft[];
 };
 type Contact = { r: string; n: string };
 
