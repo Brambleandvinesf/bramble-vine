@@ -20,7 +20,7 @@ import {
   Folder,
   Receipt,
   Shield,
-  MoreHorizontal,
+  MoreVertical,
   Maximize2,
   Minimize2,
   X,
@@ -279,9 +279,8 @@ function BottomTabBar() {
   const showMore = moreTabs.length > 0;
   const moreActive = moreTabs.some((t) => isActive(t.to));
 
-  // Insert ⋯ button just before Messages (rightmost - 1).
-  const slots: Array<TabDef | "more"> = [...rowTabs];
-  if (showMore) slots.splice(Math.max(0, slots.length - 1), 0, "more");
+  const messagesTab = rowTabs.find((t) => t.to === "/messages") || TABS.messages;
+  const mainTabs = rowTabs.filter((t) => t.to !== "/messages");
 
   return (
     <>
@@ -293,55 +292,20 @@ function BottomTabBar() {
           bottom: 0,
           zIndex: 100,
           display: "flex",
+          alignItems: "center",
           background: "#121212",
           borderTop: "1px solid #222",
           fontFamily: "'Courier New', Courier, monospace",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
-        {slots.map((t, i) => {
-          if (t === "more") {
-            return (
-              <button
-                key="more"
-                onClick={() => setMoreOpen((v) => !v)}
-                aria-label="More"
-                style={{
-                  position: "relative",
-                  flex: 1,
-                  minHeight: 56,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "transparent",
-                  border: "none",
-                  color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                <MoreHorizontal
-                  size={22}
-                  color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
-                  strokeWidth={2}
-                />
-                {moreOpen && (
-                  <MorePopover
-                    tabs={moreTabs}
-                    isActive={isActive}
-                    onClose={() => setMoreOpen(false)}
-                  />
-                )}
-              </button>
-            );
-          }
+        {mainTabs.map((t) => {
           const active = isActive(t.to);
           const color = active ? LIME_TAB : DIM_TAB;
           const Icon = t.icon;
           return (
             <Link
-              key={t.to + i}
+              key={t.to}
               to={t.to}
               aria-label={t.label}
               title={t.label}
@@ -361,6 +325,72 @@ function BottomTabBar() {
             </Link>
           );
         })}
+
+        <div style={{ flex: 1 }} />
+
+        {showMore && (
+          <button
+            key="more"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-label="More"
+            style={{
+              position: "relative",
+              flex: "0 0 auto",
+              width: 44,
+              minHeight: 56,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "transparent",
+              border: "none",
+              color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
+              cursor: "pointer",
+              padding: 0,
+            }}
+          >
+            <MoreVertical
+              size={22}
+              color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
+              strokeWidth={2}
+            />
+            {moreOpen && (
+              <MorePopover
+                tabs={moreTabs}
+                isActive={isActive}
+                onClose={() => setMoreOpen(false)}
+              />
+            )}
+          </button>
+        )}
+
+        {(() => {
+          const t = messagesTab;
+          const active = isActive(t.to);
+          const color = active ? LIME_TAB : DIM_TAB;
+          const Icon = t.icon;
+          return (
+            <Link
+              key={t.to}
+              to={t.to}
+              aria-label={t.label}
+              title={t.label}
+              style={{
+                flex: 1,
+                minHeight: 56,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color,
+                textDecoration: "none",
+                textAlign: "center",
+              }}
+            >
+              <Icon size={22} color={color} strokeWidth={2} />
+            </Link>
+          );
+        })()}
       </nav>
       {moreOpen && (
         <div
