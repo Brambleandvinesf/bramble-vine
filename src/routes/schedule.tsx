@@ -450,7 +450,7 @@ function SchedulePage() {
               {baseLoadSubmitting ? "…" : "YES"}
             </button>
             <button
-              onClick={() => setBaseLoadDismissed(true)}
+              onClick={() => void submitBaseLoadNo()}
               disabled={baseLoadSubmitting}
               style={{
                 minHeight: 60,
