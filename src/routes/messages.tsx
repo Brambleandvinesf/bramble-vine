@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, RotateCw, Smile } from "lucide-react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
@@ -288,9 +288,12 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   // Compose (new outbound message)
   const [compose, setCompose] = useState<{
+    channel: "text" | "email";
     q: string;
     picked: { phone: string; name: string } | null;
     manual: string;
+    emailTo: string;
+    subject: string;
     text: string;
   } | null>(null);
 
