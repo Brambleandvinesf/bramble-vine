@@ -282,6 +282,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [feedLoaded, setFeedLoaded] = useState<boolean>(() => !!cached);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [drafts, setDrafts] = useState<Draft[]>(() => cached?.drafts ?? []);
 
   // Optimistic
   const [hidden, setHidden] = useState<Set<string>>(new Set());
