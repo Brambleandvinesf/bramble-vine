@@ -2544,9 +2544,16 @@ function FeedCard({
           <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
             <FolderPlus size={22} />
           </button>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
-            <Users size={22} />
-          </button>
+          {showForwardCrew && (
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
+              <Users size={22} />
+            </button>
+          )}
+          {showForwardOffice && (
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to office" aria-label="Forward to office" onClick={(ev) => { ev.stopPropagation(); onForwardOffice(); }}>
+              <Users size={22} />
+            </button>
+          )}
           {quo
             ? it.unknowns && it.unknowns.length > 0 && (
                 <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
@@ -2561,16 +2568,6 @@ function FeedCard({
           <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
             <IconFs />
           </button>
-          {draft && onDraftDiscard && (
-            <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
-              title="Discard draft"
-              aria-label="Discard draft"
-            >
-              <Trash2 size={22} />
-            </button>
-          )}
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
