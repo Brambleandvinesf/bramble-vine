@@ -1387,7 +1387,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       {/* status flash */}
       <div style={{ fontSize: ".85rem", minHeight: "1.2em", marginTop: 6 }}>
         {flashMsg && (
-          <span style={{ color: flashMsg.warn ? "#ffb03f" : T.lime }}>{flashMsg.text}</span>
+          <span style={{ color: flashMsg.warn ? T.brightLime : T.lime }}>{flashMsg.text}</span>
         )}
       </div>
 
