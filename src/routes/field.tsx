@@ -1589,7 +1589,7 @@ function StateArrived({
   const anyIn = roster.some((m) => !!m.in);
   const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
 
-  const isAssistant = role === "assistant";
+  void role; // role no longer branches Navigate gate; both roles share flow
   const [navigated, setNavigated] = useState(() => hasNavigated(stopIndex));
   useEffect(() => {
     setNavigated(hasNavigated(stopIndex));
@@ -1617,7 +1617,7 @@ function StateArrived({
     setNavigated(true);
   };
 
-  const showNormal = isLead || (isAssistant && navigated);
+  const showNormal = navigated;
 
   return (
     <div style={{ padding: "10px 14px" }}>
@@ -1650,7 +1650,7 @@ function StateArrived({
       {!clientMatch && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
       {clockSlot}
 
-      {isAssistant && !navigated && (
+      {!navigated && (
         <button
           type="button"
           onClick={handleNavigate}
@@ -1660,6 +1660,7 @@ function StateArrived({
           NAVIGATE
         </button>
       )}
+
 
       {showNormal && (
         <>
