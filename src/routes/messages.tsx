@@ -990,13 +990,14 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         <h1 style={{ fontSize: "1.2rem", margin: 0 }}>Message Center</h1>
         <span
           style={{
-            background: badgeCount ? T.red : "transparent",
-            color: badgeCount ? "#fff" : T.dim,
+            background: badgeCount ? T.brightLime : "transparent",
+            color: badgeCount ? "#0a0a0a" : T.dim,
             borderRadius: 12,
             padding: "2px 10px",
             fontWeight: "bold",
             fontSize: ".9rem",
-            border: badgeCount ? "none" : `1px solid ${T.border}`,
+            border: badgeCount ? `2px solid ${T.brightLime}` : `1px solid ${T.border}`,
+            animation: badgeCount ? "bvNewPulse 1.2s ease-in-out infinite" : undefined,
           }}
         >
           {badgeCount}
