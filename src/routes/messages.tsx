@@ -1009,6 +1009,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   /* ============================================================ */
   return (
     <div
+      onClick={() => ensureAudioContext()}
       style={{
         minHeight: "100vh",
         background: T.bg,
