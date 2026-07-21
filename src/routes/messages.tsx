@@ -2675,13 +2675,11 @@ function Viewer({
           borderTop: `1px solid ${T.lime}`,
           padding: "10px 16px",
           display: "flex",
+          flexDirection: "column",
           gap: 8,
-          alignItems: "flex-end",
           background: T.bg,
         }}
       >
-        <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} onClick={onEmoji}><IconSmile /></button>
-        {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} onClick={onAttach}><IconClip /></button>}
         <textarea
           value={reply}
           onChange={(e) => setReply(e.target.value)}
@@ -2692,9 +2690,11 @@ function Viewer({
               if (reply.trim()) onSend();
             }
           }}
-          style={{ ...inputStyle, flex: 1, minHeight: 72, maxHeight: 160, resize: "vertical" }}
+          style={{ ...inputStyle, width: "100%", minHeight: 72, maxHeight: 160, resize: "vertical" }}
         />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={onEmoji}><IconSmile /></button>
+          {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={onAttach}><IconClip /></button>}
           <button
             style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
             disabled={!reply.trim()}
@@ -2712,8 +2712,8 @@ function Viewer({
           >
             <Check size={22} />
           </button>
-          {it.isClient && (
-            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} />
+          {showConfirm && (
+            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
           )}
           {onReceipt && !quo && (
             <button
@@ -2725,6 +2725,22 @@ function Viewer({
               <IconRcpt />
             </button>
           )}
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Add Project"
+            aria-label="Add Project"
+            onClick={onProject}
+          >
+            <FolderPlus size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Forward to Crew"
+            aria-label="Forward to Crew"
+            onClick={onForward}
+          >
+            <Users size={22} />
+          </button>
           {!quo && (
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
@@ -2746,24 +2762,6 @@ function Viewer({
             </button>
           )}
         </div>
-      </div>
-      <div style={{ display: "flex", gap: 12, justifyContent: "center", padding: "8px 16px 12px", background: T.bg }}>
-        <button
-          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-          title="Add Project"
-          aria-label="Add Project"
-          onClick={onProject}
-        >
-          <FolderPlus size={22} />
-        </button>
-        <button
-          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-          title="Forward to Crew"
-          aria-label="Forward to Crew"
-          onClick={onForward}
-        >
-          <Users size={22} />
-        </button>
       </div>
     </div>
   );
