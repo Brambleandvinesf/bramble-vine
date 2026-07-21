@@ -989,11 +989,8 @@ function WhoAmI({
   const [err, setErr] = useState<string | null>(null);
   const [clockPending, setClockPending] = useState<Me | null>(null);
 
-  useEffect(() => {
-    if (pick) {
-      setRole(pick.name.trim().toLowerCase() === "angel garcia" ? "lead" : "assistant");
-    }
-  }, [pick]);
+  const defaultRoleFor = (name: string) =>
+    name.trim().toLowerCase() === "angel garcia" ? "lead" : "assistant";
 
   const clockAndGo = async (m: Me) => {
     setBusy(true);
@@ -1045,7 +1042,7 @@ function WhoAmI({
           return (
             <button
               key={e.id}
-              onClick={() => { setPick(e); setErr(null); setClockPending(null); }}
+              onClick={() => { setPick(e); setRole(defaultRoleFor(e.name)); setErr(null); setClockPending(null); }}
               disabled={busy}
               style={{
                 ...BIG_BTN,
