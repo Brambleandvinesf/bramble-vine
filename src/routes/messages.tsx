@@ -2323,9 +2323,7 @@ function Viewer({
             {quo ? "✓ Done" : "✓ File"}
           </button>
           {it.isClient && (
-            <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onConfirm}>
-              <IconConf /> Confirm
-            </button>
+            <ConfirmButton id={it.id} confirmed={it.confirmed} onConfirm={onConfirm} />
           )}
           {onReceipt && !quo && (
             <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onReceipt}>
