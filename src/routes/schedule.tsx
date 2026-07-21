@@ -184,10 +184,15 @@ function SchedulePage() {
   }, [denied, navigate]);
 
   const isFieldCrew = effectiveRole === "assistant" || effectiveRole === "lead";
+  const isLeadOrMgmt = effectiveRole === "lead" || effectiveRole === "management";
+  const reviewable = useReviewableToday();
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const confirmSeenRef = useRef(false);
+  const [baseLoadDismissed, setBaseLoadDismissed] = useState(false);
+  const [baseLoadSubmitting, setBaseLoadSubmitting] = useState(false);
+  const [baseLoadFlash, setBaseLoadFlash] = useState<string | null>(null);
   useEffect(() => {
-    if (!isFieldCrew) return;
+    if (!isFieldCrew && effectiveRole !== "management") return;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -201,7 +206,7 @@ function SchedulePage() {
     tick();
     const id = window.setInterval(tick, 10_000);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [isFieldCrew]);
+  }, [isFieldCrew, effectiveRole]);
   useEffect(() => {
     if (!isFieldCrew) return;
     if (confirmed !== true) return;
@@ -209,6 +214,34 @@ function SchedulePage() {
     confirmSeenRef.current = true;
     void navigate({ to: "/loading" });
   }, [confirmed, isFieldCrew, navigate]);
+
+  const submitBaseLoadYes = useCallback(async () => {
+    setBaseLoadSubmitting(true);
+    setBaseLoadFlash(null);
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "confirmDay",
+          statuses: {},
+          updates: [],
+          newProjects: [],
+          deletes: [],
+          sendText: true,
+        }),
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string; state?: { confirmed?: boolean } };
+      if (!j.ok) throw new Error(j.error || "not ok");
+      if (j.state?.confirmed) setConfirmed(true);
+      setBaseLoadFlash("BASE LOAD CONFIRMED — CREW NOTIFIED");
+    } catch (e) {
+      setBaseLoadFlash(`FAILED: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setBaseLoadSubmitting(false);
+    }
+  }, []);
+
 
   const [view, setView] = useState<"day" | "week">("day");
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
