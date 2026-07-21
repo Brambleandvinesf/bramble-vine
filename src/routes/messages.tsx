@@ -16,7 +16,8 @@ import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek } from "../lib/crow-sound";
 
-const CK = "messages:getInbox";
+const CK_DEFAULT = "messages:getInbox";
+const CK_ALL = "messages:getInbox:all";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
@@ -114,6 +115,7 @@ type InboxResponse = {
   lastYes?: string;
   roster?: RosterEntry[];
   employees?: Employee[];
+  canViewAll?: boolean;
 };
 
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
@@ -303,7 +305,11 @@ export function MessagesPage() {
 }
 
 function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwardOffice, email }: { showReceipt: boolean; showLineBadge: boolean; showForwardCrew: boolean; showForwardOffice: boolean; email: string }) {
-  const cached = sessionCache.get<InboxResponse>(CK);
+  // Role-gated "view all inboxes" mode: off by default, local to this session
+  const [viewAll, setViewAll] = useState(false);
+  const [canViewAll, setCanViewAll] = useState(false);
+  const cacheKey = viewAll ? CK_ALL : CK_DEFAULT;
+  const cached = sessionCache.get<InboxResponse>(cacheKey);
   // Feed state
   const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
   const [labels, setLabels] = useState<string[]>(() => cached?.labels ?? []);
@@ -347,6 +353,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     attachments: Attachment[];
   } | null>(null);
   const composeFileInputRef = useRef<HTMLInputElement | null>(null);
+  const viewAllSwapRef = useRef(false);
 
   // Persist compose to localStorage so a crash/close doesn't lose the draft
   const composeStorageKey = `bv:compose:${email || "anon"}`;
@@ -440,8 +447,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const loadInbox = useCallback(async () => {
     setRefreshing(true);
     try {
-      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email)).then((x) => x.json());
-      sessionCache.set(CK, r);
+      let url = SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email);
+      if (viewAll) url += "&viewAll=1";
+      const r: InboxResponse = await fetch(url).then((x) => x.json());
+      sessionCache.set(cacheKey, r);
       const its = r.inbox || [];
       setItems(its);
       setLabels(r.labels || []);
@@ -452,6 +461,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setRoster(r.roster || []);
       setEmployees(r.employees || []);
       setLastYes(r.lastYes ? String(r.lastYes) : null);
+      setCanViewAll(!!r.canViewAll);
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
@@ -464,23 +474,28 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew, email]);
+  }, [detectNew, email, viewAll, cacheKey]);
 
   const safeLoad = useCallback(async () => {
     try {
       await loadInbox();
     } catch {
-      if (sessionCache.has(CK)) setOffline(true);
+      if (sessionCache.has(cacheKey)) setOffline(true);
       else setFeedError(true);
       setFeedLoaded(true);
     }
-  }, [loadInbox]);
+  }, [loadInbox, cacheKey]);
+
+  const safeLoadRef = useRef(safeLoad);
+  useEffect(() => {
+    safeLoadRef.current = safeLoad;
+  }, [safeLoad]);
 
   // Initial + ping loop
   const lastFingerRef = useRef<string>("");
   const lastFullRef = useRef<number>(0);
   useEffect(() => {
-    void safeLoad();
+    void safeLoadRef.current();
     lastFullRef.current = Date.now();
     const t = window.setInterval(async () => {
       try {
@@ -491,7 +506,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
           if (uiQuiet()) {
             lastFingerRef.current = f;
             lastFullRef.current = Date.now();
-            void safeLoad();
+            void safeLoadRef.current();
           }
         } else if (!lastFingerRef.current) {
           lastFingerRef.current = f;
@@ -504,6 +519,26 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     return () => window.clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When viewAll mode changes, swap to the matching cache and re-fetch
+  useEffect(() => {
+    if (!viewAllSwapRef.current) {
+      viewAllSwapRef.current = true;
+      return;
+    }
+    const c = sessionCache.get<InboxResponse>(cacheKey);
+    setItems(c?.inbox ?? []);
+    setLabels(c?.labels ?? []);
+    setContacts(c?.contacts ?? []);
+    setClients(c?.clients ?? []);
+    setNextVisit(c?.nextVisit ?? null);
+    setDrafts(c?.drafts ?? []);
+    setRoster(c?.roster ?? []);
+    setEmployees(c?.employees ?? []);
+    setLastYes(c?.lastYes ? String(c.lastYes) : null);
+    setFeedLoaded(!!c);
+    void safeLoad();
+  }, [cacheKey, safeLoad]);
 
   /* ---- derived items with optimistic patches ---- */
   const visibleItems = useMemo(
@@ -1228,6 +1263,44 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
           {badgeCount}
         </span>
         {countdownEl}
+        {canViewAll && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewAll((v) => !v);
+            }}
+            title={viewAll ? "Showing all inboxes" : "Show all inboxes"}
+            style={{
+              background: viewAll ? T.lime : T.panel,
+              color: viewAll ? "#0a0a0a" : T.lime,
+              border: `1px solid ${T.lime}`,
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontFamily: fontStack,
+              fontSize: ".75rem",
+              fontWeight: "bold",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            {viewAll ? "VIEW ALL ✓" : "VIEW ALL"}
+          </button>
+        )}
+        {viewAll && (
+          <span
+            style={{
+              background: T.lime,
+              color: "#0a0a0a",
+              borderRadius: 12,
+              padding: "2px 8px",
+              fontSize: ".7rem",
+              fontWeight: "bold",
+              border: `1px solid ${T.lime}`,
+            }}
+          >
+            Viewing all inboxes
+          </span>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
