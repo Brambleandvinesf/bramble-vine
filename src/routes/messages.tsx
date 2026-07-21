@@ -553,12 +553,17 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           (attachments.length ? " with " + attachments.length + " attachment" + (attachments.length > 1 ? "s" : "") : "") +
           " \u2713",
       );
+      const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+      if (draft) flushDraftSave(draft.draftId);
       const res = await postAction(
-        it.source === "quo"
-          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, email, ...(it.line ? { from: it.line } : {}) }
-          : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments, email },
+        draft
+          ? { action: "sendDraft", draftId: draft.draftId, text: t, email }
+          : it.source === "quo"
+            ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, email, ...(it.line ? { from: it.line } : {}) }
+            : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments, email },
       );
       if (res && res.ok && res.sent) {
+        if (draft) removeDraftLocal(draft.draftId);
         if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
         return true;
       }
@@ -569,7 +574,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       flash("Message NOT sent to " + it.from + "!", true);
       return false;
     },
-    [flash, staged, email],
+    [flash, staged, email, draftByThread, flushDraftSave, removeDraftLocal],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
