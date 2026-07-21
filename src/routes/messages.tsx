@@ -449,6 +449,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       if (r.clients) setClients(r.clients);
       setNextVisit(r.nextVisit || null);
       setDrafts(r.drafts || []);
+      setRoster(r.roster || []);
+      setEmployees(r.employees || []);
       setLastYes(r.lastYes ? String(r.lastYes) : null);
       setFeedError(false);
       setFeedLoaded(true);
