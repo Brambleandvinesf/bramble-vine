@@ -1751,6 +1751,128 @@ const pickRowStyle: CSSProperties = {
   minHeight: 28,
 };
 
+function SparkleBurst({ active }: { active: boolean }) {
+  const [particles, setParticles] = useState<Array<{ dx: string; dy: string; size: number; delay: number }>>([]);
+  useEffect(() => {
+    if (!active) return;
+    const count = 12;
+    const next = Array.from({ length: count }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 24 + Math.random() * 28;
+      return {
+        dx: `${Math.cos(angle) * dist}px`,
+        dy: `${Math.sin(angle) * dist}px`,
+        size: 2 + Math.random() * 4,
+        delay: Math.random() * 0.12,
+      };
+    });
+    setParticles(next);
+    const t = window.setTimeout(() => setParticles([]), 700);
+    return () => window.clearTimeout(t);
+  }, [active]);
+  if (!active || particles.length === 0) return null;
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 20 }}>
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: p.size,
+            height: p.size,
+            borderRadius: "50%",
+            background: T.brightLime,
+            boxShadow: `0 0 ${p.size * 2}px ${T.brightLime}, 0 0 ${p.size * 4}px ${T.lime}`,
+            animation: "bvSparkle 0.55s ease-out forwards",
+            animationDelay: `${p.delay}s`,
+            ["--dx" as string]: p.dx,
+            ["--dy" as string]: p.dy,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConfirmButton({
+  id,
+  confirmed,
+  onConfirm,
+  iconOnly,
+  style,
+}: {
+  id: string;
+  confirmed?: boolean;
+  onConfirm: () => Promise<boolean>;
+  iconOnly?: boolean;
+  style?: CSSProperties;
+}) {
+  const [phase, setPhase] = useState<"idle" | "confirming" | "popping" | "popped">("idle");
+  const already = confirmed || phase === "popped";
+
+  const onClick = useCallback(async () => {
+    if (already || phase === "confirming" || phase === "popping") return;
+    setPhase("confirming");
+    const ok = await onConfirm();
+    if (ok) {
+      setPhase("popping");
+      window.setTimeout(() => setPhase("popped"), 420);
+    } else {
+      setPhase("idle");
+    }
+  }, [already, onConfirm, phase]);
+
+  if (already) {
+    return (
+      <div
+        style={{
+          ...iconBtn,
+          ...(iconOnly ? {} : { minWidth: 96, fontSize: "1rem", gap: 6 }),
+          opacity: 0.85,
+          borderColor: T.lime,
+          color: T.lime,
+          cursor: "default",
+          ...style,
+        }}
+      >
+        {iconOnly ? "✓" : "✓ Confirmed"}
+      </div>
+    );
+  }
+
+  const popping = phase === "popping";
+  const btnStyle: CSSProperties = {
+    ...iconBtn,
+    ...(iconOnly ? {} : { minWidth: 96, fontSize: "1rem", gap: 6 }),
+    position: "relative",
+    color: T.lime,
+    borderColor: T.lime,
+    ...(phase === "confirming" ? { opacity: 0.6, cursor: "wait" } : {}),
+    ...(popping ? { animation: "bvConfirmPop 0.4s ease-out forwards", color: T.brightLime, borderColor: T.brightLime } : {}),
+    ...style,
+  };
+
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        style={btnStyle}
+        title={iconOnly ? "Mark visit confirmed" : "Mark visit confirmed"}
+        onClick={onClick}
+        disabled={phase === "confirming"}
+      >
+        {iconOnly ? <IconConf /> : (
+          <>
+            <IconConf /> Confirm
+          </>
+        )}
+      </button>
+      <SparkleBurst active={popping} />
+    </div>
+  );
+}
+
 /* ---- feed card ---- */
 function FeedCard({
   it,
