@@ -2788,7 +2788,7 @@ function AttView({ a }: { a: ThreadAttachment }) {
       <div style={{ marginTop: 10 }}>
         <div style={{ fontSize: ".8rem", opacity: 0.7, margin: "4px 0 8px" }}>{a.name}</div>
         <div ref={pdfRef} />
-        {pdfErr && <div style={{ color: "#ffb03f", fontSize: ".8rem" }}>Couldn't render this PDF here — view in Gmail.</div>}
+        {pdfErr && <div style={{ color: T.brightLime, fontSize: ".8rem" }}>Couldn't render this PDF here — view in Gmail.</div>}
       </div>
     );
   }
