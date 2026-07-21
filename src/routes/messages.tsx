@@ -2665,7 +2665,7 @@ function Viewer({
               }}
             >
               📎 {a.name} ({fmtSize(a.size)})
-              <b style={{ cursor: "pointer", color: T.red }} onClick={() => onRemoveStaged(i)}>✕</b>
+              <b style={{ cursor: "pointer", color: T.dim }} onClick={() => onRemoveStaged(i)}>✕</b>
             </span>
           ))}
         </div>
