@@ -1168,7 +1168,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             </div>
           )}
         </div>
-        <button style={ghostBtn} onClick={() => void safeLoad()}>Reload</button>
+        <button style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }} title="Reload" aria-label="Reload" onClick={() => void safeLoad()}>
+          <RotateCw size={16} strokeWidth={2.2} className={refreshing ? "animate-spin" : ""} />
+        </button>
         <button style={ghostBtn} title="Fullscreen" onClick={toggleFs}>
           <IconFs />
         </button>
@@ -1606,7 +1608,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       <button
         aria-label="New message"
         onClick={() =>
-          setCompose({ q: "", picked: null, manual: "", text: "" })
+          setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "" })
         }
         style={{
           position: "fixed",
