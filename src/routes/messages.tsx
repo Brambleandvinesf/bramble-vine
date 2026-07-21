@@ -102,6 +102,8 @@ type Draft = {
   date?: string;
   text?: string;
 };
+type RosterEntry = { id: string; name: string; in?: string | null; out?: string | null };
+type Employee = { id: string; name: string; email?: string | null; mobile?: string | null };
 type InboxResponse = {
   inbox?: InboxItem[];
   labels?: string[];
@@ -110,6 +112,8 @@ type InboxResponse = {
   nextVisit?: { title: string; start: string } | null;
   drafts?: Draft[];
   lastYes?: string;
+  roster?: RosterEntry[];
+  employees?: Employee[];
 };
 
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
@@ -313,6 +317,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>(() => cached?.drafts ?? []);
+  const [roster, setRoster] = useState<RosterEntry[]>(() => cached?.roster ?? []);
+  const [employees, setEmployees] = useState<Employee[]>(() => cached?.employees ?? []);
   const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
 
 
@@ -443,6 +449,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       if (r.clients) setClients(r.clients);
       setNextVisit(r.nextVisit || null);
       setDrafts(r.drafts || []);
+      setRoster(r.roster || []);
+      setEmployees(r.employees || []);
       setLastYes(r.lastYes ? String(r.lastYes) : null);
       setFeedError(false);
       setFeedLoaded(true);
@@ -1925,15 +1933,83 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
             {/* Quickpick pills */}
             {(() => {
-              const QUICKPICKS: { key: string; phone: string; email: string | null }[] = [
-                { key: "Office", phone: "+14152343083", email: "info@brambleandvinesf.com" },
-                { key: "Brandon", phone: "+14152343695", email: "brandon@brambleandvinesf.com" },
-                { key: "Assistant", phone: "+14152343696", email: null },
-                { key: "Angel", phone: "+16507105061", email: null },
-              ];
               const isEmail = compose.channel === "email";
-              const pills = QUICKPICKS.filter((p) => (isEmail ? !!p.email : true));
-              const pillStyle: CSSProperties = {
+              const ANGEL_PHONE = "+16507105061";
+              const ASSISTANT_DEVICE = "+14152343696";
+
+              type Pill = {
+                key: string;
+                label: string;
+                value: string;
+                disabled?: boolean;
+                title?: string;
+              };
+              const pills: Pill[] = [];
+
+              // Fixed 1: Office
+              pills.push(
+                isEmail
+                  ? { key: "Office", label: "Office", value: "info@brambleandvinesf.com" }
+                  : { key: "Office", label: "Office", value: "+14152343083" },
+              );
+              // Fixed 2: Brandon
+              pills.push(
+                isEmail
+                  ? { key: "Brandon", label: "Brandon", value: "brandon@brambleandvinesf.com" }
+                  : { key: "Brandon", label: "Brandon", value: "+14152343695" },
+              );
+              // Fixed 3: Angel (no email)
+              if (isEmail) {
+                pills.push({ key: "Angel", label: "Angel", value: "", disabled: true, title: "No email on file for Angel" });
+              } else {
+                pills.push({ key: "Angel", label: "Angel", value: ANGEL_PHONE });
+              }
+
+              // Roster: clocked-in today, excluding Angel
+              const angelIds = new Set(
+                employees.filter((e) => (e.mobile || "").replace(/[^0-9]/g, "").endsWith("6507105061") || /angel/i.test(e.name)).map((e) => e.id),
+              );
+              const activeRoster = roster.filter((r) => r.in && !r.out && !angelIds.has(r.id) && !/angel/i.test(r.name));
+
+              // Slot 4: assistant-device holder (first remaining)
+              const assistantEntry = activeRoster[0];
+              if (assistantEntry) {
+                if (isEmail) {
+                  pills.push({
+                    key: `asst-${assistantEntry.id}`,
+                    label: assistantEntry.name,
+                    value: "",
+                    disabled: true,
+                    title: `No email on file for ${assistantEntry.name}`,
+                  });
+                } else {
+                  pills.push({
+                    key: `asst-${assistantEntry.id}`,
+                    label: assistantEntry.name,
+                    value: ASSISTANT_DEVICE,
+                  });
+                }
+              }
+
+              // Extras: further roster entries, look up in employees
+              const extras = activeRoster.slice(1);
+              for (const r of extras) {
+                const emp = employees.find((e) => e.id === r.id);
+                const val = isEmail ? (emp?.email || "") : (emp?.mobile || "");
+                if (val) {
+                  pills.push({ key: `x-${r.id}`, label: r.name, value: val });
+                } else {
+                  pills.push({
+                    key: `x-${r.id}`,
+                    label: r.name,
+                    value: "",
+                    disabled: true,
+                    title: `No ${isEmail ? "email" : "phone"} on file for ${r.name}`,
+                  });
+                }
+              }
+
+              const pillStyle = (disabled?: boolean): CSSProperties => ({
                 background: "transparent",
                 color: T.lime,
                 border: `1px solid ${T.lime}`,
@@ -1943,29 +2019,33 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 fontSize: ".8rem",
                 fontWeight: "bold",
                 letterSpacing: 1,
-                cursor: "pointer",
+                cursor: disabled ? "not-allowed" : "pointer",
                 textTransform: "uppercase",
-              };
+                opacity: disabled ? 0.4 : 1,
+              });
               return (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {pills.map((p) => (
                     <button
                       key={p.key}
-                      style={pillStyle}
+                      style={pillStyle(p.disabled)}
+                      disabled={p.disabled}
+                      title={p.title}
                       onClick={() => {
+                        if (p.disabled) return;
                         if (isEmail) {
-                          setCompose({ ...compose, emailTo: p.email || "" });
+                          setCompose({ ...compose, emailTo: p.value });
                         } else {
                           setCompose({
                             ...compose,
-                            picked: { phone: p.phone, name: p.key },
+                            picked: { phone: p.value, name: p.label },
                             q: "",
                             manual: "",
                           });
                         }
                       }}
                     >
-                      {p.key}
+                      {p.label}
                     </button>
                   ))}
                 </div>
