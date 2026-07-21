@@ -2168,7 +2168,7 @@ function Viewer({
   onFile: () => void;
   onTrash: () => void;
   onSpam: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<boolean>;
   onProject: () => void;
   onForward: () => void;
   onAttach: () => void;
