@@ -95,6 +95,8 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --bv-lime: #7cff00;
+  --bv-bright-lime: #bfff3c;
 }
 
 .dark {
@@ -130,11 +132,24 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --bv-lime: #7cff00;
+  --bv-bright-lime: #bfff3c;
 }
 
 @keyframes bvNewPulse {
   0%, 100% { border-color: #7cff00; box-shadow: 0 0 0 rgba(124, 255, 0, 0); }
   50% { border-color: #bfff3c; box-shadow: 0 0 14px rgba(124, 255, 0, 0.55); }
+}
+
+@keyframes bvConfirmPop {
+  0% { transform: scale(1); opacity: 1; }
+  45% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes bvSparkle {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0); opacity: 0; }
 }
 
 @layer base {

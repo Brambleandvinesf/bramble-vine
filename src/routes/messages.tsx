@@ -82,6 +82,7 @@ type InboxItem = {
   unread?: boolean;
   awaiting?: boolean;
   isClient?: boolean;
+  confirmed?: boolean;
   threadId: string;
   conversationId?: string;
   participants?: string[];
@@ -97,6 +98,21 @@ type InboxResponse = {
   nextVisit?: { title: string; start: string } | null;
 };
 type Contact = { r: string; n: string };
+
+const CONFIRMED_KEY = "bv-confirmed-visits";
+function getConfirmedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(CONFIRMED_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+function saveConfirmedIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(CONFIRMED_KEY, JSON.stringify([...ids]));
+  } catch {}
+}
 
 /* ============ Icons (line art via SVG) ============ */
 function IconSmile() {
@@ -260,6 +276,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [awaitingOverride, setAwaitingOverride] = useState<Record<string, boolean>>({});
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(getConfirmedIds);
 
   // Compose (new outbound message)
   const [compose, setCompose] = useState<{
@@ -612,19 +629,30 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   const confirmVisit = useCallback(
     async (it: InboxItem) => {
+      if (confirmedIds.has(it.id) || it.confirmed) {
+        flash("Already confirmed \u2713");
+        return true;
+      }
       flash("Confirming visit for " + it.from + "\u2026");
       const body: Record<string, unknown> = { action: "confirmVisit" };
       if (it.source === "quo") body.participants = it.participants;
       else body.fromEmail = it.fromEmail;
       const res = await postAction(body);
-      if (res && res.ok && res.confirmed) {
+      if (res && res.ok && !res.error) {
         flash("Confirmed: " + res.event + " (" + rel(res.start) + ")");
+        setConfirmedIds((prev) => {
+          const next = new Set(prev);
+          next.add(it.id);
+          saveConfirmedIds(next);
+          return next;
+        });
+        setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, confirmed: true } : x)));
         return true;
       }
       flash((res && res.error) || "Couldn't confirm — try again.", true);
       return false;
     },
-    [flash],
+    [confirmedIds, flash],
   );
 
   const spamItem = useCallback(
@@ -1143,7 +1171,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             closeViewer();
             void spamItem(it);
           }}
-          onConfirm={() => void confirmVisit(openItem)}
+          onConfirm={() => confirmVisit(openItem)}
           onProject={() => openProject(openItem)}
           onForward={() => openForward(openItem)}
           onAttach={() => openAttach(openItem)}
@@ -1723,6 +1751,128 @@ const pickRowStyle: CSSProperties = {
   minHeight: 28,
 };
 
+function SparkleBurst({ active }: { active: boolean }) {
+  const [particles, setParticles] = useState<Array<{ dx: string; dy: string; size: number; delay: number }>>([]);
+  useEffect(() => {
+    if (!active) return;
+    const count = 12;
+    const next = Array.from({ length: count }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 24 + Math.random() * 28;
+      return {
+        dx: `${Math.cos(angle) * dist}px`,
+        dy: `${Math.sin(angle) * dist}px`,
+        size: 2 + Math.random() * 4,
+        delay: Math.random() * 0.12,
+      };
+    });
+    setParticles(next);
+    const t = window.setTimeout(() => setParticles([]), 700);
+    return () => window.clearTimeout(t);
+  }, [active]);
+  if (!active || particles.length === 0) return null;
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible", zIndex: 20 }}>
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            width: p.size,
+            height: p.size,
+            borderRadius: "50%",
+            background: T.brightLime,
+            boxShadow: `0 0 ${p.size * 2}px ${T.brightLime}, 0 0 ${p.size * 4}px ${T.lime}`,
+            animation: "bvSparkle 0.55s ease-out forwards",
+            animationDelay: `${p.delay}s`,
+            ["--dx" as string]: p.dx,
+            ["--dy" as string]: p.dy,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConfirmButton({
+  confirmed,
+  onConfirm,
+  iconOnly,
+  style,
+}: {
+  confirmed?: boolean;
+  onConfirm: () => Promise<boolean>;
+  iconOnly?: boolean;
+  style?: CSSProperties;
+}) {
+  const [phase, setPhase] = useState<"idle" | "confirming" | "popping" | "popped">("idle");
+  const already = confirmed || phase === "popped";
+
+  const onClick = useCallback(async () => {
+    if (already || phase === "confirming" || phase === "popping") return;
+    setPhase("confirming");
+    const ok = await onConfirm();
+    if (ok) {
+      setPhase("popping");
+      window.setTimeout(() => setPhase("popped"), 420);
+    } else {
+      setPhase("idle");
+    }
+  }, [already, onConfirm, phase]);
+
+  const base = iconOnly
+    ? iconBtn
+    : { ...ghostBtn, minWidth: 64, minHeight: 44, padding: "6px 10px", fontSize: "1rem", gap: 6 };
+
+  if (already) {
+    return (
+      <div
+        style={{
+          ...base,
+          opacity: 0.85,
+          borderColor: T.lime,
+          color: T.lime,
+          cursor: "default",
+          ...style,
+        }}
+      >
+        {iconOnly ? "✓" : "✓ Confirmed"}
+      </div>
+    );
+  }
+
+  const popping = phase === "popping";
+  const btnStyle: CSSProperties = {
+    ...base,
+    position: "relative",
+    color: T.lime,
+    borderColor: T.lime,
+    ...(phase === "confirming" ? { opacity: 0.6, cursor: "wait" } : {}),
+    ...(popping ? { animation: "bvConfirmPop 0.4s ease-out forwards", color: T.brightLime, borderColor: T.brightLime } : {}),
+    ...style,
+  };
+
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        style={btnStyle}
+        title={iconOnly ? "Mark visit confirmed" : "Mark visit confirmed"}
+        onClick={onClick}
+        disabled={phase === "confirming"}
+      >
+        {iconOnly ? <IconConf /> : (
+          <>
+            <IconConf /> Confirm
+          </>
+        )}
+      </button>
+      <SparkleBurst active={popping} />
+    </div>
+  );
+}
+
 /* ---- feed card ---- */
 function FeedCard({
   it,
@@ -1753,7 +1903,7 @@ function FeedCard({
   onFile: () => void;
   onTrash: () => void;
   onSpam: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<boolean>;
   onAttach: () => void;
   onEmoji: (apply: (e: string) => void) => void;
   onProject: () => void;
@@ -1962,9 +2112,7 @@ function FeedCard({
           <IconFs />
         </button>
         {it.isClient && (
-          <button style={iconBtn} title="Mark visit confirmed" onClick={onConfirm}>
-            <IconConf />
-          </button>
+          <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
         )}
         {quo
           ? it.unknowns && it.unknowns.length > 0 && (
@@ -2020,7 +2168,7 @@ function Viewer({
   onFile: () => void;
   onTrash: () => void;
   onSpam: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<boolean>;
   onProject: () => void;
   onForward: () => void;
   onAttach: () => void;
@@ -2175,9 +2323,7 @@ function Viewer({
             {quo ? "✓ Done" : "✓ File"}
           </button>
           {it.isClient && (
-            <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onConfirm}>
-              <IconConf /> Confirm
-            </button>
+            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} />
           )}
           {onReceipt && !quo && (
             <button style={{ ...ghostBtn, minWidth: 64, minHeight: 44, padding: 6 }} onClick={onReceipt}>
