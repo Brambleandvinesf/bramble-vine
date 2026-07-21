@@ -2051,28 +2051,32 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               );
               const activeRoster = roster.filter((r) => r.in && !r.out && !angelIds.has(r.id) && !/angel/i.test(r.name));
 
-              // Slot 4: assistant-device holder (first remaining)
-              const assistantEntry = activeRoster[0];
-              if (assistantEntry) {
-                if (isEmail) {
-                  pills.push({
-                    key: `asst-${assistantEntry.id}`,
-                    label: assistantEntry.name,
-                    value: "",
-                    disabled: true,
-                    title: `No email on file for ${assistantEntry.name}`,
-                  });
-                } else {
-                  pills.push({
-                    key: `asst-${assistantEntry.id}`,
-                    label: assistantEntry.name,
-                    value: ASSISTANT_DEVICE,
-                  });
-                }
+              // Slot 4: Field Assistant device pill — always present. If a roster
+              // entry is flagged role: 'assistant', relabel with that person's name.
+              // Target line is always ASSISTANT_DEVICE.
+              const assistantRoleEntry =
+                activeRoster.find((r) => (r.role || "").toLowerCase() === "assistant") ||
+                roster.find((r) => (r.role || "").toLowerCase() === "assistant" && !angelIds.has(r.id) && !/angel/i.test(r.name));
+              const assistantLabel = assistantRoleEntry?.name || "Field Assistant";
+              if (isEmail) {
+                pills.push({
+                  key: "field-assistant",
+                  label: assistantLabel,
+                  value: "",
+                  disabled: true,
+                  title: `No email on file for ${assistantLabel}`,
+                });
+              } else {
+                pills.push({
+                  key: "field-assistant",
+                  label: assistantLabel,
+                  value: ASSISTANT_DEVICE,
+                });
               }
 
-              // Extras: further roster entries, look up in employees
-              const extras = activeRoster.slice(1);
+              // Extras: other clocked-in roster entries (skip the one already shown
+              // as Field Assistant), look up their own contact info in employees.
+              const extras = activeRoster.filter((r) => r.id !== assistantRoleEntry?.id);
               for (const r of extras) {
                 const emp = employees.find((e) => e.id === r.id);
                 const val = isEmail ? (emp?.email || "") : (emp?.mobile || "");
@@ -2088,6 +2092,17 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   });
                 }
               }
+
+              // Client pill: when route.state is arrived/visit/debrief and client name is present,
+              // show a pill that preselects that client in the contact picker.
+              const routeState = (route.state || "").toLowerCase();
+              const routeClient = (route.client || "").trim();
+              const showClientPill =
+                !isEmail && !!routeClient && (routeState === "arrived" || routeState === "visit" || routeState === "debrief");
+              const clientContact = showClientPill
+                ? contacts.find((c) => c.n.toLowerCase() === routeClient.toLowerCase()) ||
+                  contacts.find((c) => c.n.toLowerCase().includes(routeClient.toLowerCase()))
+                : null;
 
               const pillStyle = (disabled?: boolean): CSSProperties => ({
                 background: "transparent",
