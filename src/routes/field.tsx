@@ -748,6 +748,7 @@ function FieldBody({
               role={role}
               event={currentEvent}
               send={send}
+              locationCheck={route.locationCheck ?? null}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
               onStart={async () => {
                 if (state === "enroute") {
