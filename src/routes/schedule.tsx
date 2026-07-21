@@ -520,7 +520,7 @@ function SchedulePage() {
             boxShadow: "0 0 22px rgba(124,255,0,.12)",
           }}
         >
-          Awaiting loading instructions…
+          Awaiting deployment instructions…
           <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 6, letterSpacing: 1, fontWeight: "normal" }}>
             You'll be sent to the loading list the moment the lead confirms.
           </div>
