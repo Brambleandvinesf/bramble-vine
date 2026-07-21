@@ -2247,7 +2247,7 @@ function FeedCard({
       style={{
         display: hidden ? "none" : "flex",
         background: it.unread ? T.panel2 : T.panel,
-        border: `2px solid ${isNew ? T.brightLime : T.lime}`,
+        border: draft ? `2px dashed ${T.brightLime}` : `2px solid ${isNew ? T.brightLime : T.lime}`,
         borderRadius: 6,
         padding: 12,
         margin: "20px 0",
