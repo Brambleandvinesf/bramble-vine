@@ -2093,20 +2093,98 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               rows={4}
               style={{ ...inputStyle, resize: "vertical", minHeight: 96 }}
             />
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+
+            {compose.attachments.length > 0 && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {compose.attachments.map((a, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      border: `1px solid ${T.dim}`,
+                      color: T.lime,
+                      borderRadius: 4,
+                      padding: "4px 8px",
+                      fontSize: ".8rem",
+                      fontFamily: fontStack,
+                    }}
+                  >
+                    <IconClip />
+                    <span style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+                    <button
+                      onClick={() =>
+                        setCompose((c) =>
+                          c ? { ...c, attachments: c.attachments.filter((_, j) => j !== i) } : c,
+                        )
+                      }
+                      style={{ background: "transparent", color: T.dim, border: "none", cursor: "pointer", padding: 0, fontFamily: fontStack }}
+                      aria-label={`Remove ${a.name}`}
+                      title="Remove"
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <input
+              ref={composeFileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={async (ev) => {
+                const files = ev.target.files;
+                if (!files) return;
+                const current = compose.attachments ? [...compose.attachments] : [];
+                for (const f of Array.from(files)) {
+                  if (f.size > MAX_FILE) {
+                    flash(f.name + " is over 10MB — skipped.", true);
+                    continue;
+                  }
+                  const total = current.reduce((a, x) => a + x.size, 0);
+                  if (total + f.size > MAX_TOTAL) {
+                    flash("Attachment limit reached — " + f.name + " skipped.", true);
+                    break;
+                  }
+                  const data: string = await new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onload = () => res(String(r.result).split(",")[1]);
+                    r.onerror = rej;
+                    r.readAsDataURL(f);
+                  });
+                  current.push({ name: f.name, mime: f.type || "application/octet-stream", data, size: f.size });
+                }
+                setCompose((c) => (c ? { ...c, attachments: current } : c));
+                if (composeFileInputRef.current) composeFileInputRef.current.value = "";
+              }}
+            />
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <button
-                style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: 6 }}
-                title="Insert emoji"
-                aria-label="Insert emoji"
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Emoji"
+                aria-label="Emoji"
                 onClick={() =>
                   setEmojiTarget({
                     apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
                   })
                 }
               >
-                <Smile size={16} strokeWidth={2.2} />
+                <IconSmile />
+              </button>
+              <button
+                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                title="Attach"
+                aria-label="Attach"
+                onClick={() => composeFileInputRef.current?.click()}
+              >
+                <IconClip />
               </button>
               <div style={{ flex: 1 }} />
+
               <button
                 style={{ ...ghostBtn, color: T.brightLime, borderColor: T.brightLime }}
                 onClick={() => {
