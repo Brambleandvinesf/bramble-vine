@@ -1595,7 +1595,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               onChange={(e) => setFwdPick({ ...fwdPick, text: e.target.value })}
               style={{ ...inputStyle, minHeight: 140, resize: "vertical" }}
             />
-            {fwdPick.err && <div style={{ color: T.red, fontSize: ".9rem" }}>{fwdPick.err}</div>}
+            {fwdPick.err && <div style={{ color: T.brightLime, fontSize: ".9rem" }}>{fwdPick.err}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void submitForward()}>Send</button>
               <button style={ghostBtn} onClick={() => setFwdPick(null)}>Cancel</button>
