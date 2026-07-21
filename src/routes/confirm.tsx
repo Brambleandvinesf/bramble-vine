@@ -542,6 +542,7 @@ function ConfirmPage() {
       } catch {
         /* ignore */
       }
+      void navigate({ to: "/loading" });
     } catch (e) {
       setSubmitFlash({
         msg: e instanceof Error ? `Failed — ${e.message}` : "Failed.",
