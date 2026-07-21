@@ -308,6 +308,18 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     text: string;
   } | null>(null);
 
+  // Persist compose to localStorage so a crash/close doesn't lose the draft
+  const composeStorageKey = `bv:compose:${email || "anon"}`;
+  useEffect(() => {
+    try {
+      if (compose) {
+        window.localStorage.setItem(composeStorageKey, JSON.stringify(compose));
+      } else {
+        window.localStorage.removeItem(composeStorageKey);
+      }
+    } catch { /* ignore quota / private-mode */ }
+  }, [compose, composeStorageKey]);
+
   // Flash / new-client green flash
   const [flashMsg, setFlashMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const flashTimer = useRef<number | null>(null);
