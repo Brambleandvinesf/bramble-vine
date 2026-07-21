@@ -8,6 +8,7 @@ import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { MessagesFab } from "../components/MessagesFab";
+import { appendTeamParam } from "../lib/team";
 
 
 const CK = "loading:getData";
