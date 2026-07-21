@@ -13,6 +13,7 @@ import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
+import { ensureAudioContext, playCrowShriek } from "../lib/crow-sound";
 
 const CK = "messages:getInbox";
 
