@@ -1589,7 +1589,7 @@ function StateArrived({
   const anyIn = roster.some((m) => !!m.in);
   const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
 
-  const isAssistant = role === "assistant";
+  void role; // role no longer branches Navigate gate; both roles share flow
   const [navigated, setNavigated] = useState(() => hasNavigated(stopIndex));
   useEffect(() => {
     setNavigated(hasNavigated(stopIndex));
