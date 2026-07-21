@@ -684,6 +684,30 @@ const CONFIRM_BUTTON: React.CSSProperties = {
   fontWeight: "bold",
   textTransform: "uppercase",
 };
+const LOADING_COMPLETE_WRAP: React.CSSProperties = {
+  position: "sticky",
+  bottom: 0,
+  padding: "14px 12px calc(14px + env(safe-area-inset-bottom, 0px))",
+  background: "linear-gradient(180deg, rgba(10,10,10,0) 0%, #0a0a0a 40%)",
+  display: "flex",
+  justifyContent: "center",
+  zIndex: 40,
+};
+const LOADING_COMPLETE_BTN: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 520,
+  minHeight: 64,
+  background: LIME,
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: 12,
+  fontFamily: "'Courier New', Courier, monospace",
+  fontSize: 16,
+  letterSpacing: 2,
+  fontWeight: "bold",
+  cursor: "pointer",
+  boxShadow: "0 0 22px rgba(124,255,0,.25)",
+};
 const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
   alignItems: "baseline",
