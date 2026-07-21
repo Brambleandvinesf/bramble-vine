@@ -629,6 +629,10 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   const confirmVisit = useCallback(
     async (it: InboxItem) => {
+      if (confirmedIds.has(it.id) || it.confirmed) {
+        flash("Already confirmed \u2713");
+        return true;
+      }
       flash("Confirming visit for " + it.from + "\u2026");
       const body: Record<string, unknown> = { action: "confirmVisit" };
       if (it.source === "quo") body.participants = it.participants;
@@ -636,12 +640,19 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       const res = await postAction(body);
       if (res && res.ok && res.confirmed) {
         flash("Confirmed: " + res.event + " (" + rel(res.start) + ")");
+        setConfirmedIds((prev) => {
+          const next = new Set(prev);
+          next.add(it.id);
+          saveConfirmedIds(next);
+          return next;
+        });
+        setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, confirmed: true } : x)));
         return true;
       }
       flash((res && res.error) || "Couldn't confirm — try again.", true);
       return false;
     },
-    [flash],
+    [confirmedIds, flash],
   );
 
   const spamItem = useCallback(
