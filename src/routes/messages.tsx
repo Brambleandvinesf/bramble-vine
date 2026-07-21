@@ -2266,6 +2266,22 @@ function FeedCard({
             </div>
           )}
           <span style={{ fontWeight: "bold" }}>{it.from}</span>
+          {draft && (
+            <span
+              title="Gmail draft in sync"
+              style={{
+                border: `1px solid ${T.brightLime}`,
+                color: T.brightLime,
+                background: "rgba(191,255,60,0.08)",
+                borderRadius: 4,
+                padding: "0 6px",
+                fontSize: ".7rem",
+                letterSpacing: 1,
+              }}
+            >
+              DRAFT
+            </span>
+          )}
           {quo && it.unknowns && it.unknowns.length > 0 && (
             <button
               onClick={(ev) => {
