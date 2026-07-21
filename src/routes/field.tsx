@@ -953,13 +953,13 @@ function WhoAmI({
     if (!pick) return;
     setBusy(true);
     setErr(null);
-    const j = await send({ action: "joinRoster", id: pick.id, name: pick.name }, { silent: true });
+    const j = await send({ action: "joinRoster", id: pick.id, name: pick.name, role }, { silent: true });
     if (!j.ok) {
       setBusy(false);
       setErr("Couldn't join roster — try again.");
       return;
     }
-    const me = { id: pick.id, name: pick.name };
+    const me = { id: pick.id, name: pick.name, role };
     saveMe(me);
     onIdentified(me);
     setBusy(false);
