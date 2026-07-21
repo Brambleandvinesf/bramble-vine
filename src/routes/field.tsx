@@ -749,6 +749,7 @@ function FieldBody({
               isPreview={isPreview}
               notes={stopNotes}
               clockSlot={personalClockSlot}
+              onBreak={startBreakFromCurrent}
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
               onVisitComplete={handleVisitComplete}
               onNoShow={() => void confirmNoShow(send, setBanner)}
