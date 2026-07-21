@@ -367,21 +367,24 @@ function SchedulePage() {
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <NavBtn onClick={goPrev} label="◀" />
-        <NavBtn onClick={goToday} label="TODAY" />
-        <NavBtn onClick={goNext} label="▶" />
-        <div style={{ flex: 1 }} />
-        <ViewToggle view={view} setView={setView} />
-      </div>
+      {!(isLeadOrMgmt && confirmed === false) && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <NavBtn onClick={goPrev} label="◀" />
+          <NavBtn onClick={goToday} label="TODAY" />
+          <NavBtn onClick={goNext} label="▶" />
+          <div style={{ flex: 1 }} />
+          <ViewToggle view={view} setView={setView} />
+        </div>
+      )}
+
       <h1
         style={{
           color: LIME,
@@ -517,7 +520,7 @@ function SchedulePage() {
             boxShadow: "0 0 22px rgba(124,255,0,.12)",
           }}
         >
-          Awaiting loading instructions…
+          Awaiting deployment instructions…
           <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 6, letterSpacing: 1, fontWeight: "normal" }}>
             You'll be sent to the loading list the moment the lead confirms.
           </div>

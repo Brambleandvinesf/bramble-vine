@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth, type Role } from "../lib/auth";
 import { useViewAs, VIEW_AS_ROLES } from "../lib/view-as";
@@ -6,7 +6,7 @@ import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
-import { useReviewableToday } from "../lib/reviewable-today";
+
 
 
 
@@ -61,12 +61,23 @@ function HomePage() {
   const { role: actualRole, name } = useAuth();
   const { effectiveRole, setViewAs, viewAs } = useViewAs();
   const role = effectiveRole;
-  
+  const navigate = useNavigate();
 
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(
     () => sessionCache.get<{ confirmed?: boolean }>(CK_CONFIRM) ?? null,
   );
   const [confirmLoading, setConfirmLoading] = useState(() => !sessionCache.has(CK_CONFIRM));
+
+  // Lead/management: Home is off-limits until the day is confirmed.
+  // /schedule owns the base-load Yes/No gate.
+  useEffect(() => {
+    if (role !== "lead" && role !== "management") return;
+    if (confirmLoading) return;
+    if (confirmState?.confirmed === true) return;
+    void navigate({ to: "/schedule" });
+  }, [role, confirmLoading, confirmState, navigate]);
+
+
   const [msgCount, setMsgCount] = useState<number | null>(
     () => sessionCache.get<number>(CK_INBOX) ?? null,
   );
@@ -313,36 +324,10 @@ function ConfirmBanner({
   role: Role;
 }) {
   const clickable = canSee(role, "special_confirm");
-  const reviewable = useReviewableToday();
   const checking = loading && confirmed === null;
   const isConfirmed = confirmed === true;
 
-  // Lead/management on a day with no special work: surface a prominent
-  // "CONFIRM BASE LOAD & NOTIFY CREW" Yes button. It goes to /confirm which
-  // has the actual submit action.
-  if (clickable && reviewable === false && !isConfirmed && !checking) {
-    return (
-      <Link
-        to="/confirm"
-        style={{
-          textDecoration: "none",
-          display: "block",
-          background: LIME,
-          color: "#0a0a0a",
-          borderRadius: 12,
-          padding: "22px 18px",
-          textAlign: "center",
-          fontSize: 16,
-          fontWeight: "bold",
-          letterSpacing: 2,
-          minHeight: 84,
-          boxShadow: "0 0 0 2px rgba(124,255,0,.25), 0 0 22px rgba(124,255,0,.25)",
-        }}
-      >
-        CONFIRM BASE LOAD & NOTIFY CREW
-      </Link>
-    );
-  }
+
 
   const icon = checking ? "•" : isConfirmed ? "✓" : "!";
   const color = isConfirmed ? LIME : "#ffb03f";
