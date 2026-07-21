@@ -214,6 +214,7 @@ const T = {
   panel: "#121212",
   panel2: "#181818",
   lime: "#7cff00",
+  brightLime: "#bfff3c",
   dim: "#4a7a1e",
   muted: "#8f8f8f",
   border: "#2a2a2a",
@@ -268,7 +269,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     text: string;
   } | null>(null);
 
-  // Flash / red-flash
+  // Flash / new-client green flash
   const [flashMsg, setFlashMsg] = useState<{ text: string; warn: boolean } | null>(null);
   const flashTimer = useRef<number | null>(null);
   const flash = useCallback((text: string, warn = false) => {
@@ -276,7 +277,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     setFlashMsg({ text, warn });
     flashTimer.current = window.setTimeout(() => setFlashMsg(null), 6000);
   }, []);
-  const [redFlash, setRedFlash] = useState(0);
+  const [greenFlash, setGreenFlash] = useState(0);
   const seenClientIdsRef = useRef<string[] | null>(null);
 
   // Viewer
@@ -335,11 +336,11 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !apPick && !rcPick;
   }, [openItem, labelPick, emojiTarget, acState, fwdPick, apPick, rcPick]);
 
-  // Detect new unread client -> red flash
+  // Detect new unread client -> green flash
   const detectNew = useCallback((its: InboxItem[]) => {
     const ids = its.filter((i) => i.unread && i.isClient).map((i) => i.id);
     if (seenClientIdsRef.current !== null && ids.some((id) => seenClientIdsRef.current!.indexOf(id) < 0)) {
-      setRedFlash((n) => n + 1);
+      setGreenFlash((n: number) => n + 1);
     }
     seenClientIdsRef.current = ids;
   }, []);
@@ -945,13 +946,13 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     else document.documentElement.requestFullscreen();
   }, []);
 
-  /* ---- red flash effect ---- */
+  /* ---- new-client green flash effect ---- */
   useEffect(() => {
-    if (!redFlash) return;
+    if (!greenFlash) return;
     document.body.style.transition = "background .12s";
     let step = 0;
     const iv = window.setInterval(() => {
-      document.body.style.background = step % 2 ? T.bg : "#3a0000";
+      document.body.style.background = step % 2 ? T.bg : "rgba(124, 255, 0, 0.25)";
       step++;
       if (step >= 12) {
         window.clearInterval(iv);
@@ -959,7 +960,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       }
     }, 80);
     return () => window.clearInterval(iv);
-  }, [redFlash]);
+  }, [greenFlash]);
 
   /* ============================================================ */
   return (
@@ -989,13 +990,14 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         <h1 style={{ fontSize: "1.2rem", margin: 0 }}>Message Center</h1>
         <span
           style={{
-            background: badgeCount ? T.red : "transparent",
-            color: badgeCount ? "#fff" : T.dim,
+            background: badgeCount ? T.brightLime : "transparent",
+            color: badgeCount ? "#0a0a0a" : T.dim,
             borderRadius: 12,
             padding: "2px 10px",
             fontWeight: "bold",
             fontSize: ".9rem",
-            border: badgeCount ? "none" : `1px solid ${T.border}`,
+            border: badgeCount ? `2px solid ${T.brightLime}` : `1px solid ${T.border}`,
+            animation: badgeCount ? "bvNewPulse 1.2s ease-in-out infinite" : undefined,
           }}
         >
           {badgeCount}
@@ -1765,6 +1767,7 @@ function FeedCard({
   const isInternal = !!role;
   const showClientTag = !!it.isClient && !isInternal;
   const lineLast4 = quo && showLineBadge && it.line ? String(it.line).replace(/\D/g, "").slice(-4) : "";
+  const isNew = it.unread && it.awaiting;
 
   return (
     <div
@@ -1772,18 +1775,15 @@ function FeedCard({
       style={{
         display: hidden ? "none" : "flex",
         background: it.unread ? T.panel2 : T.panel,
-        border: `2px solid ${it.awaiting ? T.red : T.lime}`,
+        border: `2px solid ${isNew ? T.brightLime : T.lime}`,
         borderRadius: 6,
         padding: 12,
         margin: "20px 0",
         gap: 12,
         alignItems: "flex-start",
-        boxShadow: found
-          ? `0 0 0 4px ${T.lime}`
-          : it.isClient && it.awaiting
-            ? "0 0 6px rgba(255,59,48,.45)"
-            : "none",
+        boxShadow: found ? `0 0 0 4px ${T.lime}` : "none",
         transition: "box-shadow .3s",
+        animation: isNew && !found ? "bvNewPulse 1.2s ease-in-out infinite" : undefined,
       }}
     >
       <div
@@ -1850,7 +1850,7 @@ function FeedCard({
             </button>
           )}
           {showClientTag && (
-            <span style={{ border: `1px solid ${T.red}`, color: T.red, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}>
+            <span style={{ border: `1px solid ${T.lime}`, color: T.lime, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}>
               CLIENT
             </span>
           )}
