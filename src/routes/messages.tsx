@@ -836,7 +836,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   /* ---- viewer ---- */
   const openViewer = useCallback(async (it: InboxItem) => {
     setOpenItem(it);
-    setVReply("");
+    const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+    setVReply(draft?.text || "");
     setViewerBody({ kind: "loading" });
     try {
       if (it.source === "quo") {
