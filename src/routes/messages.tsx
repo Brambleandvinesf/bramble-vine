@@ -2961,6 +2961,9 @@ function DraftCard({
   onAttach,
   onProject,
   onForward,
+  onForwardOffice,
+  showForwardCrew,
+  showForwardOffice,
   staged,
   onRemoveStaged,
 }: {
@@ -2972,6 +2975,9 @@ function DraftCard({
   onAttach: () => void;
   onProject: () => void;
   onForward: () => void;
+  onForwardOffice: () => void;
+  showForwardCrew: boolean;
+  showForwardOffice: boolean;
   staged: Attachment[];
   onRemoveStaged: (idx: number) => void;
 }) {
