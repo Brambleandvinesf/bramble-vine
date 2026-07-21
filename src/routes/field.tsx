@@ -7,6 +7,7 @@ import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { appendTeamParam, resolveTeam } from "../lib/team";
 
 const CK = "field:getField";
 
@@ -324,7 +325,7 @@ function FieldPage() {
   const fetchOnce = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await fetch(`${SCRIPT_URL}?action=getField`);
+      const res = await fetch(appendTeamParam(`${SCRIPT_URL}?action=getField`));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as GetFieldResponse;
       sessionCache.set(CK, json);
@@ -988,6 +989,7 @@ function WhoAmI({
     }
     const me = { id: pick.id, name: pick.name, role };
     saveMe(me);
+    void resolveTeam(me.id);
     onIdentified(me);
     setBusy(false);
     await clockAndGo(me);
@@ -1191,6 +1193,7 @@ function PersonalClockPanel({
         setBanner({ kind: "err", text: "Couldn't join roster — retry." });
         return;
       }
+      void resolveTeam(me.id);
     }
     const r = await send({ action: "qbClock", userId: me.id, dir: "in", client });
     setBusy(false);

@@ -145,6 +145,7 @@ function AdminPage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
+  const [tab, setTab] = useState<"perms" | "teams">("perms");
   const [perms, setPerms] = useState<PermMap | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -224,20 +225,52 @@ function AdminPage() {
             fontSize: 16,
             letterSpacing: 2,
             margin: 0,
-            marginBottom: 6,
+            marginBottom: 12,
           }}
         >
-          ADMIN — PERMISSIONS
+          ADMIN
         </h1>
-        <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
-          Read-only — canonical matrix lives in the backend.
-        </p>
 
-        {status === "loading" && !perms ? (
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {(["perms", "teams"] as const).map((k) => {
+            const active = tab === k;
+            return (
+              <button
+                key={k}
+                onClick={() => setTab(k)}
+                style={{
+                  background: active ? "#7cff00" : "transparent",
+                  color: active ? "#0a0a0a" : "#7cff00",
+                  border: "1px solid #7cff00",
+                  borderRadius: 4,
+                  padding: "6px 12px",
+                  fontFamily: "inherit",
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                }}
+              >
+                {k === "perms" ? "Permissions" : "Teams"}
+              </button>
+            );
+          })}
+        </div>
+
+        {tab === "teams" ? <TeamsAdmin /> : null}
+
+        {tab === "perms" ? (
+          <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
+            Read-only — canonical matrix lives in the backend.
+          </p>
+        ) : null}
+
+
+        {tab === "perms" && status === "loading" && !perms ? (
           <div style={{ color: "#8f8f8f", fontSize: 12 }}>Loading…</div>
         ) : null}
 
-        {status === "error" && !perms ? (
+        {tab === "perms" && status === "error" && !perms ? (
           <div
             style={{
               border: "1px solid #2a2a2a",
@@ -268,7 +301,7 @@ function AdminPage() {
           </div>
         ) : null}
 
-        {perms ? (
+        {tab === "perms" && perms ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {groupsToRender.map((g) => {
               const open = expanded.has(g.id);
@@ -456,3 +489,308 @@ function AdminPage() {
     </div>
   );
 }
+
+/* ============================================================
+ * Teams Admin — employee team toggles + client-substring mappings.
+ * Backed by getTeams / setEmployeeTeam / setTeamAssignment.
+ * ============================================================ */
+type TeamKey = "Alpha" | "Bravo";
+type Employee = { id: string; name?: string; team?: TeamKey };
+type Assignment = { match: string; team: TeamKey };
+type GetTeamsRes = { employees?: Employee[]; assignments?: Assignment[] };
+
+const TEAMS: TeamKey[] = ["Alpha", "Bravo"];
+
+async function postScript(body: unknown): Promise<boolean> {
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return false;
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean };
+    return j.ok !== false;
+  } catch {
+    return false;
+  }
+}
+
+function TeamsAdmin() {
+  const [data, setData] = useState<GetTeamsRes | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [newMatch, setNewMatch] = useState("");
+  const [newTeam, setNewTeam] = useState<TeamKey>("Alpha");
+
+  const load = useCallback(async () => {
+    setStatus((s) => (s === "ok" ? "ok" : "loading"));
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getTeams`);
+      if (!res.ok) throw new Error("http");
+      const j = (await res.json()) as GetTeamsRes;
+      setData({
+        employees: j.employees ?? [],
+        assignments: j.assignments ?? [],
+      });
+      setStatus("ok");
+    } catch {
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const setEmployeeTeam = async (id: string, team: TeamKey) => {
+    setBusy(`emp:${id}`);
+    // optimistic
+    setData((d) =>
+      d
+        ? {
+            ...d,
+            employees: (d.employees ?? []).map((e) => (e.id === id ? { ...e, team } : e)),
+          }
+        : d,
+    );
+    const ok = await postScript({ action: "setEmployeeTeam", id, team });
+    setBusy(null);
+    if (!ok) void load();
+  };
+
+  const addAssignment = async () => {
+    const m = newMatch.trim();
+    if (!m) return;
+    setBusy("add");
+    const ok = await postScript({ action: "setTeamAssignment", match: m, team: newTeam });
+    setBusy(null);
+    if (ok) {
+      setNewMatch("");
+      void load();
+    }
+  };
+
+  const removeAssignment = async (match: string) => {
+    setBusy(`rm:${match}`);
+    setData((d) =>
+      d ? { ...d, assignments: (d.assignments ?? []).filter((a) => a.match !== match) } : d,
+    );
+    const ok = await postScript({ action: "setTeamAssignment", match, remove: true });
+    setBusy(null);
+    if (!ok) void load();
+  };
+
+  const setAssignmentTeam = async (match: string, team: TeamKey) => {
+    setBusy(`a:${match}`);
+    setData((d) =>
+      d
+        ? {
+            ...d,
+            assignments: (d.assignments ?? []).map((a) => (a.match === match ? { ...a, team } : a)),
+          }
+        : d,
+    );
+    const ok = await postScript({ action: "setTeamAssignment", match, team });
+    setBusy(null);
+    if (!ok) void load();
+  };
+
+  const btn = (active: boolean): React.CSSProperties => ({
+    background: active ? "#7cff00" : "transparent",
+    color: active ? "#0a0a0a" : "#7cff00",
+    border: "1px solid #7cff00",
+    borderRadius: 4,
+    padding: "4px 10px",
+    fontFamily: "inherit",
+    fontSize: 11,
+    letterSpacing: 1,
+    cursor: "pointer",
+  });
+
+  if (status === "loading" && !data) {
+    return <div style={{ color: "#8f8f8f", fontSize: 12 }}>Loading teams…</div>;
+  }
+  if (status === "error" && !data) {
+    return (
+      <div style={{ color: "#e8e8e8", fontSize: 12 }}>
+        Couldn't load teams.{" "}
+        <button onClick={() => void load()} style={btn(false)}>
+          RETRY
+        </button>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <section>
+        <div
+          style={{
+            color: "#7cff00",
+            fontSize: 12,
+            letterSpacing: 1,
+            marginBottom: 8,
+            textTransform: "uppercase",
+          }}
+        >
+          Employees
+        </div>
+        <div
+          style={{
+            border: "1px solid #2a2a2a",
+            background: "#121212",
+            borderRadius: 6,
+            overflow: "hidden",
+          }}
+        >
+          {(data.employees ?? []).length === 0 ? (
+            <div style={{ padding: 12, color: "#8f8f8f", fontSize: 12 }}>No employees.</div>
+          ) : (
+            (data.employees ?? []).map((e, i) => (
+              <div
+                key={e.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderTop: i === 0 ? "none" : "1px solid #1a1a1a",
+                }}
+              >
+                <div style={{ flex: 1, fontSize: 12 }}>
+                  <div>{e.name || e.id}</div>
+                  <div style={{ color: "#8f8f8f", fontSize: 10 }}>{e.id}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {TEAMS.map((t) => (
+                    <button
+                      key={t}
+                      disabled={busy === `emp:${e.id}`}
+                      onClick={() => void setEmployeeTeam(e.id, t)}
+                      style={btn(e.team === t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section>
+        <div
+          style={{
+            color: "#7cff00",
+            fontSize: 12,
+            letterSpacing: 1,
+            marginBottom: 8,
+            textTransform: "uppercase",
+          }}
+        >
+          Client Name Mappings
+        </div>
+        <div
+          style={{
+            border: "1px solid #2a2a2a",
+            background: "#121212",
+            borderRadius: 6,
+            overflow: "hidden",
+          }}
+        >
+          {(data.assignments ?? []).length === 0 ? (
+            <div style={{ padding: 12, color: "#8f8f8f", fontSize: 12 }}>No mappings.</div>
+          ) : (
+            (data.assignments ?? []).map((a, i) => (
+              <div
+                key={a.match}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderTop: i === 0 ? "none" : "1px solid #1a1a1a",
+                }}
+              >
+                <div style={{ flex: 1, fontSize: 12, wordBreak: "break-word" }}>{a.match}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {TEAMS.map((t) => (
+                    <button
+                      key={t}
+                      disabled={busy === `a:${a.match}`}
+                      onClick={() => void setAssignmentTeam(a.match, t)}
+                      style={btn(a.team === t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  disabled={busy === `rm:${a.match}`}
+                  onClick={() => void removeAssignment(a.match)}
+                  style={{
+                    background: "transparent",
+                    color: "#e8e8e8",
+                    border: "1px solid #2a2a2a",
+                    borderRadius: 4,
+                    padding: "4px 8px",
+                    fontFamily: "inherit",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                  aria-label="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+            ))
+          )}
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              padding: "10px 12px",
+              borderTop: "1px solid #1a1a1a",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <input
+              value={newMatch}
+              onChange={(e) => setNewMatch(e.target.value)}
+              placeholder="client-name substring"
+              style={{
+                flex: "1 1 180px",
+                background: "#0a0a0a",
+                color: "#e8e8e8",
+                border: "1px solid #2a2a2a",
+                borderRadius: 4,
+                padding: "6px 8px",
+                fontFamily: "inherit",
+                fontSize: 12,
+              }}
+            />
+            <div style={{ display: "flex", gap: 6 }}>
+              {TEAMS.map((t) => (
+                <button key={t} onClick={() => setNewTeam(t)} style={btn(newTeam === t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+            <button
+              disabled={busy === "add" || !newMatch.trim()}
+              onClick={() => void addAssignment()}
+              style={btn(true)}
+            >
+              ADD
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+

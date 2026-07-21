@@ -6,6 +6,7 @@ import { useReviewableToday } from "../lib/reviewable-today";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { MessagesFab } from "../components/MessagesFab";
+import { appendTeamParam } from "../lib/team";
 
 
 export const Route = createFileRoute("/schedule")({
@@ -296,7 +297,7 @@ function SchedulePage() {
     const key = `schedule:getSchedule:${start}:${end}`;
     setRefreshing(true);
     try {
-      const url = `${SCRIPT_URL}?action=getSchedule&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      const url = appendTeamParam(`${SCRIPT_URL}?action=getSchedule&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as GetScheduleResponse;
