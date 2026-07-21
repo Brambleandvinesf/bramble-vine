@@ -7,6 +7,7 @@ import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
+import { Check, SkipForward, Trash2 } from "lucide-react";
 
 const CK = "confirm:getConfirm";
 
@@ -90,7 +91,7 @@ type Edit = {
   type: string;
   category: string;
   notes: string;
-  status: "Confirmed" | "SKIP";
+  status: "Pending" | "Confirmed" | "SKIP";
   expanded: boolean;
   notesOpen: boolean;
 };
@@ -177,7 +178,7 @@ function ConfirmPage() {
         type: p.type,
         category: p.category,
         notes: p.notes,
-        status: "Confirmed",
+        status: "Pending",
         expanded: p.showOnReview,
         notesOpen: !!p.notes,
       };
@@ -218,7 +219,7 @@ function ConfirmPage() {
           type: p.type,
           category: p.category,
           notes: p.notes,
-          status: "Confirmed",
+          status: "Pending",
           expanded: p.showOnReview,
           notesOpen: !!p.notes,
         };
@@ -265,6 +266,25 @@ function ConfirmPage() {
     }
     return map;
   }, [projects, todaysClients]);
+
+  // A card is "handled" (hidden) when deleted, skipped, or explicitly confirmed.
+  // Submit surfaces only when zero reviewable cards remain.
+  const allHandled = useMemo(() => {
+    for (const c of todaysClients) {
+      const list = grouped[c] ?? [];
+      for (const p of list) {
+        const key = p.projectId || `row-${p.row}`;
+        const e = edits[key];
+        if (!e) continue;
+        const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
+        const skip = e.status === "SKIP";
+        const confirmed = e.status === "Confirmed";
+        if (isDeleted || skip || confirmed) continue;
+        return false;
+      }
+    }
+    return true;
+  }, [todaysClients, grouped, edits, deletes]);
 
   const setEdit = useCallback((key: string, patch: Partial<Edit>) => {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -454,7 +474,9 @@ function ConfirmPage() {
         deletesArr.push({ projectId: p.projectId, client: p.client });
         continue;
       }
-      statuses.push({ projectId: p.projectId, status: e.status });
+      if (e.status === "Confirmed" || e.status === "SKIP") {
+        statuses.push({ projectId: p.projectId, status: e.status });
+      }
       const diff: Record<string, string> = {};
       if (e.action !== p.action) diff.action = e.action;
       if (e.garden !== p.garden) diff.garden = e.garden;
@@ -627,10 +649,9 @@ function ConfirmPage() {
                 if (!e) return null;
                 const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
                 const skip = e.status === "SKIP";
-                // Optimistically hide skipped/deleted cards. Deleted stays gone;
-                // skipped may reappear only if a future full refresh still
-                // includes it.
-                if (isDeleted || skip) return null;
+                const confirmed = e.status === "Confirmed";
+                // Optimistically hide handled cards (deleted / skipped / confirmed).
+                if (isDeleted || skip || confirmed) return null;
                 return (
                   <div
                     key={key}
@@ -739,7 +760,6 @@ function ConfirmPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
-                        flexWrap: "wrap",
                       }}
                     >
                       {p.projectId ? (
@@ -751,23 +771,13 @@ function ConfirmPage() {
                           NO ID (won't save)
                         </span>
                       )}
-                      <div style={{ flex: 1 }} />
-                      {isDeleted ? (
+                      {isDeleted && (
                         <button
-                          style={GHOST_BTN_SM}
+                          style={{ ...GHOST_BTN_SM, marginLeft: "auto" }}
                           onClick={() => undoDelete(p.projectId)}
                         >
                           UNDO DELETE
                         </button>
-                      ) : (
-                        p.projectId && (
-                          <button
-                            style={{ ...GHOST_BTN_SM, color: RED, borderColor: RED }}
-                            onClick={() => requestDelete(p.projectId, e.action)}
-                          >
-                            DELETE
-                          </button>
-                        )
                       )}
                     </div>
                     <div
@@ -777,22 +787,36 @@ function ConfirmPage() {
                         borderTop: `1px solid ${LINE}`,
                         display: "flex",
                         justifyContent: "center",
-                        gap: 10,
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
-                      <BigSegBtn
-                        active={!skip}
+                      <button
+                        aria-label="Confirm"
+                        title="Confirm"
+                        style={ICON_ACTION_BTN}
                         onClick={() => setEdit(key, { status: "Confirmed" })}
                       >
-                        CONFIRM
-                      </BigSegBtn>
-                      <BigSegBtn
-                        active={skip}
-                        danger
+                        <Check size={20} />
+                      </button>
+                      <button
+                        aria-label="Skip"
+                        title="Skip"
+                        style={ICON_ACTION_BTN}
                         onClick={() => setEdit(key, { status: "SKIP" })}
                       >
-                        SKIP
-                      </BigSegBtn>
+                        <SkipForward size={20} />
+                      </button>
+                      {p.projectId && (
+                        <button
+                          aria-label="Delete"
+                          title="Delete"
+                          style={ICON_ACTION_BTN}
+                          onClick={() => requestDelete(p.projectId, e.action)}
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -966,36 +990,40 @@ function ConfirmPage() {
             {submitFlash.msg}
           </div>
         )}
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: TEXT,
-            fontSize: 13,
-            marginBottom: 8,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={sendText}
-            onChange={(e) => setSendText(e.target.checked)}
-            style={{ width: 20, height: 20, accentColor: LIME }}
-          />
-          Text the crew the loading link
-        </label>
-        <button
-          style={{ ...SOLID_BTN, width: "100%" }}
-          onClick={submit}
-          disabled={submitting || !!loadErr || state === null}
-        >
-          {submitting
-            ? "CONFIRMING…"
-            : reviewable === false
-              ? "CONFIRM BASE LOAD & NOTIFY CREW"
-              : "CONFIRM SPECIAL LOADING/PROJECTS"}
-        </button>
+        {allHandled && (
+          <>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: TEXT,
+                fontSize: 13,
+                marginBottom: 8,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={sendText}
+                onChange={(e) => setSendText(e.target.checked)}
+                style={{ width: 20, height: 20, accentColor: LIME }}
+              />
+              Text the crew the loading link
+            </label>
+            <button
+              style={{ ...SOLID_BTN, width: "100%" }}
+              onClick={submit}
+              disabled={submitting || !!loadErr || state === null}
+            >
+              {submitting
+                ? "CONFIRMING…"
+                : reviewable === false
+                  ? "CONFIRM BASE LOAD & NOTIFY CREW"
+                  : "CONFIRM SPECIAL LOADING/PROJECTS"}
+            </button>
+          </>
+        )}
       </div>
       {pickerFor && (
         <ItemPicker
@@ -1308,6 +1336,22 @@ const GHOST_BTN_SM: React.CSSProperties = {
   letterSpacing: 2,
   fontWeight: "bold",
   cursor: "pointer",
+};
+const ICON_ACTION_BTN: React.CSSProperties = {
+  background: "transparent",
+  color: LIME_BRIGHT,
+  border: `1px solid ${LIME_BRIGHT}`,
+  borderRadius: 6,
+  width: 44,
+  height: 44,
+  minWidth: 44,
+  minHeight: 44,
+  padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  flex: "0 0 auto",
 };
 const STATE: React.CSSProperties = {
   margin: "40px 20px",
