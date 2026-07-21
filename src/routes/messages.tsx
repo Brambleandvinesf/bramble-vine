@@ -1115,7 +1115,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       <div style={{ marginLeft: "auto", textAlign: "right", fontSize: ".9rem", lineHeight: 1.35, color: T.lime }}>
         NEXT: {nextVisit.title}
         <br />
-        <span style={{ fontSize: "1.15rem", fontWeight: "bold", color: late ? "#ffb03f" : T.lime }}>
+        <span style={{ fontSize: "1.15rem", fontWeight: "bold", color: late ? T.brightLime : T.lime }}>
           {late ? t + " AGO" : "in " + t}
         </span>
       </div>
@@ -1353,33 +1353,64 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             <div style={{ fontSize: ".85rem", letterSpacing: 2, color: T.dim, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, marginBottom: 8 }}>
               DRAFTS ({orphanDrafts.length})
             </div>
-            {orphanDrafts.map((d) => (
-              <DraftCard
-                key={d.draftId}
-                draft={d}
-                onEdit={(text) => scheduleDraftSave(d.draftId, text)}
-                onEmoji={(apply) => setEmojiTarget({ apply })}
-                onSend={async (text) => {
-                  flushDraftSave(d.draftId);
-                  const t = String(text || "").trim();
-                  if (!t) {
-                    flash("Write a message first.", true);
+            {orphanDrafts.map((d) => {
+              const dItem: InboxItem = {
+                id: "draft-" + d.draftId,
+                source: "gmail",
+                from: d.to || "(no recipient)",
+                fromEmail: d.to || "",
+                subject: d.subject || "",
+                snippet: d.snippet || d.text || "",
+                date: d.date || new Date().toISOString(),
+                threadId: d.draftId,
+                awaiting: false,
+                isClient: false,
+              };
+              const stagedForDraft = staged[d.draftId] || [];
+              return (
+                <DraftCard
+                  key={d.draftId}
+                  draft={d}
+                  onEdit={(text) => scheduleDraftSave(d.draftId, text)}
+                  onEmoji={(apply) => setEmojiTarget({ apply })}
+                  onAttach={() => openAttach(dItem)}
+                  onProject={() => openProject(dItem)}
+                  onForward={() => openForward(dItem)}
+                  staged={stagedForDraft}
+                  onRemoveStaged={(idx) => removeStaged(d.draftId, idx)}
+                  onSend={async (text) => {
+                    flushDraftSave(d.draftId);
+                    const t = String(text || "").trim();
+                    if (!t) {
+                      flash("Write a message first.", true);
+                      return false;
+                    }
+                    const to = d.to || "(recipient)";
+                    const attachments = stagedForDraft;
+                    flash(
+                      "Sending draft to " + to +
+                        (attachments.length ? " with " + attachments.length + " attachment" + (attachments.length > 1 ? "s" : "") : "") +
+                        "\u2026",
+                    );
+                    const res = await postAction({ action: "sendDraft", draftId: d.draftId, text: t, email, attachments });
+                    if (res && res.ok && res.sent) {
+                      removeDraftLocal(d.draftId);
+                      setStaged((s) => {
+                        const n = { ...s };
+                        delete n[d.draftId];
+                        return n;
+                      });
+                      flash("Sent draft to " + to + " \u2713");
+                      return true;
+                    }
+                    flash("Draft NOT sent to " + to + "!", true);
                     return false;
-                  }
-                  const to = d.to || "(recipient)";
-                  flash("Sending draft to " + to + "\u2026");
-                  const res = await postAction({ action: "sendDraft", draftId: d.draftId, text: t, email });
-                  if (res && res.ok && res.sent) {
-                    removeDraftLocal(d.draftId);
-                    flash("Sent draft to " + to + " \u2713");
-                    return true;
-                  }
-                  flash("Draft NOT sent to " + to + "!", true);
-                  return false;
-                }}
-                onDiscard={() => void discardDraft(d)}
-              />
-            ))}
+                  }}
+                  onDiscard={() => void discardDraft(d)}
+                />
+              );
+            })}
+
           </div>
         )}
       </div>
@@ -1387,7 +1418,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       {/* status flash */}
       <div style={{ fontSize: ".85rem", minHeight: "1.2em", marginTop: 6 }}>
         {flashMsg && (
-          <span style={{ color: flashMsg.warn ? "#ffb03f" : T.lime }}>{flashMsg.text}</span>
+          <span style={{ color: flashMsg.warn ? T.brightLime : T.lime }}>{flashMsg.text}</span>
         )}
       </div>
 
@@ -1473,7 +1504,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                       </div>
                     ))}
                     {labelPick.q.trim() && !exact && (
-                      <div onClick={() => finishLabel(labelPick.q.trim())} style={{ ...pickRowStyle, color: "#ffb03f" }}>
+                      <div onClick={() => finishLabel(labelPick.q.trim())} style={{ ...pickRowStyle, color: T.dim }}>
                         + Create “{labelPick.q.trim()}”
                       </div>
                     )}
@@ -1556,7 +1587,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               {acState.q.trim() && (
                 <div
                   onClick={() => void saveContact({ name: acState.q.trim() })}
-                  style={{ ...pickRowStyle, color: "#ffb03f" }}
+                  style={{ ...pickRowStyle, color: T.dim }}
                 >
                   + New contact: “{acState.q.trim()}”
                 </div>
@@ -1595,7 +1626,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               onChange={(e) => setFwdPick({ ...fwdPick, text: e.target.value })}
               style={{ ...inputStyle, minHeight: 140, resize: "vertical" }}
             />
-            {fwdPick.err && <div style={{ color: T.red, fontSize: ".9rem" }}>{fwdPick.err}</div>}
+            {fwdPick.err && <div style={{ color: T.brightLime, fontSize: ".9rem" }}>{fwdPick.err}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void submitForward()}>Send</button>
               <button style={ghostBtn} onClick={() => setFwdPick(null)}>Cancel</button>
@@ -1680,7 +1711,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               onChange={(e) => setApPick({ ...apPick, notes: e.target.value })}
               style={{ ...inputStyle, minHeight: 44 }}
             />
-            {apPick.err && <div style={{ color: T.red, fontSize: ".9rem" }}>{apPick.err}</div>}
+            {apPick.err && <div style={{ color: T.brightLime, fontSize: ".9rem" }}>{apPick.err}</div>}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void submitProject()}>Save project</button>
               <button style={ghostBtn} onClick={() => setApPick(null)}>Cancel</button>
@@ -1748,7 +1779,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               <input value={rcPick.total} onChange={(e) => setRcPick({ ...rcPick, total: e.target.value })} style={{ ...inputStyle, minHeight: 44, fontWeight: "bold" }} />
             </div>
             {rcPick.msg && (
-              <div style={{ color: rcPick.msg.warn ? "#ffb03f" : T.lime, fontSize: ".9rem" }}>{rcPick.msg.text}</div>
+              <div style={{ color: rcPick.msg.warn ? T.brightLime : T.lime, fontSize: ".9rem" }}>{rcPick.msg.text}</div>
             )}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button style={limeBtn} onClick={() => void saveReceipt()}>Confirm &amp; Save PDF</button>
@@ -1924,7 +1955,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                                 manual: "",
                               })
                             }
-                            style={{ ...pickRowStyle, color: "#ffb03f" }}
+                            style={{ ...pickRowStyle, color: T.dim }}
                           >
                             + Send to {normalized}
                           </div>
@@ -1962,7 +1993,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               </button>
               <div style={{ flex: 1 }} />
               <button
-                style={{ ...ghostBtn, color: "#ffb03f", borderColor: "#ffb03f" }}
+                style={{ ...ghostBtn, color: T.brightLime, borderColor: T.brightLime }}
                 onClick={() => {
                   if (window.confirm("Discard this draft? It will not be recoverable.")) {
                     try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
@@ -2476,7 +2507,7 @@ function FeedCard({
           </button>
           {draft && onDraftDiscard && (
             <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
               onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
               title="Discard draft"
               aria-label="Discard draft"
@@ -2502,7 +2533,7 @@ function FeedCard({
                 }}
               >
                 📎 {a.name} ({fmtSize(a.size)})
-                <b style={{ cursor: "pointer", color: T.red, fontSize: "1rem" }} onClick={() => onRemoveStaged(i)}>
+                <b style={{ cursor: "pointer", color: T.dim, fontSize: "1rem" }} onClick={() => onRemoveStaged(i)}>
                   ✕
                 </b>
               </span>
@@ -2665,7 +2696,7 @@ function Viewer({
               }}
             >
               📎 {a.name} ({fmtSize(a.size)})
-              <b style={{ cursor: "pointer", color: T.red }} onClick={() => onRemoveStaged(i)}>✕</b>
+              <b style={{ cursor: "pointer", color: T.dim }} onClick={() => onRemoveStaged(i)}>✕</b>
             </span>
           ))}
         </div>
@@ -2788,7 +2819,7 @@ function AttView({ a }: { a: ThreadAttachment }) {
       <div style={{ marginTop: 10 }}>
         <div style={{ fontSize: ".8rem", opacity: 0.7, margin: "4px 0 8px" }}>{a.name}</div>
         <div ref={pdfRef} />
-        {pdfErr && <div style={{ color: "#ffb03f", fontSize: ".8rem" }}>Couldn't render this PDF here — view in Gmail.</div>}
+        {pdfErr && <div style={{ color: T.brightLime, fontSize: ".8rem" }}>Couldn't render this PDF here — view in Gmail.</div>}
       </div>
     );
   }
@@ -2851,12 +2882,22 @@ function DraftCard({
   onSend,
   onDiscard,
   onEmoji,
+  onAttach,
+  onProject,
+  onForward,
+  staged,
+  onRemoveStaged,
 }: {
   draft: Draft;
   onEdit: (text: string) => void;
   onSend: (text: string) => Promise<boolean>;
   onDiscard: () => void;
   onEmoji: (apply: (e: string) => void) => void;
+  onAttach: () => void;
+  onProject: () => void;
+  onForward: () => void;
+  staged: Attachment[];
+  onRemoveStaged: (idx: number) => void;
 }) {
   const [text, setText] = useState(draft.text || "");
   const [sending, setSending] = useState(false);
@@ -2916,6 +2957,14 @@ function DraftCard({
             <IconSmile />
           </button>
           <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Attach"
+            aria-label="Attach"
+            onClick={onAttach}
+          >
+            <IconClip />
+          </button>
+          <button
             disabled={!text.trim() || sending}
             style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: text.trim() && !sending ? 1 : 0.4 }}
             title="Send"
@@ -2929,7 +2978,23 @@ function DraftCard({
             <Send size={22} />
           </button>
           <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Add Project"
+            aria-label="Add Project"
+            onClick={onProject}
+          >
+            <FolderPlus size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Forward to Crew"
+            aria-label="Forward to Crew"
+            onClick={onForward}
+          >
+            <Users size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
             onClick={onDiscard}
             title="Discard draft"
             aria-label="Discard draft"
@@ -2937,7 +3002,32 @@ function DraftCard({
             <Trash2 size={22} />
           </button>
         </div>
+        {staged.length > 0 && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+            {staged.map((a, i) => (
+              <span
+                key={i}
+                style={{
+                  border: `1px solid ${T.dim}`,
+                  color: T.dim,
+                  borderRadius: 4,
+                  padding: "6px 8px",
+                  fontSize: ".8rem",
+                  display: "inline-flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                📎 {a.name} ({fmtSize(a.size)})
+                <b style={{ cursor: "pointer", color: T.dim, fontSize: "1rem" }} onClick={() => onRemoveStaged(i)}>
+                  ✕
+                </b>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
