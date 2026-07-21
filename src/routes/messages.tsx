@@ -114,6 +114,7 @@ type InboxResponse = {
   lastYes?: string;
   roster?: RosterEntry[];
   employees?: Employee[];
+  canViewAll?: boolean;
 };
 
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
