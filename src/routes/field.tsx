@@ -1703,6 +1703,26 @@ function StateArrived({
 
   const showNormal = navigated;
 
+  // Request geolocation permission on first render of Navigate (fail silent).
+  useEffect(() => {
+    if (isPreview) return;
+    if (navigated) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    try {
+      navigator.geolocation.getCurrentPosition(() => {}, () => {}, { timeout: 15_000 });
+    } catch { /* ignore */ }
+    // Only trigger once when the Navigate button is first shown for this stop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopIndex]);
+
+  const nearBanner = (() => {
+    if (!locationCheck?.near) return null;
+    if (!clientMatch) return null;
+    const lc = (locationCheck.client ?? "").trim().toLowerCase();
+    if (lc && lc !== clientMatch.trim().toLowerCase()) return null;
+    return `You're near ${clientMatch} — ready to start?`;
+  })();
+
   return (
     <div style={{ padding: "10px 14px" }}>
       {onBackToCrew && (
