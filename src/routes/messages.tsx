@@ -108,7 +108,34 @@ type InboxResponse = {
   clients?: string[];
   nextVisit?: { title: string; start: string } | null;
   drafts?: Draft[];
+  lastYes?: string;
 };
+
+/* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
+function weekKeyLA(d: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const y = Number(get("year"));
+  const m = Number(get("month"));
+  const day = Number(get("day"));
+  const wdMap: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+  const back = wdMap[get("weekday")] ?? 0;
+  const local = new Date(Date.UTC(y, m - 1, day));
+  local.setUTCDate(local.getUTCDate() - back);
+  return `${local.getUTCFullYear()}-${local.getUTCMonth() + 1}-${local.getUTCDate()}`;
+}
+function yesThisWeek(lastYes: string | null): boolean {
+  if (!lastYes) return false;
+  const d = new Date(lastYes);
+  if (isNaN(d.getTime())) return false;
+  return weekKeyLA(d) === weekKeyLA(new Date());
+}
 type Contact = { r: string; n: string };
 
 const CONFIRMED_KEY = "bv-confirmed-visits";
@@ -283,6 +310,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>(() => cached?.drafts ?? []);
+  const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
+
 
   // Optimistic
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -408,6 +437,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (r.clients) setClients(r.clients);
       setNextVisit(r.nextVisit || null);
       setDrafts(r.drafts || []);
+      setLastYes(r.lastYes ? String(r.lastYes) : null);
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
@@ -1289,6 +1319,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         ) : (
           displayItems.map((it) => {
             const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+            const showConfirm = !!it.isClient && !it.confirmed && yesThisWeek(lastYes);
             return (
               <FeedCard
                 key={it.id}
@@ -1297,6 +1328,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                 found={foundId === it.id}
                 staged={staged[it.threadId] || []}
                 showLineBadge={showLineBadge}
+                showConfirm={showConfirm}
                 draft={draft}
                 onOpen={() => openViewer(it)}
                 onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
@@ -1403,6 +1435,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             void spamItem(it);
           }}
           onConfirm={() => confirmVisit(openItem)}
+          showConfirm={!!openItem.isClient && !openItem.confirmed && yesThisWeek(lastYes)}
           onProject={() => openProject(openItem)}
           onForward={() => openForward(openItem)}
           onAttach={() => openAttach(openItem)}
@@ -2196,6 +2229,7 @@ function FeedCard({
   found,
   staged,
   showLineBadge,
+  showConfirm,
   onOpen,
   onSend,
   onFile,
@@ -2217,6 +2251,7 @@ function FeedCard({
   found: boolean;
   staged: Attachment[];
   showLineBadge: boolean;
+  showConfirm: boolean;
   onOpen: () => void;
   onSend: (text: string, clearField: () => void) => void;
   onFile: () => void;
@@ -2378,57 +2413,75 @@ function FeedCard({
             {it.snippet}
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
+        <textarea
+          rows={2}
+          placeholder={draft ? "Draft…" : "Reply…"}
+          value={reply}
+          onChange={(e) => {
+            setReply(e.target.value);
+            if (onDraftEdit) onDraftEdit(e.target.value);
+          }}
+          onClick={(ev) => ev.stopPropagation()}
+          onKeyDown={(ev) => {
+            if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+              ev.preventDefault();
+              if (reply.trim()) onSend(reply, () => setReply(""));
+            }
+          }}
+          style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 56, maxHeight: 160, resize: "vertical" }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
             <IconSmile />
           </button>
           {!quo && (
-            <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
               <IconClip />
             </button>
           )}
-          <textarea
-            rows={1}
-            placeholder={draft ? "Draft…" : "Reply…"}
-            value={reply}
-            onChange={(e) => {
-              setReply(e.target.value);
-              if (onDraftEdit) onDraftEdit(e.target.value);
-            }}
-            onClick={(ev) => ev.stopPropagation()}
-            onKeyDown={(ev) => {
-              if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
-                ev.preventDefault();
-                if (reply.trim()) onSend(reply, () => setReply(""));
-              }
-            }}
-            style={{ ...inputStyle, flex: 1, minHeight: 44, maxHeight: 120, resize: "none" }}
-          />
           <button
             disabled={!reply.trim()}
-            style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", opacity: reply.trim() ? 1 : 0.4 }}
-            onClick={(ev) => {
-              ev.stopPropagation();
-              onSend(reply, () => setReply(""));
-            }}
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
+            title="Send"
+            aria-label="Send"
+            onClick={(ev) => { ev.stopPropagation(); onSend(reply, () => setReply("")); }}
           >
-            Send
+            <Send size={22} />
           </button>
-        </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
-          <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
-            + Project
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title={quo ? "Done" : "File"} aria-label={quo ? "Done" : "File"} onClick={(ev) => { ev.stopPropagation(); onFile(); }}>
+            <Check size={22} />
           </button>
-          <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
-            → Crew
+          {showConfirm && (
+            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
+          )}
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
+            <FolderPlus size={22} />
+          </button>
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
+            <Users size={22} />
+          </button>
+          {quo
+            ? it.unknowns && it.unknowns.length > 0 && (
+                <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
+                  <IconPoo />
+                </button>
+              )
+            : (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Trash" aria-label="Trash" onClick={(ev) => { ev.stopPropagation(); onTrash(); }}>
+                <Trash2 size={22} />
+              </button>
+            )}
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
+            <IconFs />
           </button>
           {draft && onDraftDiscard && (
             <button
-              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", color: "#ffb03f", borderColor: "#ffb03f" }}
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
               onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
               title="Discard draft"
+              aria-label="Discard draft"
             >
-              ✕ Discard
+              <Trash2 size={22} />
             </button>
           )}
         </div>
@@ -2457,28 +2510,6 @@ function FeedCard({
           </div>
         )}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, alignSelf: "stretch", justifyContent: "flex-end" }}>
-        <button style={iconBtn} title="Open full screen" onClick={onOpen}>
-          <IconFs />
-        </button>
-        {it.isClient && (
-          <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
-        )}
-        {quo
-          ? it.unknowns && it.unknowns.length > 0 && (
-              <button style={iconBtn} title="Mark as spam" onClick={onSpam}>
-                <IconPoo />
-              </button>
-            )
-          : (
-            <button style={iconBtn} title="Trash" onClick={onTrash}>
-              ✕
-            </button>
-          )}
-        <button style={iconBtn} title={quo ? "Done" : "File"} onClick={onFile}>
-          ✓
-        </button>
-      </div>
     </div>
   );
 }
@@ -2502,6 +2533,7 @@ function Viewer({
   onEmoji,
   onReceipt,
   onRemoveStaged,
+  showConfirm,
 }: {
   it: InboxItem;
   body:
@@ -2525,6 +2557,7 @@ function Viewer({
   onEmoji: () => void;
   onReceipt: (() => void) | null;
   onRemoveStaged: (idx: number) => void;
+  showConfirm: boolean;
 }) {
   const quo = it.source === "quo";
   return (
@@ -2642,13 +2675,11 @@ function Viewer({
           borderTop: `1px solid ${T.lime}`,
           padding: "10px 16px",
           display: "flex",
+          flexDirection: "column",
           gap: 8,
-          alignItems: "flex-end",
           background: T.bg,
         }}
       >
-        <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} onClick={onEmoji}><IconSmile /></button>
-        {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} onClick={onAttach}><IconClip /></button>}
         <textarea
           value={reply}
           onChange={(e) => setReply(e.target.value)}
@@ -2659,9 +2690,11 @@ function Viewer({
               if (reply.trim()) onSend();
             }
           }}
-          style={{ ...inputStyle, flex: 1, minHeight: 72, maxHeight: 160, resize: "vertical" }}
+          style={{ ...inputStyle, width: "100%", minHeight: 72, maxHeight: 160, resize: "vertical" }}
         />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
+          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={onEmoji}><IconSmile /></button>
+          {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={onAttach}><IconClip /></button>}
           <button
             style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
             disabled={!reply.trim()}
@@ -2679,8 +2712,8 @@ function Viewer({
           >
             <Check size={22} />
           </button>
-          {it.isClient && (
-            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} />
+          {showConfirm && (
+            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
           )}
           {onReceipt && !quo && (
             <button
@@ -2692,6 +2725,22 @@ function Viewer({
               <IconRcpt />
             </button>
           )}
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Add Project"
+            aria-label="Add Project"
+            onClick={onProject}
+          >
+            <FolderPlus size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+            title="Forward to Crew"
+            aria-label="Forward to Crew"
+            onClick={onForward}
+          >
+            <Users size={22} />
+          </button>
           {!quo && (
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
@@ -2713,24 +2762,6 @@ function Viewer({
             </button>
           )}
         </div>
-      </div>
-      <div style={{ display: "flex", gap: 12, justifyContent: "center", padding: "8px 16px 12px", background: T.bg }}>
-        <button
-          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-          title="Add Project"
-          aria-label="Add Project"
-          onClick={onProject}
-        >
-          <FolderPlus size={22} />
-        </button>
-        <button
-          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-          title="Forward to Crew"
-          aria-label="Forward to Crew"
-          onClick={onForward}
-        >
-          <Users size={22} />
-        </button>
       </div>
     </div>
   );
@@ -2868,40 +2899,43 @@ function DraftCard({
             {draft.snippet}
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <textarea
+          rows={2}
+          value={text}
+          onChange={(e) => { setText(e.target.value); onEdit(e.target.value); }}
+          placeholder="Draft…"
+          style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 60, maxHeight: 200, resize: "vertical" }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
           <button
             style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
+            title="Emoji"
+            aria-label="Emoji"
             onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
           >
             <IconSmile />
           </button>
-          <textarea
-            rows={2}
-            value={text}
-            onChange={(e) => { setText(e.target.value); onEdit(e.target.value); }}
-            placeholder="Draft…"
-            style={{ ...inputStyle, flex: 1, minHeight: 60, maxHeight: 200, resize: "vertical" }}
-          />
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <button
-              disabled={!text.trim() || sending}
-              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", opacity: text.trim() && !sending ? 1 : 0.4 }}
-              onClick={async () => {
-                setSending(true);
-                await onSend(text);
-                setSending(false);
-              }}
-            >
-              Send
-            </button>
-            <button
-              style={{ ...ghostBtn, minHeight: 44, padding: "8px 10px", color: "#ffb03f", borderColor: "#ffb03f" }}
-              onClick={onDiscard}
-              title="Discard draft"
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            disabled={!text.trim() || sending}
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: text.trim() && !sending ? 1 : 0.4 }}
+            title="Send"
+            aria-label="Send"
+            onClick={async () => {
+              setSending(true);
+              await onSend(text);
+              setSending(false);
+            }}
+          >
+            <Send size={22} />
+          </button>
+          <button
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
+            onClick={onDiscard}
+            title="Discard draft"
+            aria-label="Discard draft"
+          >
+            <Trash2 size={22} />
+          </button>
         </div>
       </div>
     </div>
