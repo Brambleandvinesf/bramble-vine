@@ -2533,6 +2533,7 @@ function Viewer({
   onEmoji,
   onReceipt,
   onRemoveStaged,
+  showConfirm,
 }: {
   it: InboxItem;
   body:
