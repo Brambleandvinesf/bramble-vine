@@ -474,7 +474,9 @@ function ConfirmPage() {
         deletesArr.push({ projectId: p.projectId, client: p.client });
         continue;
       }
-      statuses.push({ projectId: p.projectId, status: e.status });
+      if (e.status === "Confirmed" || e.status === "SKIP") {
+        statuses.push({ projectId: p.projectId, status: e.status });
+      }
       const diff: Record<string, string> = {};
       if (e.action !== p.action) diff.action = e.action;
       if (e.garden !== p.garden) diff.garden = e.garden;
