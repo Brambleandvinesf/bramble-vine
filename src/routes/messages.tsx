@@ -1642,6 +1642,29 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         </ModalOverlay>
       )}
 
+      {/* forward to office */}
+      {offPick && (
+        <ModalOverlay>
+          <ModalPanel wide>
+            <h3 style={{ margin: 0 }}>Forward to office</h3>
+            <div style={{ fontSize: ".85rem", opacity: 0.75 }}>
+              Texts +1 (415) 234-3083
+            </div>
+            <textarea
+              value={offPick.text}
+              onChange={(e) => setOffPick({ ...offPick, text: e.target.value })}
+              style={{ ...inputStyle, minHeight: 140, resize: "vertical" }}
+            />
+            {offPick.err && <div style={{ color: T.brightLime, fontSize: ".9rem" }}>{offPick.err}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button style={limeBtn} onClick={() => void submitOffice()}>Send</button>
+              <button style={ghostBtn} onClick={() => setOffPick(null)}>Cancel</button>
+            </div>
+          </ModalPanel>
+        </ModalOverlay>
+      )}
+
+
       {/* forward */}
       {fwdPick && (
         <ModalOverlay>
