@@ -470,6 +470,53 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   );
   const badgeCount = awaitingItems.length;
 
+  /* ---- drafts ---- */
+  const draftByThread = useMemo(() => {
+    const m = new Map<string, Draft>();
+    for (const d of drafts) if (d.threadId) m.set(d.threadId, d);
+    return m;
+  }, [drafts]);
+  const threadIdSet = useMemo(() => new Set(items.map((i) => i.threadId)), [items]);
+  const orphanDrafts = useMemo(
+    () => drafts.filter((d) => !d.threadId || !threadIdSet.has(d.threadId)),
+    [drafts, threadIdSet],
+  );
+
+  const draftSaveTimers = useRef<Record<string, number>>({});
+  const scheduleDraftSave = useCallback((draftId: string, text: string) => {
+    // reflect edit locally so re-renders show latest text
+    setDrafts((ds) => ds.map((d) => (d.draftId === draftId ? { ...d, text } : d)));
+    const timers = draftSaveTimers.current;
+    if (timers[draftId]) window.clearTimeout(timers[draftId]);
+    timers[draftId] = window.setTimeout(() => {
+      void postAction({ action: "updateDraft", draftId, text, email });
+      delete timers[draftId];
+    }, 2000);
+  }, [email]);
+  const flushDraftSave = useCallback((draftId: string) => {
+    const timers = draftSaveTimers.current;
+    if (timers[draftId]) {
+      window.clearTimeout(timers[draftId]);
+      delete timers[draftId];
+    }
+  }, []);
+  const removeDraftLocal = useCallback((draftId: string) => {
+    flushDraftSave(draftId);
+    setDrafts((ds) => ds.filter((d) => d.draftId !== draftId));
+  }, [flushDraftSave]);
+  const discardDraft = useCallback(async (d: Draft) => {
+    if (!window.confirm("Discard this draft?")) return;
+    removeDraftLocal(d.draftId);
+    const res = await postAction({ action: "discardDraft", draftId: d.draftId, email });
+    if (!(res && res.ok)) {
+      flash("Failed to discard draft.", true);
+      setDrafts((ds) => (ds.some((x) => x.draftId === d.draftId) ? ds : [...ds, d]));
+    } else {
+      flash("Draft discarded \u2713");
+    }
+  }, [flash, removeDraftLocal, email]);
+
+
   /* ---- optimistic helpers ---- */
   const hideId = useCallback((id: string) => setHidden((s) => new Set(s).add(id)), []);
   const unhideId = useCallback(
