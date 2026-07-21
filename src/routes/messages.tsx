@@ -82,6 +82,7 @@ type InboxItem = {
   unread?: boolean;
   awaiting?: boolean;
   isClient?: boolean;
+  confirmed?: boolean;
   threadId: string;
   conversationId?: string;
   participants?: string[];
