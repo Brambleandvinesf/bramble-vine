@@ -649,10 +649,9 @@ function ConfirmPage() {
                 if (!e) return null;
                 const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
                 const skip = e.status === "SKIP";
-                // Optimistically hide skipped/deleted cards. Deleted stays gone;
-                // skipped may reappear only if a future full refresh still
-                // includes it.
-                if (isDeleted || skip) return null;
+                const confirmed = e.status === "Confirmed";
+                // Optimistically hide handled cards (deleted / skipped / confirmed).
+                if (isDeleted || skip || confirmed) return null;
                 return (
                   <div
                     key={key}
