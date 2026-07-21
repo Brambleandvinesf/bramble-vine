@@ -235,27 +235,31 @@ type TabDef = {
   to: string;
   label: string;
   icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
-  screens: ScreenId[];
 };
-const PRIMARY_TABS: TabDef[] = [
-  { to: "/", label: "HOME", icon: Home, screens: ["dashboard"] },
-  { to: "/loading", label: "LOADING", icon: Package, screens: ["loading"] },
-  {
-    to: "/field",
-    label: "FIELD",
-    icon: Truck,
-    screens: ["route_enroute", "route_arrived", "route_visit", "route_debrief", "route_next"],
-  },
-  { to: "/schedule", label: "SCHEDULE", icon: Calendar, screens: ["schedule"] },
-  { to: "/messages", label: "MESSAGES", icon: MessageSquare, screens: ["messages"] },
-];
-const OVERFLOW_TABS: TabDef[] = [
-  { to: "/confirm", label: "CONFIRM LOAD", icon: CheckSquare, screens: ["special_confirm"] },
-  { to: "/visits", label: "CONFIRM VISITS", icon: ClipboardList, screens: ["visits"] },
-  { to: "/projects", label: "PROJECTS", icon: Folder, screens: ["projects"] },
-  { to: "/receipts", label: "RECEIPTS", icon: Receipt, screens: ["rcpt_designate", "rcpt_invoice"] },
-  { to: "/admin", label: "ADMIN", icon: Shield, screens: ["admin"] },
-];
+const TABS: Record<string, TabDef> = {
+  home:     { to: "/",         label: "HOME",          icon: Home },
+  schedule: { to: "/schedule", label: "SCHEDULE",      icon: Calendar },
+  confirm:  { to: "/confirm",  label: "CONFIRM LOAD",  icon: CheckSquare },
+  loading:  { to: "/loading",  label: "LOADING",       icon: Package },
+  field:    { to: "/field",    label: "FIELD",         icon: Truck },
+  visits:   { to: "/visits",   label: "CONFIRM VISITS",icon: ClipboardList },
+  messages: { to: "/messages", label: "MESSAGES",      icon: MessageSquare },
+  projects: { to: "/projects", label: "PROJECTS",      icon: Folder },
+  receipts: { to: "/receipts", label: "RECEIPTS",      icon: Receipt },
+  admin:    { to: "/admin",    label: "ADMIN",         icon: Shield },
+};
+
+import type { Role } from "../lib/auth";
+
+// Per-role bottom-bar layouts. `row` = icon-only tabs. `more` = items shown
+// inside the ⋯ popover (rendered as second-to-last slot when non-empty).
+// Messages is always last.
+const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
+  lead:       { row: ["home","schedule","confirm","field","loading","messages"], more: ["projects","receipts"] },
+  assistant:  { row: ["home","schedule","loading","field","messages"],            more: ["receipts"] },
+  office:     { row: ["home","schedule","visits","messages"],                     more: ["projects","receipts"] },
+  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","admin"] },
+};
 
 const LIME_TAB = "#7cff00";
 const DIM_TAB = "#4a7a1e";
@@ -263,23 +267,21 @@ const DIM_TAB = "#4a7a1e";
 function BottomTabBar() {
   const { effectiveRole } = useViewAs();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const primary = PRIMARY_TABS.filter((t) =>
-    t.screens.some((s) => canSee(effectiveRole, s)),
-  );
-  const overflow = OVERFLOW_TABS.filter((t) =>
-    t.screens.some((s) => canSee(effectiveRole, s)),
-  );
-
-  // Cap to 5 slots. If overflow exists, reserve one slot for MORE.
-  const slots: TabDef[] = overflow.length > 0 ? primary.slice(0, 4) : primary.slice(0, 5);
-  const bumped = primary.slice(slots.length);
-  const overflowAll = [...bumped, ...overflow];
-  const showMore = overflowAll.length > 0;
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
-  const moreActive = overflowAll.some((t) => isActive(t.to));
+
+  if (!effectiveRole) return null;
+  const layout = LAYOUTS[effectiveRole];
+  const rowTabs = layout.row.map((k) => TABS[k]).filter(Boolean);
+  const moreTabs = layout.more.map((k) => TABS[k]).filter(Boolean);
+  const showMore = moreTabs.length > 0;
+  const moreActive = moreTabs.some((t) => isActive(t.to));
+
+  // Insert ⋯ button just before Messages (rightmost - 1).
+  const slots: Array<TabDef | "more"> = [...rowTabs];
+  if (showMore) slots.splice(Math.max(0, slots.length - 1), 0, "more");
 
   return (
     <>
@@ -297,14 +299,52 @@ function BottomTabBar() {
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
-        {slots.map((t) => {
+        {slots.map((t, i) => {
+          if (t === "more") {
+            return (
+              <button
+                key="more"
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-label="More"
+                style={{
+                  position: "relative",
+                  flex: 1,
+                  minHeight: 56,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: "none",
+                  color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                <MoreHorizontal
+                  size={22}
+                  color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
+                  strokeWidth={2}
+                />
+                {moreOpen && (
+                  <MorePopover
+                    tabs={moreTabs}
+                    isActive={isActive}
+                    onClose={() => setMoreOpen(false)}
+                  />
+                )}
+              </button>
+            );
+          }
           const active = isActive(t.to);
           const color = active ? LIME_TAB : DIM_TAB;
           const Icon = t.icon;
           return (
             <Link
-              key={t.to}
+              key={t.to + i}
               to={t.to}
+              aria-label={t.label}
+              title={t.label}
               style={{
                 flex: 1,
                 minHeight: 56,
@@ -312,53 +352,27 @@ function BottomTabBar() {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 3,
                 color,
                 textDecoration: "none",
                 textAlign: "center",
               }}
             >
-              <Icon size={20} color={color} strokeWidth={2} />
-              <span style={{ fontSize: 10, letterSpacing: 1, fontWeight: "bold" }}>{t.label}</span>
+              <Icon size={22} color={color} strokeWidth={2} />
             </Link>
           );
         })}
-        {showMore && (
-          <button
-            onClick={() => setSheetOpen(true)}
-            style={{
-              flex: 1,
-              minHeight: 56,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 3,
-              background: "transparent",
-              border: "none",
-              color: moreActive ? LIME_TAB : DIM_TAB,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            <MoreHorizontal size={20} color={moreActive ? LIME_TAB : DIM_TAB} strokeWidth={2} />
-            <span style={{ fontSize: 10, letterSpacing: 1, fontWeight: "bold" }}>MORE</span>
-          </button>
-        )}
       </nav>
-      {sheetOpen && showMore && (
-        <MoreSheet
-          tabs={overflowAll}
-          isActive={isActive}
-          onClose={() => setSheetOpen(false)}
+      {moreOpen && (
+        <div
+          onClick={() => setMoreOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 150, background: "transparent" }}
         />
       )}
     </>
   );
 }
 
-function MoreSheet({
+function MorePopover({
   tabs,
   isActive,
   onClose,
@@ -369,84 +383,53 @@ function MoreSheet({
 }) {
   return (
     <div
-      onClick={onClose}
+      onClick={(e) => e.stopPropagation()}
       style={{
-        position: "fixed",
-        inset: 0,
+        position: "absolute",
+        bottom: "calc(100% + 6px)",
+        left: "50%",
+        transform: "translateX(-50%)",
         zIndex: 200,
-        background: "rgba(0,0,0,.65)",
-        display: "flex",
-        alignItems: "flex-end",
+        background: "#121212",
+        border: "1px solid #2a2a2a",
+        borderRadius: 6,
+        minWidth: 160,
+        boxShadow: "0 4px 16px rgba(0,0,0,.6)",
         fontFamily: "'Courier New', Courier, monospace",
+        padding: "4px 0",
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          background: "#121212",
-          borderTop: "1px solid #2a2a2a",
-          paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            padding: "12px 14px 6px",
-            borderBottom: "1px solid #1e1e1e",
-          }}
-        >
-          <span style={{ color: LIME_TAB, fontSize: 12, letterSpacing: 2, fontWeight: "bold" }}>
-            MORE
-          </span>
-          <button
+      {tabs.map((t) => {
+        const active = isActive(t.to);
+        const color = active ? LIME_TAB : "#cfcfcf";
+        const Icon = t.icon;
+        return (
+          <Link
+            key={t.to}
+            to={t.to}
             onClick={onClose}
-            aria-label="Close"
             style={{
-              marginLeft: "auto",
-              background: "transparent",
-              border: "none",
-              color: DIM_TAB,
-              cursor: "pointer",
-              padding: 6,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 14px",
+              color,
+              textDecoration: "none",
+              fontSize: 11,
+              letterSpacing: 1.5,
+              fontWeight: "bold",
+              whiteSpace: "nowrap",
             }}
           >
-            <X size={18} />
-          </button>
-        </div>
-        <div style={{ padding: "6px 0 4px" }}>
-          {tabs.map((t) => {
-            const active = isActive(t.to);
-            const color = active ? LIME_TAB : "#cfcfcf";
-            const Icon = t.icon;
-            return (
-              <Link
-                key={t.to}
-                to={t.to}
-                onClick={onClose}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: "14px 18px",
-                  color,
-                  textDecoration: "none",
-                  fontSize: 13,
-                  letterSpacing: 2,
-                  fontWeight: "bold",
-                }}
-              >
-                <Icon size={20} color={color} strokeWidth={2} />
-                <span>{t.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
+            <Icon size={16} color={color} strokeWidth={2} />
+            <span>{t.label}</span>
+          </Link>
+        );
+      })}
     </div>
   );
 }
+
 
 function FullscreenButton() {
   const [isFs, setIsFs] = useState(false);
