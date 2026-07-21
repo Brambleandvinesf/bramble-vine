@@ -92,12 +92,22 @@ type InboxItem = {
   ruleLabel?: string;
   line?: string;
 };
+type Draft = {
+  draftId: string;
+  threadId?: string;
+  to?: string;
+  subject?: string;
+  snippet?: string;
+  date?: string;
+  text?: string;
+};
 type InboxResponse = {
   inbox?: InboxItem[];
   labels?: string[];
   contacts?: { r: string; n: string }[];
   clients?: string[];
   nextVisit?: { title: string; start: string } | null;
+  drafts?: Draft[];
 };
 type Contact = { r: string; n: string };
 
@@ -272,6 +282,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [feedLoaded, setFeedLoaded] = useState<boolean>(() => !!cached);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [drafts, setDrafts] = useState<Draft[]>(() => cached?.drafts ?? []);
 
   // Optimistic
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -384,6 +395,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (r.contacts) setContacts(r.contacts);
       if (r.clients) setClients(r.clients);
       setNextVisit(r.nextVisit || null);
+      setDrafts(r.drafts || []);
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
@@ -458,6 +470,53 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   );
   const badgeCount = awaitingItems.length;
 
+  /* ---- drafts ---- */
+  const draftByThread = useMemo(() => {
+    const m = new Map<string, Draft>();
+    for (const d of drafts) if (d.threadId) m.set(d.threadId, d);
+    return m;
+  }, [drafts]);
+  const threadIdSet = useMemo(() => new Set(items.map((i) => i.threadId)), [items]);
+  const orphanDrafts = useMemo(
+    () => drafts.filter((d) => !d.threadId || !threadIdSet.has(d.threadId)),
+    [drafts, threadIdSet],
+  );
+
+  const draftSaveTimers = useRef<Record<string, number>>({});
+  const scheduleDraftSave = useCallback((draftId: string, text: string) => {
+    // reflect edit locally so re-renders show latest text
+    setDrafts((ds) => ds.map((d) => (d.draftId === draftId ? { ...d, text } : d)));
+    const timers = draftSaveTimers.current;
+    if (timers[draftId]) window.clearTimeout(timers[draftId]);
+    timers[draftId] = window.setTimeout(() => {
+      void postAction({ action: "updateDraft", draftId, text, email });
+      delete timers[draftId];
+    }, 2000);
+  }, [email]);
+  const flushDraftSave = useCallback((draftId: string) => {
+    const timers = draftSaveTimers.current;
+    if (timers[draftId]) {
+      window.clearTimeout(timers[draftId]);
+      delete timers[draftId];
+    }
+  }, []);
+  const removeDraftLocal = useCallback((draftId: string) => {
+    flushDraftSave(draftId);
+    setDrafts((ds) => ds.filter((d) => d.draftId !== draftId));
+  }, [flushDraftSave]);
+  const discardDraft = useCallback(async (d: Draft) => {
+    if (!window.confirm("Discard this draft?")) return;
+    removeDraftLocal(d.draftId);
+    const res = await postAction({ action: "discardDraft", draftId: d.draftId, email });
+    if (!(res && res.ok)) {
+      flash("Failed to discard draft.", true);
+      setDrafts((ds) => (ds.some((x) => x.draftId === d.draftId) ? ds : [...ds, d]));
+    } else {
+      flash("Draft discarded \u2713");
+    }
+  }, [flash, removeDraftLocal, email]);
+
+
   /* ---- optimistic helpers ---- */
   const hideId = useCallback((id: string) => setHidden((s) => new Set(s).add(id)), []);
   const unhideId = useCallback(
@@ -494,12 +553,17 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           (attachments.length ? " with " + attachments.length + " attachment" + (attachments.length > 1 ? "s" : "") : "") +
           " \u2713",
       );
+      const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+      if (draft) flushDraftSave(draft.draftId);
       const res = await postAction(
-        it.source === "quo"
-          ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, email, ...(it.line ? { from: it.line } : {}) }
-          : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments, email },
+        draft
+          ? { action: "sendDraft", draftId: draft.draftId, text: t, email }
+          : it.source === "quo"
+            ? { action: "replyQuo", participants: it.participants, text: t, conversationId: it.conversationId, email, ...(it.line ? { from: it.line } : {}) }
+            : { action: "replyThread", threadId: it.threadId, fromName: it.from, text: t, attachments, email },
       );
       if (res && res.ok && res.sent) {
+        if (draft) removeDraftLocal(draft.draftId);
         if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
         return true;
       }
@@ -510,7 +574,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       flash("Message NOT sent to " + it.from + "!", true);
       return false;
     },
-    [flash, staged, email],
+    [flash, staged, email, draftByThread, flushDraftSave, removeDraftLocal],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
@@ -772,7 +836,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   /* ---- viewer ---- */
   const openViewer = useCallback(async (it: InboxItem) => {
     setOpenItem(it);
-    setVReply("");
+    const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+    setVReply(draft?.text || "");
     setViewerBody({ kind: "loading" });
     try {
       if (it.source === "quo") {
@@ -1210,28 +1275,68 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         ) : displayItems.length === 0 ? (
           <span>{showAll ? "Inbox is quiet. ✓" : "No threads awaiting reply. ✓"}</span>
         ) : (
-          displayItems.map((it) => (
-            <FeedCard
-              key={it.id}
-              it={it}
-              hidden={hidden.has(it.id)}
-              found={foundId === it.id}
-              staged={staged[it.threadId] || []}
-              showLineBadge={showLineBadge}
-              onOpen={() => openViewer(it)}
-              onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
-              onFile={() => (it.source === "quo" ? doneItem(it) : fileItem(it))}
-              onTrash={() => trashItem(it)}
-              onSpam={() => spamItem(it)}
-              onConfirm={() => confirmVisit(it)}
-              onAttach={() => openAttach(it)}
-              onEmoji={(apply) => setEmojiTarget({ apply })}
-              onProject={() => openProject(it)}
-              onForward={() => openForward(it)}
-              onAddContact={() => openAddContact(it)}
-              onRemoveStaged={(idx) => removeStaged(it.threadId, idx)}
-            />
-          ))
+          displayItems.map((it) => {
+            const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+            return (
+              <FeedCard
+                key={it.id}
+                it={it}
+                hidden={hidden.has(it.id)}
+                found={foundId === it.id}
+                staged={staged[it.threadId] || []}
+                showLineBadge={showLineBadge}
+                draft={draft}
+                onOpen={() => openViewer(it)}
+                onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
+                onFile={() => (it.source === "quo" ? doneItem(it) : fileItem(it))}
+                onTrash={() => trashItem(it)}
+                onSpam={() => spamItem(it)}
+                onConfirm={() => confirmVisit(it)}
+                onAttach={() => openAttach(it)}
+                onEmoji={(apply) => setEmojiTarget({ apply })}
+                onProject={() => openProject(it)}
+                onForward={() => openForward(it)}
+                onAddContact={() => openAddContact(it)}
+                onRemoveStaged={(idx) => removeStaged(it.threadId, idx)}
+                onDraftEdit={draft ? (text) => scheduleDraftSave(draft.draftId, text) : undefined}
+                onDraftDiscard={draft ? () => void discardDraft(draft) : undefined}
+              />
+            );
+          })
+        )}
+        {orphanDrafts.length > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: ".85rem", letterSpacing: 2, color: T.dim, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, marginBottom: 8 }}>
+              DRAFTS ({orphanDrafts.length})
+            </div>
+            {orphanDrafts.map((d) => (
+              <DraftCard
+                key={d.draftId}
+                draft={d}
+                onEdit={(text) => scheduleDraftSave(d.draftId, text)}
+                onEmoji={(apply) => setEmojiTarget({ apply })}
+                onSend={async (text) => {
+                  flushDraftSave(d.draftId);
+                  const t = String(text || "").trim();
+                  if (!t) {
+                    flash("Write a message first.", true);
+                    return false;
+                  }
+                  const to = d.to || "(recipient)";
+                  flash("Sending draft to " + to + "\u2026");
+                  const res = await postAction({ action: "sendDraft", draftId: d.draftId, text: t, email });
+                  if (res && res.ok && res.sent) {
+                    removeDraftLocal(d.draftId);
+                    flash("Sent draft to " + to + " \u2713");
+                    return true;
+                  }
+                  flash("Draft NOT sent to " + to + "!", true);
+                  return false;
+                }}
+                onDiscard={() => void discardDraft(d)}
+              />
+            ))}
+          </div>
         )}
       </div>
 
@@ -1257,7 +1362,11 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           it={openItem}
           body={viewerBody}
           reply={vReply}
-          setReply={setVReply}
+          setReply={(s) => {
+            setVReply(s);
+            const d = openItem.source === "gmail" ? draftByThread.get(openItem.threadId) : undefined;
+            if (d) scheduleDraftSave(d.draftId, s);
+          }}
           chips={staged[openItem.threadId] || []}
           onClose={closeViewer}
           onSend={() => {
@@ -2065,6 +2174,9 @@ function FeedCard({
   onForward,
   onAddContact,
   onRemoveStaged,
+  draft,
+  onDraftEdit,
+  onDraftDiscard,
 }: {
   it: InboxItem;
   hidden: boolean;
@@ -2083,8 +2195,11 @@ function FeedCard({
   onForward: () => void;
   onAddContact: () => void;
   onRemoveStaged: (idx: number) => void;
+  draft?: Draft;
+  onDraftEdit?: (text: string) => void;
+  onDraftDiscard?: () => void;
 }) {
-  const [reply, setReply] = useState("");
+  const [reply, setReply] = useState(draft?.text || "");
   const quo = it.source === "quo";
   const role = internalRoleFor(it);
   const isInternal = !!role;
@@ -2151,6 +2266,22 @@ function FeedCard({
             </div>
           )}
           <span style={{ fontWeight: "bold" }}>{it.from}</span>
+          {draft && (
+            <span
+              title="Gmail draft in sync"
+              style={{
+                border: `1px solid ${T.brightLime}`,
+                color: T.brightLime,
+                background: "rgba(191,255,60,0.08)",
+                borderRadius: 4,
+                padding: "0 6px",
+                fontSize: ".7rem",
+                letterSpacing: 1,
+              }}
+            >
+              DRAFT
+            </span>
+          )}
           {quo && it.unknowns && it.unknowns.length > 0 && (
             <button
               onClick={(ev) => {
@@ -2214,7 +2345,7 @@ function FeedCard({
           </div>
         )}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => setReply((v) => v + e)); }}>
+          <button style={{ ...iconBtn, minHeight: 44, minWidth: 44 }} onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
             <IconSmile />
           </button>
           {!quo && (
@@ -2224,9 +2355,12 @@ function FeedCard({
           )}
           <textarea
             rows={1}
-            placeholder="Reply…"
+            placeholder={draft ? "Draft…" : "Reply…"}
             value={reply}
-            onChange={(e) => setReply(e.target.value)}
+            onChange={(e) => {
+              setReply(e.target.value);
+              if (onDraftEdit) onDraftEdit(e.target.value);
+            }}
             onClick={(ev) => ev.stopPropagation()}
             onKeyDown={(ev) => {
               if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
@@ -2247,13 +2381,22 @@ function FeedCard({
             Send
           </button>
         </div>
-        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8 }}>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 8, flexWrap: "wrap" }}>
           <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
             + Project
           </button>
           <button style={{ ...ghostBtn, minHeight: 44, padding: "8px 18px" }} onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
             → Crew
           </button>
+          {draft && onDraftDiscard && (
+            <button
+              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", color: "#ffb03f", borderColor: "#ffb03f" }}
+              onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
+              title="Discard draft"
+            >
+              ✕ Discard
+            </button>
+          )}
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
@@ -2598,4 +2741,99 @@ async function renderPdfInto(box: HTMLElement, b64: string) {
     box.appendChild(canvas);
     await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
   }
+}
+
+/* ---- draft card (standalone drafts, no matching thread) ---- */
+function DraftCard({
+  draft,
+  onEdit,
+  onSend,
+  onDiscard,
+  onEmoji,
+}: {
+  draft: Draft;
+  onEdit: (text: string) => void;
+  onSend: (text: string) => Promise<boolean>;
+  onDiscard: () => void;
+  onEmoji: (apply: (e: string) => void) => void;
+}) {
+  const [text, setText] = useState(draft.text || "");
+  const [sending, setSending] = useState(false);
+  const dateStr = draft.date ? rel(draft.date) : "";
+  return (
+    <div
+      style={{
+        display: "flex",
+        background: T.panel,
+        border: `2px dashed ${T.brightLime}`,
+        borderRadius: 6,
+        padding: 12,
+        margin: "12px 0",
+        gap: 12,
+        alignItems: "flex-start",
+      }}
+    >
+      <div style={{ fontSize: "1.3rem", padding: 8, color: T.brightLime, flex: "none" }}>{"\u2709"}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span
+            style={{
+              border: `1px solid ${T.brightLime}`,
+              color: T.brightLime,
+              background: "rgba(191,255,60,0.08)",
+              borderRadius: 4,
+              padding: "0 6px",
+              fontSize: ".7rem",
+              letterSpacing: 1,
+            }}
+          >
+            DRAFT
+          </span>
+          <span style={{ fontWeight: "bold" }}>{draft.to || "(no recipient)"}</span>
+          <span style={{ marginLeft: "auto", fontSize: ".8rem", opacity: 0.75 }}>{dateStr}</span>
+        </div>
+        <div style={{ marginTop: 4, fontWeight: "bold" }}>{draft.subject || "(no subject)"}</div>
+        {draft.snippet && (
+          <div style={{ marginTop: 4, fontSize: ".9rem", opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {draft.snippet}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button
+            style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
+            onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
+          >
+            <IconSmile />
+          </button>
+          <textarea
+            rows={2}
+            value={text}
+            onChange={(e) => { setText(e.target.value); onEdit(e.target.value); }}
+            placeholder="Draft…"
+            style={{ ...inputStyle, flex: 1, minHeight: 60, maxHeight: 200, resize: "vertical" }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <button
+              disabled={!text.trim() || sending}
+              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", opacity: text.trim() && !sending ? 1 : 0.4 }}
+              onClick={async () => {
+                setSending(true);
+                await onSend(text);
+                setSending(false);
+              }}
+            >
+              Send
+            </button>
+            <button
+              style={{ ...ghostBtn, minHeight: 44, padding: "8px 10px", color: "#ffb03f", borderColor: "#ffb03f" }}
+              onClick={onDiscard}
+              title="Discard draft"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
