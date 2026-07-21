@@ -3268,24 +3268,22 @@ function DraftCard({
           style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 60, maxHeight: 200, resize: "vertical" }}
         />
         <div style={btnRowStyle}>
-          <div style={btnGroupStyle}>
-            <button
-              style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
-              title="Emoji"
-              aria-label="Emoji"
-              onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
-            >
-              <IconSmile />
-            </button>
-            <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Attach"
-              aria-label="Attach"
-              onClick={onAttach}
-            >
-              <IconClip />
-            </button>
-          </div>
+          <button
+            style={iconBtn}
+            title="Emoji"
+            aria-label="Emoji"
+            onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
+          >
+            <IconSmile />
+          </button>
+          <button
+            style={iconBtn}
+            title="Attach"
+            aria-label="Attach"
+            onClick={onAttach}
+          >
+            <IconClip />
+          </button>
           <button
             disabled={!text.trim() || sending}
             style={{ ...sendBtn, opacity: text.trim() && !sending ? 1 : 0.4 }}
@@ -3299,44 +3297,42 @@ function DraftCard({
           >
             <Send size={22} />
           </button>
-          <div style={btnGroupStyle}>
+          <button
+            style={iconBtn}
+            title="Add Project"
+            aria-label="Add Project"
+            onClick={onProject}
+          >
+            <FolderPlus size={22} />
+          </button>
+          {showForwardCrew && (
             <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Add Project"
-              aria-label="Add Project"
-              onClick={onProject}
+              style={iconBtn}
+              title="Forward to Crew"
+              aria-label="Forward to Crew"
+              onClick={onForward}
             >
-              <FolderPlus size={22} />
+              <Users size={22} />
             </button>
-            {showForwardCrew && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Forward to Crew"
-                aria-label="Forward to Crew"
-                onClick={onForward}
-              >
-                <Users size={22} />
-              </button>
-            )}
-            {showForwardOffice && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Forward to office"
-                aria-label="Forward to office"
-                onClick={onForwardOffice}
-              >
-                <Users size={22} />
-              </button>
-            )}
+          )}
+          {showForwardOffice && (
             <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              onClick={onDiscard}
-              title="Discard draft"
-              aria-label="Discard draft"
+              style={iconBtn}
+              title="Forward to office"
+              aria-label="Forward to office"
+              onClick={onForwardOffice}
             >
-              <Trash2 size={22} />
+              <Users size={22} />
             </button>
-          </div>
+          )}
+          <button
+            style={iconBtn}
+            onClick={onDiscard}
+            title="Discard draft"
+            aria-label="Discard draft"
+          >
+            <Trash2 size={22} />
+          </button>
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
