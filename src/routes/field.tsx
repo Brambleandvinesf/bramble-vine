@@ -1150,28 +1150,6 @@ function ClockingAsHeader({
 /* ============================================================
  * PERSONAL CLOCK PANEL — replaces whole-crew grids
  * ============================================================ */
-function PersonalClockPanel({
-  me,
-  roster,
-  clientMatch,
-  now,
-  isPreview,
-  send,
-  setBanner,
-}: {
-  me: Me;
-  roster: RosterMember[];
-  clientMatch: string | null;
-  now: number;
-  isPreview: boolean;
-  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
-  setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
-}) {
-  const row = roster.find((r) => r.id === me.id);
-  const open = !!row?.in && !row?.out;
-  const onOverhead = open && isOverheadClient(row?.client);
-  const onClient = open && !onOverhead;
-  const [busy, setBusy] = useState(false);
 
 function PersonalClockPanel({
   me,
