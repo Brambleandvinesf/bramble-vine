@@ -1924,7 +1924,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                                 manual: "",
                               })
                             }
-                            style={{ ...pickRowStyle, color: "#ffb03f" }}
+                            style={{ ...pickRowStyle, color: T.dim }}
                           >
                             + Send to {normalized}
                           </div>
