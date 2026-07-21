@@ -1755,6 +1755,7 @@ function StateVisit({
   isPreview,
   notes,
   clockSlot,
+  onBreak,
   onToggleTool,
   onVisitComplete,
   onNoShow,
@@ -1772,6 +1773,7 @@ function StateVisit({
   isPreview: boolean;
   notes: VisitNote[];
   clockSlot?: React.ReactNode;
+  onBreak?: () => void;
   onToggleTool: (t: NormTool) => void;
   onVisitComplete?: () => void;
   onNoShow: () => void;
