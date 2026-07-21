@@ -278,6 +278,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(getConfirmedIds);
 
+  // Default view filters to threads awaiting our reply; "Show all" reveals everything
+  const [showAll, setShowAll] = useState(false);
+
   // Compose (new outbound message)
   const [compose, setCompose] = useState<{
     q: string;
@@ -353,9 +356,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !apPick && !rcPick;
   }, [openItem, labelPick, emojiTarget, acState, fwdPick, apPick, rcPick]);
 
-  // Detect new unread client -> green flash
+  // Detect new awaiting client -> green flash
   const detectNew = useCallback((its: InboxItem[]) => {
-    const ids = its.filter((i) => i.unread && i.isClient).map((i) => i.id);
+    const ids = its.filter((i) => i.awaiting && i.unread && i.isClient).map((i) => i.id);
     if (seenClientIdsRef.current !== null && ids.some((id) => seenClientIdsRef.current!.indexOf(id) < 0)) {
       setGreenFlash((n: number) => n + 1);
     }
@@ -437,7 +440,15 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         })),
     [items, removed, awaitingOverride],
   );
-  const badgeCount = visibleItems.filter((i) => i.unread && i.isClient && !hidden.has(i.id)).length;
+  const awaitingItems = useMemo(
+    () => visibleItems.filter((i) => i.awaiting && !hidden.has(i.id)),
+    [visibleItems, hidden],
+  );
+  const displayItems = useMemo(
+    () => (showAll ? visibleItems : awaitingItems),
+    [showAll, visibleItems, awaitingItems],
+  );
+  const badgeCount = awaitingItems.length;
 
   /* ---- optimistic helpers ---- */
   const hideId = useCallback((id: string) => setHidden((s) => new Set(s).add(id)), []);
