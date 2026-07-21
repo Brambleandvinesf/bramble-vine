@@ -214,6 +214,7 @@ const T = {
   panel: "#121212",
   panel2: "#181818",
   lime: "#7cff00",
+  brightLime: "#bfff3c",
   dim: "#4a7a1e",
   muted: "#8f8f8f",
   border: "#2a2a2a",
