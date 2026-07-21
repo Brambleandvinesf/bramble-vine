@@ -1556,7 +1556,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               {acState.q.trim() && (
                 <div
                   onClick={() => void saveContact({ name: acState.q.trim() })}
-                  style={{ ...pickRowStyle, color: "#ffb03f" }}
+                  style={{ ...pickRowStyle, color: T.dim }}
                 >
                   + New contact: “{acState.q.trim()}”
                 </div>
