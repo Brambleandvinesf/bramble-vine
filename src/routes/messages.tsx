@@ -1500,6 +1500,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
           showConfirm={!!openItem.isClient && !openItem.confirmed && yesThisWeek(lastYes)}
           onProject={() => openProject(openItem)}
           onForward={() => openForward(openItem)}
+          onForwardOffice={() => openOffice(openItem)}
+          showForwardCrew={showForwardCrew}
+          showForwardOffice={showForwardOffice}
           onAttach={() => openAttach(openItem)}
           onEmoji={() => setEmojiTarget({ apply: (e) => setVReply((v) => v + e) })}
           onReceipt={showReceipt ? startReceipt : null}
