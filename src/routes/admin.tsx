@@ -301,7 +301,7 @@ function AdminPage() {
           </div>
         ) : null}
 
-        {perms ? (
+        {tab === "perms" && perms ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {groupsToRender.map((g) => {
               const open = expanded.has(g.id);
