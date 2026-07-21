@@ -640,6 +640,18 @@ function FieldBody({
 
 
 
+  const meRow = me ? roster.find((r) => r.id === me.id) : undefined;
+  const meOnClock = !!(meRow?.in && !meRow?.out);
+  const startBreakFromCurrent = me && meOnClock
+    ? async () => {
+        if (isPreview) return;
+        const current = meRow?.client ?? OVERHEAD_CLIENT;
+        const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: current });
+        if (r.ok) setBreakFrom(current);
+        else setBanner({ kind: "err", text: "Break failed — retry." });
+      }
+    : undefined;
+
   const personalClockSlot = me ? (
     <PersonalClockPanel
       me={me}
@@ -649,6 +661,8 @@ function FieldBody({
       isPreview={isPreview}
       send={send}
       setBanner={setBanner}
+      breakFrom={breakFrom}
+      setBreakFrom={setBreakFrom}
     />
   ) : null;
 
