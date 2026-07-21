@@ -989,6 +989,7 @@ function WhoAmI({
     }
     const me = { id: pick.id, name: pick.name, role };
     saveMe(me);
+    void resolveTeam(me.id);
     onIdentified(me);
     setBusy(false);
     await clockAndGo(me);
