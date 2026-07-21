@@ -937,7 +937,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     const q = searchQ.trim().toLowerCase();
     if (!q) return [];
     const digits = q.replace(/\D/g, "");
-    return visibleItems
+    return displayItems
       .filter((it) => {
         if ((it.from || "").toLowerCase().indexOf(q) >= 0) return true;
         if ((it.fromEmail || "").toLowerCase().indexOf(q) >= 0) return true;
@@ -945,7 +945,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         return false;
       })
       .slice(0, 8);
-  }, [searchQ, visibleItems]);
+  }, [searchQ, displayItems]);
   const jumpTo = useCallback((id: string) => {
     setSearchQ("");
     const el = document.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
@@ -1102,16 +1102,41 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         </button>
       </div>
 
+      {/* filter toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "4px 0 14px" }}>
+        <button
+          style={{
+            background: "transparent",
+            border: "none",
+            color: T.lime,
+            fontFamily: fontStack,
+            fontWeight: "bold",
+            fontSize: ".95rem",
+            textDecoration: "underline",
+            cursor: "pointer",
+            padding: 0,
+          }}
+          onClick={() => setShowAll((s) => !s)}
+        >
+          {showAll ? "Show replies only" : "Show all"}
+        </button>
+        <span style={{ color: T.dim, fontSize: ".85rem" }}>
+          {showAll
+            ? "Showing all threads"
+            : `Showing ${badgeCount} thread${badgeCount === 1 ? "" : "s"} awaiting reply`}
+        </span>
+      </div>
+
       {/* list */}
       <div id="list">
         {!feedLoaded ? (
           <span>Loading<Dots /></span>
         ) : feedError ? (
           <span>Couldn't reach the inbox — check connection and Reload.</span>
-        ) : visibleItems.length === 0 ? (
-          <span>Inbox is quiet. ✓</span>
+        ) : displayItems.length === 0 ? (
+          <span>{showAll ? "Inbox is quiet. ✓" : "No threads awaiting reply. ✓"}</span>
         ) : (
-          visibleItems.map((it) => (
+          displayItems.map((it) => (
             <FeedCard
               key={it.id}
               it={it}
