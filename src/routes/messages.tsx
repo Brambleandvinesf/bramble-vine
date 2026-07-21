@@ -495,16 +495,72 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     safeLoadRef.current = safeLoad;
   }, [safeLoad]);
 
+  // Per-user "owned lines" for crow-sound routing on incoming pings.
+  // info@ / office share the office line; other internal accounts get their own.
+  const userLines = useMemo<string[]>(() => {
+    const e = (email || "").trim().toLowerCase();
+    const map: Record<string, string[]> = {
+      "info@brambleandvinesf.com": ["+14152343083"],
+      "brandon@brambleandvinesf.com": ["+14152343695"],
+      "angel@brambleandvinesf.com": ["+16507105061"],
+      "thornsandtendrils@brambleandvinesf.com": ["+14152343696"],
+    };
+    return map[e] || [];
+  }, [email]);
+  const soundEnabledRef = useRef(soundEnabled);
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  // One-time audio unlock on first user gesture anywhere in the app.
+  useEffect(() => {
+    const unlock = () => {
+      unlockCrowAudio();
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+      window.removeEventListener("touchstart", unlock, true);
+    };
+    window.addEventListener("pointerdown", unlock, true);
+    window.addEventListener("keydown", unlock, true);
+    window.addEventListener("touchstart", unlock, true);
+    return () => {
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+      window.removeEventListener("touchstart", unlock, true);
+    };
+  }, []);
+
   // Initial + ping loop
   const lastFingerRef = useRef<string>("");
+  const lastQRef = useRef<string | null>(null);
   const lastFullRef = useRef<number>(0);
   useEffect(() => {
     void safeLoadRef.current();
     lastFullRef.current = Date.now();
+    const normPhone = (s: unknown) => String(s || "").replace(/[^\d+]/g, "");
+    const ownedLines = new Set(userLines.map(normPhone));
     const t = window.setInterval(async () => {
       try {
         const r = await fetch(SCRIPT_URL + "?action=ping").then((x) => x.json());
-        const f = (r.q || "") + "|" + (r.g || "");
+        const q = String(r.q || "");
+        const l = normPhone(r.l);
+        const feed = Array.isArray(r.feed)
+          ? r.feed.map((x: unknown) => String(x))
+          : typeof r.feed === "string"
+            ? [r.feed]
+            : [];
+        const f = q + "|" + (r.g || "");
+
+        // ---- Crow sound (skip the very first poll after page load) ----
+        if (lastQRef.current !== null && q && q !== lastQRef.current) {
+          const lineMatch = !!l && ownedLines.has(l);
+          const wildcard = feed.includes("*");
+          if ((lineMatch || wildcard) && soundEnabledRef.current) {
+            playCrowShriek();
+          }
+        }
+        lastQRef.current = q;
+
         const stale = Date.now() - lastFullRef.current > POLL_MS;
         if ((lastFingerRef.current && f !== lastFingerRef.current) || stale) {
           if (uiQuiet()) {
@@ -522,7 +578,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     }, PING_MS);
     return () => window.clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [userLines]);
+
 
   // When viewAll mode changes, swap to the matching cache and re-fetch
   useEffect(() => {
