@@ -182,6 +182,33 @@ function SchedulePage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
+  const isFieldCrew = effectiveRole === "assistant" || effectiveRole === "lead";
+  const [confirmed, setConfirmed] = useState<boolean | null>(null);
+  const confirmSeenRef = useRef(false);
+  useEffect(() => {
+    if (!isFieldCrew) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getConfirm`);
+        if (!r.ok) return;
+        const j = (await r.json()) as { state?: { confirmed?: boolean } };
+        if (cancelled) return;
+        setConfirmed(!!j.state?.confirmed);
+      } catch { /* noop */ }
+    };
+    tick();
+    const id = window.setInterval(tick, 10_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [isFieldCrew]);
+  useEffect(() => {
+    if (!isFieldCrew) return;
+    if (confirmed !== true) return;
+    if (confirmSeenRef.current) return;
+    confirmSeenRef.current = true;
+    void navigate({ to: "/loading" });
+  }, [confirmed, isFieldCrew, navigate]);
+
   const [view, setView] = useState<"day" | "week">("day");
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -190,6 +217,7 @@ function SchedulePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const reqIdRef = useRef(0);
+
 
   const { start, end } = useMemo(() => {
     if (view === "day") return { start: anchor, end: addDaysKey(anchor, 1) };
