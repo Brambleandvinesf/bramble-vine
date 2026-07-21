@@ -63,23 +63,21 @@ function HomePage() {
   const role = effectiveRole;
   const navigate = useNavigate();
 
-  // Lead/management should never linger on Home while unconfirmed —
-  // /schedule owns the base-load gate. Redirect until confirmed.
-  const needsConfirmRedirect =
-    (role === "lead" || role === "management") &&
-    sessionCache.get<{ confirmed?: boolean }>(CK_CONFIRM)?.confirmed !== true;
-  useEffect(() => {
-    if (role !== "lead" && role !== "management") return;
-    // Re-read from cache each render tick via state below
-  }, [role]);
-
-
-  
-
   const [confirmState, setConfirmState] = useState<{ confirmed?: boolean } | null>(
     () => sessionCache.get<{ confirmed?: boolean }>(CK_CONFIRM) ?? null,
   );
   const [confirmLoading, setConfirmLoading] = useState(() => !sessionCache.has(CK_CONFIRM));
+
+  // Lead/management: Home is off-limits until the day is confirmed.
+  // /schedule owns the base-load Yes/No gate.
+  useEffect(() => {
+    if (role !== "lead" && role !== "management") return;
+    if (confirmLoading) return;
+    if (confirmState?.confirmed === true) return;
+    void navigate({ to: "/schedule" });
+  }, [role, confirmLoading, confirmState, navigate]);
+
+
   const [msgCount, setMsgCount] = useState<number | null>(
     () => sessionCache.get<number>(CK_INBOX) ?? null,
   );
