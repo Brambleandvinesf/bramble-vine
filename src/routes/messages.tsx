@@ -2763,57 +2763,61 @@ function FeedCard({
           }}
           style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 56, maxHeight: 160, resize: "vertical" }}
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
-            <IconSmile />
-          </button>
-          {!quo && (
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
-              <IconClip />
+        <div style={btnRowStyle}>
+          <div style={btnGroupStyle}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
+              <IconSmile />
             </button>
-          )}
+            {!quo && (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={(ev) => { ev.stopPropagation(); onAttach(); }}>
+                <IconClip />
+              </button>
+            )}
+          </div>
           <button
             disabled={!reply.trim()}
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, opacity: reply.trim() ? 1 : 0.4 }}
+            style={{ ...sendBtn, opacity: reply.trim() ? 1 : 0.4 }}
             title="Send"
             aria-label="Send"
             onClick={(ev) => { ev.stopPropagation(); onSend(reply, () => setReply("")); }}
           >
             <Send size={22} />
           </button>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title={quo ? "Done" : "File"} aria-label={quo ? "Done" : "File"} onClick={(ev) => { ev.stopPropagation(); onFile(); }}>
-            <Check size={22} />
-          </button>
-          {showConfirm && (
-            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
-          )}
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
-            <FolderPlus size={22} />
-          </button>
-          {showForwardCrew && (
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
-              <Users size={22} />
+          <div style={btnGroupStyle}>
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title={quo ? "Done" : "File"} aria-label={quo ? "Done" : "File"} onClick={(ev) => { ev.stopPropagation(); onFile(); }}>
+              <Check size={22} />
             </button>
-          )}
-          {showForwardOffice && (
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to office" aria-label="Forward to office" onClick={(ev) => { ev.stopPropagation(); onForwardOffice(); }}>
-              <Users size={22} />
+            {showConfirm && (
+              <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
+            )}
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
+              <FolderPlus size={22} />
             </button>
-          )}
-          {quo
-            ? it.unknowns && it.unknowns.length > 0 && (
-                <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
-                  <IconPoo />
-                </button>
-              )
-            : (
-              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Trash" aria-label="Trash" onClick={(ev) => { ev.stopPropagation(); onTrash(); }}>
-                <Trash2 size={22} />
+            {showForwardCrew && (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
+                <Users size={22} />
               </button>
             )}
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
-            <IconFs />
-          </button>
+            {showForwardOffice && (
+              <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to office" aria-label="Forward to office" onClick={(ev) => { ev.stopPropagation(); onForwardOffice(); }}>
+                <Users size={22} />
+              </button>
+            )}
+            {quo
+              ? it.unknowns && it.unknowns.length > 0 && (
+                  <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
+                    <IconPoo />
+                  </button>
+                )
+              : (
+                <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Trash" aria-label="Trash" onClick={(ev) => { ev.stopPropagation(); onTrash(); }}>
+                  <Trash2 size={22} />
+                </button>
+              )}
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
+              <IconFs />
+            </button>
+          </div>
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
