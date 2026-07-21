@@ -699,9 +699,9 @@ function ConfirmPage() {
                       </div>
                     )}
                     {p.projectId && !isDeleted && (
-                      <div style={{ marginTop: 8 }}>
+                      <div style={{ marginTop: 10 }}>
                         <button
-                          style={GHOST_BTN_SM}
+                          style={ADD_ITEM_BTN}
                           onClick={() =>
                             setPickerFor({ mode: "existing", client, projectId: p.projectId })
                           }
@@ -710,6 +710,7 @@ function ConfirmPage() {
                         </button>
                       </div>
                     )}
+
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
@@ -946,11 +947,13 @@ function ConfirmPage() {
                       </div>
                     ))}
                     <button
-                      style={{ ...GHOST_BTN_SM, marginTop: 4 }}
+                      style={{ ...ADD_ITEM_BTN, marginTop: 6 }}
                       onClick={() => setPickerFor({ mode: "new", client, key: n.key })}
                     >
                       + ADD ITEM
                     </button>
+
+
 
                   </div>
                   <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
@@ -1277,32 +1280,46 @@ const ACTION_INPUT: React.CSSProperties = {
   background: "#0a0a0a",
   color: LIME_BRIGHT,
   border: `1px solid ${LINE}`,
-  borderRadius: 6,
-  padding: "10px 10px",
+  borderRadius: 8,
+  padding: "18px 16px",
   fontFamily: "inherit",
-  fontSize: 14,
+  fontSize: 24,
   fontWeight: "bold",
   boxSizing: "border-box",
 };
 const ITEMS_ROW: React.CSSProperties = {
-  marginTop: 8,
+  marginTop: 10,
   marginLeft: 12,
   paddingLeft: 8,
   borderLeft: `1px solid ${LIME_DIM}`,
   display: "flex",
   flexWrap: "wrap",
-  gap: 6,
+  gap: 10,
 };
 const ITEM_PILL: React.CSSProperties = {
   display: "inline-block",
-  fontSize: 11,
+  fontSize: 18,
   color: LIME_BRIGHT,
   background: "#0a0a0a",
   border: `1px solid ${LIME_BRIGHT}`,
   borderRadius: 999,
-  padding: "3px 10px",
+  padding: "8px 18px",
   letterSpacing: 0.5,
 };
+const ADD_ITEM_BTN: React.CSSProperties = {
+  background: "transparent",
+  color: LIME,
+  border: `1px solid ${LIME}`,
+  borderRadius: 8,
+  padding: "0 24px",
+  minHeight: 60,
+  fontFamily: "inherit",
+  fontSize: 18,
+  letterSpacing: 2,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
 const CHIP: React.CSSProperties = {
   display: "inline-block",
   fontSize: 11,

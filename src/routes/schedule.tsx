@@ -4,6 +4,8 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { MessagesFab } from "../components/MessagesFab";
+
 
 export const Route = createFileRoute("/schedule")({
   head: () => ({
@@ -180,6 +182,33 @@ function SchedulePage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
+  const isFieldCrew = effectiveRole === "assistant" || effectiveRole === "lead";
+  const [confirmed, setConfirmed] = useState<boolean | null>(null);
+  const confirmSeenRef = useRef(false);
+  useEffect(() => {
+    if (!isFieldCrew) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getConfirm`);
+        if (!r.ok) return;
+        const j = (await r.json()) as { state?: { confirmed?: boolean } };
+        if (cancelled) return;
+        setConfirmed(!!j.state?.confirmed);
+      } catch { /* noop */ }
+    };
+    tick();
+    const id = window.setInterval(tick, 10_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [isFieldCrew]);
+  useEffect(() => {
+    if (!isFieldCrew) return;
+    if (confirmed !== true) return;
+    if (confirmSeenRef.current) return;
+    confirmSeenRef.current = true;
+    void navigate({ to: "/loading" });
+  }, [confirmed, isFieldCrew, navigate]);
+
   const [view, setView] = useState<"day" | "week">("day");
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -188,6 +217,7 @@ function SchedulePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const reqIdRef = useRef(0);
+
 
   const { start, end } = useMemo(() => {
     if (view === "day") return { start: anchor, end: addDaysKey(anchor, 1) };
@@ -321,6 +351,30 @@ function SchedulePage() {
         )}
       </h1>
 
+      {isFieldCrew && confirmed === false && (
+        <div
+          style={{
+            background: PANEL,
+            border: `2px dashed ${LIME}`,
+            borderRadius: 12,
+            padding: "22px 18px",
+            marginBottom: 16,
+            textAlign: "center",
+            color: LIME,
+            fontSize: 15,
+            fontWeight: "bold",
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            boxShadow: "0 0 22px rgba(124,255,0,.12)",
+          }}
+        >
+          Awaiting loading instructions…
+          <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 6, letterSpacing: 1, fontWeight: "normal" }}>
+            You'll be sent to the loading list the moment the lead confirms.
+          </div>
+        </div>
+      )}
+
       {loadErr ? (
         <div style={{ color: "#ff6b6b", marginBottom: 12, fontSize: 12 }}>
           Failed to load schedule: {loadErr}
@@ -360,9 +414,11 @@ function SchedulePage() {
           ))}
         </div>
       )}
+      {isFieldCrew && <MessagesFab />}
     </div>
   );
 }
+
 
 function NavBtn({ onClick, label }: { onClick: () => void; label: string }) {
   return (

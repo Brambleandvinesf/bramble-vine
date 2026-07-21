@@ -6,6 +6,8 @@ import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useReviewableToday } from "../lib/reviewable-today";
+
 
 
 const CK_CONFIRM = "home:getConfirm";
@@ -245,6 +247,7 @@ function HomePage() {
   );
 }
 
+
 function BadgeTile({
   to,
   title,
@@ -310,9 +313,36 @@ function ConfirmBanner({
   role: Role;
 }) {
   const clickable = canSee(role, "special_confirm");
+  const reviewable = useReviewableToday();
   const checking = loading && confirmed === null;
   const isConfirmed = confirmed === true;
-  const isWarning = !isConfirmed;
+
+  // Lead/management on a day with no special work: surface a prominent
+  // "CONFIRM BASE LOAD & NOTIFY CREW" Yes button. It goes to /confirm which
+  // has the actual submit action.
+  if (clickable && reviewable === false && !isConfirmed && !checking) {
+    return (
+      <Link
+        to="/confirm"
+        style={{
+          textDecoration: "none",
+          display: "block",
+          background: LIME,
+          color: "#0a0a0a",
+          borderRadius: 12,
+          padding: "22px 18px",
+          textAlign: "center",
+          fontSize: 16,
+          fontWeight: "bold",
+          letterSpacing: 2,
+          minHeight: 84,
+          boxShadow: "0 0 0 2px rgba(124,255,0,.25), 0 0 22px rgba(124,255,0,.25)",
+        }}
+      >
+        CONFIRM BASE LOAD & NOTIFY CREW
+      </Link>
+    );
+  }
 
   const icon = checking ? "•" : isConfirmed ? "✓" : "!";
   const color = isConfirmed ? LIME : "#ffb03f";
@@ -360,6 +390,7 @@ function ConfirmBanner({
     banner
   );
 }
+
 
 function Tile({ title, pulse, children }: { title: string; pulse?: boolean; children: ReactNode }) {
   return (

@@ -1,10 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { useAuth } from "../lib/auth";
+import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
+import { MessagesFab } from "../components/MessagesFab";
+
 
 const CK = "loading:getData";
 
@@ -134,8 +138,10 @@ function normalize(d: GetDataResponse): ToolRow[] {
 
 function LoadingPage() {
   const { user, role } = useAuth();
+  const { effectiveRole } = useViewAs();
   const canConfirm = canSee(role, "special_confirm");
   const reviewable = useReviewableToday();
+  const navigate = useNavigate();
 
 
   const cached = sessionCache.get<GetDataResponse>(CK);
@@ -145,6 +151,8 @@ function LoadingPage() {
   const [writeErr, setWriteErr] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [completing, setCompleting] = useState(false);
+
 
   // Poll getData so the screen unlocks automatically once confirmed.
   useEffect(() => {
@@ -396,10 +404,41 @@ function LoadingPage() {
           <div style={{ height: 200 }} />
         </>
       )}
-      {field && <RouteFooter field={field} />}
+      {confirm?.confirmed && (
+        <div style={LOADING_COMPLETE_WRAP}>
+          <button
+            type="button"
+            disabled={completing}
+            onClick={async () => {
+              setCompleting(true);
+              try {
+                await fetch(SCRIPT_URL, {
+                  method: "POST",
+                  headers: { "Content-Type": "text/plain" },
+                  body: JSON.stringify({ action: "loadingComplete" }),
+                });
+                toast.success("Loading marked complete");
+                if (effectiveRole === "assistant") {
+                  navigate({ to: "/field" });
+                }
+              } catch {
+                toast.error("Couldn't mark complete — retry");
+              } finally {
+                setCompleting(false);
+              }
+            }}
+            style={{ ...LOADING_COMPLETE_BTN, opacity: completing ? 0.6 : 1 }}
+          >
+            {completing ? "SAVING…" : "LOADING COMPLETE"}
+          </button>
+        </div>
+      )}
+      {effectiveRole !== "assistant" && field && <RouteFooter field={field} />}
+      {effectiveRole === "assistant" && <MessagesFab />}
     </div>
   );
 }
+
 
 function RouteFooter({ field }: { field: GetFieldResponse }) {
   const route = field.route ?? {};
@@ -644,6 +683,30 @@ const CONFIRM_BUTTON: React.CSSProperties = {
   letterSpacing: 1,
   fontWeight: "bold",
   textTransform: "uppercase",
+};
+const LOADING_COMPLETE_WRAP: React.CSSProperties = {
+  position: "sticky",
+  bottom: 0,
+  padding: "14px 12px calc(14px + env(safe-area-inset-bottom, 0px))",
+  background: "linear-gradient(180deg, rgba(10,10,10,0) 0%, #0a0a0a 40%)",
+  display: "flex",
+  justifyContent: "center",
+  zIndex: 40,
+};
+const LOADING_COMPLETE_BTN: React.CSSProperties = {
+  width: "100%",
+  maxWidth: 520,
+  minHeight: 64,
+  background: LIME,
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: 12,
+  fontFamily: "'Courier New', Courier, monospace",
+  fontSize: 16,
+  letterSpacing: 2,
+  fontWeight: "bold",
+  cursor: "pointer",
+  boxShadow: "0 0 22px rgba(124,255,0,.25)",
 };
 const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",

@@ -283,7 +283,7 @@ const T = {
 const fontStack = "'Courier New', Courier, monospace";
 
 /* ============ Component ============ */
-function MessagesPage() {
+export function MessagesPage() {
   const { effectiveRole } = useViewAs();
   const { email } = useAuth();
   const navigate = useNavigate();

@@ -582,7 +582,7 @@ function FieldBody({
         onManageCrew={isLead ? () => setRosterEdit(true) : undefined}
         send={send}
         onIdentified={(m) => setMe(m)}
-        onLoading={() => void bodyRouter.navigate({ to: "/loading" })}
+        onLoading={() => void bodyRouter.navigate({ to: "/schedule" })}
       />
     );
   }
