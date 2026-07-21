@@ -2174,6 +2174,9 @@ function FeedCard({
   onForward,
   onAddContact,
   onRemoveStaged,
+  draft,
+  onDraftEdit,
+  onDraftDiscard,
 }: {
   it: InboxItem;
   hidden: boolean;
@@ -2192,8 +2195,11 @@ function FeedCard({
   onForward: () => void;
   onAddContact: () => void;
   onRemoveStaged: (idx: number) => void;
+  draft?: Draft;
+  onDraftEdit?: (text: string) => void;
+  onDraftDiscard?: () => void;
 }) {
-  const [reply, setReply] = useState("");
+  const [reply, setReply] = useState(draft?.text || "");
   const quo = it.source === "quo";
   const role = internalRoleFor(it);
   const isInternal = !!role;
