@@ -138,8 +138,10 @@ function normalize(d: GetDataResponse): ToolRow[] {
 
 function LoadingPage() {
   const { user, role } = useAuth();
+  const { effectiveRole } = useViewAs();
   const canConfirm = canSee(role, "special_confirm");
   const reviewable = useReviewableToday();
+  const navigate = useNavigate();
 
 
   const cached = sessionCache.get<GetDataResponse>(CK);
@@ -149,6 +151,8 @@ function LoadingPage() {
   const [writeErr, setWriteErr] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [completing, setCompleting] = useState(false);
+
 
   // Poll getData so the screen unlocks automatically once confirmed.
   useEffect(() => {
