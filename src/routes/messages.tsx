@@ -495,7 +495,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const lastFingerRef = useRef<string>("");
   const lastFullRef = useRef<number>(0);
   useEffect(() => {
-    void safeLoad();
+    void safeLoadRef.current();
     lastFullRef.current = Date.now();
     const t = window.setInterval(async () => {
       try {
@@ -506,7 +506,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
           if (uiQuiet()) {
             lastFingerRef.current = f;
             lastFullRef.current = Date.now();
-            void safeLoad();
+            void safeLoadRef.current();
           }
         } else if (!lastFingerRef.current) {
           lastFingerRef.current = f;
