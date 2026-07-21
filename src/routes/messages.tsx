@@ -486,6 +486,11 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     }
   }, [loadInbox, cacheKey]);
 
+  const safeLoadRef = useRef(safeLoad);
+  useEffect(() => {
+    safeLoadRef.current = safeLoad;
+  }, [safeLoad]);
+
   // Initial + ping loop
   const lastFingerRef = useRef<string>("");
   const lastFullRef = useRef<number>(0);
