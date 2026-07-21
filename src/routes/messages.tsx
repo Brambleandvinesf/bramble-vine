@@ -317,6 +317,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>(() => cached?.drafts ?? []);
+  const [roster, setRoster] = useState<RosterEntry[]>(() => cached?.roster ?? []);
+  const [employees, setEmployees] = useState<Employee[]>(() => cached?.employees ?? []);
   const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
 
 
