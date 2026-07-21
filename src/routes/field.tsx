@@ -2675,13 +2675,17 @@ function StateDebrief({
               </div>
             )}
 
-            <div style={{ ...ROW_LINE, borderTop: `1px solid ${LINE}`, marginTop: 12 }}>
-              <div style={{ flex: 1, color: MUTED, fontSize: 12 }}>TOTAL</div>
-              <div style={{ color: LIME, fontWeight: "bold" }}>{total.toFixed(2)}</div>
-            </div>
-            <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>
-              Labor hours only — payroll stays in QB Time.
-            </div>
+            {effectiveRole === "management" && (
+              <>
+                <div style={{ ...ROW_LINE, borderTop: `1px solid ${LINE}`, marginTop: 12 }}>
+                  <div style={{ flex: 1, color: MUTED, fontSize: 12 }}>TOTAL</div>
+                  <div style={{ color: LIME, fontWeight: "bold" }}>{total.toFixed(2)}</div>
+                </div>
+                <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>
+                  Labor hours only — payroll stays in QB Time.
+                </div>
+              </>
+            )}
           </div>
         )}
 
