@@ -310,6 +310,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>(() => cached?.drafts ?? []);
+  const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
+
 
   // Optimistic
   const [hidden, setHidden] = useState<Set<string>>(new Set());
