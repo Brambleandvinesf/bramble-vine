@@ -351,6 +351,30 @@ function SchedulePage() {
         )}
       </h1>
 
+      {isFieldCrew && confirmed === false && (
+        <div
+          style={{
+            background: PANEL,
+            border: `2px dashed ${LIME}`,
+            borderRadius: 12,
+            padding: "22px 18px",
+            marginBottom: 16,
+            textAlign: "center",
+            color: LIME,
+            fontSize: 15,
+            fontWeight: "bold",
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            boxShadow: "0 0 22px rgba(124,255,0,.12)",
+          }}
+        >
+          Awaiting loading instructions…
+          <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 6, letterSpacing: 1, fontWeight: "normal" }}>
+            You'll be sent to the loading list the moment the lead confirms.
+          </div>
+        </div>
+      )}
+
       {loadErr ? (
         <div style={{ color: "#ff6b6b", marginBottom: 12, fontSize: 12 }}>
           Failed to load schedule: {loadErr}
@@ -390,9 +414,11 @@ function SchedulePage() {
           ))}
         </div>
       )}
+      {isFieldCrew && <MessagesFab />}
     </div>
   );
 }
+
 
 function NavBtn({ onClick, label }: { onClick: () => void; label: string }) {
   return (
