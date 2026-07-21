@@ -3248,6 +3248,17 @@ const DANGER_BTN: React.CSSProperties = {
   borderColor: RED,
   background: "transparent",
 };
+const NAVIGATE_BTN: React.CSSProperties = {
+  ...BIG_BTN,
+  width: "100%",
+  background: LIME,
+  color: BG,
+  borderColor: LIME,
+  textAlign: "center",
+  display: "block",
+  padding: "0 12px",
+  lineHeight: "56px",
+};
 const SMALL_BTN: React.CSSProperties = {
   minHeight: 40,
   padding: "0 12px",
