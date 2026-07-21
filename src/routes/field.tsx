@@ -251,7 +251,7 @@ function hoursBetween(inIso?: string | null, outIso?: string | null): number {
 /* ---------- identity (LA-date sticky) ---------- */
 const OVERHEAD_CLIENT = "Bramble and Vine";
 const ME_KEY = "field.me";
-type Me = { id: string; name: string };
+type Me = { id: string; name: string; role?: "lead" | "assistant" };
 type MeStored = Me & { date: string };
 function laDateKey(): string {
   try {
