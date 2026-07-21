@@ -295,10 +295,10 @@ function MessagesPage() {
   if (!allowed) return null;
   if (!email) return null;
 
-  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={email} />;
+  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} showForwardCrew={showForwardCrew} showForwardOffice={showForwardOffice} email={email} />;
 }
 
-function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boolean; showLineBadge: boolean; email: string }) {
+function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwardOffice, email }: { showReceipt: boolean; showLineBadge: boolean; showForwardCrew: boolean; showForwardOffice: boolean; email: string }) {
   const cached = sessionCache.get<InboxResponse>(CK);
   // Feed state
   const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
