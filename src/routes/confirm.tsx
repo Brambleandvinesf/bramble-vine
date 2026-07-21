@@ -947,11 +947,13 @@ function ConfirmPage() {
                       </div>
                     ))}
                     <button
-                      style={{ ...GHOST_BTN_SM, marginTop: 4 }}
+                      style={{ ...ADD_ITEM_BTN, marginTop: 6 }}
                       onClick={() => setPickerFor({ mode: "new", client, key: n.key })}
                     >
                       + ADD ITEM
                     </button>
+
+
 
                   </div>
                   <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
