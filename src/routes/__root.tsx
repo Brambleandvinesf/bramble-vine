@@ -328,6 +328,34 @@ function BottomTabBar() {
 
         <div style={{ flex: 1 }} />
 
+        {(() => {
+          const t = messagesTab;
+          const active = isActive(t.to);
+          const color = active ? LIME_TAB : DIM_TAB;
+          const Icon = t.icon;
+          return (
+            <Link
+              key={t.to}
+              to={t.to}
+              aria-label={t.label}
+              title={t.label}
+              style={{
+                flex: 1,
+                minHeight: 56,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                color,
+                textDecoration: "none",
+                textAlign: "center",
+              }}
+            >
+              <Icon size={22} color={color} strokeWidth={2} />
+            </Link>
+          );
+        })()}
+
         {showMore && (
           <button
             key="more"
@@ -363,34 +391,6 @@ function BottomTabBar() {
             )}
           </button>
         )}
-
-        {(() => {
-          const t = messagesTab;
-          const active = isActive(t.to);
-          const color = active ? LIME_TAB : DIM_TAB;
-          const Icon = t.icon;
-          return (
-            <Link
-              key={t.to}
-              to={t.to}
-              aria-label={t.label}
-              title={t.label}
-              style={{
-                flex: 1,
-                minHeight: 56,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color,
-                textDecoration: "none",
-                textAlign: "center",
-              }}
-            >
-              <Icon size={22} color={color} strokeWidth={2} />
-            </Link>
-          );
-        })()}
       </nav>
       {moreOpen && (
         <div
