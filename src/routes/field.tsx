@@ -1572,7 +1572,7 @@ function StateArrived({
       if (r.ok && raw.ok !== false) {
         toast.success(`ETA sent to ${raw.to ?? label}`);
       } else {
-        toast.error(raw.error || r.error || "ETA text failed");
+        toast.error(raw.error || "ETA text failed");
       }
     }
     if (mapsUrl) window.open(mapsUrl, "_blank", "noopener,noreferrer");
