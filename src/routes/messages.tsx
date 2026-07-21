@@ -1962,7 +1962,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               </button>
               <div style={{ flex: 1 }} />
               <button
-                style={{ ...ghostBtn, color: "#ffb03f", borderColor: "#ffb03f" }}
+                style={{ ...ghostBtn, color: T.brightLime, borderColor: T.brightLime }}
                 onClick={() => {
                   if (window.confirm("Discard this draft? It will not be recoverable.")) {
                     try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
