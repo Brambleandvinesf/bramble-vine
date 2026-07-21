@@ -2323,11 +2323,13 @@ function FeedCard({
   onEmoji,
   onProject,
   onForward,
+  onForwardOffice,
+  showForwardCrew,
+  showForwardOffice,
   onAddContact,
   onRemoveStaged,
   draft,
   onDraftEdit,
-  onDraftDiscard,
 }: {
   it: InboxItem;
   hidden: boolean;
@@ -2345,11 +2347,13 @@ function FeedCard({
   onEmoji: (apply: (e: string) => void) => void;
   onProject: () => void;
   onForward: () => void;
+  onForwardOffice: () => void;
+  showForwardCrew: boolean;
+  showForwardOffice: boolean;
   onAddContact: () => void;
   onRemoveStaged: (idx: number) => void;
   draft?: Draft;
   onDraftEdit?: (text: string) => void;
-  onDraftDiscard?: () => void;
 }) {
   const [reply, setReply] = useState(draft?.text || "");
   const quo = it.source === "quo";
