@@ -2112,9 +2112,7 @@ function FeedCard({
           <IconFs />
         </button>
         {it.isClient && (
-          <button style={iconBtn} title="Mark visit confirmed" onClick={onConfirm}>
-            <IconConf />
-          </button>
+          <ConfirmButton id={it.id} confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
         )}
         {quo
           ? it.unknowns && it.unknowns.length > 0 && (
