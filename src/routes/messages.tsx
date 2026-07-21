@@ -437,6 +437,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       if (r.clients) setClients(r.clients);
       setNextVisit(r.nextVisit || null);
       setDrafts(r.drafts || []);
+      setLastYes(r.lastYes ? String(r.lastYes) : null);
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
