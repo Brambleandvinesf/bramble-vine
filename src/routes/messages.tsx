@@ -2476,7 +2476,7 @@ function FeedCard({
           </button>
           {draft && onDraftDiscard && (
             <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
               onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
               title="Discard draft"
               aria-label="Discard draft"
