@@ -1162,7 +1162,7 @@ function PersonalClockPanel({
 
   if (!open) {
     primary = {
-      label: "CLOCK IN — OVERHEAD",
+      label: "CLOCK IN — B&V",
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
       enabled: true,
     };
