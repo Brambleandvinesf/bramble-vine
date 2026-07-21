@@ -1846,6 +1846,29 @@ function StateVisit({
         />
       )}
       <NotesStrip notes={notes} disabled={isPreview} />
+      {onBreak && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={onBreak}
+            disabled={busy || isPreview}
+            style={{
+              background: "transparent",
+              border: `1px solid ${DIM_GREEN}`,
+              color: DIM_GREEN,
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 1,
+              padding: "6px 12px",
+              borderRadius: 4,
+              cursor: busy || isPreview ? "default" : "pointer",
+              opacity: busy || isPreview ? 0.5 : 1,
+            }}
+          >
+            BREAK TIME
+          </button>
+        </div>
+      )}
 
 
       <div style={{ ...SECTION_HEAD, marginTop: 16 }}>PROJECTS</div>
