@@ -1333,6 +1333,22 @@ const GHOST_BTN_SM: React.CSSProperties = {
   fontWeight: "bold",
   cursor: "pointer",
 };
+const ICON_ACTION_BTN: React.CSSProperties = {
+  background: "transparent",
+  color: LIME_BRIGHT,
+  border: `1px solid ${LIME_BRIGHT}`,
+  borderRadius: 6,
+  width: 44,
+  height: 44,
+  minWidth: 44,
+  minHeight: 44,
+  padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  flex: "0 0 auto",
+};
 const STATE: React.CSSProperties = {
   margin: "40px 20px",
   textAlign: "center",
