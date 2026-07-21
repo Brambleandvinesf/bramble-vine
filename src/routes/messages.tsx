@@ -1636,7 +1636,52 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         <ModalOverlay>
           <ModalPanel>
             <h3 style={{ margin: 0 }}>New message</h3>
-            {compose.picked ? (
+
+            {/* Channel toggle */}
+            <div style={{ display: "flex", gap: 0, border: `1px solid ${T.border}`, borderRadius: 6, overflow: "hidden" }}>
+              {(["text", "email"] as const).map((ch) => {
+                const active = compose.channel === ch;
+                return (
+                  <button
+                    key={ch}
+                    onClick={() => setCompose({ ...compose, channel: ch })}
+                    style={{
+                      flex: 1,
+                      padding: "10px 12px",
+                      background: active ? T.lime : "transparent",
+                      color: active ? T.bg : T.lime,
+                      border: "none",
+                      fontFamily: fontStack,
+                      fontWeight: "bold",
+                      fontSize: ".95rem",
+                      cursor: "pointer",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {ch === "text" ? "📱 Text" : "✉ Email"}
+                  </button>
+                );
+              })}
+            </div>
+
+            {compose.channel === "email" ? (
+              <>
+                <input
+                  autoFocus
+                  type="email"
+                  value={compose.emailTo}
+                  onChange={(e) => setCompose({ ...compose, emailTo: e.target.value })}
+                  placeholder="To: name@example.com"
+                  style={{ ...inputStyle, minHeight: 48 }}
+                />
+                <input
+                  value={compose.subject}
+                  onChange={(e) => setCompose({ ...compose, subject: e.target.value })}
+                  placeholder="Subject"
+                  style={{ ...inputStyle, minHeight: 44 }}
+                />
+              </>
+            ) : compose.picked ? (
               <div
                 style={{
                   display: "flex",
@@ -1738,13 +1783,31 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
               rows={4}
               style={{ ...inputStyle, resize: "vertical", minHeight: 96 }}
             />
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button
+                style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: 6 }}
+                title="Insert emoji"
+                aria-label="Insert emoji"
+                onClick={() =>
+                  setEmojiTarget({
+                    apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
+                  })
+                }
+              >
+                <Smile size={16} strokeWidth={2.2} />
+              </button>
+              <div style={{ flex: 1 }} />
               <button style={ghostBtn} onClick={() => setCompose(null)}>
                 Cancel
               </button>
               <button
                 style={limeBtn}
-                disabled={!(compose.picked || normalizePhone(compose.manual)) || !compose.text.trim()}
+                disabled={
+                  !compose.text.trim() ||
+                  (compose.channel === "text"
+                    ? !(compose.picked || normalizePhone(compose.manual))
+                    : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
+                }
                 onClick={() => void sendCompose()}
               >
                 Send
