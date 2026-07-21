@@ -2245,28 +2245,26 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
             />
 
             <div style={btnRowStyle}>
-              <div style={btnGroupStyle}>
-                <button
-                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                  title="Emoji"
-                  aria-label="Emoji"
-                  onClick={() =>
-                    setEmojiTarget({
-                      apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
-                    })
-                  }
-                >
-                  <IconSmile />
-                </button>
-                <button
-                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                  title="Attach"
-                  aria-label="Attach"
-                  onClick={() => composeFileInputRef.current?.click()}
-                >
-                  <IconClip />
-                </button>
-              </div>
+              <button
+                style={iconBtn}
+                title="Emoji"
+                aria-label="Emoji"
+                onClick={() =>
+                  setEmojiTarget({
+                    apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
+                  })
+                }
+              >
+                <IconSmile />
+              </button>
+              <button
+                style={iconBtn}
+                title="Attach"
+                aria-label="Attach"
+                onClick={() => composeFileInputRef.current?.click()}
+              >
+                <IconClip />
+              </button>
               <button
                 style={{
                   ...sendBtn,
@@ -2290,16 +2288,14 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               >
                 <Send size={22} />
               </button>
-              <div style={btnGroupStyle}>
-                <button
-                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                  title="Close (draft is saved)"
-                  aria-label="Close"
-                  onClick={() => setCompose(null)}
-                >
-                  <X size={22} />
-                </button>
-              </div>
+              <button
+                style={iconBtn}
+                title="Close (draft is saved)"
+                aria-label="Close"
+                onClick={() => setCompose(null)}
+              >
+                <X size={22} />
+              </button>
             </div>
           </ModalPanel>
         </ModalOverlay>
