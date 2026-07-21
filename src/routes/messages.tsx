@@ -2396,6 +2396,23 @@ const iconBtn: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
 };
+const sendBtn: CSSProperties = {
+  ...iconBtn,
+  minWidth: 44,
+  minHeight: 44,
+  background: T.brightLime,
+  color: T.bg,
+  borderColor: T.brightLime,
+};
+const btnRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 8,
+  marginTop: 8,
+  flexWrap: "wrap",
+};
+const btnGroupStyle: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" };
 const labelStyle: CSSProperties = { fontSize: ".85rem", opacity: 0.8, color: T.lime };
 const pickRowStyle: CSSProperties = {
   padding: "14px 16px",
