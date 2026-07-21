@@ -418,9 +418,7 @@ function LoadingPage() {
                   body: JSON.stringify({ action: "loadingComplete" }),
                 });
                 toast.success("Loading marked complete");
-                if (effectiveRole === "assistant") {
-                  navigate({ to: "/field" });
-                }
+                navigate({ to: "/field" });
               } catch {
                 toast.error("Couldn't mark complete — retry");
               } finally {
@@ -433,8 +431,8 @@ function LoadingPage() {
           </button>
         </div>
       )}
-      {effectiveRole !== "assistant" && field && <RouteFooter field={field} />}
-      {effectiveRole === "assistant" && <MessagesFab />}
+      {effectiveRole === "management" && field && <RouteFooter field={field} />}
+      <MessagesFab />
     </div>
   );
 }
