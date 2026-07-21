@@ -16,7 +16,8 @@ import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek } from "../lib/crow-sound";
 
-const CK = "messages:getInbox";
+const CK_DEFAULT = "messages:getInbox";
+const CK_ALL = "messages:getInbox:all";
 
 export const Route = createFileRoute("/messages")({
   head: () => ({
