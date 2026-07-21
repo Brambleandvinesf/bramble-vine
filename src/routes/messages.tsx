@@ -1775,18 +1775,15 @@ function FeedCard({
       style={{
         display: hidden ? "none" : "flex",
         background: it.unread ? T.panel2 : T.panel,
-        border: `2px solid ${it.awaiting ? T.red : T.lime}`,
+        border: `2px solid ${isNew ? T.brightLime : T.lime}`,
         borderRadius: 6,
         padding: 12,
         margin: "20px 0",
         gap: 12,
         alignItems: "flex-start",
-        boxShadow: found
-          ? `0 0 0 4px ${T.lime}`
-          : it.isClient && it.awaiting
-            ? "0 0 6px rgba(255,59,48,.45)"
-            : "none",
+        boxShadow: found ? `0 0 0 4px ${T.lime}` : "none",
         transition: "box-shadow .3s",
+        animation: isNew && !found ? "bvNewPulse 1.2s ease-in-out infinite" : undefined,
       }}
     >
       <div
