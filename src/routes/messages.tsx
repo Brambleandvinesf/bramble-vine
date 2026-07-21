@@ -946,13 +946,13 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     else document.documentElement.requestFullscreen();
   }, []);
 
-  /* ---- red flash effect ---- */
+  /* ---- new-client green flash effect ---- */
   useEffect(() => {
-    if (!redFlash) return;
+    if (!greenFlash) return;
     document.body.style.transition = "background .12s";
     let step = 0;
     const iv = window.setInterval(() => {
-      document.body.style.background = step % 2 ? T.bg : "#3a0000";
+      document.body.style.background = step % 2 ? T.bg : "rgba(124, 255, 0, 0.25)";
       step++;
       if (step >= 12) {
         window.clearInterval(iv);
@@ -960,7 +960,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
       }
     }, 80);
     return () => window.clearInterval(iv);
-  }, [redFlash]);
+  }, [greenFlash]);
 
   /* ============================================================ */
   return (
