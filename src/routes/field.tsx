@@ -997,6 +997,35 @@ function WhoAmI({
         {employees.length === 0 && <div style={STATE}>No employees returned by backend.</div>}
       </div>
 
+      <div style={{ marginTop: 18 }}>
+        <div style={{ color: LIME_DIM, fontSize: 12, letterSpacing: 1, textAlign: "center" }}>
+          WHAT'S YOUR ROLE TODAY?
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          {(["lead", "assistant"] as const).map((r) => {
+            const on = role === r;
+            return (
+              <button
+                key={r}
+                disabled={busy}
+                onClick={() => setRole(r)}
+                style={{
+                  flex: 1,
+                  ...BIG_BTN,
+                  background: on ? LIME : "transparent",
+                  color: on ? BG : LIME,
+                  borderColor: on ? LIME : LIME_DIM,
+                  minHeight: 48,
+                  fontSize: 16,
+                }}
+              >
+                {on ? "● " : ""}{r.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {clockPending ? (
         <button
           disabled={busy}
