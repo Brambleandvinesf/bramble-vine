@@ -36,6 +36,7 @@ const PING_MS = 10000;
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
 const PDFJS_WORKER = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 const CREW = ["+16507105061", "+14152343696"];
+const OFFICE_NUM = "+14152343083";
 const MAX_FILE = 10 * 1024 * 1024;
 const MAX_TOTAL = 18 * 1024 * 1024;
 
@@ -285,6 +286,8 @@ function MessagesPage() {
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
   const showLineBadge = effectiveRole === "management";
+  const showForwardOffice = effectiveRole === "lead" || effectiveRole === "assistant";
+  const showForwardCrew = effectiveRole === "office" || effectiveRole === "management";
 
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
@@ -292,10 +295,10 @@ function MessagesPage() {
   if (!allowed) return null;
   if (!email) return null;
 
-  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} email={email} />;
+  return <MessagesInner showReceipt={showReceipt} showLineBadge={showLineBadge} showForwardCrew={showForwardCrew} showForwardOffice={showForwardOffice} email={email} />;
 }
 
-function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boolean; showLineBadge: boolean; email: string }) {
+function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwardOffice, email }: { showReceipt: boolean; showLineBadge: boolean; showForwardCrew: boolean; showForwardOffice: boolean; email: string }) {
   const cached = sessionCache.get<InboxResponse>(CK);
   // Feed state
   const [items, setItems] = useState<InboxItem[]>(() => cached?.inbox ?? []);
@@ -381,6 +384,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   const [emojiTarget, setEmojiTarget] = useState<{ apply: (e: string) => void } | null>(null);
   const [acState, setAcState] = useState<{ queue: string[]; phone: string | null; q: string } | null>(null);
   const [fwdPick, setFwdPick] = useState<{ item: InboxItem; text: string; err?: string } | null>(null);
+  const [offPick, setOffPick] = useState<{ item: InboxItem; text: string; err?: string } | null>(null);
   const [apPick, setApPick] = useState<{
     item: InboxItem;
     action: string;
@@ -413,8 +417,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   /* ---- helpers referencing state ---- */
   const uiQuiet = useCallback(() => {
-    return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !apPick && !rcPick;
-  }, [openItem, labelPick, emojiTarget, acState, fwdPick, apPick, rcPick]);
+    return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !offPick && !apPick && !rcPick;
+  }, [openItem, labelPick, emojiTarget, acState, fwdPick, offPick, apPick, rcPick]);
 
   // Detect new awaiting client -> green flash
   const detectNew = useCallback((its: InboxItem[]) => {
@@ -933,6 +937,31 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
     flash("Message NOT sent to crew!", true);
   }, [fwdPick, flash, email]);
 
+  /* ---- forward to office ---- */
+  const openOffice = useCallback((it: InboxItem) => {
+    const s = it.snippet || "";
+    const i = s.indexOf(": ");
+    const name = i > 0 ? s.slice(0, i) : it.from;
+    const text = (i > 0 ? s.slice(i + 2) : s).trim();
+    const compiled = (name + ": " + text).slice(0, 1500);
+    setOffPick({ item: it, text: compiled });
+  }, []);
+  const submitOffice = useCallback(async () => {
+    if (!offPick) return;
+    const text = offPick.text.trim();
+    if (!text) {
+      setOffPick((p) => (p ? { ...p, err: "Nothing to send." } : p));
+      return;
+    }
+    const saved = offPick;
+    setOffPick(null);
+    flash("Forwarded to office \u2713");
+    const res = await postAction({ action: "replyQuo", participants: [OFFICE_NUM], text, email });
+    if (res && res.ok && res.sent) return;
+    setOffPick({ ...saved, err: "Forward failed — try again." });
+    flash("Message NOT sent to office!", true);
+  }, [offPick, flash, email]);
+
   /* ---- add project ---- */
   const openProject = useCallback((it: InboxItem) => {
     const s = it.snippet || "";
@@ -1340,10 +1369,12 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                 onEmoji={(apply) => setEmojiTarget({ apply })}
                 onProject={() => openProject(it)}
                 onForward={() => openForward(it)}
+                onForwardOffice={() => openOffice(it)}
+                showForwardCrew={showForwardCrew}
+                showForwardOffice={showForwardOffice}
                 onAddContact={() => openAddContact(it)}
                 onRemoveStaged={(idx) => removeStaged(it.threadId, idx)}
                 onDraftEdit={draft ? (text) => scheduleDraftSave(draft.draftId, text) : undefined}
-                onDraftDiscard={draft ? () => void discardDraft(draft) : undefined}
               />
             );
           })
@@ -1376,6 +1407,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                   onAttach={() => openAttach(dItem)}
                   onProject={() => openProject(dItem)}
                   onForward={() => openForward(dItem)}
+                  onForwardOffice={() => openOffice(dItem)}
+                  showForwardCrew={showForwardCrew}
+                  showForwardOffice={showForwardOffice}
                   staged={stagedForDraft}
                   onRemoveStaged={(idx) => removeStaged(d.draftId, idx)}
                   onSend={async (text) => {
@@ -1469,6 +1503,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           showConfirm={!!openItem.isClient && !openItem.confirmed && yesThisWeek(lastYes)}
           onProject={() => openProject(openItem)}
           onForward={() => openForward(openItem)}
+          onForwardOffice={() => openOffice(openItem)}
+          showForwardCrew={showForwardCrew}
+          showForwardOffice={showForwardOffice}
           onAttach={() => openAttach(openItem)}
           onEmoji={() => setEmojiTarget({ apply: (e) => setVReply((v) => v + e) })}
           onReceipt={showReceipt ? startReceipt : null}
@@ -1612,6 +1649,29 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           </ModalPanel>
         </ModalOverlay>
       )}
+
+      {/* forward to office */}
+      {offPick && (
+        <ModalOverlay>
+          <ModalPanel wide>
+            <h3 style={{ margin: 0 }}>Forward to office</h3>
+            <div style={{ fontSize: ".85rem", opacity: 0.75 }}>
+              Texts +1 (415) 234-3083
+            </div>
+            <textarea
+              value={offPick.text}
+              onChange={(e) => setOffPick({ ...offPick, text: e.target.value })}
+              style={{ ...inputStyle, minHeight: 140, resize: "vertical" }}
+            />
+            {offPick.err && <div style={{ color: T.brightLime, fontSize: ".9rem" }}>{offPick.err}</div>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button style={limeBtn} onClick={() => void submitOffice()}>Send</button>
+              <button style={ghostBtn} onClick={() => setOffPick(null)}>Cancel</button>
+            </div>
+          </ModalPanel>
+        </ModalOverlay>
+      )}
+
 
       {/* forward */}
       {fwdPick && (
@@ -2271,11 +2331,13 @@ function FeedCard({
   onEmoji,
   onProject,
   onForward,
+  onForwardOffice,
+  showForwardCrew,
+  showForwardOffice,
   onAddContact,
   onRemoveStaged,
   draft,
   onDraftEdit,
-  onDraftDiscard,
 }: {
   it: InboxItem;
   hidden: boolean;
@@ -2293,11 +2355,13 @@ function FeedCard({
   onEmoji: (apply: (e: string) => void) => void;
   onProject: () => void;
   onForward: () => void;
+  onForwardOffice: () => void;
+  showForwardCrew: boolean;
+  showForwardOffice: boolean;
   onAddContact: () => void;
   onRemoveStaged: (idx: number) => void;
   draft?: Draft;
   onDraftEdit?: (text: string) => void;
-  onDraftDiscard?: () => void;
 }) {
   const [reply, setReply] = useState(draft?.text || "");
   const quo = it.source === "quo";
@@ -2488,9 +2552,16 @@ function FeedCard({
           <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Add Project" aria-label="Add Project" onClick={(ev) => { ev.stopPropagation(); onProject(); }}>
             <FolderPlus size={22} />
           </button>
-          <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
-            <Users size={22} />
-          </button>
+          {showForwardCrew && (
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to Crew" aria-label="Forward to Crew" onClick={(ev) => { ev.stopPropagation(); onForward(); }}>
+              <Users size={22} />
+            </button>
+          )}
+          {showForwardOffice && (
+            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Forward to office" aria-label="Forward to office" onClick={(ev) => { ev.stopPropagation(); onForwardOffice(); }}>
+              <Users size={22} />
+            </button>
+          )}
           {quo
             ? it.unknowns && it.unknowns.length > 0 && (
                 <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Mark as spam" aria-label="Mark as spam" onClick={(ev) => { ev.stopPropagation(); onSpam(); }}>
@@ -2505,16 +2576,6 @@ function FeedCard({
           <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Open full screen" aria-label="Open full screen" onClick={(ev) => { ev.stopPropagation(); onOpen(); }}>
             <IconFs />
           </button>
-          {draft && onDraftDiscard && (
-            <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              onClick={(ev) => { ev.stopPropagation(); onDraftDiscard(); }}
-              title="Discard draft"
-              aria-label="Discard draft"
-            >
-              <Trash2 size={22} />
-            </button>
-          )}
         </div>
         {staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
@@ -2560,6 +2621,9 @@ function Viewer({
   onConfirm,
   onProject,
   onForward,
+  onForwardOffice,
+  showForwardCrew,
+  showForwardOffice,
   onAttach,
   onEmoji,
   onReceipt,
@@ -2584,6 +2648,9 @@ function Viewer({
   onConfirm: () => Promise<boolean>;
   onProject: () => void;
   onForward: () => void;
+  onForwardOffice: () => void;
+  showForwardCrew: boolean;
+  showForwardOffice: boolean;
   onAttach: () => void;
   onEmoji: () => void;
   onReceipt: (() => void) | null;
@@ -2764,14 +2831,26 @@ function Viewer({
           >
             <FolderPlus size={22} />
           </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Forward to Crew"
-            aria-label="Forward to Crew"
-            onClick={onForward}
-          >
-            <Users size={22} />
-          </button>
+          {showForwardCrew && (
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Forward to Crew"
+              aria-label="Forward to Crew"
+              onClick={onForward}
+            >
+              <Users size={22} />
+            </button>
+          )}
+          {showForwardOffice && (
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Forward to office"
+              aria-label="Forward to office"
+              onClick={onForwardOffice}
+            >
+              <Users size={22} />
+            </button>
+          )}
           {!quo && (
             <button
               style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
@@ -2885,6 +2964,9 @@ function DraftCard({
   onAttach,
   onProject,
   onForward,
+  onForwardOffice,
+  showForwardCrew,
+  showForwardOffice,
   staged,
   onRemoveStaged,
 }: {
@@ -2896,6 +2978,9 @@ function DraftCard({
   onAttach: () => void;
   onProject: () => void;
   onForward: () => void;
+  onForwardOffice: () => void;
+  showForwardCrew: boolean;
+  showForwardOffice: boolean;
   staged: Attachment[];
   onRemoveStaged: (idx: number) => void;
 }) {
@@ -2985,14 +3070,26 @@ function DraftCard({
           >
             <FolderPlus size={22} />
           </button>
-          <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-            title="Forward to Crew"
-            aria-label="Forward to Crew"
-            onClick={onForward}
-          >
-            <Users size={22} />
-          </button>
+          {showForwardCrew && (
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Forward to Crew"
+              aria-label="Forward to Crew"
+              onClick={onForward}
+            >
+              <Users size={22} />
+            </button>
+          )}
+          {showForwardOffice && (
+            <button
+              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+              title="Forward to office"
+              aria-label="Forward to office"
+              onClick={onForwardOffice}
+            >
+              <Users size={22} />
+            </button>
+          )}
           <button
             style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
             onClick={onDiscard}
