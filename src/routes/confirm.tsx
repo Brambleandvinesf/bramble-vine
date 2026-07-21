@@ -699,9 +699,9 @@ function ConfirmPage() {
                       </div>
                     )}
                     {p.projectId && !isDeleted && (
-                      <div style={{ marginTop: 8 }}>
+                      <div style={{ marginTop: 10 }}>
                         <button
-                          style={GHOST_BTN_SM}
+                          style={ADD_ITEM_BTN}
                           onClick={() =>
                             setPickerFor({ mode: "existing", client, projectId: p.projectId })
                           }
@@ -710,6 +710,7 @@ function ConfirmPage() {
                         </button>
                       </div>
                     )}
+
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
