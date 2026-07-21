@@ -760,7 +760,6 @@ function ConfirmPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
-                        flexWrap: "wrap",
                       }}
                     >
                       {p.projectId ? (
@@ -772,23 +771,13 @@ function ConfirmPage() {
                           NO ID (won't save)
                         </span>
                       )}
-                      <div style={{ flex: 1 }} />
-                      {isDeleted ? (
+                      {isDeleted && (
                         <button
-                          style={GHOST_BTN_SM}
+                          style={{ ...GHOST_BTN_SM, marginLeft: "auto" }}
                           onClick={() => undoDelete(p.projectId)}
                         >
                           UNDO DELETE
                         </button>
-                      ) : (
-                        p.projectId && (
-                          <button
-                            style={{ ...GHOST_BTN_SM, color: RED, borderColor: RED }}
-                            onClick={() => requestDelete(p.projectId, e.action)}
-                          >
-                            DELETE
-                          </button>
-                        )
                       )}
                     </div>
                     <div
@@ -798,22 +787,36 @@ function ConfirmPage() {
                         borderTop: `1px solid ${LINE}`,
                         display: "flex",
                         justifyContent: "center",
-                        gap: 10,
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
-                      <BigSegBtn
-                        active={!skip}
+                      <button
+                        aria-label="Confirm"
+                        title="Confirm"
+                        style={ICON_ACTION_BTN}
                         onClick={() => setEdit(key, { status: "Confirmed" })}
                       >
-                        CONFIRM
-                      </BigSegBtn>
-                      <BigSegBtn
-                        active={skip}
-                        danger
+                        <Check size={20} />
+                      </button>
+                      <button
+                        aria-label="Skip"
+                        title="Skip"
+                        style={ICON_ACTION_BTN}
                         onClick={() => setEdit(key, { status: "SKIP" })}
                       >
-                        SKIP
-                      </BigSegBtn>
+                        <SkipForward size={20} />
+                      </button>
+                      {p.projectId && (
+                        <button
+                          aria-label="Delete"
+                          title="Delete"
+                          style={ICON_ACTION_BTN}
+                          onClick={() => requestDelete(p.projectId, e.action)}
+                        >
+                          <Trash2 size={20} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
