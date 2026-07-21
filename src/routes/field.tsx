@@ -556,6 +556,18 @@ function FieldBody({
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
   const [me, setMe] = useState<Me | null>(() => loadMe());
+  const [breakFrom, setBreakFromState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return window.sessionStorage.getItem("field:breakFrom") || null; } catch { return null; }
+  });
+  const setBreakFrom = (v: string | null) => {
+    setBreakFromState(v);
+    try {
+      if (typeof window === "undefined") return;
+      if (v) window.sessionStorage.setItem("field:breakFrom", v);
+      else window.sessionStorage.removeItem("field:breakFrom");
+    } catch { /* ignore */ }
+  };
   const bodyRouter = useRouter();
 
   /* --- manage-full-crew fallback (lead only, always reachable via link) --- */
@@ -628,6 +640,18 @@ function FieldBody({
 
 
 
+  const meRow = me ? roster.find((r) => r.id === me.id) : undefined;
+  const meOnClock = !!(meRow?.in && !meRow?.out);
+  const startBreakFromCurrent = me && meOnClock
+    ? async () => {
+        if (isPreview) return;
+        const current = meRow?.client ?? OVERHEAD_CLIENT;
+        const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: current });
+        if (r.ok) setBreakFrom(current);
+        else setBanner({ kind: "err", text: "Break failed — retry." });
+      }
+    : undefined;
+
   const personalClockSlot = me ? (
     <PersonalClockPanel
       me={me}
@@ -637,6 +661,8 @@ function FieldBody({
       isPreview={isPreview}
       send={send}
       setBanner={setBanner}
+      breakFrom={breakFrom}
+      setBreakFrom={setBreakFrom}
     />
   ) : null;
 
@@ -723,6 +749,7 @@ function FieldBody({
               isPreview={isPreview}
               notes={stopNotes}
               clockSlot={personalClockSlot}
+              onBreak={startBreakFromCurrent}
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
               onVisitComplete={handleVisitComplete}
               onNoShow={() => void confirmNoShow(send, setBanner)}
@@ -1123,6 +1150,7 @@ function ClockingAsHeader({
 /* ============================================================
  * PERSONAL CLOCK PANEL — replaces whole-crew grids
  * ============================================================ */
+
 function PersonalClockPanel({
   me,
   roster,
@@ -1131,6 +1159,8 @@ function PersonalClockPanel({
   isPreview,
   send,
   setBanner,
+  breakFrom,
+  setBreakFrom,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -1139,12 +1169,17 @@ function PersonalClockPanel({
   isPreview: boolean;
   send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
+  breakFrom: string | null;
+  setBreakFrom: (v: string | null) => void;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
   const onOverhead = open && isOverheadClient(row?.client);
   const onClient = open && !onOverhead;
+  const onBreakState = !open && !!breakFrom;
   const [busy, setBusy] = useState(false);
+
+  const labelFor = (c: string) => (isOverheadClient(c) ? "B&V" : c);
 
   const doClockIn = async (client: string) => {
     if (isPreview) return;
@@ -1160,14 +1195,7 @@ function PersonalClockPanel({
     const r = await send({ action: "qbClock", userId: me.id, dir: "in", client });
     setBusy(false);
     if (!r.ok) setBanner({ kind: "err", text: "Clock in failed — retry." });
-  };
-
-  const doClockOut = async (client: string) => {
-    if (isPreview) return;
-    setBusy(true);
-    const r = await send({ action: "qbClock", userId: me.id, dir: "out", client });
-    setBusy(false);
-    if (!r.ok) setBanner({ kind: "err", text: "Clock out failed — retry." });
+    else setBreakFrom(null);
   };
 
   const doSwitch = async (fromClient: string, toClient: string) => {
@@ -1176,16 +1204,26 @@ function PersonalClockPanel({
     const outR = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient }, { silent: true });
     if (!outR.ok) {
       setBusy(false);
-      setBanner({ kind: "err", text: `Clock out from ${fromClient} failed — retry.` });
+      setBanner({ kind: "err", text: `Switch from ${labelFor(fromClient)} failed — retry.` });
       return;
     }
     const inR = await send({ action: "qbClock", userId: me.id, dir: "in", client: toClient }, { silent: true });
     setBusy(false);
     if (!inR.ok) {
-      setBanner({ kind: "err", text: `Clocked out but couldn't clock in to ${toClient} — retry.` });
+      setBanner({ kind: "err", text: `Switched out but couldn't switch in to ${labelFor(toClient)} — retry.` });
     } else {
       setBanner(null);
+      setBreakFrom(null);
     }
+  };
+
+  const startBreak = async (fromClient: string) => {
+    if (isPreview) return;
+    setBusy(true);
+    const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient });
+    setBusy(false);
+    if (r.ok) setBreakFrom(fromClient);
+    else setBanner({ kind: "err", text: "Break failed — retry." });
   };
 
   const since = row?.in
@@ -1197,7 +1235,13 @@ function PersonalClockPanel({
   let primary: { label: string; onClick: () => void; enabled: boolean } | null = null;
   let secondary: { label: string; onClick: () => void } | null = null;
 
-  if (!open) {
+  if (onBreakState && breakFrom) {
+    primary = {
+      label: `RESUME — ${labelFor(breakFrom)}`,
+      onClick: () => void doClockIn(breakFrom),
+      enabled: true,
+    };
+  } else if (!open) {
     primary = {
       label: "CLOCK IN — B&V",
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
@@ -1209,18 +1253,18 @@ function PersonalClockPanel({
       onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
       enabled: true,
     };
-    secondary = { label: "CLOCK OUT", onClick: () => void doClockOut(OVERHEAD_CLIENT) };
+    secondary = { label: "BREAK TIME", onClick: () => void startBreak(OVERHEAD_CLIENT) };
   } else if (onOverhead && !clientMatch) {
     primary = {
-      label: "CLOCK OUT",
-      onClick: () => void doClockOut(OVERHEAD_CLIENT),
+      label: "BREAK TIME",
+      onClick: () => void startBreak(OVERHEAD_CLIENT),
       enabled: true,
     };
   } else if (onClient) {
     const c = row?.client ?? clientMatch ?? "";
     primary = {
-      label: "CLOCK OUT",
-      onClick: () => void doClockOut(c),
+      label: "SWITCH TO BREAK TIME",
+      onClick: () => void startBreak(c),
       enabled: true,
     };
     secondary = {
@@ -1711,6 +1755,7 @@ function StateVisit({
   isPreview,
   notes,
   clockSlot,
+  onBreak,
   onToggleTool,
   onVisitComplete,
   onNoShow,
@@ -1728,6 +1773,7 @@ function StateVisit({
   isPreview: boolean;
   notes: VisitNote[];
   clockSlot?: React.ReactNode;
+  onBreak?: () => void;
   onToggleTool: (t: NormTool) => void;
   onVisitComplete?: () => void;
   onNoShow: () => void;
@@ -1800,6 +1846,29 @@ function StateVisit({
         />
       )}
       <NotesStrip notes={notes} disabled={isPreview} />
+      {onBreak && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={onBreak}
+            disabled={busy || isPreview}
+            style={{
+              background: "transparent",
+              border: `1px solid ${DIM_GREEN}`,
+              color: DIM_GREEN,
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 1,
+              padding: "6px 12px",
+              borderRadius: 4,
+              cursor: busy || isPreview ? "default" : "pointer",
+              opacity: busy || isPreview ? 0.5 : 1,
+            }}
+          >
+            BREAK TIME
+          </button>
+        </div>
+      )}
 
 
       <div style={{ ...SECTION_HEAD, marginTop: 16 }}>PROJECTS</div>
