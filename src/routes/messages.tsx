@@ -992,6 +992,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   /* ---- new-client green flash effect ---- */
   useEffect(() => {
     if (!greenFlash) return;
+    if (soundEnabled) playCrowShriek();
     document.body.style.transition = "background .12s";
     let step = 0;
     const iv = window.setInterval(() => {
