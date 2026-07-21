@@ -1275,28 +1275,69 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
         ) : displayItems.length === 0 ? (
           <span>{showAll ? "Inbox is quiet. ✓" : "No threads awaiting reply. ✓"}</span>
         ) : (
-          displayItems.map((it) => (
-            <FeedCard
-              key={it.id}
-              it={it}
-              hidden={hidden.has(it.id)}
-              found={foundId === it.id}
-              staged={staged[it.threadId] || []}
-              showLineBadge={showLineBadge}
-              onOpen={() => openViewer(it)}
-              onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
-              onFile={() => (it.source === "quo" ? doneItem(it) : fileItem(it))}
-              onTrash={() => trashItem(it)}
-              onSpam={() => spamItem(it)}
-              onConfirm={() => confirmVisit(it)}
-              onAttach={() => openAttach(it)}
-              onEmoji={(apply) => setEmojiTarget({ apply })}
-              onProject={() => openProject(it)}
-              onForward={() => openForward(it)}
-              onAddContact={() => openAddContact(it)}
-              onRemoveStaged={(idx) => removeStaged(it.threadId, idx)}
-            />
-          ))
+          displayItems.map((it) => {
+            const draft = it.source === "gmail" ? draftByThread.get(it.threadId) : undefined;
+            return (
+              <FeedCard
+                key={it.id}
+                it={it}
+                hidden={hidden.has(it.id)}
+                found={foundId === it.id}
+                staged={staged[it.threadId] || []}
+                showLineBadge={showLineBadge}
+                draft={draft}
+                onOpen={() => openViewer(it)}
+                onSend={(text, clear) => sendReply(it, text, { onClearField: clear })}
+                onFile={() => (it.source === "quo" ? doneItem(it) : fileItem(it))}
+                onTrash={() => trashItem(it)}
+                onSpam={() => spamItem(it)}
+                onConfirm={() => confirmVisit(it)}
+                onAttach={() => openAttach(it)}
+                onEmoji={(apply) => setEmojiTarget({ apply })}
+                onProject={() => openProject(it)}
+                onForward={() => openForward(it)}
+                onAddContact={() => openAddContact(it)}
+                onRemoveStaged={(idx) => removeStaged(it.threadId, idx)}
+                onDraftEdit={draft ? (text) => scheduleDraftSave(draft.draftId, text) : undefined}
+                onDraftDiscard={draft ? () => void discardDraft(draft) : undefined}
+              />
+            );
+          })
+        )}
+        {orphanDrafts.length > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <div style={{ fontSize: ".85rem", letterSpacing: 2, color: T.dim, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, marginBottom: 8 }}>
+              DRAFTS ({orphanDrafts.length})
+            </div>
+            {orphanDrafts.map((d) => (
+              <DraftCard
+                key={d.draftId}
+                draft={d}
+                onEdit={(text) => scheduleDraftSave(d.draftId, text)}
+                onEmoji={(apply) => setEmojiTarget({ apply })}
+                onSend={async (text) => {
+                  flushDraftSave(d.draftId);
+                  const t = String(text || "").trim();
+                  if (!t) {
+                    flash("Write a message first.", true);
+                    return false;
+                  }
+                  const to = d.to || "(recipient)";
+                  flash("Sending draft to " + to + "\u2026");
+                  const res = await postAction({ action: "sendDraft", draftId: d.draftId, text: t, email });
+                  if (res && res.ok && res.sent) {
+                    removeDraftLocal(d.draftId);
+                    flash("Sent draft to " + to + " \u2713");
+                    return true;
+                  }
+                  flash("Draft NOT sent to " + to + "!", true);
+                  return false;
+                }}
+                onDiscard={() => void discardDraft(d)}
+              />
+            ))}
+          </div>
+        )}
         )}
       </div>
 
