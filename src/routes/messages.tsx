@@ -2557,6 +2557,7 @@ function Viewer({
   onEmoji: () => void;
   onReceipt: (() => void) | null;
   onRemoveStaged: (idx: number) => void;
+  showConfirm: boolean;
 }) {
   const quo = it.source === "quo";
   return (
