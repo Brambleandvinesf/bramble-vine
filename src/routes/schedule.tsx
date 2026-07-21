@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
+import { useReviewableToday } from "../lib/reviewable-today";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { MessagesFab } from "../components/MessagesFab";
@@ -183,10 +184,15 @@ function SchedulePage() {
   }, [denied, navigate]);
 
   const isFieldCrew = effectiveRole === "assistant" || effectiveRole === "lead";
+  const isLeadOrMgmt = effectiveRole === "lead" || effectiveRole === "management";
+  const reviewable = useReviewableToday();
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const confirmSeenRef = useRef(false);
+  const [baseLoadDismissed, setBaseLoadDismissed] = useState(false);
+  const [baseLoadSubmitting, setBaseLoadSubmitting] = useState(false);
+  const [baseLoadFlash, setBaseLoadFlash] = useState<string | null>(null);
   useEffect(() => {
-    if (!isFieldCrew) return;
+    if (!isFieldCrew && effectiveRole !== "management") return;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -200,7 +206,7 @@ function SchedulePage() {
     tick();
     const id = window.setInterval(tick, 10_000);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [isFieldCrew]);
+  }, [isFieldCrew, effectiveRole]);
   useEffect(() => {
     if (!isFieldCrew) return;
     if (confirmed !== true) return;
@@ -208,6 +214,34 @@ function SchedulePage() {
     confirmSeenRef.current = true;
     void navigate({ to: "/loading" });
   }, [confirmed, isFieldCrew, navigate]);
+
+  const submitBaseLoadYes = useCallback(async () => {
+    setBaseLoadSubmitting(true);
+    setBaseLoadFlash(null);
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "confirmDay",
+          statuses: {},
+          updates: [],
+          newProjects: [],
+          deletes: [],
+          sendText: true,
+        }),
+      });
+      const j = (await res.json()) as { ok?: boolean; error?: string; state?: { confirmed?: boolean } };
+      if (!j.ok) throw new Error(j.error || "not ok");
+      if (j.state?.confirmed) setConfirmed(true);
+      setBaseLoadFlash("BASE LOAD CONFIRMED — CREW NOTIFIED");
+    } catch (e) {
+      setBaseLoadFlash(`FAILED: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setBaseLoadSubmitting(false);
+    }
+  }, []);
+
 
   const [view, setView] = useState<"day" | "week">("day");
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
@@ -351,7 +385,102 @@ function SchedulePage() {
         )}
       </h1>
 
-      {isFieldCrew && confirmed === false && (
+      {isLeadOrMgmt && confirmed === false && !baseLoadDismissed && (
+        <div
+          style={{
+            background: PANEL,
+            border: `2px dashed ${LIME}`,
+            borderRadius: 12,
+            padding: "22px 18px",
+            marginBottom: 16,
+            textAlign: "center",
+            boxShadow: "0 0 22px rgba(124,255,0,.12)",
+          }}
+        >
+          <div
+            style={{
+              color: LIME,
+              fontSize: 16,
+              fontWeight: "bold",
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              marginBottom: 14,
+            }}
+          >
+            Do we need the usual base load today?
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => void submitBaseLoadYes()}
+              disabled={baseLoadSubmitting}
+              style={{
+                minHeight: 60,
+                padding: "0 32px",
+                background: LIME,
+                color: "#0a0a0a",
+                border: `1px solid ${LIME}`,
+                borderRadius: 8,
+                fontFamily: MONO,
+                fontSize: 18,
+                letterSpacing: 3,
+                fontWeight: "bold",
+                cursor: baseLoadSubmitting ? "wait" : "pointer",
+                opacity: baseLoadSubmitting ? 0.6 : 1,
+              }}
+            >
+              {baseLoadSubmitting ? "…" : "YES"}
+            </button>
+            <button
+              onClick={() => setBaseLoadDismissed(true)}
+              disabled={baseLoadSubmitting}
+              style={{
+                minHeight: 60,
+                padding: "0 32px",
+                background: "transparent",
+                color: LIME,
+                border: `1px solid ${LIME}`,
+                borderRadius: 8,
+                fontFamily: MONO,
+                fontSize: 18,
+                letterSpacing: 3,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              NO
+            </button>
+          </div>
+          {baseLoadFlash && (
+            <div style={{ marginTop: 12, color: LIME, fontSize: 11, letterSpacing: 1 }}>
+              {baseLoadFlash}
+            </div>
+          )}
+          {reviewable === true && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${BORDER}` }}>
+              <Link
+                to="/confirm"
+                style={{
+                  display: "inline-block",
+                  textDecoration: "none",
+                  minHeight: 48,
+                  padding: "12px 20px",
+                  color: LIME,
+                  border: `1px solid ${LIME}`,
+                  borderRadius: 6,
+                  fontFamily: MONO,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                REVIEW TODAY'S PROJECTS →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {effectiveRole === "assistant" && confirmed === false && (
         <div
           style={{
             background: PANEL,
@@ -374,6 +503,7 @@ function SchedulePage() {
           </div>
         </div>
       )}
+
 
       {loadErr ? (
         <div style={{ color: "#ff6b6b", marginBottom: 12, fontSize: 12 }}>
