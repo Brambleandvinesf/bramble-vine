@@ -1928,8 +1928,20 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
                 <Smile size={16} strokeWidth={2.2} />
               </button>
               <div style={{ flex: 1 }} />
-              <button style={ghostBtn} onClick={() => setCompose(null)}>
-                Cancel
+              <button
+                style={{ ...ghostBtn, color: "#ffb03f", borderColor: "#ffb03f" }}
+                onClick={() => {
+                  if (window.confirm("Discard this draft? It will not be recoverable.")) {
+                    try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
+                    setCompose(null);
+                  }
+                }}
+                title="Delete draft"
+              >
+                Discard
+              </button>
+              <button style={ghostBtn} onClick={() => setCompose(null)} title="Save draft and close">
+                Save &amp; Close
               </button>
               <button
                 style={limeBtn}
