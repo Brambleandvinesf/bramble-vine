@@ -2556,16 +2556,12 @@ function Viewer({
           </div>
         </div>
         <button
-          style={{
-            ...ghostBtn,
-            minWidth: 80,
-            padding: "10px 14px",
-            fontSize: "1rem",
-            letterSpacing: 1,
-          }}
+          style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+          title="Close"
+          aria-label="Close"
           onClick={onClose}
         >
-          ✕ CLOSE
+          <X size={24} />
         </button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
