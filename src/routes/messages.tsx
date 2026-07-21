@@ -1861,10 +1861,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
             if (raw) restored = JSON.parse(raw);
           } catch { /* ignore */ }
           if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked)) {
-            setCompose(restored);
+            setCompose({ ...restored, attachments: Array.isArray(restored.attachments) ? restored.attachments : [] });
             flash("Restored saved draft");
           } else {
-            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "" });
+            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "", attachments: [] });
           }
         }}
         style={{
