@@ -1647,6 +1647,7 @@ function StateArrived({
   role,
   event,
   send,
+  locationCheck,
   onDelegate,
   onStart,
   onNoShow,
