@@ -990,36 +990,40 @@ function ConfirmPage() {
             {submitFlash.msg}
           </div>
         )}
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: TEXT,
-            fontSize: 13,
-            marginBottom: 8,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={sendText}
-            onChange={(e) => setSendText(e.target.checked)}
-            style={{ width: 20, height: 20, accentColor: LIME }}
-          />
-          Text the crew the loading link
-        </label>
-        <button
-          style={{ ...SOLID_BTN, width: "100%" }}
-          onClick={submit}
-          disabled={submitting || !!loadErr || state === null}
-        >
-          {submitting
-            ? "CONFIRMING…"
-            : reviewable === false
-              ? "CONFIRM BASE LOAD & NOTIFY CREW"
-              : "CONFIRM SPECIAL LOADING/PROJECTS"}
-        </button>
+        {allHandled && (
+          <>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: TEXT,
+                fontSize: 13,
+                marginBottom: 8,
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={sendText}
+                onChange={(e) => setSendText(e.target.checked)}
+                style={{ width: 20, height: 20, accentColor: LIME }}
+              />
+              Text the crew the loading link
+            </label>
+            <button
+              style={{ ...SOLID_BTN, width: "100%" }}
+              onClick={submit}
+              disabled={submitting || !!loadErr || state === null}
+            >
+              {submitting
+                ? "CONFIRMING…"
+                : reviewable === false
+                  ? "CONFIRM BASE LOAD & NOTIFY CREW"
+                  : "CONFIRM SPECIAL LOADING/PROJECTS"}
+            </button>
+          </>
+        )}
       </div>
       {pickerFor && (
         <ItemPicker
