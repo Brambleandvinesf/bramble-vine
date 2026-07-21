@@ -20,7 +20,7 @@ import {
   Folder,
   Receipt,
   Shield,
-  MoreHorizontal,
+  MoreVertical,
   Maximize2,
   Minimize2,
   X,
