@@ -132,6 +132,11 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+@keyframes bvNewPulse {
+  0%, 100% { border-color: #7cff00; box-shadow: 0 0 0 rgba(124, 255, 0, 0); }
+  50% { border-color: #bfff3c; box-shadow: 0 0 14px rgba(124, 255, 0, 0.55); }
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
