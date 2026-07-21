@@ -1253,6 +1253,44 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
           {badgeCount}
         </span>
         {countdownEl}
+        {canViewAll && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setViewAll((v) => !v);
+            }}
+            title={viewAll ? "Showing all inboxes" : "Show all inboxes"}
+            style={{
+              background: viewAll ? T.lime : T.panel,
+              color: viewAll ? "#0a0a0a" : T.lime,
+              border: `1px solid ${T.lime}`,
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontFamily: fontStack,
+              fontSize: ".75rem",
+              fontWeight: "bold",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            {viewAll ? "VIEW ALL ✓" : "VIEW ALL"}
+          </button>
+        )}
+        {viewAll && (
+          <span
+            style={{
+              background: T.lime,
+              color: "#0a0a0a",
+              borderRadius: 12,
+              padding: "2px 8px",
+              fontSize: ".7rem",
+              fontWeight: "bold",
+              border: `1px solid ${T.lime}`,
+            }}
+          >
+            Viewing all inboxes
+          </span>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
