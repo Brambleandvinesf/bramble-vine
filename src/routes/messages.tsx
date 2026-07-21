@@ -354,6 +354,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   } | null>(null);
   const composeFileInputRef = useRef<HTMLInputElement | null>(null);
   const viewAllSwapRef = useRef(false);
+  const safeLoadRef = useRef(safeLoad);
+  useEffect(() => {
+    safeLoadRef.current = safeLoad;
+  }, [safeLoad]);
 
   // Persist compose to localStorage so a crash/close doesn't lose the draft
   const composeStorageKey = `bv:compose:${email || "anon"}`;
