@@ -358,31 +358,31 @@ function BottomTabBar() {
         })()}
 
         {showMore && (
-          <button
-            key="more"
-            onClick={() => setMoreOpen((v) => !v)}
-            aria-label="More"
-            style={{
-              position: "relative",
-              flex: "0 0 auto",
-              width: 44,
-              minHeight: 56,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            <MoreVertical
-              size={22}
-              color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
-              strokeWidth={2}
-            />
+          <div style={{ position: "relative", flex: "0 0 auto" }}>
+            <button
+              key="more"
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-label="More"
+              style={{
+                width: 44,
+                minHeight: 56,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: "none",
+                color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <MoreVertical
+                size={22}
+                color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
+                strokeWidth={2}
+              />
+            </button>
             {moreOpen && (
               <MorePopover
                 tabs={moreTabs}
@@ -390,7 +390,7 @@ function BottomTabBar() {
                 onClose={() => setMoreOpen(false)}
               />
             )}
-          </button>
+          </div>
         )}
       </nav>
       {moreOpen && (
