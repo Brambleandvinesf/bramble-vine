@@ -1824,12 +1824,15 @@ function ConfirmButton({
     }
   }, [already, onConfirm, phase]);
 
+  const base = iconOnly
+    ? iconBtn
+    : { ...ghostBtn, minWidth: 64, minHeight: 44, padding: "6px 10px", fontSize: "1rem", gap: 6 };
+
   if (already) {
     return (
       <div
         style={{
-          ...iconBtn,
-          ...(iconOnly ? {} : { minWidth: 96, fontSize: "1rem", gap: 6 }),
+          ...base,
           opacity: 0.85,
           borderColor: T.lime,
           color: T.lime,
@@ -1844,8 +1847,7 @@ function ConfirmButton({
 
   const popping = phase === "popping";
   const btnStyle: CSSProperties = {
-    ...iconBtn,
-    ...(iconOnly ? {} : { minWidth: 96, fontSize: "1rem", gap: 6 }),
+    ...base,
     position: "relative",
     color: T.lime,
     borderColor: T.lime,
