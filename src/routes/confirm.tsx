@@ -267,6 +267,28 @@ function ConfirmPage() {
     return map;
   }, [projects, todaysClients]);
 
+  // A card is "handled" (hidden) when deleted, skipped, or confirmed.
+  // Submit surfaces only when zero reviewable cards remain.
+  const allHandled = useMemo(() => {
+    for (const c of todaysClients) {
+      const list = grouped[c] ?? [];
+      for (const p of list) {
+        const key = p.projectId || `row-${p.row}`;
+        const e = edits[key];
+        if (!e) continue;
+        const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
+        const skip = e.status === "SKIP";
+        const confirmed = e.status === "Confirmed" && (state?.confirmed ? false : false);
+        // NOTE: "Confirmed" is the default status on load; treat as handled only
+        // once the user explicitly acted. Track via a separate flag? Simpler:
+        // require the card to have been touched. See explicit set below.
+        if (isDeleted || skip || confirmed) continue;
+        return false;
+      }
+    }
+    return true;
+  }, [todaysClients, grouped, edits, deletes, state]);
+
   const setEdit = useCallback((key: string, patch: Partial<Edit>) => {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }, []);
