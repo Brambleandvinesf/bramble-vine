@@ -683,6 +683,9 @@ function FieldBody({
               onBackToCrew={handleBackToCrew}
               backNotice={backNotice}
               isPreview={isPreview}
+              role={role}
+              event={currentEvent}
+              send={send}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
               onStart={async () => {
                 if (state === "enroute") {
