@@ -385,7 +385,102 @@ function SchedulePage() {
         )}
       </h1>
 
-      {isFieldCrew && confirmed === false && (
+      {isLeadOrMgmt && confirmed === false && !baseLoadDismissed && (
+        <div
+          style={{
+            background: PANEL,
+            border: `2px dashed ${LIME}`,
+            borderRadius: 12,
+            padding: "22px 18px",
+            marginBottom: 16,
+            textAlign: "center",
+            boxShadow: "0 0 22px rgba(124,255,0,.12)",
+          }}
+        >
+          <div
+            style={{
+              color: LIME,
+              fontSize: 16,
+              fontWeight: "bold",
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              marginBottom: 14,
+            }}
+          >
+            Do we need the usual base load today?
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <button
+              onClick={() => void submitBaseLoadYes()}
+              disabled={baseLoadSubmitting}
+              style={{
+                minHeight: 60,
+                padding: "0 32px",
+                background: LIME,
+                color: "#0a0a0a",
+                border: `1px solid ${LIME}`,
+                borderRadius: 8,
+                fontFamily: MONO,
+                fontSize: 18,
+                letterSpacing: 3,
+                fontWeight: "bold",
+                cursor: baseLoadSubmitting ? "wait" : "pointer",
+                opacity: baseLoadSubmitting ? 0.6 : 1,
+              }}
+            >
+              {baseLoadSubmitting ? "…" : "YES"}
+            </button>
+            <button
+              onClick={() => setBaseLoadDismissed(true)}
+              disabled={baseLoadSubmitting}
+              style={{
+                minHeight: 60,
+                padding: "0 32px",
+                background: "transparent",
+                color: LIME,
+                border: `1px solid ${LIME}`,
+                borderRadius: 8,
+                fontFamily: MONO,
+                fontSize: 18,
+                letterSpacing: 3,
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              NO
+            </button>
+          </div>
+          {baseLoadFlash && (
+            <div style={{ marginTop: 12, color: LIME, fontSize: 11, letterSpacing: 1 }}>
+              {baseLoadFlash}
+            </div>
+          )}
+          {reviewable === true && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${BORDER}` }}>
+              <Link
+                to="/confirm"
+                style={{
+                  display: "inline-block",
+                  textDecoration: "none",
+                  minHeight: 48,
+                  padding: "12px 20px",
+                  color: LIME,
+                  border: `1px solid ${LIME}`,
+                  borderRadius: 6,
+                  fontFamily: MONO,
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  fontWeight: "bold",
+                }}
+              >
+                REVIEW TODAY'S PROJECTS →
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {effectiveRole === "assistant" && confirmed === false && (
         <div
           style={{
             background: PANEL,
@@ -408,6 +503,7 @@ function SchedulePage() {
           </div>
         </div>
       )}
+
 
       {loadErr ? (
         <div style={{ color: "#ff6b6b", marginBottom: 12, fontSize: 12 }}>
