@@ -3026,10 +3026,8 @@ function Viewer({
           style={{ ...inputStyle, width: "100%", minHeight: 72, maxHeight: 160, resize: "vertical" }}
         />
         <div style={btnRowStyle}>
-          <div style={btnGroupStyle}>
-            <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Emoji" aria-label="Emoji" onClick={onEmoji}><IconSmile /></button>
-            {!quo && <button style={{ ...iconBtn, minWidth: 44, minHeight: 44 }} title="Attach" aria-label="Attach" onClick={onAttach}><IconClip /></button>}
-          </div>
+          <button style={iconBtn} title="Emoji" aria-label="Emoji" onClick={onEmoji}><IconSmile /></button>
+          {!quo && <button style={iconBtn} title="Attach" aria-label="Attach" onClick={onAttach}><IconClip /></button>}
           <button
             style={{ ...sendBtn, opacity: reply.trim() ? 1 : 0.4 }}
             disabled={!reply.trim()}
@@ -3039,77 +3037,75 @@ function Viewer({
           >
             <Send size={22} />
           </button>
-          <div style={btnGroupStyle}>
+          <button
+            style={iconBtn}
+            title={quo ? "Done" : "File"}
+            aria-label={quo ? "Done" : "File"}
+            onClick={onFile}
+          >
+            <Check size={22} />
+          </button>
+          {showConfirm && (
+            <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
+          )}
+          {onReceipt && !quo && (
             <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title={quo ? "Done" : "File"}
-              aria-label={quo ? "Done" : "File"}
-              onClick={onFile}
+              style={iconBtn}
+              title="Receipt"
+              aria-label="Receipt"
+              onClick={onReceipt}
             >
-              <Check size={22} />
+              <IconRcpt />
             </button>
-            {showConfirm && (
-              <ConfirmButton confirmed={it.confirmed} onConfirm={onConfirm} iconOnly />
-            )}
-            {onReceipt && !quo && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Receipt"
-                aria-label="Receipt"
-                onClick={onReceipt}
-              >
-                <IconRcpt />
-              </button>
-            )}
+          )}
+          <button
+            style={iconBtn}
+            title="Add Project"
+            aria-label="Add Project"
+            onClick={onProject}
+          >
+            <FolderPlus size={22} />
+          </button>
+          {showForwardCrew && (
             <button
-              style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-              title="Add Project"
-              aria-label="Add Project"
-              onClick={onProject}
+              style={iconBtn}
+              title="Forward to Crew"
+              aria-label="Forward to Crew"
+              onClick={onForward}
             >
-              <FolderPlus size={22} />
+              <Users size={22} />
             </button>
-            {showForwardCrew && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Forward to Crew"
-                aria-label="Forward to Crew"
-                onClick={onForward}
-              >
-                <Users size={22} />
-              </button>
-            )}
-            {showForwardOffice && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Forward to office"
-                aria-label="Forward to office"
-                onClick={onForwardOffice}
-              >
-                <Users size={22} />
-              </button>
-            )}
-            {!quo && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Trash"
-                aria-label="Trash"
-                onClick={onTrash}
-              >
-                <Trash2 size={22} />
-              </button>
-            )}
-            {quo && (
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Spam"
-                aria-label="Spam"
-                onClick={onSpam}
-              >
-                <IconPoo />
-              </button>
-            )}
-          </div>
+          )}
+          {showForwardOffice && (
+            <button
+              style={iconBtn}
+              title="Forward to office"
+              aria-label="Forward to office"
+              onClick={onForwardOffice}
+            >
+              <Users size={22} />
+            </button>
+          )}
+          {!quo && (
+            <button
+              style={iconBtn}
+              title="Trash"
+              aria-label="Trash"
+              onClick={onTrash}
+            >
+              <Trash2 size={22} />
+            </button>
+          )}
+          {quo && (
+            <button
+              style={iconBtn}
+              title="Spam"
+              aria-label="Spam"
+              onClick={onSpam}
+            >
+              <IconPoo />
+            </button>
+          )}
         </div>
       </div>
     </div>
