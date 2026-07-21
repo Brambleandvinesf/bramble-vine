@@ -173,11 +173,21 @@ async function textClient(
   return false;
 }
 
+function normalizeForMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\bsector\b/g, "sect")
+    .replace(/\bsect\.?\b/g, "sect")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function matchClient(title: string, clients: string[]): string | null {
-  const t = (title || "").toLowerCase();
+  const t = normalizeForMatch(title || "");
   for (const c of clients) {
-    const n = (c || "").trim();
-    if (n && t.includes(n.toLowerCase())) return n;
+    const n = normalizeForMatch(c || "");
+    if (n && t.includes(n)) return c; // return the ORIGINAL client
+    // string, never the normalized one
   }
   return null;
 }
