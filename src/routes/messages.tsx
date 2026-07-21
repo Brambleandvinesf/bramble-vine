@@ -2244,46 +2244,42 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               }}
             />
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Emoji"
-                aria-label="Emoji"
-                onClick={() =>
-                  setEmojiTarget({
-                    apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
-                  })
-                }
-              >
-                <IconSmile />
-              </button>
-              <button
-                style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                title="Attach"
-                aria-label="Attach"
-                onClick={() => composeFileInputRef.current?.click()}
-              >
-                <IconClip />
-              </button>
-              <div style={{ flex: 1 }} />
-
-              <button
-                style={{ ...ghostBtn, color: T.brightLime, borderColor: T.brightLime }}
-                onClick={() => {
-                  if (window.confirm("Discard this draft? It will not be recoverable.")) {
-                    try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
-                    setCompose(null);
+            <div style={btnRowStyle}>
+              <div style={btnGroupStyle}>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Emoji"
+                  aria-label="Emoji"
+                  onClick={() =>
+                    setEmojiTarget({
+                      apply: (e) => setCompose((c) => (c ? { ...c, text: c.text + e } : c)),
+                    })
                   }
-                }}
-                title="Delete draft"
-              >
-                Discard
-              </button>
-              <button style={ghostBtn} onClick={() => setCompose(null)} title="Save draft and close">
-                Save &amp; Close
-              </button>
+                >
+                  <IconSmile />
+                </button>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Attach"
+                  aria-label="Attach"
+                  onClick={() => composeFileInputRef.current?.click()}
+                >
+                  <IconClip />
+                </button>
+              </div>
               <button
-                style={limeBtn}
+                style={{
+                  ...sendBtn,
+                  opacity:
+                    !compose.text.trim() ||
+                    (compose.channel === "text"
+                      ? !(compose.picked || normalizePhone(compose.manual))
+                      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
+                      ? 0.4
+                      : 1,
+                }}
+                title="Send"
+                aria-label="Send"
                 disabled={
                   !compose.text.trim() ||
                   (compose.channel === "text"
@@ -2292,8 +2288,31 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 }
                 onClick={() => void sendCompose()}
               >
-                Send
+                <Send size={22} />
               </button>
+              <div style={btnGroupStyle}>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Save draft &amp; close"
+                  aria-label="Save draft and close"
+                  onClick={() => setCompose(null)}
+                >
+                  <X size={22} />
+                </button>
+                <button
+                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
+                  title="Discard draft"
+                  aria-label="Discard draft"
+                  onClick={() => {
+                    if (window.confirm("Discard this draft? It will not be recoverable.")) {
+                      try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
+                      setCompose(null);
+                    }
+                  }}
+                >
+                  <Trash2 size={22} />
+                </button>
+              </div>
             </div>
           </ModalPanel>
         </ModalOverlay>
