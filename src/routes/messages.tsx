@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
@@ -1055,18 +1056,32 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           }}
           title={soundEnabled ? "Mute crow shriek" : "Enable crow shriek"}
           style={{
-            background: "transparent",
-            border: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 34,
+            height: 34,
+            background: T.panel,
+            border: `1px solid ${soundEnabled ? T.brightLime : T.border}`,
+            borderRadius: 6,
             color: soundEnabled ? T.brightLime : T.dim,
+            boxShadow: soundEnabled
+              ? `0 0 8px ${T.brightLime}40`
+              : "none",
             fontFamily: fontStack,
             fontWeight: "bold",
             fontSize: "1rem",
             cursor: "pointer",
-            padding: "4px 8px",
+            padding: 0,
             marginLeft: "auto",
+            transition: "all 0.15s ease",
           }}
         >
-          {soundEnabled ? "🔊" : "🔇"}
+          {soundEnabled ? (
+            <Volume2 size={18} strokeWidth={2.5} />
+          ) : (
+            <VolumeX size={18} strokeWidth={2.5} />
+          )}
         </button>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefreshDot refreshing={refreshing} offline={offline} />
