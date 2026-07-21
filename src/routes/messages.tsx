@@ -328,6 +328,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [roster, setRoster] = useState<RosterEntry[]>(() => cached?.roster ?? []);
   const [employees, setEmployees] = useState<Employee[]>(() => cached?.employees ?? []);
   const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
+  const [route, setRoute] = useState<RouteInfo>(() => cached?.route ?? {});
 
 
   // Optimistic
