@@ -1781,14 +1781,13 @@ function FeedCard({
   onFile: () => void;
   onTrash: () => void;
   onSpam: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<boolean>;
   onAttach: () => void;
   onEmoji: (apply: (e: string) => void) => void;
   onProject: () => void;
   onForward: () => void;
   onAddContact: () => void;
   onRemoveStaged: (idx: number) => void;
-  onConfirm: () => Promise<boolean>;
 }) {
   const [reply, setReply] = useState("");
   const quo = it.source === "quo";
