@@ -266,7 +266,7 @@ function AdminPage() {
         ) : null}
 
 
-        {status === "loading" && !perms ? (
+        {tab === "perms" && status === "loading" && !perms ? (
           <div style={{ color: "#8f8f8f", fontSize: 12 }}>Loading…</div>
         ) : null}
 
