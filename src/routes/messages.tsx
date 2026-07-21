@@ -353,6 +353,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     attachments: Attachment[];
   } | null>(null);
   const composeFileInputRef = useRef<HTMLInputElement | null>(null);
+  const viewAllSwapRef = useRef(false);
 
   // Persist compose to localStorage so a crash/close doesn't lose the draft
   const composeStorageKey = `bv:compose:${email || "anon"}`;
