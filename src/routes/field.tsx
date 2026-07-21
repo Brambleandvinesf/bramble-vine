@@ -251,7 +251,7 @@ function hoursBetween(inIso?: string | null, outIso?: string | null): number {
 /* ---------- identity (LA-date sticky) ---------- */
 const OVERHEAD_CLIENT = "Bramble and Vine";
 const ME_KEY = "field.me";
-type Me = { id: string; name: string };
+type Me = { id: string; name: string; role?: "lead" | "assistant" };
 type MeStored = Me & { date: string };
 function laDateKey(): string {
   try {
@@ -271,7 +271,8 @@ function loadMe(): Me | null {
       window.sessionStorage.removeItem(ME_KEY);
       return null;
     }
-    return { id: m.id, name: m.name };
+    const role = m.role === "lead" || m.role === "assistant" ? m.role : undefined;
+    return { id: m.id, name: m.name, role };
   } catch {
     return null;
   }
@@ -920,9 +921,16 @@ function WhoAmI({
   onLoading: () => void;
 }) {
   const [pick, setPick] = useState<Employee | null>(null);
+  const [role, setRole] = useState<"lead" | "assistant">("assistant");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [clockPending, setClockPending] = useState<Me | null>(null);
+
+  useEffect(() => {
+    if (pick) {
+      setRole(pick.name.trim().toLowerCase() === "angel garcia" ? "lead" : "assistant");
+    }
+  }, [pick]);
 
   const clockAndGo = async (m: Me) => {
     setBusy(true);
@@ -945,13 +953,13 @@ function WhoAmI({
     if (!pick) return;
     setBusy(true);
     setErr(null);
-    const j = await send({ action: "joinRoster", id: pick.id, name: pick.name }, { silent: true });
+    const j = await send({ action: "joinRoster", id: pick.id, name: pick.name, role }, { silent: true });
     if (!j.ok) {
       setBusy(false);
       setErr("Couldn't join roster — try again.");
       return;
     }
-    const me = { id: pick.id, name: pick.name };
+    const me = { id: pick.id, name: pick.name, role };
     saveMe(me);
     onIdentified(me);
     setBusy(false);
@@ -987,6 +995,35 @@ function WhoAmI({
           );
         })}
         {employees.length === 0 && <div style={STATE}>No employees returned by backend.</div>}
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <div style={{ color: LIME_DIM, fontSize: 12, letterSpacing: 1, textAlign: "center" }}>
+          WHAT'S YOUR ROLE TODAY?
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          {(["lead", "assistant"] as const).map((r) => {
+            const on = role === r;
+            return (
+              <button
+                key={r}
+                disabled={busy}
+                onClick={() => setRole(r)}
+                style={{
+                  flex: 1,
+                  ...BIG_BTN,
+                  background: on ? LIME : "transparent",
+                  color: on ? BG : LIME,
+                  borderColor: on ? LIME : LIME_DIM,
+                  minHeight: 48,
+                  fontSize: 16,
+                }}
+              >
+                {on ? "● " : ""}{r.toUpperCase()}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {clockPending ? (
@@ -1113,7 +1150,7 @@ function PersonalClockPanel({
     if (isPreview) return;
     setBusy(true);
     if (!roster.some((r) => r.id === me.id)) {
-      const j = await send({ action: "joinRoster", id: me.id, name: me.name }, { silent: true });
+      const j = await send({ action: "joinRoster", id: me.id, name: me.name, role: me.role || "assistant" }, { silent: true });
       if (!j.ok) {
         setBusy(false);
         setBanner({ kind: "err", text: "Couldn't join roster — retry." });
