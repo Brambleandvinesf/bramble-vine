@@ -183,6 +183,27 @@ function HomePage() {
         padding: "14px 12px 24px",
       }}
     >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          padding: "32px 0 28px",
+        }}
+      >
+        <img
+          src="/logo.png"
+          alt="Bramble & Vine"
+          width={1024}
+          height={1024}
+          style={{
+            height: 140,
+            width: "auto",
+            maxWidth: "100%",
+            objectFit: "contain",
+          }}
+        />
+      </div>
+
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "0 4px 10px" }}>
         <div style={{ color: LIME, fontSize: 18, fontWeight: "bold", letterSpacing: 2 }}>
           HOME
