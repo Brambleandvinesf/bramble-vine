@@ -286,6 +286,8 @@ function MessagesPage() {
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
   const showLineBadge = effectiveRole === "management";
+  const showForwardOffice = effectiveRole === "lead" || effectiveRole === "assistant";
+  const showForwardCrew = effectiveRole === "office" || effectiveRole === "management";
 
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
