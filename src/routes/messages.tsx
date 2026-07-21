@@ -108,7 +108,34 @@ type InboxResponse = {
   clients?: string[];
   nextVisit?: { title: string; start: string } | null;
   drafts?: Draft[];
+  lastYes?: string;
 };
+
+/* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
+function weekKeyLA(d: Date): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const y = Number(get("year"));
+  const m = Number(get("month"));
+  const day = Number(get("day"));
+  const wdMap: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+  const back = wdMap[get("weekday")] ?? 0;
+  const local = new Date(Date.UTC(y, m - 1, day));
+  local.setUTCDate(local.getUTCDate() - back);
+  return `${local.getUTCFullYear()}-${local.getUTCMonth() + 1}-${local.getUTCDate()}`;
+}
+function yesThisWeek(lastYes: string | null): boolean {
+  if (!lastYes) return false;
+  const d = new Date(lastYes);
+  if (isNaN(d.getTime())) return false;
+  return weekKeyLA(d) === weekKeyLA(new Date());
+}
 type Contact = { r: string; n: string };
 
 const CONFIRMED_KEY = "bv-confirmed-visits";
