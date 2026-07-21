@@ -2023,6 +2023,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 value: string;
                 disabled?: boolean;
                 title?: string;
+                clientQuery?: string;
               };
               const pills: Pill[] = [];
 
