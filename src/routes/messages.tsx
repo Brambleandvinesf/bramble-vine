@@ -415,8 +415,8 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   /* ---- helpers referencing state ---- */
   const uiQuiet = useCallback(() => {
-    return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !apPick && !rcPick;
-  }, [openItem, labelPick, emojiTarget, acState, fwdPick, apPick, rcPick]);
+    return !openItem && !labelPick && !emojiTarget && !acState && !fwdPick && !offPick && !apPick && !rcPick;
+  }, [openItem, labelPick, emojiTarget, acState, fwdPick, offPick, apPick, rcPick]);
 
   // Detect new awaiting client -> green flash
   const detectNew = useCallback((its: InboxItem[]) => {
