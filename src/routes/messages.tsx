@@ -1788,6 +1788,7 @@ function FeedCard({
   onForward: () => void;
   onAddContact: () => void;
   onRemoveStaged: (idx: number) => void;
+  onConfirm: () => Promise<boolean>;
 }) {
   const [reply, setReply] = useState("");
   const quo = it.source === "quo";
