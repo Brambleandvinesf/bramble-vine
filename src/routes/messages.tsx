@@ -2742,3 +2742,98 @@ async function renderPdfInto(box: HTMLElement, b64: string) {
     await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
   }
 }
+
+/* ---- draft card (standalone drafts, no matching thread) ---- */
+function DraftCard({
+  draft,
+  onEdit,
+  onSend,
+  onDiscard,
+  onEmoji,
+}: {
+  draft: Draft;
+  onEdit: (text: string) => void;
+  onSend: (text: string) => Promise<boolean>;
+  onDiscard: () => void;
+  onEmoji: (apply: (e: string) => void) => void;
+}) {
+  const [text, setText] = useState(draft.text || "");
+  const [sending, setSending] = useState(false);
+  const dateStr = draft.date ? rel(draft.date) : "";
+  return (
+    <div
+      style={{
+        display: "flex",
+        background: T.panel,
+        border: `2px dashed ${T.brightLime}`,
+        borderRadius: 6,
+        padding: 12,
+        margin: "12px 0",
+        gap: 12,
+        alignItems: "flex-start",
+      }}
+    >
+      <div style={{ fontSize: "1.3rem", padding: 8, color: T.brightLime, flex: "none" }}>{"\u2709"}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span
+            style={{
+              border: `1px solid ${T.brightLime}`,
+              color: T.brightLime,
+              background: "rgba(191,255,60,0.08)",
+              borderRadius: 4,
+              padding: "0 6px",
+              fontSize: ".7rem",
+              letterSpacing: 1,
+            }}
+          >
+            DRAFT
+          </span>
+          <span style={{ fontWeight: "bold" }}>{draft.to || "(no recipient)"}</span>
+          <span style={{ marginLeft: "auto", fontSize: ".8rem", opacity: 0.75 }}>{dateStr}</span>
+        </div>
+        <div style={{ marginTop: 4, fontWeight: "bold" }}>{draft.subject || "(no subject)"}</div>
+        {draft.snippet && (
+          <div style={{ marginTop: 4, fontSize: ".9rem", opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {draft.snippet}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <button
+            style={{ ...iconBtn, minHeight: 44, minWidth: 44 }}
+            onClick={() => onEmoji((e) => { setText((v) => { const nv = v + e; onEdit(nv); return nv; }); })}
+          >
+            <IconSmile />
+          </button>
+          <textarea
+            rows={2}
+            value={text}
+            onChange={(e) => { setText(e.target.value); onEdit(e.target.value); }}
+            placeholder="Draft…"
+            style={{ ...inputStyle, flex: 1, minHeight: 60, maxHeight: 200, resize: "vertical" }}
+          />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <button
+              disabled={!text.trim() || sending}
+              style={{ ...ghostBtn, minHeight: 44, padding: "8px 14px", opacity: text.trim() && !sending ? 1 : 0.4 }}
+              onClick={async () => {
+                setSending(true);
+                await onSend(text);
+                setSending(false);
+              }}
+            >
+              Send
+            </button>
+            <button
+              style={{ ...ghostBtn, minHeight: 44, padding: "8px 10px", color: "#ffb03f", borderColor: "#ffb03f" }}
+              onClick={onDiscard}
+              title="Discard draft"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
