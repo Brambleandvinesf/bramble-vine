@@ -2396,25 +2396,26 @@ const ghostBtn: CSSProperties = {
 };
 const iconBtn: CSSProperties = {
   ...ghostBtn,
-  minWidth: 56,
-  minHeight: 56,
+  minWidth: 44,
+  minHeight: 44,
+  width: 44,
+  height: 44,
   padding: 0,
   fontSize: "1.3rem",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
+  flex: "0 0 auto",
 };
 const sendBtn: CSSProperties = {
   ...iconBtn,
-  minWidth: 44,
-  minHeight: 44,
   background: T.brightLime,
   color: T.bg,
   borderColor: T.brightLime,
 };
 const btnRowStyle: CSSProperties = {
   display: "flex",
-  justifyContent: "space-between",
+  justifyContent: "center",
   alignItems: "center",
   gap: 8,
   marginTop: 8,
