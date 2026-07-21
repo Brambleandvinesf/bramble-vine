@@ -543,6 +543,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     setRoster(c?.roster ?? []);
     setEmployees(c?.employees ?? []);
     setLastYes(c?.lastYes ? String(c.lastYes) : null);
+    setInboxRoute(c?.route ?? null);
+
     setFeedLoaded(!!c);
     void safeLoad();
   }, [cacheKey, safeLoad]);
