@@ -183,6 +183,22 @@ function HomePage() {
         padding: "14px 12px 24px",
       }}
     >
+      <img
+        src="/logo.png"
+        alt="Bramble & Vine"
+        style={{
+          display: "block",
+          height: 140,
+          width: "auto",
+          maxWidth: "100%",
+          margin: "0 auto",
+          padding: "28px 0 24px",
+          background: "transparent",
+          border: "none",
+          boxShadow: "none",
+          objectFit: "contain",
+        }}
+      />
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "0 4px 10px" }}>
         <div style={{ color: LIME, fontSize: 18, fontWeight: "bold", letterSpacing: 2 }}>
           HOME
