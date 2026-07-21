@@ -247,6 +247,7 @@ function HomePage() {
   );
 }
 
+
 function BadgeTile({
   to,
   title,
