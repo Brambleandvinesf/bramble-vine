@@ -1850,7 +1850,7 @@ function FeedCard({
             </button>
           )}
           {showClientTag && (
-            <span style={{ border: `1px solid ${T.red}`, color: T.red, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}>
+            <span style={{ border: `1px solid ${T.lime}`, color: T.lime, borderRadius: 4, padding: "0 6px", fontSize: ".7rem" }}>
               CLIENT
             </span>
           )}
