@@ -103,8 +103,9 @@ type Draft = {
   date?: string;
   text?: string;
 };
-type RosterEntry = { id: string; name: string; in?: string | null; out?: string | null };
+type RosterEntry = { id: string; name: string; in?: string | null; out?: string | null; role?: string | null };
 type Employee = { id: string; name: string; email?: string | null; mobile?: string | null };
+type InboxRoute = { client?: string; state?: string };
 type InboxResponse = {
   inbox?: InboxItem[];
   labels?: string[];
@@ -116,7 +117,9 @@ type InboxResponse = {
   roster?: RosterEntry[];
   employees?: Employee[];
   canViewAll?: boolean;
+  route?: InboxRoute | null;
 };
+
 
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
 function weekKeyLA(d: Date): string {
@@ -326,6 +329,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [roster, setRoster] = useState<RosterEntry[]>(() => cached?.roster ?? []);
   const [employees, setEmployees] = useState<Employee[]>(() => cached?.employees ?? []);
   const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
+  const [inboxRoute, setInboxRoute] = useState<InboxRoute | null>(() => cached?.route ?? null);
+
 
 
   // Optimistic
@@ -462,6 +467,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setEmployees(r.employees || []);
       setLastYes(r.lastYes ? String(r.lastYes) : null);
       setCanViewAll(!!r.canViewAll);
+      setInboxRoute(r.route ?? null);
+
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
@@ -536,6 +543,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     setRoster(c?.roster ?? []);
     setEmployees(c?.employees ?? []);
     setLastYes(c?.lastYes ? String(c.lastYes) : null);
+    setInboxRoute(c?.route ?? null);
+
     setFeedLoaded(!!c);
     void safeLoad();
   }, [cacheKey, safeLoad]);
@@ -2046,28 +2055,30 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               );
               const activeRoster = roster.filter((r) => r.in && !r.out && !angelIds.has(r.id) && !/angel/i.test(r.name));
 
-              // Slot 4: assistant-device holder (first remaining)
-              const assistantEntry = activeRoster[0];
-              if (assistantEntry) {
-                if (isEmail) {
-                  pills.push({
-                    key: `asst-${assistantEntry.id}`,
-                    label: assistantEntry.name,
-                    value: "",
-                    disabled: true,
-                    title: `No email on file for ${assistantEntry.name}`,
-                  });
-                } else {
-                  pills.push({
-                    key: `asst-${assistantEntry.id}`,
-                    label: assistantEntry.name,
-                    value: ASSISTANT_DEVICE,
-                  });
-                }
+              // Slot 4: Field Assistant pill — always shown, targets the assistant device line.
+              // If a roster entry has role 'assistant', relabel with that person's name.
+              const rosterAssistant =
+                activeRoster.find((r) => (r.role || "").toLowerCase() === "assistant") || null;
+              const assistantLabel = rosterAssistant ? rosterAssistant.name : "Field Assistant";
+              if (isEmail) {
+                pills.push({
+                  key: "field-assistant",
+                  label: assistantLabel,
+                  value: "",
+                  disabled: true,
+                  title: `No email on file for ${assistantLabel}`,
+                });
+              } else {
+                pills.push({
+                  key: "field-assistant",
+                  label: assistantLabel,
+                  value: ASSISTANT_DEVICE,
+                });
               }
 
-              // Extras: further roster entries, look up in employees
-              const extras = activeRoster.slice(1);
+              // Extras: remaining clocked-in roster entries (excluding the one already
+              // represented by the Field Assistant pill), looked up in employees.
+              const extras = activeRoster.filter((r) => !rosterAssistant || r.id !== rosterAssistant.id);
               for (const r of extras) {
                 const emp = employees.find((e) => e.id === r.id);
                 const val = isEmail ? (emp?.email || "") : (emp?.mobile || "");
@@ -2083,6 +2094,33 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   });
                 }
               }
+
+              // Route-driven client pill: only during arrived/visit/debrief
+              const routeState = (inboxRoute?.state || "").toLowerCase();
+              const routeClient = (inboxRoute?.client || "").trim();
+              const showClientPill =
+                !isEmail && routeClient && (routeState === "arrived" || routeState === "visit" || routeState === "debrief");
+              const clientContact = showClientPill
+                ? contacts.find((c) => c.n.trim().toLowerCase() === routeClient.toLowerCase())
+                : null;
+              if (showClientPill) {
+                if (clientContact) {
+                  pills.push({
+                    key: `client-${routeClient}`,
+                    label: routeClient,
+                    value: clientContact.r,
+                  });
+                } else {
+                  pills.push({
+                    key: `client-${routeClient}`,
+                    label: routeClient,
+                    value: "",
+                    disabled: true,
+                    title: `No phone on file for ${routeClient}`,
+                  });
+                }
+              }
+
 
               const pillStyle = (disabled?: boolean): CSSProperties => ({
                 background: "transparent",
