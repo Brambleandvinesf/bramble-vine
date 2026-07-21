@@ -1781,6 +1781,23 @@ function StateArrived({
             {delegated ? "✓ DELEGATED (TAP TO REVOKE)" : "DELEGATE DEBRIEF (THIS VISIT)"}
           </button>
 
+          {nearBanner && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: "8px 10px",
+                border: `1px solid ${LIME_DIM}`,
+                borderRadius: 4,
+                color: LIME,
+                fontSize: 12,
+                letterSpacing: 0.5,
+                background: "rgba(124,255,0,0.06)",
+              }}
+            >
+              {nearBanner}
+            </div>
+          )}
+
           <button
             onClick={onStart}
             disabled={!anyIn || busy || alreadyTexted || !!isPreview}
