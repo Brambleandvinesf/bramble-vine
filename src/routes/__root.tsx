@@ -292,6 +292,7 @@ function BottomTabBar() {
           bottom: 0,
           zIndex: 100,
           display: "flex",
+          justifyContent: "space-between",
           alignItems: "center",
           background: "#121212",
           borderTop: "1px solid #222",
@@ -310,7 +311,8 @@ function BottomTabBar() {
               aria-label={t.label}
               title={t.label}
               style={{
-                flex: 1,
+                flex: "0 0 auto",
+                width: 44,
                 minHeight: 56,
                 display: "flex",
                 flexDirection: "column",
@@ -326,8 +328,6 @@ function BottomTabBar() {
           );
         })}
 
-        <div style={{ flex: 1 }} />
-
         {(() => {
           const t = messagesTab;
           const active = isActive(t.to);
@@ -340,7 +340,8 @@ function BottomTabBar() {
               aria-label={t.label}
               title={t.label}
               style={{
-                flex: 1,
+                flex: "0 0 auto",
+                width: 44,
                 minHeight: 56,
                 display: "flex",
                 flexDirection: "column",
