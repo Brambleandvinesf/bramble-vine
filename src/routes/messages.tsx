@@ -1338,7 +1338,6 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
             ))}
           </div>
         )}
-        )}
       </div>
 
       {/* status flash */}
