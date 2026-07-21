@@ -1407,6 +1407,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   onAttach={() => openAttach(dItem)}
                   onProject={() => openProject(dItem)}
                   onForward={() => openForward(dItem)}
+                  onForwardOffice={() => openOffice(dItem)}
+                  showForwardCrew={showForwardCrew}
+                  showForwardOffice={showForwardOffice}
                   staged={stagedForDraft}
                   onRemoveStaged={(idx) => removeStaged(d.draftId, idx)}
                   onSend={async (text) => {
