@@ -7,6 +7,7 @@ import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
+import { Check, SkipForward, Trash2 } from "lucide-react";
 
 const CK = "confirm:getConfirm";
 
