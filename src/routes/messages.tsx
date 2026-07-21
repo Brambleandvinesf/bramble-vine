@@ -13,6 +13,7 @@ import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
+import { ensureAudioContext, playCrowShriek } from "../lib/crow-sound";
 
 const CK = "messages:getInbox";
 
@@ -280,6 +281,9 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
 
   // Default view filters to threads awaiting our reply; "Show all" reveals everything
   const [showAll, setShowAll] = useState(false);
+
+  // Crow shriek on new messages
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   // Compose (new outbound message)
   const [compose, setCompose] = useState<{
@@ -988,6 +992,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   /* ---- new-client green flash effect ---- */
   useEffect(() => {
     if (!greenFlash) return;
+    if (soundEnabled) playCrowShriek();
     document.body.style.transition = "background .12s";
     let step = 0;
     const iv = window.setInterval(() => {
@@ -1004,6 +1009,7 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
   /* ============================================================ */
   return (
     <div
+      onClick={() => ensureAudioContext()}
       style={{
         minHeight: "100vh",
         background: T.bg,
@@ -1042,7 +1048,27 @@ function MessagesInner({ showReceipt, showLineBadge, email }: { showReceipt: boo
           {badgeCount}
         </span>
         {countdownEl}
-        <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSoundEnabled((s) => !s);
+          }}
+          title={soundEnabled ? "Mute crow shriek" : "Enable crow shriek"}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: soundEnabled ? T.brightLime : T.dim,
+            fontFamily: fontStack,
+            fontWeight: "bold",
+            fontSize: "1rem",
+            cursor: "pointer",
+            padding: "4px 8px",
+            marginLeft: "auto",
+          }}
+        >
+          {soundEnabled ? "🔊" : "🔇"}
+        </button>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <RefreshDot refreshing={refreshing} offline={offline} />
           {offline && <span style={{ color: T.dim, fontSize: 10 }}>offline — last data</span>}
         </span>
