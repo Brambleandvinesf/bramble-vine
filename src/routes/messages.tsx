@@ -514,6 +514,22 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // When viewAll mode changes, swap to the matching cache and re-fetch
+  useEffect(() => {
+    const c = sessionCache.get<InboxResponse>(cacheKey);
+    setItems(c?.inbox ?? []);
+    setLabels(c?.labels ?? []);
+    setContacts(c?.contacts ?? []);
+    setClients(c?.clients ?? []);
+    setNextVisit(c?.nextVisit ?? null);
+    setDrafts(c?.drafts ?? []);
+    setRoster(c?.roster ?? []);
+    setEmployees(c?.employees ?? []);
+    setLastYes(c?.lastYes ? String(c.lastYes) : null);
+    setFeedLoaded(!!c);
+    void safeLoad();
+  }, [cacheKey, safeLoad]);
+
   /* ---- derived items with optimistic patches ---- */
   const visibleItems = useMemo(
     () =>
