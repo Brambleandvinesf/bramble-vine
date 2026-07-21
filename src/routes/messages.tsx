@@ -479,11 +479,11 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     try {
       await loadInbox();
     } catch {
-      if (sessionCache.has(CK)) setOffline(true);
+      if (sessionCache.has(cacheKey)) setOffline(true);
       else setFeedError(true);
       setFeedLoaded(true);
     }
-  }, [loadInbox]);
+  }, [loadInbox, cacheKey]);
 
   // Initial + ping loop
   const lastFingerRef = useRef<string>("");
