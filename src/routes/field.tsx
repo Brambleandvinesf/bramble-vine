@@ -74,6 +74,7 @@ type RouteDoc = {
   delegated?: boolean;
   anchored?: boolean;
   arrivedAt?: string | null;
+  locationCheck?: { near?: boolean; client?: string } | null;
 };
 
 export type VisitNoteType = "update" | "item" | "future" | "office";
