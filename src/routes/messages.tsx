@@ -446,8 +446,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const loadInbox = useCallback(async () => {
     setRefreshing(true);
     try {
-      const r: InboxResponse = await fetch(SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email)).then((x) => x.json());
-      sessionCache.set(CK, r);
+      let url = SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email);
+      if (viewAll) url += "&viewAll=1";
+      const r: InboxResponse = await fetch(url).then((x) => x.json());
+      sessionCache.set(cacheKey, r);
       const its = r.inbox || [];
       setItems(its);
       setLabels(r.labels || []);
@@ -458,6 +460,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setRoster(r.roster || []);
       setEmployees(r.employees || []);
       setLastYes(r.lastYes ? String(r.lastYes) : null);
+      setCanViewAll(!!r.canViewAll);
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
@@ -470,7 +473,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew, email]);
+  }, [detectNew, email, viewAll, cacheKey]);
 
   const safeLoad = useCallback(async () => {
     try {
