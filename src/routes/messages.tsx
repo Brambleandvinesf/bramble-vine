@@ -1767,6 +1767,7 @@ function FeedCard({
   const isInternal = !!role;
   const showClientTag = !!it.isClient && !isInternal;
   const lineLast4 = quo && showLineBadge && it.line ? String(it.line).replace(/\D/g, "").slice(-4) : "";
+  const isNew = it.unread && it.awaiting;
 
   return (
     <div
