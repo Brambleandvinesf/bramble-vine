@@ -2293,24 +2293,11 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               <div style={btnGroupStyle}>
                 <button
                   style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                  title="Save draft &amp; close"
-                  aria-label="Save draft and close"
+                  title="Close (draft is saved)"
+                  aria-label="Close"
                   onClick={() => setCompose(null)}
                 >
                   <X size={22} />
-                </button>
-                <button
-                  style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
-                  title="Discard draft"
-                  aria-label="Discard draft"
-                  onClick={() => {
-                    if (window.confirm("Discard this draft? It will not be recoverable.")) {
-                      try { window.localStorage.removeItem(composeStorageKey); } catch { /* ignore */ }
-                      setCompose(null);
-                    }
-                  }}
-                >
-                  <Trash2 size={22} />
                 </button>
               </div>
             </div>
