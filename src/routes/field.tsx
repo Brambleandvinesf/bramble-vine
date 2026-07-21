@@ -921,9 +921,16 @@ function WhoAmI({
   onLoading: () => void;
 }) {
   const [pick, setPick] = useState<Employee | null>(null);
+  const [role, setRole] = useState<"lead" | "assistant">("assistant");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [clockPending, setClockPending] = useState<Me | null>(null);
+
+  useEffect(() => {
+    if (pick) {
+      setRole(pick.name.trim().toLowerCase() === "angel garcia" ? "lead" : "assistant");
+    }
+  }, [pick]);
 
   const clockAndGo = async (m: Me) => {
     setBusy(true);
