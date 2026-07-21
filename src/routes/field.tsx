@@ -1150,7 +1150,7 @@ function PersonalClockPanel({
     if (isPreview) return;
     setBusy(true);
     if (!roster.some((r) => r.id === me.id)) {
-      const j = await send({ action: "joinRoster", id: me.id, name: me.name }, { silent: true });
+      const j = await send({ action: "joinRoster", id: me.id, name: me.name, role: me.role || "assistant" }, { silent: true });
       if (!j.ok) {
         setBusy(false);
         setBanner({ kind: "err", text: "Couldn't join roster — retry." });
