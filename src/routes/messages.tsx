@@ -1923,6 +1923,57 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               })}
             </div>
 
+            {/* Quickpick pills */}
+            {(() => {
+              const QUICKPICKS: { key: string; phone: string; email: string | null }[] = [
+                { key: "Office", phone: "+14152343083", email: "info@brambleandvinesf.com" },
+                { key: "Brandon", phone: "+14152343695", email: "brandon@brambleandvinesf.com" },
+                { key: "Assistant", phone: "+14152343696", email: null },
+                { key: "Angel", phone: "+16507105061", email: null },
+              ];
+              const isEmail = compose.channel === "email";
+              const pills = QUICKPICKS.filter((p) => (isEmail ? !!p.email : true));
+              const pillStyle: CSSProperties = {
+                background: "transparent",
+                color: T.lime,
+                border: `1px solid ${T.lime}`,
+                borderRadius: 999,
+                padding: "6px 12px",
+                fontFamily: fontStack,
+                fontSize: ".8rem",
+                fontWeight: "bold",
+                letterSpacing: 1,
+                cursor: "pointer",
+                textTransform: "uppercase",
+              };
+              return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {pills.map((p) => (
+                    <button
+                      key={p.key}
+                      style={pillStyle}
+                      onClick={() => {
+                        if (isEmail) {
+                          setCompose({ ...compose, emailTo: p.email || "" });
+                        } else {
+                          setCompose({
+                            ...compose,
+                            picked: { phone: p.phone, name: p.key },
+                            q: "",
+                            manual: "",
+                          });
+                        }
+                      }}
+                    >
+                      {p.key}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+
+
+
             {compose.channel === "email" ? (
               <>
                 <input
