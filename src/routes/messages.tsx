@@ -2229,6 +2229,7 @@ function FeedCard({
   found,
   staged,
   showLineBadge,
+  showConfirm,
   onOpen,
   onSend,
   onFile,
@@ -2250,6 +2251,7 @@ function FeedCard({
   found: boolean;
   staged: Attachment[];
   showLineBadge: boolean;
+  showConfirm: boolean;
   onOpen: () => void;
   onSend: (text: string, clearField: () => void) => void;
   onFile: () => void;
