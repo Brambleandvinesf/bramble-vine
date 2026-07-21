@@ -14,7 +14,7 @@ import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
-import { ensureAudioContext, playCrowShriek } from "../lib/crow-sound";
+import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
 
 const CK_DEFAULT = "messages:getInbox";
 const CK_ALL = "messages:getInbox:all";
