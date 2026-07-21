@@ -2929,7 +2929,7 @@ function DraftCard({
             <Send size={22} />
           </button>
           <button
-            style={{ ...iconBtn, minWidth: 44, minHeight: 44, color: "#ffb03f", borderColor: "#ffb03f" }}
+            style={{ ...iconBtn, minWidth: 44, minHeight: 44 }}
             onClick={onDiscard}
             title="Discard draft"
             aria-label="Discard draft"
