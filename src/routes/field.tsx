@@ -673,6 +673,18 @@ function FieldBody({
   };
   const bodyRouter = useRouter();
 
+  /* --- assistant loading gate (per-phone identity role, first stop only) --- */
+  const assistantGateEnabled =
+    !isPreview &&
+    !!me &&
+    me.role === "assistant" &&
+    (route.state ?? "enroute") === "enroute" &&
+    stopIndex === 0;
+  const loadingSnap = useLoadingSnapshot(assistantGateEnabled);
+  const assistantGateOpen =
+    assistantGateEnabled &&
+    (!loadingSnap.ready || loadingSnap.confirmed !== true || !loadingSnap.allLoaded);
+
   /* --- manage-full-crew fallback (lead only, always reachable via link) --- */
   if (rosterEdit && !isPreview) {
     return (
