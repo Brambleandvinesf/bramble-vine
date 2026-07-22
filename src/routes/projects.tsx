@@ -713,12 +713,16 @@ function ProjectView({
 
 function EditForm({
   draft,
+  gardenOptions,
+  categoryOptions,
   onChange,
   onSave,
   onCancel,
   saving,
 }: {
   draft: EditDraft;
+  gardenOptions: string[];
+  categoryOptions: string[];
   onChange: (patch: Partial<EditDraft>) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -731,11 +735,19 @@ function EditForm({
       <div style={ROW2}>
         <div style={{ flex: 1 }}>
           <label style={LABEL}>Garden</label>
-          <input value={draft.garden} onChange={(e) => onChange({ garden: e.target.value })} style={INPUT} />
+          <ComboSelect
+            value={draft.garden}
+            options={gardenOptions}
+            onChange={(v) => onChange({ garden: v })}
+          />
         </div>
         <div style={{ flex: 1 }}>
           <label style={LABEL}>Category</label>
-          <input value={draft.category} onChange={(e) => onChange({ category: e.target.value })} style={INPUT} />
+          <ComboSelect
+            value={draft.category}
+            options={categoryOptions}
+            onChange={(v) => onChange({ category: v })}
+          />
         </div>
       </div>
       <div style={ROW2}>
