@@ -225,6 +225,15 @@ function ProjectsPage() {
     return m;
   }, [tools]);
 
+  const gardenOptions = useMemo(
+    () => projects.map((p) => p.garden).filter(Boolean),
+    [projects],
+  );
+  const categoryOptions = useMemo(
+    () => projects.map((p) => p.category).filter(Boolean),
+    [projects],
+  );
+
   const todaySet = useMemo(
     () => new Set(todaysClients.map((c) => c.toLowerCase())),
     [todaysClients],
