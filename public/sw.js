@@ -1,5 +1,5 @@
 // Minimal service worker for PWA installability.
-// Network-first passthrough. No caching (Apps Script must never be cached).
+// Auto-activates new versions immediately and claims all clients.
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
