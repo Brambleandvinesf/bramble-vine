@@ -275,19 +275,104 @@ function BottomTabBar() {
   const { effectiveRole } = useViewAs();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [moreOpen, setMoreOpen] = useState(false);
+  const inboxCount = useBadge(BK.inbox) ?? 0;
+  const receiptsCount = useBadge(BK.receipts) ?? 0;
 
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
 
   if (!effectiveRole) return null;
-  const layout = LAYOUTS[effectiveRole];
-  const rowTabs = layout.row.map((k) => TABS[k]).filter(Boolean);
-  const moreTabs = layout.more.map((k) => TABS[k]).filter(Boolean);
+  const rawLayout = LAYOUTS[effectiveRole];
+
+  // Dynamic icons for lead/assistant: a count-bearing screen only appears on the
+  // bar when its count >= 1; otherwise it stays reachable via the ⋮ menu.
+  const isDynamic = effectiveRole === "lead" || effectiveRole === "assistant";
+  const dynamicRules: Array<{ key: string; count: number }> = isDynamic
+    ? [{ key: "receipts", count: receiptsCount }]
+    : [];
+
+  const rowKeys = [...rawLayout.row];
+  const moreKeys = [...rawLayout.more];
+  for (const rule of dynamicRules) {
+    if (rule.count >= 1) {
+      if (!rowKeys.includes(rule.key)) rowKeys.unshift(rule.key);
+      const i = moreKeys.indexOf(rule.key);
+      if (i >= 0) moreKeys.splice(i, 1);
+    } else {
+      const i = rowKeys.indexOf(rule.key);
+      if (i >= 0) rowKeys.splice(i, 1);
+      if (!moreKeys.includes(rule.key)) moreKeys.push(rule.key);
+    }
+  }
+
+  const rowTabs = rowKeys.map((k) => TABS[k]).filter(Boolean);
+  const moreTabs = moreKeys.map((k) => TABS[k]).filter(Boolean);
   const showMore = moreTabs.length > 0;
   const moreActive = moreTabs.some((t) => isActive(t.to));
 
   const messagesTab = rowTabs.find((t) => t.to === "/messages") || TABS.messages;
   const mainTabs = rowTabs.filter((t) => t.to !== "/messages");
+
+  const badgeFor = (to: string): number => {
+    if (to === "/messages") return inboxCount;
+    if (to === "/receipts") return receiptsCount;
+    return 0;
+  };
+
+  const renderTab = (t: TabDef) => {
+    const active = isActive(t.to);
+    const color = active ? LIME_TAB : DIM_TAB;
+    const Icon = t.icon;
+    const n = badgeFor(t.to);
+    return (
+      <Link
+        key={t.to}
+        to={t.to}
+        aria-label={t.label}
+        title={t.label}
+        style={{
+          position: "relative",
+          flex: "0 0 auto",
+          width: 44,
+          minHeight: 56,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          color,
+          textDecoration: "none",
+          textAlign: "center",
+        }}
+      >
+        <Icon size={22} color={color} strokeWidth={2} />
+        {n >= 1 && (
+          <span
+            aria-label={`${n} awaiting`}
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 2,
+              minWidth: 16,
+              height: 16,
+              padding: "0 4px",
+              borderRadius: 999,
+              background: LIME_TAB,
+              color: "#0a0a0a",
+              fontSize: 10,
+              lineHeight: "16px",
+              fontWeight: 700,
+              letterSpacing: 0,
+              textAlign: "center",
+            }}
+          >
+            {n}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
+  const centeredLayout = isDynamic;
 
   return (
     <>
@@ -298,106 +383,48 @@ function BottomTabBar() {
           right: 0,
           bottom: 0,
           zIndex: 100,
-          display: "flex",
-          justifyContent: "space-between",
+          display: centeredLayout ? "grid" : "flex",
+          gridTemplateColumns: centeredLayout ? "1fr auto 1fr" : undefined,
           alignItems: "center",
+          justifyContent: centeredLayout ? undefined : "space-between",
           background: "#121212",
           borderTop: "1px solid #222",
           fontFamily: "'Courier New', Courier, monospace",
           paddingBottom: "env(safe-area-inset-bottom, 0px)",
         }}
       >
-        {mainTabs.map((t) => {
-          const active = isActive(t.to);
-          const color = active ? LIME_TAB : DIM_TAB;
-          const Icon = t.icon;
-          return (
-            <Link
-              key={t.to}
-              to={t.to}
-              aria-label={t.label}
-              title={t.label}
-              style={{
-                flex: "0 0 auto",
-                width: 44,
-                minHeight: 56,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color,
-                textDecoration: "none",
-                textAlign: "center",
-              }}
-            >
-              <Icon size={22} color={color} strokeWidth={2} />
-            </Link>
-          );
-        })}
-
-        {(() => {
-          const t = messagesTab;
-          const active = isActive(t.to);
-          const color = active ? LIME_TAB : DIM_TAB;
-          const Icon = t.icon;
-          return (
-            <Link
-              key={t.to}
-              to={t.to}
-              aria-label={t.label}
-              title={t.label}
-              style={{
-                flex: "0 0 auto",
-                width: 44,
-                minHeight: 56,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                color,
-                textDecoration: "none",
-                textAlign: "center",
-              }}
-            >
-              <Icon size={22} color={color} strokeWidth={2} />
-            </Link>
-          );
-        })()}
-
-        {showMore && (
-          <div style={{ position: "relative", flex: "0 0 auto" }}>
-            <button
-              key="more"
-              onClick={() => setMoreOpen((v) => !v)}
-              aria-label="More"
-              style={{
-                width: 44,
-                minHeight: 56,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "transparent",
-                border: "none",
-                color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
-                cursor: "pointer",
-                padding: 0,
-              }}
-            >
-              <MoreVertical
-                size={22}
-                color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
-                strokeWidth={2}
-              />
-            </button>
-            {moreOpen && (
-              <MorePopover
+        {centeredLayout ? (
+          <>
+            <div style={{ display: "flex", justifyContent: "flex-start", paddingLeft: 4 }}>
+              {mainTabs.map(renderTab)}
+            </div>
+            <div style={{ display: "flex", justifyContent: "center" }}>{renderTab(messagesTab)}</div>
+            <div style={{ display: "flex", justifyContent: "flex-end", paddingRight: 4 }}>
+              {showMore && (
+                <MoreButton
+                  moreActive={moreActive}
+                  moreOpen={moreOpen}
+                  setMoreOpen={setMoreOpen}
+                  tabs={moreTabs}
+                  isActive={isActive}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {mainTabs.map(renderTab)}
+            {renderTab(messagesTab)}
+            {showMore && (
+              <MoreButton
+                moreActive={moreActive}
+                moreOpen={moreOpen}
+                setMoreOpen={setMoreOpen}
                 tabs={moreTabs}
                 isActive={isActive}
-                onClose={() => setMoreOpen(false)}
               />
             )}
-          </div>
+          </>
         )}
       </nav>
       {moreOpen && (
@@ -407,6 +434,51 @@ function BottomTabBar() {
         />
       )}
     </>
+  );
+}
+
+function MoreButton({
+  moreActive,
+  moreOpen,
+  setMoreOpen,
+  tabs,
+  isActive,
+}: {
+  moreActive: boolean;
+  moreOpen: boolean;
+  setMoreOpen: (updater: (v: boolean) => boolean) => void;
+  tabs: TabDef[];
+  isActive: (to: string) => boolean;
+}) {
+  return (
+    <div style={{ position: "relative", flex: "0 0 auto" }}>
+      <button
+        onClick={() => setMoreOpen((v) => !v)}
+        aria-label="More"
+        style={{
+          width: 44,
+          minHeight: 56,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "transparent",
+          border: "none",
+          color: moreActive || moreOpen ? LIME_TAB : DIM_TAB,
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        <MoreVertical
+          size={22}
+          color={moreActive || moreOpen ? LIME_TAB : DIM_TAB}
+          strokeWidth={2}
+        />
+      </button>
+      {moreOpen && (
+        <MorePopover tabs={tabs} isActive={isActive} onClose={() => setMoreOpen(() => false)} />
+      )}
+    </div>
   );
 }
 
