@@ -235,7 +235,7 @@ function SchedulePage() {
       const j = (await res.json()) as { ok?: boolean; error?: string; state?: { confirmed?: boolean } };
       if (!j.ok) throw new Error(j.error || "not ok");
       if (j.state?.confirmed) setConfirmed(true);
-      setBaseLoadFlash("BASE LOAD CONFIRMED — CREW NOTIFIED");
+      setBaseLoadFlash("DAILY LOAD CONFIRMED — CREW NOTIFIED");
     } catch (e) {
       setBaseLoadFlash(`FAILED: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
@@ -430,7 +430,7 @@ function SchedulePage() {
               marginBottom: 14,
             }}
           >
-            Do we need the usual base load today?
+            Do we need the usual daily load today?
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button

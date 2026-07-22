@@ -200,6 +200,21 @@ function ConfirmPage() {
   const [submitFlash, setSubmitFlash] = useState<{ msg: string; err: boolean } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [animating, setAnimating] = useState<Record<string, "confirm" | "skip" | "delete">>({});
+  const beginAnim = useCallback(
+    (key: string, kind: "confirm" | "skip" | "delete", after: () => void) => {
+      setAnimating((p) => ({ ...p, [key]: kind }));
+      window.setTimeout(() => {
+        setAnimating((p) => {
+          const n = { ...p };
+          delete n[key];
+          return n;
+        });
+        after();
+      }, 300);
+    },
+    [],
+  );
 
   const fetchedRef = useRef(false);
 
@@ -453,6 +468,44 @@ function ConfirmPage() {
     [projects, markSync],
   );
 
+  const removeItemFromExisting = useCallback(
+    async (client: string, projectId: string, idx: number, it: Item) => {
+      const snapshot = projects;
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.projectId === projectId
+            ? { ...p, items: p.items.filter((_, i) => i !== idx) }
+            : p,
+        ),
+      );
+      markSync(projectId, true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "removeItem",
+            client,
+            projectId,
+            item: { name: it.name, qty: it.qty, size: it.size },
+          }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) throw new Error(json.error || "not ok");
+      } catch (err) {
+        setProjects(snapshot);
+        setSubmitFlash({
+          msg: err instanceof Error ? `Couldn't remove item — ${err.message}` : "Couldn't remove item",
+          err: true,
+        });
+      } finally {
+        markSync(projectId, false);
+      }
+    },
+    [projects, markSync],
+  );
+
+
   const distinctTypes = useMemo(() => {
     const set = new Set<string>();
     for (const p of projects) if (p.type.trim()) set.add(p.type.trim());
@@ -558,16 +611,28 @@ function ConfirmPage() {
 
   return (
     <div style={PAGE}>
+      <style>{`
+        @keyframes bvFlashLime {
+          0%,100% { background:#121212; box-shadow:none; }
+          50% { background:rgba(124,255,0,.22); box-shadow:0 0 18px rgba(124,255,0,.35); }
+        }
+        @keyframes bvSlideRightFade {
+          to { transform: translateX(40%); opacity: .5; }
+        }
+        @keyframes bvShrinkOut {
+          to { transform: scale(.85); opacity: 0; }
+        }
+      `}</style>
       <header style={HEADER}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
             CONFIRM DAY
           </div>
           <RefreshDot refreshing={refreshing} offline={offline} />
-          {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
+          {offline && <span style={{ color: MUTED, fontSize: 14 }}>offline — last data</span>}
         </div>
         <div style={{ marginTop: 4, color: TEXT, fontSize: 14 }}>{todayLabel()}</div>
-        <div style={{ marginTop: 2, fontSize: 12, color: MUTED }}>
+        <div style={{ marginTop: 2, fontSize: 14, color: MUTED }}>
           Confirm today's loading list
         </div>
         {state?.confirmed && (
@@ -575,11 +640,7 @@ function ConfirmPage() {
             ✓ Confirmed{state.at ? ` at ${timeLabel(state.at)}` : ""} — re-confirming allowed
           </div>
         )}
-        {user && (
-          <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
-            SIGNED IN AS {user.toUpperCase()}
-          </div>
-        )}
+        {user ? null : null}
       </header>
 
       {loadErr && (
@@ -638,7 +699,7 @@ function ConfirmPage() {
                 >
                   {client}
                 </span>
-                <div style={{ fontSize: 11, color: MUTED, textAlign: "center", width: "100%", marginTop: 4 }}>
+                <div style={{ fontSize: 14, color: MUTED, textAlign: "center", width: "100%", marginTop: 4 }}>
                   {list.length} project{list.length === 1 ? "" : "s"}
                 </div>
               </div>
@@ -653,6 +714,7 @@ function ConfirmPage() {
                 const confirmed = e.status === "Confirmed";
                 // Optimistically hide handled cards (deleted / skipped / confirmed).
                 if (isDeleted || skip || confirmed) return null;
+                const anim = animating[key];
                 return (
                   <div
                     key={key}
@@ -660,6 +722,14 @@ function ConfirmPage() {
                       ...CARD,
                       marginTop: 8,
                       opacity: isDeleted ? 0.4 : skip ? 0.55 : 1,
+                      animation:
+                        anim === "confirm"
+                          ? "bvFlashLime 300ms ease"
+                          : anim === "skip"
+                            ? "bvSlideRightFade 300ms ease forwards"
+                            : anim === "delete"
+                              ? "bvShrinkOut 300ms ease forwards"
+                              : undefined,
                     }}
                   >
                     <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
@@ -693,7 +763,19 @@ function ConfirmPage() {
                             .join(" · ");
                           return (
                             <span key={i} style={ITEM_PILL} title={it.notes || undefined}>
-                              {label || it.name}
+                              <span style={{ paddingRight: 4 }}>{label || it.name}</span>
+                              {p.projectId && (
+                                <button
+                                  aria-label="Remove item"
+                                  title="Remove item"
+                                  onClick={() =>
+                                    void removeItemFromExisting(client, p.projectId, i, it)
+                                  }
+                                  style={ITEM_PILL_X}
+                                >
+                                  ×
+                                </button>
+                              )}
                             </span>
                           );
                         })}
@@ -765,11 +847,11 @@ function ConfirmPage() {
                       }}
                     >
                       {p.projectId ? (
-                        <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>
+                        <span style={{ fontSize: 14, color: MUTED, letterSpacing: 1 }}>
                           {p.projectId}
                         </span>
                       ) : (
-                        <span style={{ fontSize: 10, color: AMBER, letterSpacing: 1 }}>
+                        <span style={{ fontSize: 14, color: AMBER, letterSpacing: 1 }}>
                           NO ID (won't save)
                         </span>
                       )}
@@ -797,7 +879,9 @@ function ConfirmPage() {
                         aria-label="Confirm"
                         title="Confirm"
                         style={ICON_ACTION_BTN}
-                        onClick={() => setEdit(key, { status: "Confirmed" })}
+                        onClick={() =>
+                          beginAnim(key, "confirm", () => setEdit(key, { status: "Confirmed" }))
+                        }
                       >
                         <Check size={20} />
                       </button>
@@ -805,7 +889,9 @@ function ConfirmPage() {
                         aria-label="Skip"
                         title="Skip"
                         style={ICON_ACTION_BTN}
-                        onClick={() => setEdit(key, { status: "SKIP" })}
+                        onClick={() =>
+                          beginAnim(key, "skip", () => setEdit(key, { status: "SKIP" }))
+                        }
                       >
                         <SkipForward size={20} />
                       </button>
@@ -814,7 +900,21 @@ function ConfirmPage() {
                           aria-label="Delete"
                           title="Delete"
                           style={ICON_ACTION_BTN}
-                          onClick={() => requestDelete(p.projectId, e.action)}
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                `Delete this project?\n\n${e.action || "(no action)"}`,
+                              )
+                            )
+                              return;
+                            beginAnim(key, "delete", () => {
+                              setDeletes((prev) => {
+                                const next = new Set(prev);
+                                next.add(p.projectId);
+                                return next;
+                              });
+                            });
+                          }}
                         >
                           <Trash2 size={20} />
                         </button>
@@ -845,7 +945,7 @@ function ConfirmPage() {
               {newList.map((n) => (
                 <div key={n.key} style={{ ...CARD, marginTop: 8, borderColor: LIME_DIM }}>
                   <div style={{ display: "flex", alignItems: "baseline", marginBottom: 8 }}>
-                    <span style={{ color: LIME, fontSize: 11, letterSpacing: 1 }}>
+                    <span style={{ color: LIME, fontSize: 14, letterSpacing: 1 }}>
                       NEW PROJECT
                     </span>
                     <div style={{ flex: 1 }} />
@@ -904,7 +1004,7 @@ function ConfirmPage() {
                   <div style={{ marginTop: 10 }}>
                     <div
                       style={{
-                        fontSize: 11,
+                        fontSize: 14,
                         color: MUTED,
                         letterSpacing: 1,
                         marginBottom: 6,
@@ -927,10 +1027,10 @@ function ConfirmPage() {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: LIME, fontSize: 12, fontWeight: "bold", wordBreak: "break-word" }}>
+                          <div style={{ color: LIME, fontSize: 14, fontWeight: "bold", wordBreak: "break-word" }}>
                             {it.name}
                           </div>
-                          <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+                          <div style={{ color: MUTED, fontSize: 14, marginTop: 2 }}>
                             {[it.qty && `Qty ${it.qty}`, it.size, it.notes].filter(Boolean).join(" · ") || "—"}
                           </div>
                         </div>
@@ -986,7 +1086,7 @@ function ConfirmPage() {
         {submitFlash && (
           <div
             style={{
-              fontSize: 12,
+              fontSize: 14,
               color: submitFlash.err ? RED : LIME,
               marginBottom: 8,
             }}
@@ -1023,7 +1123,7 @@ function ConfirmPage() {
               {submitting
                 ? "CONFIRMING…"
                 : reviewable === false
-                  ? "CONFIRM BASE LOAD & NOTIFY CREW"
+                  ? "CONFIRM DAILY LOAD & NOTIFY CREW"
                   : "CONFIRM SPECIAL LOADING/PROJECTS"}
             </button>
           </>
@@ -1207,7 +1307,7 @@ const LIME_BRIGHT = "#bfff3c";
 const LIME_DIM = "rgba(124,255,0,.35)";
 const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
-const MUTED = "#8f8f8f";
+const MUTED = "#b8b8b8";
 const LINE = "#2a2a2a";
 const RED = "#ff3b30";
 
@@ -1233,7 +1333,7 @@ const SUCCESS_BANNER: React.CSSProperties = {
   border: `1px solid ${LIME_DIM}`,
   color: LIME,
   borderRadius: 6,
-  fontSize: 12,
+  fontSize: 14,
 };
 const CLIENT_CARD: React.CSSProperties = {
   background: "#0f1509",
@@ -1259,7 +1359,7 @@ const CARD: React.CSSProperties = {
 
 const LABEL: React.CSSProperties = {
   display: "block",
-  fontSize: 10,
+  fontSize: 14,
   color: MUTED,
   letterSpacing: 1,
   margin: "8px 0 4px",
@@ -1298,14 +1398,35 @@ const ITEMS_ROW: React.CSSProperties = {
   gap: 10,
 };
 const ITEM_PILL: React.CSSProperties = {
-  display: "inline-block",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
   fontSize: 18,
   color: LIME_BRIGHT,
   background: "#0a0a0a",
   border: `1px solid ${LIME_BRIGHT}`,
   borderRadius: 999,
-  padding: "8px 18px",
+  padding: "4px 6px 4px 14px",
   letterSpacing: 0.5,
+};
+const ITEM_PILL_X: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 32,
+  minHeight: 32,
+  width: 32,
+  height: 32,
+  padding: 0,
+  marginLeft: 2,
+  background: "transparent",
+  color: LIME_BRIGHT,
+  border: `1px solid ${LIME_DIM}`,
+  borderRadius: 999,
+  fontFamily: "inherit",
+  fontSize: 18,
+  lineHeight: 1,
+  cursor: "pointer",
 };
 const ADD_ITEM_BTN: React.CSSProperties = {
   background: "transparent",

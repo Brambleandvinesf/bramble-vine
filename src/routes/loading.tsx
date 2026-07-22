@@ -271,7 +271,7 @@ function LoadingPage() {
       )}
 
       {!loadErr && confirm?.confirmed && reviewable === false && (
-        <div style={STATE}>Base load only — nothing extra today</div>
+        <div style={STATE}>Daily load only — nothing extra today</div>
       )}
 
       {!loadErr && confirm?.confirmed && reviewable !== false && (
@@ -289,7 +289,7 @@ function LoadingPage() {
                 {" of "}
                 {totals.total} loaded
               </span>
-              {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
+              {offline && <span style={{ color: MUTED, fontSize: 14 }}>offline — last data</span>}
             </div>
             <div style={METER}>
               <div
@@ -302,7 +302,7 @@ function LoadingPage() {
               />
             </div>
             {user && (
-              <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
+              <div style={{ marginTop: 6, fontSize: 14, color: MUTED, letterSpacing: 1 }}>
                 SIGNED IN AS {user.toUpperCase()}
               </div>
             )}
@@ -337,10 +337,10 @@ function LoadingPage() {
                   return (
                     <div key={project} style={{ marginBottom: 12 }}>
                       <div style={PROJECT_HEAD}>
-                        <span style={{ color: DIM_GREEN, fontSize: 12, letterSpacing: 1 }}>
+                        <span style={{ color: DIM_GREEN, fontSize: 14, letterSpacing: 1 }}>
                           {project}
                         </span>
-                        <span style={{ fontSize: 12, color: MUTED, marginLeft: "auto" }}>
+                        <span style={{ fontSize: 14, color: MUTED, marginLeft: "auto" }}>
                           {done} of {rows.length} loaded
                         </span>
                       </div>
@@ -607,7 +607,7 @@ const LIME_DIM = "rgba(124,255,0,.35)";
 const DIM_GREEN = "#4a7a1e";
 const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
-const MUTED = "#8f8f8f";
+const MUTED = "#b8b8b8";
 const LINE = "#2a2a2a";
 const RED = "#ff3b30";
 
