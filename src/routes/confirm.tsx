@@ -1255,7 +1255,7 @@ const CARD: React.CSSProperties = {
 
 const LABEL: React.CSSProperties = {
   display: "block",
-  fontSize: 10,
+  fontSize: 14,
   color: MUTED,
   letterSpacing: 1,
   margin: "8px 0 4px",
