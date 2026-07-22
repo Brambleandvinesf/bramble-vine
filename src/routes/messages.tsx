@@ -1986,6 +1986,26 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 </button>
               ))}
             </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Garden</label>
+                <ComboSelect
+                  value={apPick.garden}
+                  options={gardenOptions}
+                  onChange={(v) => setApPick({ ...apPick, garden: v })}
+                  placeholder="Select garden…"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Category</label>
+                <ComboSelect
+                  value={apPick.category}
+                  options={categoryOptions}
+                  onChange={(v) => setApPick({ ...apPick, category: v })}
+                  placeholder="Select category…"
+                />
+              </div>
+            </div>
             <label style={labelStyle}>Notes (optional)</label>
             <input
               value={apPick.notes}
