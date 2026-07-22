@@ -8,6 +8,7 @@ import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
+import { PayrollConfirm } from "../components/PayrollConfirm";
 
 const CK = "field:getField";
 
