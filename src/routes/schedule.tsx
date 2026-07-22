@@ -518,12 +518,13 @@ function SchedulePage() {
             boxShadow: "0 0 22px rgba(124,255,0,.12)",
           }}
         >
-          Awaiting deployment instructions…
-          <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 6, letterSpacing: 1, fontWeight: "normal" }}>
-            You'll be sent to the loading list the moment the lead confirms.
+          Waiting for Daily Load Confirmation
+          <div style={{ color: DIM_GREEN, fontSize: 12, marginTop: 8, letterSpacing: 1, fontWeight: "normal", textTransform: "none" }}>
+            You'll get a push notification the moment the lead confirms. Head to Field when you're ready to load.
           </div>
         </div>
       )}
+
 
 
       {loadErr ? (
