@@ -289,7 +289,7 @@ const fontStack = "'Courier New', Courier, monospace";
 /* ============ Component ============ */
 export function MessagesPage() {
   const { effectiveRole } = useViewAs();
-  const { email } = useAuth();
+  const { email, ready } = useAuth();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "messages");
   const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
@@ -300,6 +300,19 @@ export function MessagesPage() {
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
+
+  useEffect(() => {
+    if (ready && !email) void navigate({ to: "/login" });
+  }, [ready, email, navigate]);
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] px-4">
+        <div className="text-sm font-bold tracking-widest text-[#7cff00]">LOADING</div>
+      </div>
+    );
+  }
+
   if (!allowed) return null;
   if (!email) return null;
 
