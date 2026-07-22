@@ -695,7 +695,36 @@ function ConfirmPage() {
           const newList = newByClient[client] ?? [];
           return (
             <section key={client} style={{ margin: "16px 12px 0" }}>
-              <div style={CLIENT_CARD}>
+              {confirmedClients.has(client) ? (
+                <button
+                  onClick={() => toggleClientConfirmed(client)}
+                  style={{
+                    ...CLIENT_CARD,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    cursor: "pointer",
+                    padding: "14px 16px",
+                    background: "#0f1509",
+                    color: LIME_BRIGHT,
+                    fontFamily: "inherit",
+                    textAlign: "left",
+                  }}
+                  title="Tap to re-open"
+                >
+                  <Check size={22} />
+                  <span style={{ fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+                    {client}
+                  </span>
+                </button>
+              ) : (
+              <div
+                style={{
+                  ...CLIENT_CARD,
+                  animation: flashClient === client ? "bvFlashLime 300ms ease" : undefined,
+                }}
+              >
               <div style={CLIENT_HEAD}>
                 <span
                   style={{
@@ -713,6 +742,7 @@ function ConfirmPage() {
                   {list.length} project{list.length === 1 ? "" : "s"}
                 </div>
               </div>
+
 
 
               {rendered.map((p) => {
