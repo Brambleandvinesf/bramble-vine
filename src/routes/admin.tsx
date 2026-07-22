@@ -267,6 +267,8 @@ function AdminPage() {
 
         {tab === "notifications" ? <NotificationScheduleCard /> : null}
 
+        {tab === "todo" ? <TodoAdmin /> : null}
+
         {tab === "perms" ? (
           <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
             Read-only — canonical matrix lives in the backend.
