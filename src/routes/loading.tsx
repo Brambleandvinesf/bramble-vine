@@ -780,6 +780,37 @@ const CLIENT_HEAD: React.CSSProperties = {
   gap: 10,
   padding: "0 4px 8px",
 };
+const CLIENT_CONFIRMED_ROW: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  width: "100%",
+  minHeight: 52,
+  padding: "10px 14px",
+  background: "#0f1a08",
+  border: `1px solid ${LIME_DIM}`,
+  borderRadius: 10,
+  color: TEXT,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  textAlign: "left",
+};
+const CONFIRM_CLIENT_BTN: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  marginTop: 12,
+  minHeight: 56,
+  padding: "12px 16px",
+  background: LIME,
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: 10,
+  fontFamily: "inherit",
+  fontSize: 15,
+  letterSpacing: 2,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
 const PROJECT_HEAD: React.CSSProperties = {
   display: "flex",
   alignItems: "baseline",
