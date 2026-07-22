@@ -3172,6 +3172,9 @@ function Viewer({
                   <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "center" }}>
                     {m.body}
                   </div>
+                  {m.media && m.media.length > 0 && (
+                    <MediaStrip media={m.media} />
+                  )}
                 </div>
               );
             })
