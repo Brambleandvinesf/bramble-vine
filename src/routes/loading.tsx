@@ -271,7 +271,7 @@ function LoadingPage() {
       )}
 
       {!loadErr && confirm?.confirmed && reviewable === false && (
-        <div style={STATE}>Base load only — nothing extra today</div>
+        <div style={STATE}>Daily load only — nothing extra today</div>
       )}
 
       {!loadErr && confirm?.confirmed && reviewable !== false && (
