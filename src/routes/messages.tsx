@@ -2193,7 +2193,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 : null;
 
               const pillStyle = (disabled?: boolean, selected?: boolean): CSSProperties => ({
-                background: selected ? T.lime : "transparent",
+                background: selected ? T.lime : T.panel,
+                backgroundColor: selected ? T.lime : T.panel,
                 color: selected ? "#0a0a0a" : T.lime,
                 border: `1px solid ${T.lime}`,
                 borderRadius: 999,
@@ -2205,6 +2206,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 cursor: disabled ? "not-allowed" : "pointer",
                 textTransform: "uppercase",
                 opacity: disabled ? 0.4 : 1,
+                transition: "background-color .15s, color .15s",
               });
               if (showClientPill) {
                 if (clientContact) {
