@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
+import { confirmModal } from "../components/ConfirmModal";
 
 export const Route = createFileRoute("/visits")({
   head: () => ({
