@@ -62,18 +62,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
+      const lastDay = localStorage.getItem(DAY_KEY);
+      const today = crewDayLA();
+      if (stored && lastDay === today) {
         const e = lookup(stored);
         if (e) {
           setUser(e.email);
           setEntry(e);
         }
+      } else if (stored) {
+        // Nightly reset — force sign-in.
+        try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+        try { localStorage.removeItem(DAY_KEY); } catch { /* ignore */ }
       }
     } catch {
       // ignore
     }
     setReady(true);
   }, []);
+
+  // On resume/focus, re-check day; if rolled past 5am, force sign-out.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const check = () => {
+      try {
+        const lastDay = localStorage.getItem(DAY_KEY);
+        if (lastDay && lastDay !== crewDayLA()) {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(DAY_KEY);
+          setUser(null);
+          setEntry(null);
+        }
+      } catch { /* ignore */ }
+    };
+    const onVis = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", check);
+    const id = window.setInterval(check, 5 * 60 * 1000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", check);
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const signIn = useCallback((email: string) => {
+    const e = lookup(email);
+    if (!e) {
+      return { ok: false as const, error: "This email is not on the crew allowlist." };
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, e.email);
+      localStorage.setItem(DAY_KEY, crewDayLA());
+    } catch {
+      // ignore
+    }
+    setUser(e.email);
+    setEntry(e);
+    return { ok: true as const };
+  }, []);
+
 
   const signIn = useCallback((email: string) => {
     const e = lookup(email);
