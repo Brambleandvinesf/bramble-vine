@@ -231,8 +231,8 @@ function AdminPage() {
           ADMIN
         </h1>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {(["perms", "teams"] as const).map((k) => {
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {(["perms", "teams", "notifications"] as const).map((k) => {
             const active = tab === k;
             return (
               <button
@@ -251,7 +251,7 @@ function AdminPage() {
                   textTransform: "uppercase",
                 }}
               >
-                {k === "perms" ? "Permissions" : "Teams"}
+                {k === "perms" ? "Permissions" : k === "teams" ? "Teams" : "Notifications"}
               </button>
             );
           })}
