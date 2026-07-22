@@ -899,19 +899,19 @@ function NotificationScheduleCard() {
                 textAlign: "left",
                 textTransform: "uppercase",
                 letterSpacing: 1,
-                fontSize: 10,
+                fontSize: 9,
               }}
             >
-              <th style={{ padding: "10px 12px", borderBottom: "1px solid #2a2a2a", width: "26%" }}>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "24%" }}>
                 What
               </th>
-              <th style={{ padding: "10px 12px", borderBottom: "1px solid #2a2a2a", width: "18%" }}>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "18%" }}>
                 Who
               </th>
-              <th style={{ padding: "10px 12px", borderBottom: "1px solid #2a2a2a", width: "34%" }}>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "41%" }}>
                 When
               </th>
-              <th style={{ padding: "10px 12px", borderBottom: "1px solid #2a2a2a", width: "22%" }}>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "17%" }}>
                 How
               </th>
             </tr>
@@ -919,22 +919,59 @@ function NotificationScheduleCard() {
           <tbody>
             {NOTIFICATION_ROWS.map((r, i) => (
               <tr key={i} style={{ color: "#e8e8e8", borderBottom: "1px solid #1a1a1a" }}>
-                <td style={{ padding: "10px 12px", verticalAlign: "top", fontWeight: "bold" }}>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    fontWeight: "bold",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {r.what}
                 </td>
-                <td style={{ padding: "10px 12px", verticalAlign: "top", color: "#b8b8b8" }}>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    color: "#b8b8b8",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {r.who}
                 </td>
-                <td style={{ padding: "10px 12px", verticalAlign: "top", color: "#b8b8b8" }}>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    color: "#b8b8b8",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {r.when}
                 </td>
-                <td style={{ padding: "10px 12px", verticalAlign: "top", color: "#b8b8b8" }}>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    color: "#b8b8b8",
+                    wordBreak: "break-word",
+                  }}
+                >
                   {r.how}
                 </td>
               </tr>
             ))}
             <tr>
-              <td colSpan={4} style={{ padding: 12, color: "#8f8f8f", fontSize: 11, borderTop: "1px solid #2a2a2a" }}>
+              <td
+                colSpan={4}
+                style={{
+                  padding: 10,
+                  color: "#8f8f8f",
+                  fontSize: 10,
+                  borderTop: "1px solid #2a2a2a",
+                  wordBreak: "break-word",
+                }}
+              >
                 Push = Pushover now; MacroDroid bubble+voice mirrors all pushes once per-phone webhooks are configured.
               </td>
             </tr>
