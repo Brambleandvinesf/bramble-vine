@@ -67,12 +67,12 @@ function HomePage() {
   );
   const [confirmLoading, setConfirmLoading] = useState(() => !sessionCache.has(CK_CONFIRM));
 
-  // Lead/assistant never land on Home — go straight to Field.
-  // Lead/management: Home is off-limits until the day is confirmed;
+  // Lead → Field. Assistant → Schedule (morning holding).
+  // Management: Home is off-limits until the day is confirmed;
   // /schedule owns the base-load Yes/No gate.
   useEffect(() => {
     if (role === "assistant") {
-      void navigate({ to: "/field" });
+      void navigate({ to: "/schedule" });
       return;
     }
     if (role !== "lead" && role !== "management") return;

@@ -101,6 +101,106 @@ type GetFieldResponse = {
   serverTime?: string;
 };
 
+/* ---------- assistant loading gate: reads getData for confirm+loaded ---------- */
+type LoadingItem = {
+  row: number;
+  materialId: string;
+  client: string;
+  project: string;
+  item: string;
+  qty: string;
+  size: string;
+  notes: string;
+  loaded: boolean;
+};
+
+function useLoadingSnapshot(enabled: boolean) {
+  const [confirmed, setConfirmed] = useState<boolean | null>(null);
+  const [items, setItems] = useState<LoadingItem[]>([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getData`);
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          tools?: Array<Record<string, unknown>>;
+          projects?: Array<Record<string, unknown>>;
+          clients?: unknown[];
+          confirm?: { confirmed?: boolean };
+        };
+        if (cancelled) return;
+        setConfirmed(!!json.confirm?.confirmed);
+        const clientSet = new Set(
+          (json.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
+        );
+        const projectStatus: Record<string, string> = {};
+        (json.projects ?? []).forEach((p) => {
+          const id = String(p["Project ID"] ?? "").trim();
+          if (id) projectStatus[id] = String(p["Status"] ?? "").trim();
+        });
+        const list: LoadingItem[] = (json.tools ?? [])
+          .map((t) => ({
+            row: Number(t.row ?? 0),
+            materialId: String(t["Material ID"] ?? ""),
+            client: String(t["Client Name"] ?? "").trim(),
+            project: String(t["Project ID"] ?? ""),
+            item: String(t["Item Name"] ?? ""),
+            qty: String(t["Quantity"] ?? ""),
+            size: String(t["Size"] ?? ""),
+            notes: String(t["Notes"] ?? ""),
+            loaded: t["Loaded Status"] === true,
+          }))
+          .filter(
+            (it) => it.item && clientSet.has(it.client) && projectStatus[it.project] === "Confirmed",
+          );
+        setItems(list);
+        setReady(true);
+      } catch {
+        /* keep last snapshot */
+      }
+    };
+    void tick();
+    const id = window.setInterval(tick, POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [enabled]);
+
+  const toggle = useCallback(async (row: number) => {
+    let prev = false;
+    let materialId = "";
+    setItems((cur) =>
+      cur.map((it) => {
+        if (it.row !== row) return it;
+        prev = it.loaded;
+        materialId = it.materialId;
+        return { ...it, loaded: !it.loaded };
+      }),
+    );
+    if (!materialId) return;
+    try {
+      await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "setLoaded", materialId, row, loaded: !prev }),
+      });
+    } catch {
+      setItems((cur) =>
+        cur.map((it) => (it.row === row ? { ...it, loaded: prev } : it)),
+      );
+    }
+  }, []);
+
+  const allLoaded = items.length === 0 || items.every((i) => i.loaded);
+  return { confirmed, items, allLoaded, ready, toggle };
+}
+
+
 
 /* ---------- helpers ---------- */
 async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; error?: string }> {
@@ -573,6 +673,18 @@ function FieldBody({
   };
   const bodyRouter = useRouter();
 
+  /* --- assistant loading gate (per-phone identity role, first stop only) --- */
+  const assistantGateEnabled =
+    !isPreview &&
+    !!me &&
+    me.role === "assistant" &&
+    (route.state ?? "enroute") === "enroute" &&
+    stopIndex === 0;
+  const loadingSnap = useLoadingSnapshot(assistantGateEnabled);
+  const assistantGateOpen =
+    assistantGateEnabled &&
+    (!loadingSnap.ready || loadingSnap.confirmed !== true || !loadingSnap.allLoaded);
+
   /* --- manage-full-crew fallback (lead only, always reachable via link) --- */
   if (rosterEdit && !isPreview) {
     return (
@@ -762,40 +874,51 @@ function FieldBody({
           )}
 
           {(state === "enroute" || state === "arrived") && (
-            <StateArrived
-              roster={roster}
-              clientMatch={clientMatch}
-              stopIndex={stopIndex}
-              isLead={isLead}
-              delegated={!!route.delegated}
-              busy={busy}
-              clockSlot={personalClockSlot}
-              onBackToCrew={handleBackToCrew}
-              backNotice={backNotice}
-              isPreview={isPreview}
-              role={role}
-              event={currentEvent}
-              send={send}
-              locationCheck={route.locationCheck ?? null}
-              onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
-              onStart={async () => {
-                if (state === "enroute") {
-                  if (!currentEvent || !clientMatch) return;
-                  const r = await send({
-                    action: "setRoute",
-                    state: "arrived",
-                    client: clientMatch,
-                    eventId: currentEvent.id,
-                    stopIndex,
-                  });
-                  if (!r.ok) return;
-                }
-                const r = await send({ action: "setRoute", state: "visit" });
-                if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
-              }}
-              onNoShow={() => void confirmNoShow(send, setBanner)}
-            />
+            assistantGateOpen ? (
+              <AssistantLoadingGate
+                clockSlot={personalClockSlot}
+                confirmed={loadingSnap.confirmed === true}
+                items={loadingSnap.items}
+                ready={loadingSnap.ready}
+                onToggle={loadingSnap.toggle}
+              />
+            ) : (
+              <StateArrived
+                roster={roster}
+                clientMatch={clientMatch}
+                stopIndex={stopIndex}
+                isLead={isLead}
+                delegated={!!route.delegated}
+                busy={busy}
+                clockSlot={personalClockSlot}
+                onBackToCrew={handleBackToCrew}
+                backNotice={backNotice}
+                isPreview={isPreview}
+                role={role}
+                event={currentEvent}
+                send={send}
+                locationCheck={route.locationCheck ?? null}
+                onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
+                onStart={async () => {
+                  if (state === "enroute") {
+                    if (!currentEvent || !clientMatch) return;
+                    const r = await send({
+                      action: "setRoute",
+                      state: "arrived",
+                      client: clientMatch,
+                      eventId: currentEvent.id,
+                      stopIndex,
+                    });
+                    if (!r.ok) return;
+                  }
+                  const r = await send({ action: "setRoute", state: "visit" });
+                  if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
+                }}
+                onNoShow={() => void confirmNoShow(send, setBanner)}
+              />
+            )
           )}
+
 
 
           {state === "visit" && (
@@ -1670,7 +1793,183 @@ function ProjectCard({
   );
 }
 
+/* ============================================================
+ * ASSISTANT LOADING GATE — pre-navigate step for assistants at
+ * first stop. Hides Navigate until the lead has confirmed the day
+ * AND every filtered loading item is checked off.
+ * ============================================================ */
+function AssistantLoadingGate({
+  clockSlot,
+  confirmed,
+  items,
+  ready,
+  onToggle,
+}: {
+  clockSlot?: React.ReactNode;
+  confirmed: boolean;
+  items: LoadingItem[];
+  ready: boolean;
+  onToggle: (row: number) => void;
+}) {
+  const grouped = useMemo(() => {
+    const by = new Map<string, LoadingItem[]>();
+    for (const it of items) {
+      const arr = by.get(it.client) ?? [];
+      arr.push(it);
+      by.set(it.client, arr);
+    }
+    return Array.from(by.entries());
+  }, [items]);
+  const total = items.length;
+  const done = items.filter((i) => i.loaded).length;
+
+  return (
+    <div style={{ padding: "10px 14px" }}>
+      {clockSlot}
+      {!confirmed && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "18px 16px",
+            border: `2px dashed ${LIME}`,
+            borderRadius: 12,
+            background: PANEL,
+            color: LIME,
+            textAlign: "center",
+            fontSize: 15,
+            fontWeight: "bold",
+            letterSpacing: 2,
+            textTransform: "uppercase",
+            boxShadow: "0 0 22px rgba(124,255,0,.12)",
+          }}
+        >
+          Waiting for Daily Load Confirmation
+          <div style={{ color: DIM_GREEN, fontSize: 12, marginTop: 8, letterSpacing: 1, fontWeight: "normal", textTransform: "none" }}>
+            Lead will confirm the day's load shortly. Navigate unlocks after loading is done.
+          </div>
+        </div>
+      )}
+
+      {confirmed && (
+        <>
+          <div style={{ marginTop: 14, color: LIME, fontSize: 14, letterSpacing: 2, fontWeight: "bold" }}>
+            LOADING · {done} / {total}
+          </div>
+          {!ready && (
+            <div style={{ color: MUTED, fontSize: 12, marginTop: 6 }}>Fetching list…</div>
+          )}
+          {ready && total === 0 && (
+            <div style={{ color: DIM_GREEN, fontSize: 13, marginTop: 8, lineHeight: 1.4 }}>
+              No special loading items today. Preparing to navigate…
+            </div>
+          )}
+          {grouped.map(([client, rows]) => {
+            const cDone = rows.filter((r) => r.loaded).length;
+            return (
+              <div
+                key={client}
+                style={{
+                  marginTop: 12,
+                  background: PANEL,
+                  border: `1px solid ${LINE}`,
+                  borderRadius: 8,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    borderBottom: `1px solid ${LINE}`,
+                    color: LIME,
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    fontWeight: "bold",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <span>{client}</span>
+                  <span style={{ color: cDone === rows.length ? LIME : DIM_GREEN }}>
+                    {cDone}/{rows.length}
+                  </span>
+                </div>
+                <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {rows.map((it) => (
+                    <li
+                      key={it.row}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "12px 12px",
+                        borderTop: `1px solid ${LINE}`,
+                        cursor: "pointer",
+                      }}
+                      onClick={() => onToggle(it.row)}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 6,
+                          border: `2px solid ${it.loaded ? LIME : LIME_DIM}`,
+                          background: it.loaded ? LIME : "transparent",
+                          color: BG,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: "bold",
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        {it.loaded ? "✓" : ""}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            color: it.loaded ? MUTED : TEXT,
+                            textDecoration: it.loaded ? "line-through" : "none",
+                            fontSize: 14,
+                          }}
+                        >
+                          {it.item}
+                          {it.qty ? ` · ${it.qty}` : ""}
+                          {it.size ? ` · ${it.size}` : ""}
+                        </div>
+                        {it.notes && (
+                          <div style={{ color: DIM_GREEN, fontSize: 12, marginTop: 2 }}>
+                            {it.notes}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      <div
+        style={{
+          marginTop: 18,
+          color: DIM_GREEN,
+          fontSize: 11,
+          letterSpacing: 1,
+          textAlign: "center",
+          textTransform: "uppercase",
+        }}
+      >
+        Navigate unlocks once the day is confirmed and everything's loaded.
+      </div>
+    </div>
+  );
+}
+
 /* ============================================================ */
+
 function StateArrived({
   roster,
   clientMatch,
