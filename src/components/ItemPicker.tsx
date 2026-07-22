@@ -162,6 +162,7 @@ export function ItemPicker({
   const { products, loading, error } = useProducts(true);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ProductRow | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
   const [browseCategory, setBrowseCategory] = useState<string | null>(null);
   const [browseSub, setBrowseSub] = useState<string | null>(null);
 
