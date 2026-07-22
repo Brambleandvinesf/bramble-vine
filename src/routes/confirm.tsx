@@ -835,19 +835,19 @@ function ConfirmPage() {
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
-                        <input
+                        <ComboSelect
                           value={e.garden}
-                          onChange={(ev) => setEdit(key, { garden: ev.target.value })}
-                          style={INPUT}
+                          options={gardenOptions}
+                          onChange={(v) => setEdit(key, { garden: v })}
                           disabled={isDeleted}
                         />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>CATEGORY</label>
-                        <input
+                        <ComboSelect
                           value={e.category}
-                          onChange={(ev) => setEdit(key, { category: ev.target.value })}
-                          style={INPUT}
+                          options={categoryOptions}
+                          onChange={(v) => setEdit(key, { category: v })}
                           disabled={isDeleted}
                         />
                       </div>
