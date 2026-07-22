@@ -468,6 +468,44 @@ function ConfirmPage() {
     [projects, markSync],
   );
 
+  const removeItemFromExisting = useCallback(
+    async (client: string, projectId: string, idx: number, it: Item) => {
+      const snapshot = projects;
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.projectId === projectId
+            ? { ...p, items: p.items.filter((_, i) => i !== idx) }
+            : p,
+        ),
+      );
+      markSync(projectId, true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "removeItem",
+            client,
+            projectId,
+            item: { name: it.name, qty: it.qty, size: it.size },
+          }),
+        });
+        const json = (await res.json()) as { ok?: boolean; error?: string };
+        if (!json.ok) throw new Error(json.error || "not ok");
+      } catch (err) {
+        setProjects(snapshot);
+        setSubmitFlash({
+          msg: err instanceof Error ? `Couldn't remove item — ${err.message}` : "Couldn't remove item",
+          err: true,
+        });
+      } finally {
+        markSync(projectId, false);
+      }
+    },
+    [projects, markSync],
+  );
+
+
   const distinctTypes = useMemo(() => {
     const set = new Set<string>();
     for (const p of projects) if (p.type.trim()) set.add(p.type.trim());
