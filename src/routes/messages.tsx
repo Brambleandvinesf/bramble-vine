@@ -1133,18 +1133,30 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
   /* ---- add project ---- */
   const openProject = useCallback((it: InboxItem) => {
-    const s = it.snippet || "";
-    const i = s.indexOf(": ");
-    const name = i > 0 ? s.slice(0, i) : it.from;
-    const text = (i > 0 ? s.slice(i + 2) : s).trim();
+    void loadProjectCatalog();
+    let text = "";
+    if (viewerBody && (viewerBody.kind === "gmail" || viewerBody.kind === "quo")) {
+      const msgs = viewerBody.messages as { body?: string; direction?: string }[];
+      for (let k = msgs.length - 1; k >= 0; k--) {
+        const b = String(msgs[k]?.body ?? "").trim();
+        if (b) { text = b; break; }
+      }
+    }
+    if (!text) {
+      const s = it.snippet || "";
+      const i = s.indexOf(": ");
+      text = (i > 0 ? s.slice(i + 2) : s).trim();
+    }
     setApPick({
       item: it,
-      action: name + ": " + text,
+      action: text,
       items: [],
       type: "",
       notes: "",
+      garden: "",
+      category: "",
     });
-  }, []);
+  }, [viewerBody, loadProjectCatalog]);
   const submitProject = useCallback(async () => {
     if (!apPick) return;
     const act = apPick.action.trim();
