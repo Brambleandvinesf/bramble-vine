@@ -74,7 +74,8 @@ function internalRoleFor(it: InboxItem): string | null {
 type Attachment = { name: string; mime: string; data: string; size: number };
 type ThreadAttachment = { name: string; mime: string; data?: string; size: number };
 type ThreadMessage = { from?: string; body: string; date: string; attachments?: ThreadAttachment[] };
-type QuoMessage = { direction: "incoming" | "outgoing"; body: string; date: string };
+type ThreadMedia = { url: string; type?: string };
+type QuoMessage = { direction: "incoming" | "outgoing"; body: string; date: string; media?: ThreadMedia[] };
 
 type InboxItem = {
   id: string;
