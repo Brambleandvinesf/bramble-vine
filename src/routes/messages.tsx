@@ -645,6 +645,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   );
   const badgeCount = awaitingItems.length;
   void showAll;
+  // Publish the live count so the bottom bar / FAB / Home tile all match.
+  useEffect(() => {
+    setBadge(BK.inbox, badgeCount);
+  }, [badgeCount]);
 
   /* ---- drafts ---- */
   const draftByThread = useMemo(() => {
