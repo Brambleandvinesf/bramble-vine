@@ -607,7 +607,7 @@ const LIME_DIM = "rgba(124,255,0,.35)";
 const DIM_GREEN = "#4a7a1e";
 const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
-const MUTED = "#8f8f8f";
+const MUTED = "#b8b8b8";
 const LINE = "#2a2a2a";
 const RED = "#ff3b30";
 
