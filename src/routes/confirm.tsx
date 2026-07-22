@@ -702,6 +702,7 @@ function ConfirmPage() {
                 const confirmed = e.status === "Confirmed";
                 // Optimistically hide handled cards (deleted / skipped / confirmed).
                 if (isDeleted || skip || confirmed) return null;
+                const anim = animating[key];
                 return (
                   <div
                     key={key}
@@ -709,6 +710,14 @@ function ConfirmPage() {
                       ...CARD,
                       marginTop: 8,
                       opacity: isDeleted ? 0.4 : skip ? 0.55 : 1,
+                      animation:
+                        anim === "confirm"
+                          ? "bvFlashLime 300ms ease"
+                          : anim === "skip"
+                            ? "bvSlideRightFade 300ms ease forwards"
+                            : anim === "delete"
+                              ? "bvShrinkOut 300ms ease forwards"
+                              : undefined,
                     }}
                   >
                     <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
