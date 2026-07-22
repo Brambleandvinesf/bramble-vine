@@ -396,7 +396,7 @@ function BottomTabBar() {
       {moreOpen && (
         <div
           onClick={() => setMoreOpen(false)}
-          style={{ position: "fixed", inset: 0, zIndex: 150, background: "transparent" }}
+          style={{ position: "fixed", inset: 0, zIndex: 90, background: "transparent" }}
         />
       )}
     </>
