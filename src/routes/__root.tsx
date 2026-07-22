@@ -446,7 +446,7 @@ function MoreButton({
 }: {
   moreActive: boolean;
   moreOpen: boolean;
-  setMoreOpen: (updater: (v: boolean) => boolean) => void;
+  setMoreOpen: React.Dispatch<React.SetStateAction<boolean>>;
   tabs: TabDef[];
   isActive: (to: string) => boolean;
 }) {
