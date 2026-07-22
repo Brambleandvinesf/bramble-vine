@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, Users } from "lucide-react";
+import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, Users, Paperclip } from "lucide-react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
