@@ -37,6 +37,7 @@ import { canSee, type ScreenId } from "../lib/permissions";
 import { ReviewableTodayProvider } from "../lib/reviewable-today";
 import { useBadge, useBadgePoller, BK } from "../lib/badges";
 import { ConfirmModalHost } from "../components/ConfirmModal";
+import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
 
 function NotFoundComponent() {
   return (
