@@ -201,6 +201,16 @@ function ConfirmPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [animating, setAnimating] = useState<Record<string, "confirm" | "skip" | "delete">>({});
+  const [confirmedClients, setConfirmedClients] = useState<Set<string>>(new Set());
+  const [flashClient, setFlashClient] = useState<string | null>(null);
+  const toggleClientConfirmed = useCallback((client: string) => {
+    setConfirmedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(client)) next.delete(client);
+      else next.add(client);
+      return next;
+    });
+  }, []);
   const beginAnim = useCallback(
     (key: string, kind: "confirm" | "skip" | "delete", after: () => void) => {
       setAnimating((p) => ({ ...p, [key]: kind }));
