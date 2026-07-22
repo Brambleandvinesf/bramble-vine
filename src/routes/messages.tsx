@@ -1168,6 +1168,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       projectAction: act,
       type: apPick.type,
       notes: apPick.notes.trim(),
+      garden: apPick.garden.trim(),
+      category: apPick.category.trim(),
       items: apPick.items
         .map((r) => ({ name: r.name.trim(), qty: r.qty.trim(), size: r.size.trim(), notes: r.notes.trim() }))
         .filter((i) => i.name),
