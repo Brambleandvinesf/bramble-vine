@@ -1019,7 +1019,7 @@ function ConfirmPage() {
               {submitting
                 ? "CONFIRMING…"
                 : reviewable === false
-                  ? "CONFIRM BASE LOAD & NOTIFY CREW"
+                  ? "CONFIRM DAILY LOAD & NOTIFY CREW"
                   : "CONFIRM SPECIAL LOADING/PROJECTS"}
             </button>
           </>
