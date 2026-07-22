@@ -900,7 +900,7 @@ function ConfirmPage() {
                   <div style={{ marginTop: 10 }}>
                     <div
                       style={{
-                        fontSize: 11,
+                        fontSize: 14,
                         color: MUTED,
                         letterSpacing: 1,
                         marginBottom: 6,
@@ -923,10 +923,10 @@ function ConfirmPage() {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ color: LIME, fontSize: 12, fontWeight: "bold", wordBreak: "break-word" }}>
+                          <div style={{ color: LIME, fontSize: 14, fontWeight: "bold", wordBreak: "break-word" }}>
                             {it.name}
                           </div>
-                          <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+                          <div style={{ color: MUTED, fontSize: 14, marginTop: 2 }}>
                             {[it.qty && `Qty ${it.qty}`, it.size, it.notes].filter(Boolean).join(" · ") || "—"}
                           </div>
                         </div>
