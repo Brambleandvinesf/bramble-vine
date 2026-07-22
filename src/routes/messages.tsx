@@ -8,7 +8,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, Users } from "lucide-react";
+import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, Users, Paperclip } from "lucide-react";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
@@ -74,7 +74,8 @@ function internalRoleFor(it: InboxItem): string | null {
 type Attachment = { name: string; mime: string; data: string; size: number };
 type ThreadAttachment = { name: string; mime: string; data?: string; size: number };
 type ThreadMessage = { from?: string; body: string; date: string; attachments?: ThreadAttachment[] };
-type QuoMessage = { direction: "incoming" | "outgoing"; body: string; date: string };
+type ThreadMedia = { url: string; type?: string };
+type QuoMessage = { direction: "incoming" | "outgoing"; body: string; date: string; media?: ThreadMedia[] };
 
 type InboxItem = {
   id: string;
@@ -94,6 +95,7 @@ type InboxItem = {
   unknowns?: string[];
   ruleLabel?: string;
   line?: string;
+  hasMedia?: boolean;
 };
 type Draft = {
   draftId: string;
@@ -2191,7 +2193,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 : null;
 
               const pillStyle = (disabled?: boolean, selected?: boolean): CSSProperties => ({
-                background: selected ? T.lime : "transparent",
+                background: selected ? T.lime : T.panel,
+                backgroundColor: selected ? T.lime : T.panel,
                 color: selected ? "#0a0a0a" : T.lime,
                 border: `1px solid ${T.lime}`,
                 borderRadius: 999,
@@ -2203,6 +2206,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 cursor: disabled ? "not-allowed" : "pointer",
                 textTransform: "uppercase",
                 opacity: disabled ? 0.4 : 1,
+                transition: "background-color .15s, color .15s",
               });
               if (showClientPill) {
                 if (clientContact) {
@@ -2874,6 +2878,15 @@ function FeedCard({
             </div>
           )}
           <span style={{ fontWeight: "bold" }}>{it.from}</span>
+          {it.hasMedia && (
+            <span
+              title="Has attachment"
+              aria-label="Has attachment"
+              style={{ display: "inline-flex", alignItems: "center", color: T.lime, opacity: 0.9 }}
+            >
+              <Paperclip size={14} />
+            </span>
+          )}
           {draft && (
             <span
               title="Gmail draft in sync"
@@ -3170,6 +3183,9 @@ function Viewer({
                   <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "center" }}>
                     {m.body}
                   </div>
+                  {m.media && m.media.length > 0 && (
+                    <MediaStrip media={m.media} />
+                  )}
                 </div>
               );
             })
@@ -3351,6 +3367,74 @@ function AttView({ a }: { a: ThreadAttachment }) {
       <span style={{ display: "inline-block", border: `1px solid ${T.dim}`, color: T.dim, borderRadius: 4, padding: "6px 10px", fontSize: ".85rem" }}>
         📎 {a.name} ({fmtSize(a.size || 0)}) — view in Gmail
       </span>
+    </div>
+  );
+}
+
+function MediaStrip({ media }: { media: ThreadMedia[] }) {
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        justifyContent: "center",
+      }}
+    >
+      {media.map((m, i) => {
+        const isImage = (m.type || "").toLowerCase().indexOf("image") === 0 ||
+          /\.(jpe?g|png|gif|webp|heic|bmp)(\?|$)/i.test(m.url);
+        if (isImage) {
+          return (
+            <a
+              key={i}
+              href={m.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "block", lineHeight: 0 }}
+            >
+              <img
+                src={m.url}
+                alt="attachment"
+                loading="lazy"
+                style={{
+                  width: 120,
+                  height: 120,
+                  objectFit: "cover",
+                  borderRadius: 8,
+                  border: `1px solid ${T.lime}`,
+                  cursor: "zoom-in",
+                  display: "block",
+                }}
+              />
+            </a>
+          );
+        }
+        return (
+          <a
+            key={i}
+            href={m.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              border: `1px solid ${T.lime}`,
+              color: T.lime,
+              borderRadius: 6,
+              padding: "8px 12px",
+              fontSize: ".85rem",
+              textDecoration: "none",
+              fontWeight: "bold",
+              letterSpacing: 1,
+            }}
+          >
+            <Paperclip size={14} /> View attachment
+          </a>
+        );
+      })}
     </div>
   );
 }
