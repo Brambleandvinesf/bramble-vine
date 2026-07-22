@@ -25,7 +25,10 @@ function LoginPage() {
   useEffect(() => {
     if (ready && user) {
       const fallback =
-        role === "lead" ? "/field" : role === "assistant" ? "/schedule" : "/";
+        role === "lead" ? "/field"
+          : role === "assistant" ? "/schedule"
+          : role === "office" ? "/schedule"
+          : "/";
       const dest = next && next.startsWith("/") ? next : fallback;
       void navigate({ to: dest });
     }
