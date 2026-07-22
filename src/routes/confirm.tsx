@@ -634,7 +634,7 @@ function ConfirmPage() {
                 >
                   {client}
                 </span>
-                <div style={{ fontSize: 11, color: MUTED, textAlign: "center", width: "100%", marginTop: 4 }}>
+                <div style={{ fontSize: 14, color: MUTED, textAlign: "center", width: "100%", marginTop: 4 }}>
                   {list.length} project{list.length === 1 ? "" : "s"}
                 </div>
               </div>
