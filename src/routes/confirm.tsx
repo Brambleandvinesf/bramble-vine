@@ -1229,7 +1229,7 @@ const SUCCESS_BANNER: React.CSSProperties = {
   border: `1px solid ${LIME_DIM}`,
   color: LIME,
   borderRadius: 6,
-  fontSize: 12,
+  fontSize: 14,
 };
 const CLIENT_CARD: React.CSSProperties = {
   background: "#0f1509",
