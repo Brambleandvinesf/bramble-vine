@@ -18,6 +18,20 @@ const ALLOWLIST: CrewEntry[] = [
 ];
 
 const STORAGE_KEY = "bv.crew.email";
+const DAY_KEY = "bv.crew.lastDay";
+
+/** LA day, with 5am boundary — anything before 5am counts as "yesterday". */
+export function crewDayLA(now: Date = new Date()): string {
+  const shifted = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return fmt.format(shifted); // YYYY-MM-DD
+}
+
 
 type AuthCtx = {
   user: string | null;
