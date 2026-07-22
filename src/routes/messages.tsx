@@ -3179,6 +3179,18 @@ function Viewer({
   showConfirm: boolean;
 }) {
   const quo = it.source === "quo";
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const prevMsgCount = useRef(0);
+  const msgCount =
+    body && (body.kind === "gmail" || body.kind === "quo") ? body.messages.length : 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || msgCount === 0) return;
+    const grew = msgCount > prevMsgCount.current;
+    const firstLoad = prevMsgCount.current === 0;
+    el.scrollTo({ top: el.scrollHeight, behavior: firstLoad ? "auto" : grew ? "smooth" : "auto" });
+    prevMsgCount.current = msgCount;
+  }, [msgCount]);
   return (
     <div
       style={{
