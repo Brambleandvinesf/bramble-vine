@@ -982,7 +982,7 @@ function ConfirmPage() {
         {submitFlash && (
           <div
             style={{
-              fontSize: 12,
+              fontSize: 14,
               color: submitFlash.err ? RED : LIME,
               marginBottom: 8,
             }}
