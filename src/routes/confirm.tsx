@@ -1401,10 +1401,15 @@ const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  padding: "4px 4px 12px",
+  padding: "10px 4px 12px",
   borderBottom: `1px solid ${LIME_DIM}`,
   marginBottom: 8,
+  position: "sticky",
+  top: 130,
+  zIndex: 5,
+  background: "#0f1509",
 };
+
 const CARD: React.CSSProperties = {
   background: "#121212",
   border: `1px solid rgba(124,255,0,0.45)`,
