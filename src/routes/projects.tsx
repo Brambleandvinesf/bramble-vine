@@ -615,6 +615,8 @@ function ProjectsPage() {
       {showNew && (
         <NewProjectModal
           clients={clients}
+          gardenOptions={gardenOptions}
+          categoryOptions={categoryOptions}
           onCancel={() => setShowNew(false)}
           onSubmit={createProject}
           submitting={Object.keys(syncing).some((k) => k.startsWith("__new__"))}
