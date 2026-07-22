@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
+import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
@@ -168,6 +169,14 @@ function ConfirmPage() {
   );
   const [projects, setProjects] = useState<Project[]>(
     () => (cached?.projects ?? []).map(normProject),
+  );
+  const gardenOptions = useMemo(
+    () => projects.map((p) => p.garden).filter(Boolean),
+    [projects],
+  );
+  const categoryOptions = useMemo(
+    () => projects.map((p) => p.category).filter(Boolean),
+    [projects],
   );
   const [edits, setEdits] = useState<Record<string, Edit>>(() => {
     const initial: Record<string, Edit> = {};
@@ -826,19 +835,19 @@ function ConfirmPage() {
                     <div style={ROW2}>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>GARDEN</label>
-                        <input
+                        <ComboSelect
                           value={e.garden}
-                          onChange={(ev) => setEdit(key, { garden: ev.target.value })}
-                          style={INPUT}
+                          options={gardenOptions}
+                          onChange={(v) => setEdit(key, { garden: v })}
                           disabled={isDeleted}
                         />
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={LABEL}>CATEGORY</label>
-                        <input
+                        <ComboSelect
                           value={e.category}
-                          onChange={(ev) => setEdit(key, { category: ev.target.value })}
-                          style={INPUT}
+                          options={categoryOptions}
+                          onChange={(v) => setEdit(key, { category: v })}
                           disabled={isDeleted}
                         />
                       </div>
@@ -1003,22 +1012,18 @@ function ConfirmPage() {
                   <div style={ROW2}>
                     <div style={{ flex: 1 }}>
                       <label style={LABEL}>GARDEN</label>
-                      <input
+                      <ComboSelect
                         value={n.garden}
-                        onChange={(ev) =>
-                          updateNewProject(client, n.key, { garden: ev.target.value })
-                        }
-                        style={INPUT}
+                        options={gardenOptions}
+                        onChange={(v) => updateNewProject(client, n.key, { garden: v })}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={LABEL}>CATEGORY</label>
-                      <input
+                      <ComboSelect
                         value={n.category}
-                        onChange={(ev) =>
-                          updateNewProject(client, n.key, { category: ev.target.value })
-                        }
-                        style={INPUT}
+                        options={categoryOptions}
+                        onChange={(v) => updateNewProject(client, n.key, { category: v })}
                       />
                     </div>
                   </div>

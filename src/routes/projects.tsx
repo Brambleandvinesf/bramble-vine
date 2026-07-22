@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { ItemPicker } from "../components/ItemPicker";
+import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { confirmModal } from "../components/ConfirmModal";
@@ -223,6 +224,15 @@ function ProjectsPage() {
     }
     return m;
   }, [tools]);
+
+  const gardenOptions = useMemo(
+    () => projects.map((p) => p.garden).filter(Boolean),
+    [projects],
+  );
+  const categoryOptions = useMemo(
+    () => projects.map((p) => p.category).filter(Boolean),
+    [projects],
+  );
 
   const todaySet = useMemo(
     () => new Set(todaysClients.map((c) => c.toLowerCase())),
@@ -555,6 +565,8 @@ function ProjectsPage() {
                         {draft ? (
                           <EditForm
                             draft={draft}
+                            gardenOptions={gardenOptions}
+                            categoryOptions={categoryOptions}
                             onChange={(patch) => patchEdit(p.projectId, patch)}
                             onSave={() => saveEdit(p)}
                             onCancel={() => cancelEdit(p.projectId)}
@@ -603,6 +615,8 @@ function ProjectsPage() {
       {showNew && (
         <NewProjectModal
           clients={clients}
+          gardenOptions={gardenOptions}
+          categoryOptions={categoryOptions}
           onCancel={() => setShowNew(false)}
           onSubmit={createProject}
           submitting={Object.keys(syncing).some((k) => k.startsWith("__new__"))}
@@ -699,12 +713,16 @@ function ProjectView({
 
 function EditForm({
   draft,
+  gardenOptions,
+  categoryOptions,
   onChange,
   onSave,
   onCancel,
   saving,
 }: {
   draft: EditDraft;
+  gardenOptions: string[];
+  categoryOptions: string[];
   onChange: (patch: Partial<EditDraft>) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -717,11 +735,19 @@ function EditForm({
       <div style={ROW2}>
         <div style={{ flex: 1 }}>
           <label style={LABEL}>Garden</label>
-          <input value={draft.garden} onChange={(e) => onChange({ garden: e.target.value })} style={INPUT} />
+          <ComboSelect
+            value={draft.garden}
+            options={gardenOptions}
+            onChange={(v) => onChange({ garden: v })}
+          />
         </div>
         <div style={{ flex: 1 }}>
           <label style={LABEL}>Category</label>
-          <input value={draft.category} onChange={(e) => onChange({ category: e.target.value })} style={INPUT} />
+          <ComboSelect
+            value={draft.category}
+            options={categoryOptions}
+            onChange={(v) => onChange({ category: v })}
+          />
         </div>
       </div>
       <div style={ROW2}>
@@ -761,11 +787,15 @@ function EditForm({
 
 function NewProjectModal({
   clients,
+  gardenOptions,
+  categoryOptions,
   onCancel,
   onSubmit,
   submitting,
 }: {
   clients: string[];
+  gardenOptions: string[];
+  categoryOptions: string[];
   onCancel: () => void;
   onSubmit: (form: {
     client: string;
@@ -941,11 +971,11 @@ function NewProjectModal({
         <div style={ROW2}>
           <div style={{ flex: 1 }}>
             <label style={LABEL}>Garden</label>
-            <input value={garden} onChange={(e) => setGarden(e.target.value)} style={INPUT} />
+            <ComboSelect value={garden} options={gardenOptions} onChange={setGarden} />
           </div>
           <div style={{ flex: 1 }}>
             <label style={LABEL}>Category</label>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} style={INPUT} />
+            <ComboSelect value={category} options={categoryOptions} onChange={setCategory} />
           </div>
         </div>
 
