@@ -2876,6 +2876,15 @@ function FeedCard({
             </div>
           )}
           <span style={{ fontWeight: "bold" }}>{it.from}</span>
+          {it.hasMedia && (
+            <span
+              title="Has attachment"
+              aria-label="Has attachment"
+              style={{ display: "inline-flex", alignItems: "center", color: T.lime, opacity: 0.9 }}
+            >
+              <Paperclip size={14} />
+            </span>
+          )}
           {draft && (
             <span
               title="Gmail draft in sync"
