@@ -3228,7 +3228,7 @@ function Viewer({
           <X size={24} />
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
         {!body || body.kind === "loading" ? (
           <span>Loading thread<Dots /></span>
         ) : body.kind === "error" ? (
