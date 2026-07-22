@@ -227,18 +227,64 @@ function AppFrame() {
       window.location.reload();
     };
     navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-    const onLoad = () => {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.warn("SW registration failed", err);
+
+    let registration: ServiceWorkerRegistration | null = null;
+
+    const promoteWaiting = (reg: ServiceWorkerRegistration) => {
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+    };
+
+    const watchForUpdates = (reg: ServiceWorkerRegistration) => {
+      promoteWaiting(reg);
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            // A new worker is waiting because an old one still controls the page.
+            reg.waiting?.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
       });
     };
+
+    const checkForUpdate = () => {
+      registration?.update().catch(() => {});
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") checkForUpdate();
+    };
+
+    const onLoad = () => {
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .then((reg) => {
+          registration = reg;
+          watchForUpdates(reg);
+          // Poll for updates every 60s while the tab is open.
+          const interval = window.setInterval(checkForUpdate, 60_000);
+          (window as unknown as { __bv_sw_interval?: number }).__bv_sw_interval = interval;
+        })
+        .catch((err) => {
+          console.warn("SW registration failed", err);
+        });
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
     if (document.readyState === "complete") onLoad();
     else window.addEventListener("load", onLoad, { once: true });
     return () => {
       window.removeEventListener("load", onLoad);
+      document.removeEventListener("visibilitychange", onVisibility);
       navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      const w = window as unknown as { __bv_sw_interval?: number };
+      if (w.__bv_sw_interval) window.clearInterval(w.__bv_sw_interval);
     };
   }, []);
+
 
 
   return (
