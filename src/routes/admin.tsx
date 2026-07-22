@@ -145,7 +145,7 @@ function AdminPage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
-  const [tab, setTab] = useState<"perms" | "teams">("perms");
+  const [tab, setTab] = useState<"perms" | "teams" | "notifications">("perms");
   const [perms, setPerms] = useState<PermMap | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -231,8 +231,8 @@ function AdminPage() {
           ADMIN
         </h1>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {(["perms", "teams"] as const).map((k) => {
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {(["perms", "teams", "notifications"] as const).map((k) => {
             const active = tab === k;
             return (
               <button
@@ -251,13 +251,15 @@ function AdminPage() {
                   textTransform: "uppercase",
                 }}
               >
-                {k === "perms" ? "Permissions" : "Teams"}
+                {k === "perms" ? "Permissions" : k === "teams" ? "Teams" : "Notifications"}
               </button>
             );
           })}
         </div>
 
         {tab === "teams" ? <TeamsAdmin /> : null}
+
+        {tab === "notifications" ? <NotificationScheduleCard /> : null}
 
         {tab === "perms" ? (
           <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
@@ -793,4 +795,191 @@ function TeamsAdmin() {
     </div>
   );
 }
+
+/* ============================================================
+ * Notification Schedule — static reference table for management.
+ * ============================================================ */
+const NOTIFICATION_ROWS = [
+  {
+    what: "Morning confirm nudge",
+    who: "Lead + Office",
+    when: "~8:00 AM (only days with reviewable projects)",
+    how: "Push",
+  },
+  {
+    what: "Daily Load — Confirmed",
+    who: "Assistant + Office",
+    when: "when Lead confirms",
+    how: "Push + SMS to crew",
+  },
+  {
+    what: "New text (from clients)",
+    who: "The line's role",
+    when: "on arrival; held for field crew during visits unless message starts with \"!\"",
+    how: "Push",
+  },
+  {
+    what: "New text (crew-to-crew via app)",
+    who: "Recipient role",
+    when: "instant at send",
+    how: "Push with message preview",
+  },
+  {
+    what: "Held-message batch",
+    who: "Lead + Assistant",
+    when: "when debrief ends",
+    how: "Push",
+  },
+  {
+    what: "Visit timer: 20-min warning, 5-min warning, overtime alarm",
+    who: "Lead + Assistant",
+    when: "based on client Max Time vs live crew",
+    how: "Push + spoken",
+  },
+  {
+    what: "Clock-in/out events",
+    who: "Management",
+    when: "as they happen",
+    how: "Push",
+  },
+  {
+    what: "Payroll digest",
+    who: "Management",
+    when: "8:30 PM nightly",
+    how: "Push",
+  },
+  {
+    what: "Payroll UNCONFIRMED alert",
+    who: "Management",
+    when: "immediately",
+    how: "Push",
+  },
+];
+
+function NotificationScheduleCard() {
+  return (
+    <div
+      style={{
+        border: "1px solid #2a2a2a",
+        background: "#121212",
+        borderRadius: 6,
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ padding: "12px 14px", borderBottom: "1px solid #2a2a2a" }}>
+        <div
+          style={{
+            color: "#7cff00",
+            fontSize: 12,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            marginBottom: 4,
+          }}
+        >
+          Notification Schedule
+        </div>
+        <div style={{ color: "#8f8f8f", fontSize: 11 }}>
+          When each push notification is sent and to whom.
+        </div>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 11,
+            tableLayout: "fixed",
+          }}
+        >
+          <thead>
+            <tr
+              style={{
+                background: "#0a0a0a",
+                color: "#7cff00",
+                textAlign: "left",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                fontSize: 9,
+              }}
+            >
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "24%" }}>
+                What
+              </th>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "18%" }}>
+                Who
+              </th>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "41%" }}>
+                When
+              </th>
+              <th style={{ padding: "8px 6px", borderBottom: "1px solid #2a2a2a", width: "17%" }}>
+                How
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {NOTIFICATION_ROWS.map((r, i) => (
+              <tr key={i} style={{ color: "#e8e8e8", borderBottom: "1px solid #1a1a1a" }}>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    fontWeight: "bold",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {r.what}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    color: "#b8b8b8",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {r.who}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    color: "#b8b8b8",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {r.when}
+                </td>
+                <td
+                  style={{
+                    padding: "8px 6px",
+                    verticalAlign: "top",
+                    color: "#b8b8b8",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {r.how}
+                </td>
+              </tr>
+            ))}
+            <tr>
+              <td
+                colSpan={4}
+                style={{
+                  padding: 10,
+                  color: "#8f8f8f",
+                  fontSize: 10,
+                  borderTop: "1px solid #2a2a2a",
+                  wordBreak: "break-word",
+                }}
+              >
+                Push = Pushover now; MacroDroid bubble+voice mirrors all pushes once per-phone webhooks are configured.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 
