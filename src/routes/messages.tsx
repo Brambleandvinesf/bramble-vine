@@ -95,6 +95,7 @@ type InboxItem = {
   unknowns?: string[];
   ruleLabel?: string;
   line?: string;
+  hasMedia?: boolean;
 };
 type Draft = {
   draftId: string;
