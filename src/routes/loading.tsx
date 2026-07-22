@@ -144,6 +144,15 @@ function LoadingPage() {
   const reviewable = useReviewableToday();
   const navigate = useNavigate();
 
+  // Assistant's loading UX lives inside the Field state machine now.
+  // Deep-linking /loading as an assistant sends them to /field.
+  useEffect(() => {
+    if (effectiveRole === "assistant") {
+      void navigate({ to: "/field", replace: true });
+    }
+  }, [effectiveRole, navigate]);
+
+
 
   const cached = sessionCache.get<GetDataResponse>(CK);
   const [confirm, setConfirm] = useState<ConfirmState | null>(() => cached?.confirm ?? null);
