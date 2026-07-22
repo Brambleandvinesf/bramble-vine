@@ -619,11 +619,19 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     () => visibleItems.filter((i) => i.awaiting && !hidden.has(i.id)),
     [visibleItems, hidden],
   );
+  // Backend already filters getInbox per-user; the client must not re-filter.
+  // Render every item getInbox returns, sorted by date desc (same as viewAll path).
   const displayItems = useMemo(
-    () => (showAll ? visibleItems : awaitingItems),
-    [showAll, visibleItems, awaitingItems],
+    () =>
+      [...visibleItems].sort((a, b) => {
+        const da = Date.parse(a.date || "") || 0;
+        const db = Date.parse(b.date || "") || 0;
+        return db - da;
+      }),
+    [visibleItems],
   );
   const badgeCount = awaitingItems.length;
+  void showAll;
 
   /* ---- drafts ---- */
   const draftByThread = useMemo(() => {
