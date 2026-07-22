@@ -170,6 +170,14 @@ function ConfirmPage() {
   const [projects, setProjects] = useState<Project[]>(
     () => (cached?.projects ?? []).map(normProject),
   );
+  const gardenOptions = useMemo(
+    () => projects.map((p) => p.garden).filter(Boolean),
+    [projects],
+  );
+  const categoryOptions = useMemo(
+    () => projects.map((p) => p.category).filter(Boolean),
+    [projects],
+  );
   const [edits, setEdits] = useState<Record<string, Edit>>(() => {
     const initial: Record<string, Edit> = {};
     for (const p of (cached?.projects ?? []).map(normProject)) {
