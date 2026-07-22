@@ -655,6 +655,23 @@ function FieldBody({
       }
     : undefined;
 
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const payrollResolveRef = useRef<((v: boolean) => void) | null>(null);
+  const openPayrollGate = useCallback(() => {
+    return new Promise<boolean>((resolve) => {
+      payrollResolveRef.current = resolve;
+      setPayrollOpen(true);
+    });
+  }, []);
+  const closePayroll = useCallback((proceed: boolean) => {
+    setPayrollOpen(false);
+    const r = payrollResolveRef.current;
+    payrollResolveRef.current = null;
+    if (r) r(proceed);
+  }, []);
+
+  const leadEndOfDay = !!(me && me.role === "lead" && routeComplete);
+
   const personalClockSlot = me ? (
     <PersonalClockPanel
       me={me}
@@ -666,6 +683,7 @@ function FieldBody({
       setBanner={setBanner}
       breakFrom={breakFrom}
       setBreakFrom={setBreakFrom}
+      beforeClockOut={leadEndOfDay ? openPayrollGate : undefined}
     />
   ) : null;
 
