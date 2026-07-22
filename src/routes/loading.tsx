@@ -337,10 +337,10 @@ function LoadingPage() {
                   return (
                     <div key={project} style={{ marginBottom: 12 }}>
                       <div style={PROJECT_HEAD}>
-                        <span style={{ color: DIM_GREEN, fontSize: 12, letterSpacing: 1 }}>
+                        <span style={{ color: DIM_GREEN, fontSize: 14, letterSpacing: 1 }}>
                           {project}
                         </span>
-                        <span style={{ fontSize: 12, color: MUTED, marginLeft: "auto" }}>
+                        <span style={{ fontSize: 14, color: MUTED, marginLeft: "auto" }}>
                           {done} of {rows.length} loaded
                         </span>
                       </div>
