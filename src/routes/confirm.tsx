@@ -1149,40 +1149,57 @@ function ConfirmPage() {
             {submitFlash.msg}
           </div>
         )}
-        {allHandled && (
-          <>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                color: TEXT,
-                fontSize: 13,
-                marginBottom: 8,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={sendText}
-                onChange={(e) => setSendText(e.target.checked)}
-                style={{ width: 20, height: 20, accentColor: LIME }}
-              />
-              Text the crew the loading link
-            </label>
-            <button
-              style={{ ...SOLID_BTN, width: "100%" }}
-              onClick={submit}
-              disabled={submitting || !!loadErr || state === null}
-            >
-              {submitting
-                ? "CONFIRMING…"
-                : reviewable === false
-                  ? "CONFIRM DAILY LOAD & NOTIFY CREW"
-                  : "CONFIRM SPECIAL LOADING/PROJECTS"}
-            </button>
-          </>
-        )}
+        {(() => {
+          const allClientsConfirmed =
+            todaysClients.length > 0 &&
+            todaysClients.every((c) => confirmedClients.has(c));
+          return (
+            <>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: TEXT,
+                  fontSize: 13,
+                  marginBottom: 8,
+                  cursor: "pointer",
+                  opacity: allClientsConfirmed ? 1 : 0.5,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sendText}
+                  onChange={(e) => setSendText(e.target.checked)}
+                  style={{ width: 20, height: 20, accentColor: LIME }}
+                  disabled={!allClientsConfirmed}
+                />
+                Text the crew the loading link
+              </label>
+              <button
+                style={{
+                  ...SOLID_BTN,
+                  width: "100%",
+                  opacity: allClientsConfirmed && !submitting ? 1 : 0.4,
+                  cursor: allClientsConfirmed && !submitting ? "pointer" : "not-allowed",
+                }}
+                onClick={submit}
+                disabled={
+                  submitting || !!loadErr || state === null || !allClientsConfirmed
+                }
+              >
+                {submitting
+                  ? "CONFIRMING…"
+                  : !allClientsConfirmed
+                    ? `CONFIRM EACH CLIENT (${confirmedClients.size}/${todaysClients.length})`
+                    : reviewable === false
+                      ? "CONFIRM DAILY LOAD & NOTIFY CREW"
+                      : "CONFIRM SPECIAL LOADING"}
+              </button>
+            </>
+          );
+        })()}
+
       </div>
       {pickerFor && (
         <ItemPicker
