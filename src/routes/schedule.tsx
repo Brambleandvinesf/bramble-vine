@@ -430,7 +430,7 @@ function SchedulePage() {
               marginBottom: 14,
             }}
           >
-            Do we need the usual base load today?
+            Do we need the usual daily load today?
           </div>
           <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
             <button
