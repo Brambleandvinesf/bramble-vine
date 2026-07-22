@@ -9,6 +9,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { MessagesFab } from "../components/MessagesFab";
 import { appendTeamParam } from "../lib/team";
+import { confirmModal } from "../components/ConfirmModal";
 
 
 const CK = "loading:getData";
@@ -563,7 +564,7 @@ function RouteFooter({ field }: { field: GetFieldResponse }) {
     const msg = isLastStop
       ? `Skip ${label}? No stops remain.`
       : `Skip ${label}? The visit stays on the calendar.`;
-    if (!window.confirm(msg)) return;
+    if (!(await confirmModal(msg))) return;
     setSkipBusy(true);
     const body = isLastStop
       ? { action: "setRoute", stopIndex: stopIndex + 1, state: "next" }

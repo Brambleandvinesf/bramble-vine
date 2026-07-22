@@ -5,6 +5,7 @@ import { useViewAs } from "../lib/view-as";
 import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { confirmModal } from "../components/ConfirmModal";
 
 const CK = "projects:getProjects";
 
@@ -343,9 +344,9 @@ function ProjectsPage() {
   );
 
   const deleteProject = useCallback(
-    (p: Project) => {
+    async (p: Project) => {
       if (!p.projectId) return;
-      if (!window.confirm(`Delete this project?\n\n${p.action || "(no action)"}`)) return;
+      if (!(await confirmModal({ message: `Delete this project?\n\n${p.action || "(no action)"}`, destructive: true }))) return;
       const snapshot = p;
       const snapshotTools = tools.filter((t) => t.projectId === p.projectId);
       // Optimistic remove.

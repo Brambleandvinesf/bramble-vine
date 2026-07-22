@@ -36,6 +36,7 @@ import { ViewAsProvider, useViewAs } from "../lib/view-as";
 import { canSee, type ScreenId } from "../lib/permissions";
 import { ReviewableTodayProvider } from "../lib/reviewable-today";
 import { useBadge, useBadgePoller, BK } from "../lib/badges";
+import { ConfirmModalHost } from "../components/ConfirmModal";
 
 function NotFoundComponent() {
   return (
@@ -293,6 +294,7 @@ function AppFrame() {
       {ready && (user || onLogin) ? <Outlet /> : null}
       {ready && user && !onLogin ? <BottomTabBar /> : null}
       <Toaster position="top-center" richColors />
+      <ConfirmModalHost />
     </>
   );
 }

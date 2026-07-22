@@ -8,6 +8,7 @@ import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { Check, SkipForward, Trash2 } from "lucide-react";
+import { confirmModal } from "../components/ConfirmModal";
 
 const CK = "confirm:getConfirm";
 
@@ -303,9 +304,9 @@ function ConfirmPage() {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }, []);
 
-  const requestDelete = useCallback((projectId: string, actionLabel: string) => {
+  const requestDelete = useCallback(async (projectId: string, actionLabel: string) => {
     if (!projectId) return;
-    if (!window.confirm(`Delete this project?\n\n${actionLabel || "(no action)"}`)) return;
+    if (!(await confirmModal({ message: `Delete this project?\n\n${actionLabel || "(no action)"}`, destructive: true }))) return;
     setDeletes((prev) => {
       const next = new Set(prev);
       next.add(projectId);
@@ -928,11 +929,12 @@ function ConfirmPage() {
                           aria-label="Delete"
                           title="Delete"
                           style={ICON_ACTION_BTN}
-                          onClick={() => {
+                          onClick={async () => {
                             if (
-                              !window.confirm(
-                                `Delete this project?\n\n${e.action || "(no action)"}`,
-                              )
+                              !(await confirmModal({
+                                message: `Delete this project?\n\n${e.action || "(no action)"}`,
+                                destructive: true,
+                              }))
                             )
                               return;
                             beginAnim(key, "delete", () => {

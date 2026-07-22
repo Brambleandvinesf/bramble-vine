@@ -16,6 +16,7 @@ import { setBadge, BK } from "../lib/badges";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
+import { confirmModal } from "../components/ConfirmModal";
 
 const CK_DEFAULT = "messages:getInbox";
 const CK_ALL = "messages:getInbox:all";
@@ -688,7 +689,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     setDrafts((ds) => ds.filter((d) => d.draftId !== draftId));
   }, [flushDraftSave]);
   const discardDraft = useCallback(async (d: Draft) => {
-    if (!window.confirm("Discard this draft?")) return;
+    if (!(await confirmModal({ message: "Discard this draft?", destructive: true }))) return;
     removeDraftLocal(d.draftId);
     const res = await postAction({ action: "discardDraft", draftId: d.draftId, email });
     if (!(res && res.ok)) {
@@ -908,7 +909,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
   const trashItem = useCallback(
     async (it: InboxItem) => {
-      if (!window.confirm("Trash this thread from " + it.from + "?")) return;
+      if (!(await confirmModal({ message: "Trash this thread from " + it.from + "?", destructive: true }))) return;
       hideId(it.id);
       flash("Trashed.");
       const res = await postAction({ action: "trashThread", threadId: it.threadId });
@@ -953,7 +954,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
   const spamItem = useCallback(
     async (it: InboxItem) => {
-      if (!window.confirm("Mark " + it.from + " as spam? You'll never see this number again.")) return;
+      if (!(await confirmModal({ message: "Mark " + it.from + " as spam? You'll never see this number again.", destructive: true }))) return;
       hideId(it.id);
       flash("Marked as spam \u{1F4A9}");
       let ok = true;

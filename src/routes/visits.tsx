@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
+import { confirmModal } from "../components/ConfirmModal";
 
 export const Route = createFileRoute("/visits")({
   head: () => ({
@@ -248,7 +249,7 @@ function VisitsPage() {
       const state = cards[row.eventId];
       const text = action === "skip" ? "" : state?.text ?? "";
       if (action === "send" && !row.contact) {
-        if (!window.confirm("No contact on this row — send anyway?")) return;
+        if (!(await confirmModal("No contact on this row — send anyway?"))) return;
       }
       setCards((prev) => ({
         ...prev,
