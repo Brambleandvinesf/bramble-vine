@@ -201,6 +201,16 @@ function ConfirmPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [animating, setAnimating] = useState<Record<string, "confirm" | "skip" | "delete">>({});
+  const [confirmedClients, setConfirmedClients] = useState<Set<string>>(new Set());
+  const [flashClient, setFlashClient] = useState<string | null>(null);
+  const toggleClientConfirmed = useCallback((client: string) => {
+    setConfirmedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(client)) next.delete(client);
+      else next.add(client);
+      return next;
+    });
+  }, []);
   const beginAnim = useCallback(
     (key: string, kind: "confirm" | "skip" | "delete", after: () => void) => {
       setAnimating((p) => ({ ...p, [key]: kind }));
@@ -284,22 +294,10 @@ function ConfirmPage() {
 
   // A card is "handled" (hidden) when deleted, skipped, or explicitly confirmed.
   // Submit surfaces only when zero reviewable cards remain.
-  const allHandled = useMemo(() => {
-    for (const c of todaysClients) {
-      const list = grouped[c] ?? [];
-      for (const p of list) {
-        const key = p.projectId || `row-${p.row}`;
-        const e = edits[key];
-        if (!e) continue;
-        const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
-        const skip = e.status === "SKIP";
-        const confirmed = e.status === "Confirmed";
-        if (isDeleted || skip || confirmed) continue;
-        return false;
-      }
-    }
-    return true;
-  }, [todaysClients, grouped, edits, deletes]);
+  // Cards are hidden when deleted, skipped, or explicitly confirmed. Retained
+  // for potential future use; per-client confirm now drives submit gating.
+  void useMemo(() => grouped, [grouped]);
+
 
   const setEdit = useCallback((key: string, patch: Partial<Edit>) => {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -685,7 +683,36 @@ function ConfirmPage() {
           const newList = newByClient[client] ?? [];
           return (
             <section key={client} style={{ margin: "16px 12px 0" }}>
-              <div style={CLIENT_CARD}>
+              {confirmedClients.has(client) ? (
+                <button
+                  onClick={() => toggleClientConfirmed(client)}
+                  style={{
+                    ...CLIENT_CARD,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    cursor: "pointer",
+                    padding: "14px 16px",
+                    background: "#0f1509",
+                    color: LIME_BRIGHT,
+                    fontFamily: "inherit",
+                    textAlign: "left",
+                  }}
+                  title="Tap to re-open"
+                >
+                  <Check size={22} />
+                  <span style={{ fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
+                    {client}
+                  </span>
+                </button>
+              ) : (
+              <div
+                style={{
+                  ...CLIENT_CARD,
+                  animation: flashClient === client ? "bvFlashLime 300ms ease" : undefined,
+                }}
+              >
               <div style={CLIENT_HEAD}>
                 <span
                   style={{
@@ -703,6 +730,7 @@ function ConfirmPage() {
                   {list.length} project{list.length === 1 ? "" : "s"}
                 </div>
               </div>
+
 
 
               {rendered.map((p) => {
@@ -1074,8 +1102,23 @@ function ConfirmPage() {
               >
                 + ADD PROJECT
               </button>
+
+              <button
+                style={{ ...SOLID_BTN, width: "100%", marginTop: 16 }}
+                onClick={() => {
+                  setFlashClient(client);
+                  window.setTimeout(() => {
+                    setFlashClient(null);
+                    toggleClientConfirmed(client);
+                  }, 280);
+                }}
+              >
+                CONFIRM {client.toUpperCase()}
+              </button>
               </div>
+              )}
             </section>
+
 
           );
         })}
@@ -1094,40 +1137,57 @@ function ConfirmPage() {
             {submitFlash.msg}
           </div>
         )}
-        {allHandled && (
-          <>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                color: TEXT,
-                fontSize: 13,
-                marginBottom: 8,
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={sendText}
-                onChange={(e) => setSendText(e.target.checked)}
-                style={{ width: 20, height: 20, accentColor: LIME }}
-              />
-              Text the crew the loading link
-            </label>
-            <button
-              style={{ ...SOLID_BTN, width: "100%" }}
-              onClick={submit}
-              disabled={submitting || !!loadErr || state === null}
-            >
-              {submitting
-                ? "CONFIRMING…"
-                : reviewable === false
-                  ? "CONFIRM DAILY LOAD & NOTIFY CREW"
-                  : "CONFIRM SPECIAL LOADING/PROJECTS"}
-            </button>
-          </>
-        )}
+        {(() => {
+          const allClientsConfirmed =
+            todaysClients.length > 0 &&
+            todaysClients.every((c) => confirmedClients.has(c));
+          return (
+            <>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: TEXT,
+                  fontSize: 13,
+                  marginBottom: 8,
+                  cursor: "pointer",
+                  opacity: allClientsConfirmed ? 1 : 0.5,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sendText}
+                  onChange={(e) => setSendText(e.target.checked)}
+                  style={{ width: 20, height: 20, accentColor: LIME }}
+                  disabled={!allClientsConfirmed}
+                />
+                Text the crew the loading link
+              </label>
+              <button
+                style={{
+                  ...SOLID_BTN,
+                  width: "100%",
+                  opacity: allClientsConfirmed && !submitting ? 1 : 0.4,
+                  cursor: allClientsConfirmed && !submitting ? "pointer" : "not-allowed",
+                }}
+                onClick={submit}
+                disabled={
+                  submitting || !!loadErr || state === null || !allClientsConfirmed
+                }
+              >
+                {submitting
+                  ? "CONFIRMING…"
+                  : !allClientsConfirmed
+                    ? `CONFIRM EACH CLIENT (${confirmedClients.size}/${todaysClients.length})`
+                    : reviewable === false
+                      ? "CONFIRM DAILY LOAD & NOTIFY CREW"
+                      : "CONFIRM SPECIAL LOADING"}
+              </button>
+            </>
+          );
+        })()}
+
       </div>
       {pickerFor && (
         <ItemPicker
@@ -1346,10 +1406,15 @@ const CLIENT_HEAD: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
-  padding: "4px 4px 12px",
+  padding: "10px 4px 12px",
   borderBottom: `1px solid ${LIME_DIM}`,
   marginBottom: 8,
+  position: "sticky",
+  top: 130,
+  zIndex: 5,
+  background: "#0f1509",
 };
+
 const CARD: React.CSSProperties = {
   background: "#121212",
   border: `1px solid rgba(124,255,0,0.45)`,
