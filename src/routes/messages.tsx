@@ -2222,36 +2222,43 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               }
               return (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {pills.map((p) => (
-                    <button
-                      key={p.key}
-                      style={pillStyle(p.disabled)}
-                      disabled={p.disabled}
-                      title={p.title}
-                      onClick={() => {
-                        if (p.disabled) return;
-                        if (isEmail) {
-                          setCompose({ ...compose, emailTo: p.value });
-                        } else if (p.clientQuery) {
-                          setCompose({
-                            ...compose,
-                            picked: null,
-                            q: p.clientQuery,
-                            manual: p.clientQuery,
-                          });
-                        } else {
-                          setCompose({
-                            ...compose,
-                            picked: { phone: p.value, name: p.label },
-                            q: "",
-                            manual: "",
-                          });
-                        }
-                      }}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+                  {pills.map((p) => {
+                    const selected = isEmail
+                      ? !!p.value && compose.emailTo === p.value
+                      : p.clientQuery
+                      ? !compose.picked && (compose.manual === p.clientQuery || compose.q === p.clientQuery)
+                      : !!p.value && compose.picked?.phone === p.value;
+                    return (
+                      <button
+                        key={p.key}
+                        style={pillStyle(p.disabled, selected)}
+                        disabled={p.disabled}
+                        title={p.title}
+                        onClick={() => {
+                          if (p.disabled) return;
+                          if (isEmail) {
+                            setCompose({ ...compose, emailTo: p.value });
+                          } else if (p.clientQuery) {
+                            setCompose({
+                              ...compose,
+                              picked: null,
+                              q: p.clientQuery,
+                              manual: p.clientQuery,
+                            });
+                          } else {
+                            setCompose({
+                              ...compose,
+                              picked: { phone: p.value, name: p.label },
+                              q: "",
+                              manual: "",
+                            });
+                          }
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })()}
