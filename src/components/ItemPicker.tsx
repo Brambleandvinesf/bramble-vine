@@ -589,3 +589,78 @@ function ItemDetail({
     </>
   );
 }
+
+function CustomItemForm({
+  initialName,
+  onCancel,
+  onAdd,
+}: {
+  initialName: string;
+  onCancel: () => void;
+  onAdd: (item: PickedItem) => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [qty, setQty] = useState("");
+  const [size, setSize] = useState("");
+  const [notes, setNotes] = useState("");
+  const canSubmit = name.trim().length > 0;
+  return (
+    <>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+        <div style={{ color: MUTED, fontSize: 10, letterSpacing: 2 }}>CUSTOM ITEM</div>
+        <div style={{ color: MUTED, fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+          Free-text — not in the catalog. Won't sync to QB Products & Services.
+        </div>
+
+        <label style={LABEL}>Name</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={INPUT}
+          placeholder="e.g. Extra tarp"
+        />
+
+        <label style={LABEL}>Quantity</label>
+        <input value={qty} onChange={(e) => setQty(e.target.value)} style={INPUT} inputMode="decimal" />
+
+        <label style={LABEL}>Size</label>
+        <input value={size} onChange={(e) => setSize(e.target.value)} style={INPUT} />
+
+        <label style={LABEL}>Notes</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          style={{ ...INPUT, minHeight: 72, resize: "vertical" }}
+        />
+      </div>
+      <div
+        style={{
+          padding: "10px 14px",
+          borderTop: `1px solid ${LINE}`,
+          display: "flex",
+          gap: 8,
+          background: BG,
+        }}
+      >
+        <button style={GHOST_BTN} onClick={onCancel}>
+          BACK
+        </button>
+        <button
+          style={{ ...SOLID_BTN, opacity: canSubmit ? 1 : 0.5 }}
+          disabled={!canSubmit}
+          onClick={() =>
+            onAdd({
+              name: name.trim(),
+              qty: qty.trim(),
+              size: size.trim(),
+              notes: notes.trim(),
+            })
+          }
+        >
+          ADD ITEM
+        </button>
+      </div>
+    </>
+  );
+}
