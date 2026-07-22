@@ -1214,6 +1214,7 @@ function PersonalClockPanel({
   setBanner,
   breakFrom,
   setBreakFrom,
+  beforeClockOut,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -1224,6 +1225,7 @@ function PersonalClockPanel({
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
   breakFrom: string | null;
   setBreakFrom: (v: string | null) => void;
+  beforeClockOut?: () => Promise<boolean>;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
