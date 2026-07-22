@@ -456,33 +456,49 @@ function LoadingPage() {
           <div style={{ height: 200 }} />
         </>
       )}
-      {confirm?.confirmed && (
-        <div style={LOADING_COMPLETE_WRAP}>
-          <button
-            type="button"
-            disabled={completing}
-            onClick={async () => {
-              setCompleting(true);
-              try {
-                await fetch(SCRIPT_URL, {
-                  method: "POST",
-                  headers: { "Content-Type": "text/plain" },
-                  body: JSON.stringify({ action: "loadingComplete" }),
-                });
-                toast.success("Loading marked complete");
-                navigate({ to: "/field" });
-              } catch {
-                toast.error("Couldn't mark complete — retry");
-              } finally {
-                setCompleting(false);
-              }
-            }}
-            style={{ ...LOADING_COMPLETE_BTN, opacity: completing ? 0.6 : 1 }}
-          >
-            {completing ? "SAVING…" : "LOADING COMPLETE"}
-          </button>
-        </div>
-      )}
+      {confirm?.confirmed && (() => {
+        const clientList = Object.keys(grouped);
+        const allConfirmed = clientList.length > 0 && clientList.every((c) => confirmedClients[c]);
+        const remaining = clientList.filter((c) => !confirmedClients[c]).length;
+        return (
+          <div style={LOADING_COMPLETE_WRAP}>
+            <button
+              type="button"
+              disabled={completing || !allConfirmed}
+              onClick={async () => {
+                if (!allConfirmed) return;
+                setCompleting(true);
+                try {
+                  await fetch(SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify({ action: "loadingComplete" }),
+                  });
+                  toast.success("Loading marked complete");
+                  navigate({ to: "/field" });
+                } catch {
+                  toast.error("Couldn't mark complete — retry");
+                } finally {
+                  setCompleting(false);
+                }
+              }}
+              style={{
+                ...LOADING_COMPLETE_BTN,
+                opacity: completing || !allConfirmed ? 0.4 : 1,
+                cursor: completing || !allConfirmed ? "not-allowed" : "pointer",
+                boxShadow: allConfirmed ? "0 0 22px rgba(124,255,0,.25)" : "none",
+              }}
+            >
+              {completing
+                ? "SAVING…"
+                : allConfirmed
+                  ? "CONFIRM DAILY LOAD"
+                  : `CONFIRM ${remaining} MORE CLIENT${remaining === 1 ? "" : "S"}`}
+            </button>
+          </div>
+        );
+      })()}
+
       {effectiveRole === "management" && field && <RouteFooter field={field} />}
       <MessagesFab />
     </div>
