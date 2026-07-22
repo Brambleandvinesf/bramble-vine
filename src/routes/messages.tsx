@@ -2190,9 +2190,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   contacts.find((c) => c.n.toLowerCase().includes(routeClient.toLowerCase()))
                 : null;
 
-              const pillStyle = (disabled?: boolean): CSSProperties => ({
-                background: "transparent",
-                color: T.lime,
+              const pillStyle = (disabled?: boolean, selected?: boolean): CSSProperties => ({
+                background: selected ? T.lime : "transparent",
+                color: selected ? "#0a0a0a" : T.lime,
                 border: `1px solid ${T.lime}`,
                 borderRadius: 999,
                 padding: "6px 12px",
