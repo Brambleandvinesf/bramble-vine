@@ -476,7 +476,7 @@ function MoreButton({
         />
       </button>
       {moreOpen && (
-        <MorePopover tabs={tabs} isActive={isActive} onClose={() => setMoreOpen(() => false)} />
+        <MorePopover tabs={tabs} isActive={isActive} onClose={() => setMoreOpen(false)} />
       )}
     </div>
   );
