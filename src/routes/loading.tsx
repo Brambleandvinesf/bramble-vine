@@ -327,8 +327,44 @@ function LoadingPage() {
 
           {Object.keys(grouped).map((client) => {
             const projects = grouped[client];
+            const isConfirmed = !!confirmedClients[client];
+            const isFlashing = flashClient === client;
+            if (isConfirmed) {
+              return (
+                <section
+                  key={client}
+                  style={{ margin: "12px 12px 0" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfirmedClients((s) => {
+                        const n = { ...s };
+                        delete n[client];
+                        return n;
+                      })
+                    }
+                    style={CLIENT_CONFIRMED_ROW}
+                  >
+                    <span style={{ color: LIME, fontSize: 20, marginRight: 10 }}>✓</span>
+                    <span style={{ color: TEXT, fontSize: 15, fontWeight: "bold", letterSpacing: 1 }}>
+                      {client}
+                    </span>
+                    <span style={{ marginLeft: "auto", color: MUTED, fontSize: 12, letterSpacing: 1 }}>
+                      CONFIRMED · TAP TO EDIT
+                    </span>
+                  </button>
+                </section>
+              );
+            }
             return (
-              <section key={client} style={{ margin: "18px 12px 0" }}>
+              <section
+                key={client}
+                style={{
+                  margin: "18px 12px 0",
+                  animation: isFlashing ? "bvFlashLime .3s ease" : undefined,
+                }}
+              >
                 <div style={CLIENT_HEAD}>
                   <span style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
                     {client}
@@ -401,9 +437,21 @@ function LoadingPage() {
                     </div>
                   );
                 })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFlashClient(client);
+                    window.setTimeout(() => setFlashClient(null), 320);
+                    setConfirmedClients((s) => ({ ...s, [client]: true }));
+                  }}
+                  style={CONFIRM_CLIENT_BTN}
+                >
+                  CONFIRM {client.toUpperCase()}
+                </button>
               </section>
             );
           })}
+
 
           <div style={{ height: 200 }} />
         </>
