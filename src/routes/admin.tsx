@@ -883,7 +883,14 @@ function NotificationScheduleCard() {
         </div>
       </div>
       <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540, fontSize: 12 }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 11,
+            tableLayout: "fixed",
+          }}
+        >
           <thead>
             <tr
               style={{
