@@ -8,6 +8,7 @@ import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
+import { PayrollConfirm } from "../components/PayrollConfirm";
 
 const CK = "field:getField";
 
@@ -654,6 +655,23 @@ function FieldBody({
       }
     : undefined;
 
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const payrollResolveRef = useRef<((v: boolean) => void) | null>(null);
+  const openPayrollGate = useCallback(() => {
+    return new Promise<boolean>((resolve) => {
+      payrollResolveRef.current = resolve;
+      setPayrollOpen(true);
+    });
+  }, []);
+  const closePayroll = useCallback((proceed: boolean) => {
+    setPayrollOpen(false);
+    const r = payrollResolveRef.current;
+    payrollResolveRef.current = null;
+    if (r) r(proceed);
+  }, []);
+
+  const leadEndOfDay = !!(me && me.role === "lead" && routeComplete);
+
   const personalClockSlot = me ? (
     <PersonalClockPanel
       me={me}
@@ -665,6 +683,7 @@ function FieldBody({
       setBanner={setBanner}
       breakFrom={breakFrom}
       setBreakFrom={setBreakFrom}
+      beforeClockOut={leadEndOfDay ? openPayrollGate : undefined}
     />
   ) : null;
 
@@ -716,18 +735,27 @@ function FieldBody({
         <ClockingAsHeader me={me} roster={roster} onChange={handleChangeIdentity} />
       )}
       {/* ROUTE COMPLETE handled separately */}
-      {routeComplete ? (
-        <RouteComplete
-          events={events}
-          roster={roster}
-          isLead={isLead}
-          onApprove={async () => {
-            const r = await send({ action: "qbApprove" });
-            if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
-          }}
-          busy={busy}
-        />
-      ) : (
+      {routeComplete && (
+        <>
+          <RouteComplete
+            events={events}
+            roster={roster}
+            isLead={isLead}
+            onApprove={async () => {
+              const r = await send({ action: "qbApprove" });
+              if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
+            }}
+            busy={busy}
+          />
+          {personalClockSlot && (
+            <div style={{ padding: "0 14px 20px" }}>
+              <div style={{ ...SECTION_HEAD, marginTop: 8 }}>END SHIFT</div>
+              {personalClockSlot}
+            </div>
+          )}
+        </>
+      )}
+      {!routeComplete && (
         <>
           {currentEvent && (
             <ClientHeader event={currentEvent} clientMatch={clientMatch} state={state} />
@@ -876,6 +904,13 @@ function FieldBody({
           )}
         </>
       )}
+      <PayrollConfirm
+        open={payrollOpen}
+        scriptUrl={SCRIPT_URL}
+        byName={me?.name ?? "lead"}
+        onClose={() => closePayroll(false)}
+        onProceed={() => closePayroll(true)}
+      />
     </div>
   );
 }
@@ -1195,6 +1230,7 @@ function PersonalClockPanel({
   setBanner,
   breakFrom,
   setBreakFrom,
+  beforeClockOut,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -1205,6 +1241,7 @@ function PersonalClockPanel({
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
   breakFrom: string | null;
   setBreakFrom: (v: string | null) => void;
+  beforeClockOut?: () => Promise<boolean>;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
@@ -1254,6 +1291,10 @@ function PersonalClockPanel({
 
   const startBreak = async (fromClient: string) => {
     if (isPreview) return;
+    if (beforeClockOut) {
+      const proceed = await beforeClockOut();
+      if (!proceed) return;
+    }
     setBusy(true);
     const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient });
     setBusy(false);
