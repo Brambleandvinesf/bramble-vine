@@ -1386,14 +1386,35 @@ const ITEMS_ROW: React.CSSProperties = {
   gap: 10,
 };
 const ITEM_PILL: React.CSSProperties = {
-  display: "inline-block",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
   fontSize: 18,
   color: LIME_BRIGHT,
   background: "#0a0a0a",
   border: `1px solid ${LIME_BRIGHT}`,
   borderRadius: 999,
-  padding: "8px 18px",
+  padding: "4px 6px 4px 14px",
   letterSpacing: 0.5,
+};
+const ITEM_PILL_X: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 32,
+  minHeight: 32,
+  width: 32,
+  height: 32,
+  padding: 0,
+  marginLeft: 2,
+  background: "transparent",
+  color: LIME_BRIGHT,
+  border: `1px solid ${LIME_DIM}`,
+  borderRadius: 999,
+  fontFamily: "inherit",
+  fontSize: 18,
+  lineHeight: 1,
+  cursor: "pointer",
 };
 const ADD_ITEM_BTN: React.CSSProperties = {
   background: "transparent",
