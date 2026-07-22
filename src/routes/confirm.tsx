@@ -200,6 +200,21 @@ function ConfirmPage() {
   const [submitFlash, setSubmitFlash] = useState<{ msg: string; err: boolean } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [animating, setAnimating] = useState<Record<string, "confirm" | "skip" | "delete">>({});
+  const beginAnim = useCallback(
+    (key: string, kind: "confirm" | "skip" | "delete", after: () => void) => {
+      setAnimating((p) => ({ ...p, [key]: kind }));
+      window.setTimeout(() => {
+        setAnimating((p) => {
+          const n = { ...p };
+          delete n[key];
+          return n;
+        });
+        after();
+      }, 300);
+    },
+    [],
+  );
 
   const fetchedRef = useRef(false);
 
