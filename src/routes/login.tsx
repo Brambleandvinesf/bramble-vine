@@ -16,7 +16,7 @@ const LIME = "#7cff00";
 const DIM = "#4a7a1e";
 
 function LoginPage() {
-  const { user, ready, signIn } = useAuth();
+  const { user, role, ready, signIn } = useAuth();
   const navigate = useNavigate();
   const { next } = useSearch({ from: "/login" });
   const [email, setEmail] = useState("");
@@ -24,10 +24,12 @@ function LoginPage() {
 
   useEffect(() => {
     if (ready && user) {
-      const dest = next && next.startsWith("/") ? next : "/";
+      const fallback = role === "lead" || role === "assistant" ? "/field" : "/";
+      const dest = next && next.startsWith("/") ? next : fallback;
       void navigate({ to: dest });
     }
-  }, [ready, user, next, navigate]);
+  }, [ready, user, role, next, navigate]);
+
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
