@@ -427,8 +427,36 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     items: { name: string; qty: string; size: string; notes: string }[];
     type: "" | "SPECIAL" | "RECURRING";
     notes: string;
+    garden: string;
+    category: string;
     err?: string;
   } | null>(null);
+  const [projectCatalog, setProjectCatalog] = useState<{ garden: string; category: string }[]>([]);
+  const projectCatalogFetched = useRef(false);
+  const loadProjectCatalog = useCallback(async () => {
+    if (projectCatalogFetched.current) return;
+    projectCatalogFetched.current = true;
+    try {
+      const r = await fetch(SCRIPT_URL + "?action=getProjects").then((x) => x.json());
+      const list = Array.isArray(r?.projects) ? r.projects : Array.isArray(r) ? r : [];
+      setProjectCatalog(
+        list.map((p: Record<string, unknown>) => ({
+          garden: String(p["Garden"] ?? p["garden"] ?? "").trim(),
+          category: String(p["Category"] ?? p["category"] ?? "").trim(),
+        })),
+      );
+    } catch {
+      projectCatalogFetched.current = false;
+    }
+  }, []);
+  const gardenOptions = useMemo(
+    () => projectCatalog.map((p) => p.garden).filter(Boolean),
+    [projectCatalog],
+  );
+  const categoryOptions = useMemo(
+    () => projectCatalog.map((p) => p.category).filter(Boolean),
+    [projectCatalog],
+  );
   const [rcPick, setRcPick] = useState<{
     threadId: string;
     vendor: string;
