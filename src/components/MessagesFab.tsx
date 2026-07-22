@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MessageSquare, X } from "lucide-react";
 import { MessagesPage } from "../routes/messages";
+import { useBadge, BK } from "../lib/badges";
 
 /**
  * Floating Messages button for the guided field flow. Opens the Messages
@@ -8,6 +9,7 @@ import { MessagesPage } from "../routes/messages";
  */
 export function MessagesFab() {
   const [open, setOpen] = useState(false);
+  const count = useBadge(BK.inbox) ?? 0;
   return (
     <>
       <button
@@ -33,6 +35,32 @@ export function MessagesFab() {
         }}
       >
         <MessageSquare size={24} strokeWidth={2.2} />
+        {count >= 1 && (
+          <span
+            aria-label={`${count} awaiting`}
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              minWidth: 20,
+              height: 20,
+              padding: "0 5px",
+              borderRadius: 999,
+              background: "#0a0a0a",
+              color: "#7cff00",
+              border: "2px solid #7cff00",
+              fontSize: 11,
+              lineHeight: "16px",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontFamily: "'Courier New', Courier, monospace",
+            }}
+          >
+            {count}
+          </span>
+        )}
       </button>
       {open && (
         <div
@@ -74,3 +102,4 @@ export function MessagesFab() {
     </>
   );
 }
+
