@@ -248,7 +248,7 @@ function VisitsPage() {
       const state = cards[row.eventId];
       const text = action === "skip" ? "" : state?.text ?? "";
       if (action === "send" && !row.contact) {
-        if (!window.confirm("No contact on this row — send anyway?")) return;
+        if (!(await confirmModal("No contact on this row — send anyway?"))) return;
       }
       setCards((prev) => ({
         ...prev,
