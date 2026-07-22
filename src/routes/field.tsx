@@ -101,6 +101,106 @@ type GetFieldResponse = {
   serverTime?: string;
 };
 
+/* ---------- assistant loading gate: reads getData for confirm+loaded ---------- */
+type LoadingItem = {
+  row: number;
+  materialId: string;
+  client: string;
+  project: string;
+  item: string;
+  qty: string;
+  size: string;
+  notes: string;
+  loaded: boolean;
+};
+
+function useLoadingSnapshot(enabled: boolean) {
+  const [confirmed, setConfirmed] = useState<boolean | null>(null);
+  const [items, setItems] = useState<LoadingItem[]>([]);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getData`);
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          tools?: Array<Record<string, unknown>>;
+          projects?: Array<Record<string, unknown>>;
+          clients?: unknown[];
+          confirm?: { confirmed?: boolean };
+        };
+        if (cancelled) return;
+        setConfirmed(!!json.confirm?.confirmed);
+        const clientSet = new Set(
+          (json.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
+        );
+        const projectStatus: Record<string, string> = {};
+        (json.projects ?? []).forEach((p) => {
+          const id = String(p["Project ID"] ?? "").trim();
+          if (id) projectStatus[id] = String(p["Status"] ?? "").trim();
+        });
+        const list: LoadingItem[] = (json.tools ?? [])
+          .map((t) => ({
+            row: Number(t.row ?? 0),
+            materialId: String(t["Material ID"] ?? ""),
+            client: String(t["Client Name"] ?? "").trim(),
+            project: String(t["Project ID"] ?? ""),
+            item: String(t["Item Name"] ?? ""),
+            qty: String(t["Quantity"] ?? ""),
+            size: String(t["Size"] ?? ""),
+            notes: String(t["Notes"] ?? ""),
+            loaded: t["Loaded Status"] === true,
+          }))
+          .filter(
+            (it) => it.item && clientSet.has(it.client) && projectStatus[it.project] === "Confirmed",
+          );
+        setItems(list);
+        setReady(true);
+      } catch {
+        /* keep last snapshot */
+      }
+    };
+    void tick();
+    const id = window.setInterval(tick, POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [enabled]);
+
+  const toggle = useCallback(async (row: number) => {
+    let prev = false;
+    let materialId = "";
+    setItems((cur) =>
+      cur.map((it) => {
+        if (it.row !== row) return it;
+        prev = it.loaded;
+        materialId = it.materialId;
+        return { ...it, loaded: !it.loaded };
+      }),
+    );
+    if (!materialId) return;
+    try {
+      await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "setLoaded", materialId, row, loaded: !prev }),
+      });
+    } catch {
+      setItems((cur) =>
+        cur.map((it) => (it.row === row ? { ...it, loaded: prev } : it)),
+      );
+    }
+  }, []);
+
+  const allLoaded = items.length === 0 || items.every((i) => i.loaded);
+  return { confirmed, items, allLoaded, ready, toggle };
+}
+
+
 
 /* ---------- helpers ---------- */
 async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; error?: string }> {
