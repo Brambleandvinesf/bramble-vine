@@ -761,11 +761,11 @@ function ConfirmPage() {
                       }}
                     >
                       {p.projectId ? (
-                        <span style={{ fontSize: 10, color: MUTED, letterSpacing: 1 }}>
+                        <span style={{ fontSize: 14, color: MUTED, letterSpacing: 1 }}>
                           {p.projectId}
                         </span>
                       ) : (
-                        <span style={{ fontSize: 10, color: AMBER, letterSpacing: 1 }}>
+                        <span style={{ fontSize: 14, color: AMBER, letterSpacing: 1 }}>
                           NO ID (won't save)
                         </span>
                       )}
