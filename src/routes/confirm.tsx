@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
+import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
