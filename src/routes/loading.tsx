@@ -153,6 +153,9 @@ function LoadingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [confirmedClients, setConfirmedClients] = useState<Record<string, boolean>>({});
+  const [flashClient, setFlashClient] = useState<string | null>(null);
+
 
 
   // Poll getData so the screen unlocks automatically once confirmed.
@@ -324,8 +327,44 @@ function LoadingPage() {
 
           {Object.keys(grouped).map((client) => {
             const projects = grouped[client];
+            const isConfirmed = !!confirmedClients[client];
+            const isFlashing = flashClient === client;
+            if (isConfirmed) {
+              return (
+                <section
+                  key={client}
+                  style={{ margin: "12px 12px 0" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfirmedClients((s) => {
+                        const n = { ...s };
+                        delete n[client];
+                        return n;
+                      })
+                    }
+                    style={CLIENT_CONFIRMED_ROW}
+                  >
+                    <span style={{ color: LIME, fontSize: 20, marginRight: 10 }}>✓</span>
+                    <span style={{ color: TEXT, fontSize: 15, fontWeight: "bold", letterSpacing: 1 }}>
+                      {client}
+                    </span>
+                    <span style={{ marginLeft: "auto", color: MUTED, fontSize: 12, letterSpacing: 1 }}>
+                      CONFIRMED · TAP TO EDIT
+                    </span>
+                  </button>
+                </section>
+              );
+            }
             return (
-              <section key={client} style={{ margin: "18px 12px 0" }}>
+              <section
+                key={client}
+                style={{
+                  margin: "18px 12px 0",
+                  animation: isFlashing ? "bvFlashLime .3s ease" : undefined,
+                }}
+              >
                 <div style={CLIENT_HEAD}>
                   <span style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
                     {client}
@@ -398,40 +437,68 @@ function LoadingPage() {
                     </div>
                   );
                 })}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFlashClient(client);
+                    window.setTimeout(() => setFlashClient(null), 320);
+                    setConfirmedClients((s) => ({ ...s, [client]: true }));
+                  }}
+                  style={CONFIRM_CLIENT_BTN}
+                >
+                  CONFIRM {client.toUpperCase()}
+                </button>
               </section>
             );
           })}
 
+
           <div style={{ height: 200 }} />
         </>
       )}
-      {confirm?.confirmed && (
-        <div style={LOADING_COMPLETE_WRAP}>
-          <button
-            type="button"
-            disabled={completing}
-            onClick={async () => {
-              setCompleting(true);
-              try {
-                await fetch(SCRIPT_URL, {
-                  method: "POST",
-                  headers: { "Content-Type": "text/plain" },
-                  body: JSON.stringify({ action: "loadingComplete" }),
-                });
-                toast.success("Loading marked complete");
-                navigate({ to: "/field" });
-              } catch {
-                toast.error("Couldn't mark complete — retry");
-              } finally {
-                setCompleting(false);
-              }
-            }}
-            style={{ ...LOADING_COMPLETE_BTN, opacity: completing ? 0.6 : 1 }}
-          >
-            {completing ? "SAVING…" : "LOADING COMPLETE"}
-          </button>
-        </div>
-      )}
+      {confirm?.confirmed && (() => {
+        const clientList = Object.keys(grouped);
+        const allConfirmed = clientList.length > 0 && clientList.every((c) => confirmedClients[c]);
+        const remaining = clientList.filter((c) => !confirmedClients[c]).length;
+        return (
+          <div style={LOADING_COMPLETE_WRAP}>
+            <button
+              type="button"
+              disabled={completing || !allConfirmed}
+              onClick={async () => {
+                if (!allConfirmed) return;
+                setCompleting(true);
+                try {
+                  await fetch(SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify({ action: "loadingComplete" }),
+                  });
+                  toast.success("Loading marked complete");
+                  navigate({ to: "/field" });
+                } catch {
+                  toast.error("Couldn't mark complete — retry");
+                } finally {
+                  setCompleting(false);
+                }
+              }}
+              style={{
+                ...LOADING_COMPLETE_BTN,
+                opacity: completing || !allConfirmed ? 0.4 : 1,
+                cursor: completing || !allConfirmed ? "not-allowed" : "pointer",
+                boxShadow: allConfirmed ? "0 0 22px rgba(124,255,0,.25)" : "none",
+              }}
+            >
+              {completing
+                ? "SAVING…"
+                : allConfirmed
+                  ? "CONFIRM DAILY LOAD"
+                  : `CONFIRM ${remaining} MORE CLIENT${remaining === 1 ? "" : "S"}`}
+            </button>
+          </div>
+        );
+      })()}
+
       {effectiveRole === "management" && field && <RouteFooter field={field} />}
       <MessagesFab />
     </div>
@@ -713,6 +780,37 @@ const CLIENT_HEAD: React.CSSProperties = {
   gap: 10,
   padding: "0 4px 8px",
 };
+const CLIENT_CONFIRMED_ROW: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  width: "100%",
+  minHeight: 52,
+  padding: "10px 14px",
+  background: "#0f1a08",
+  border: `1px solid ${LIME_DIM}`,
+  borderRadius: 10,
+  color: TEXT,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  textAlign: "left",
+};
+const CONFIRM_CLIENT_BTN: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  marginTop: 12,
+  minHeight: 56,
+  padding: "12px 16px",
+  background: LIME,
+  color: "#0a0a0a",
+  border: "none",
+  borderRadius: 10,
+  fontFamily: "inherit",
+  fontSize: 15,
+  letterSpacing: 2,
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
 const PROJECT_HEAD: React.CSSProperties = {
   display: "flex",
   alignItems: "baseline",
