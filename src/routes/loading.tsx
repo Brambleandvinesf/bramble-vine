@@ -153,6 +153,9 @@ function LoadingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [confirmedClients, setConfirmedClients] = useState<Record<string, boolean>>({});
+  const [flashClient, setFlashClient] = useState<string | null>(null);
+
 
 
   // Poll getData so the screen unlocks automatically once confirmed.
