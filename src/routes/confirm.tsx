@@ -611,6 +611,18 @@ function ConfirmPage() {
 
   return (
     <div style={PAGE}>
+      <style>{`
+        @keyframes bvFlashLime {
+          0%,100% { background:#121212; box-shadow:none; }
+          50% { background:rgba(124,255,0,.22); box-shadow:0 0 18px rgba(124,255,0,.35); }
+        }
+        @keyframes bvSlideRightFade {
+          to { transform: translateX(40%); opacity: .5; }
+        }
+        @keyframes bvShrinkOut {
+          to { transform: scale(.85); opacity: 0; }
+        }
+      `}</style>
       <header style={HEADER}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
