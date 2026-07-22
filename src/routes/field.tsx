@@ -904,6 +904,13 @@ function FieldBody({
           )}
         </>
       )}
+      <PayrollConfirm
+        open={payrollOpen}
+        scriptUrl={SCRIPT_URL}
+        byName={me?.name ?? "lead"}
+        onClose={() => closePayroll(false)}
+        onProceed={() => closePayroll(true)}
+      />
     </div>
   );
 }
