@@ -565,6 +565,8 @@ function ProjectsPage() {
                         {draft ? (
                           <EditForm
                             draft={draft}
+                            gardenOptions={gardenOptions}
+                            categoryOptions={categoryOptions}
                             onChange={(patch) => patchEdit(p.projectId, patch)}
                             onSave={() => saveEdit(p)}
                             onCancel={() => cancelEdit(p.projectId)}
