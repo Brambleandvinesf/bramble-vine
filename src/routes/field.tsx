@@ -1275,6 +1275,10 @@ function PersonalClockPanel({
 
   const startBreak = async (fromClient: string) => {
     if (isPreview) return;
+    if (beforeClockOut) {
+      const proceed = await beforeClockOut();
+      if (!proceed) return;
+    }
     setBusy(true);
     const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient });
     setBusy(false);
