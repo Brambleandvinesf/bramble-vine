@@ -75,6 +75,10 @@ function HomePage() {
       void navigate({ to: "/schedule" });
       return;
     }
+    if (role === "office") {
+      void navigate({ to: "/schedule" });
+      return;
+    }
     if (role !== "lead" && role !== "management") return;
     if (role === "lead") {
       void navigate({ to: "/field" });

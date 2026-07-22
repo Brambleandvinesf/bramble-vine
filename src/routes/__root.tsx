@@ -174,6 +174,7 @@ function AppFrame() {
     email: user ? email : null,
     canMessages: canSee(role, "messages"),
     canReceipts: canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice"),
+    canVisits: canSee(role, "visits"),
   });
 
   // Client-side gate. Legacy screens hit external endpoints and require identity;
@@ -325,7 +326,7 @@ import type { Role } from "../lib/auth";
 const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
   lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts"] },
   assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts"] },
-  office:     { row: ["home","schedule","visits","messages"],                     more: ["projects","receipts"] },
+  office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts"] },
   management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","admin"] },
 };
 
@@ -338,6 +339,7 @@ function BottomTabBar() {
   const [moreOpen, setMoreOpen] = useState(false);
   const inboxCount = useBadge(BK.inbox) ?? 0;
   const receiptsCount = useBadge(BK.receipts) ?? 0;
+  const visitsCount = useBadge(BK.visits) ?? 0;
 
   const isActive = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/");
@@ -345,11 +347,14 @@ function BottomTabBar() {
   if (!effectiveRole) return null;
   const rawLayout = LAYOUTS[effectiveRole];
 
-  // Dynamic icons for lead/assistant: a count-bearing screen only appears on the
-  // bar when its count >= 1; otherwise it stays reachable via the ⋮ menu.
-  const isDynamic = effectiveRole === "lead" || effectiveRole === "assistant";
+  // Dynamic icons: a count-bearing screen only appears on the bar when its
+  // count >= 1; otherwise it stays reachable via the ⋮ menu.
+  const isDynamic =
+    effectiveRole === "lead" || effectiveRole === "assistant" || effectiveRole === "office";
   const dynamicRules: Array<{ key: string; count: number }> = isDynamic
-    ? [{ key: "receipts", count: receiptsCount }]
+    ? effectiveRole === "office"
+      ? [{ key: "visits", count: visitsCount }, { key: "receipts", count: receiptsCount }]
+      : [{ key: "receipts", count: receiptsCount }]
     : [];
 
   const rowKeys = [...rawLayout.row];
@@ -377,6 +382,7 @@ function BottomTabBar() {
   const badgeFor = (to: string): number => {
     if (to === "/messages") return inboxCount;
     if (to === "/receipts") return receiptsCount;
+    if (to === "/visits") return visitsCount;
     return 0;
   };
 

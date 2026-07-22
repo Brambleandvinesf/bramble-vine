@@ -14,6 +14,7 @@ import { SCRIPT_URL } from "../routes/confirm";
 export const BK = {
   inbox: "home:getInbox:count",
   receipts: "home:getReceipts:count",
+  visits: "home:getQueue:count",
 } as const;
 
 const EVT = "bv:badges";
@@ -47,6 +48,7 @@ type PollOpts = {
   email: string | null;
   canMessages: boolean;
   canReceipts: boolean;
+  canVisits?: boolean;
 };
 
 /**
@@ -54,7 +56,7 @@ type PollOpts = {
  * Inbox count uses the same rule as the Messages screen's own badge:
  * items where `awaiting` is true.
  */
-export function useBadgePoller({ email, canMessages, canReceipts }: PollOpts): void {
+export function useBadgePoller({ email, canMessages, canReceipts, canVisits }: PollOpts): void {
   useEffect(() => {
     if (!email) return;
     let cancelled = false;
@@ -67,6 +69,21 @@ export function useBadgePoller({ email, canMessages, canReceipts }: PollOpts): v
           const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
           const n = (j.inbox ?? []).filter((i) => !!i.awaiting).length;
           if (!cancelled) setBadge(BK.inbox, n);
+        } catch {
+          /* keep last value */
+        }
+      }
+      if (canVisits) {
+        try {
+          const r = await fetch(`${SCRIPT_URL}?action=getQueue`);
+          const j = (await r.json()) as {
+            queue?: Array<{ status?: string; Status?: string }>;
+          };
+          const n = (j.queue ?? []).filter((row) => {
+            const s = String(row.status ?? row.Status ?? "").trim().toLowerCase();
+            return s === "" || s === "pending";
+          }).length;
+          if (!cancelled) setBadge(BK.visits, n);
         } catch {
           /* keep last value */
         }
