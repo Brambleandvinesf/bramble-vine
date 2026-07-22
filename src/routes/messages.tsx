@@ -12,6 +12,7 @@ import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, 
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
+import { setBadge, BK } from "../lib/badges";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
@@ -645,6 +646,10 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   );
   const badgeCount = awaitingItems.length;
   void showAll;
+  // Publish the live count so the bottom bar / FAB / Home tile all match.
+  useEffect(() => {
+    setBadge(BK.inbox, badgeCount);
+  }, [badgeCount]);
 
   /* ---- drafts ---- */
   const draftByThread = useMemo(() => {
@@ -2185,9 +2190,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   contacts.find((c) => c.n.toLowerCase().includes(routeClient.toLowerCase()))
                 : null;
 
-              const pillStyle = (disabled?: boolean): CSSProperties => ({
-                background: "transparent",
-                color: T.lime,
+              const pillStyle = (disabled?: boolean, selected?: boolean): CSSProperties => ({
+                background: selected ? T.lime : "transparent",
+                color: selected ? "#0a0a0a" : T.lime,
                 border: `1px solid ${T.lime}`,
                 borderRadius: 999,
                 padding: "6px 12px",
@@ -2217,36 +2222,43 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               }
               return (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {pills.map((p) => (
-                    <button
-                      key={p.key}
-                      style={pillStyle(p.disabled)}
-                      disabled={p.disabled}
-                      title={p.title}
-                      onClick={() => {
-                        if (p.disabled) return;
-                        if (isEmail) {
-                          setCompose({ ...compose, emailTo: p.value });
-                        } else if (p.clientQuery) {
-                          setCompose({
-                            ...compose,
-                            picked: null,
-                            q: p.clientQuery,
-                            manual: p.clientQuery,
-                          });
-                        } else {
-                          setCompose({
-                            ...compose,
-                            picked: { phone: p.value, name: p.label },
-                            q: "",
-                            manual: "",
-                          });
-                        }
-                      }}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
+                  {pills.map((p) => {
+                    const selected = isEmail
+                      ? !!p.value && compose.emailTo === p.value
+                      : p.clientQuery
+                      ? !compose.picked && (compose.manual === p.clientQuery || compose.q === p.clientQuery)
+                      : !!p.value && compose.picked?.phone === p.value;
+                    return (
+                      <button
+                        key={p.key}
+                        style={pillStyle(p.disabled, selected)}
+                        disabled={p.disabled}
+                        title={p.title}
+                        onClick={() => {
+                          if (p.disabled) return;
+                          if (isEmail) {
+                            setCompose({ ...compose, emailTo: p.value });
+                          } else if (p.clientQuery) {
+                            setCompose({
+                              ...compose,
+                              picked: null,
+                              q: p.clientQuery,
+                              manual: p.clientQuery,
+                            });
+                          } else {
+                            setCompose({
+                              ...compose,
+                              picked: { phone: p.value, name: p.label },
+                              q: "",
+                              manual: "",
+                            });
+                          }
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
                 </div>
               );
             })()}
