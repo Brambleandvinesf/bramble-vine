@@ -841,7 +841,7 @@ function ConfirmPage() {
               {newList.map((n) => (
                 <div key={n.key} style={{ ...CARD, marginTop: 8, borderColor: LIME_DIM }}>
                   <div style={{ display: "flex", alignItems: "baseline", marginBottom: 8 }}>
-                    <span style={{ color: LIME, fontSize: 11, letterSpacing: 1 }}>
+                    <span style={{ color: LIME, fontSize: 14, letterSpacing: 1 }}>
                       NEW PROJECT
                     </span>
                     <div style={{ flex: 1 }} />
