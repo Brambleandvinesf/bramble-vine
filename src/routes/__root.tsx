@@ -34,6 +34,7 @@ import { AuthProvider, useAuth } from "../lib/auth";
 import { ViewAsProvider, useViewAs } from "../lib/view-as";
 import { canSee, type ScreenId } from "../lib/permissions";
 import { ReviewableTodayProvider } from "../lib/reviewable-today";
+import { useBadge, useBadgePoller, BK } from "../lib/badges";
 
 function NotFoundComponent() {
   return (
