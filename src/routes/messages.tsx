@@ -17,6 +17,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
 import { confirmModal } from "../components/ConfirmModal";
+import { ComboSelect } from "../components/ComboSelect";
 
 const CK_DEFAULT = "messages:getInbox";
 const CK_ALL = "messages:getInbox:all";
@@ -426,8 +427,36 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     items: { name: string; qty: string; size: string; notes: string }[];
     type: "" | "SPECIAL" | "RECURRING";
     notes: string;
+    garden: string;
+    category: string;
     err?: string;
   } | null>(null);
+  const [projectCatalog, setProjectCatalog] = useState<{ garden: string; category: string }[]>([]);
+  const projectCatalogFetched = useRef(false);
+  const loadProjectCatalog = useCallback(async () => {
+    if (projectCatalogFetched.current) return;
+    projectCatalogFetched.current = true;
+    try {
+      const r = await fetch(SCRIPT_URL + "?action=getProjects").then((x) => x.json());
+      const list = Array.isArray(r?.projects) ? r.projects : Array.isArray(r) ? r : [];
+      setProjectCatalog(
+        list.map((p: Record<string, unknown>) => ({
+          garden: String(p["Garden"] ?? p["garden"] ?? "").trim(),
+          category: String(p["Category"] ?? p["category"] ?? "").trim(),
+        })),
+      );
+    } catch {
+      projectCatalogFetched.current = false;
+    }
+  }, []);
+  const gardenOptions = useMemo(
+    () => projectCatalog.map((p) => p.garden).filter(Boolean),
+    [projectCatalog],
+  );
+  const categoryOptions = useMemo(
+    () => projectCatalog.map((p) => p.category).filter(Boolean),
+    [projectCatalog],
+  );
   const [rcPick, setRcPick] = useState<{
     threadId: string;
     vendor: string;
@@ -1104,18 +1133,30 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
   /* ---- add project ---- */
   const openProject = useCallback((it: InboxItem) => {
-    const s = it.snippet || "";
-    const i = s.indexOf(": ");
-    const name = i > 0 ? s.slice(0, i) : it.from;
-    const text = (i > 0 ? s.slice(i + 2) : s).trim();
+    void loadProjectCatalog();
+    let text = "";
+    if (viewerBody && (viewerBody.kind === "gmail" || viewerBody.kind === "quo")) {
+      const msgs = viewerBody.messages as { body?: string; direction?: string }[];
+      for (let k = msgs.length - 1; k >= 0; k--) {
+        const b = String(msgs[k]?.body ?? "").trim();
+        if (b) { text = b; break; }
+      }
+    }
+    if (!text) {
+      const s = it.snippet || "";
+      const i = s.indexOf(": ");
+      text = (i > 0 ? s.slice(i + 2) : s).trim();
+    }
     setApPick({
       item: it,
-      action: name + ": " + text,
+      action: text,
       items: [],
       type: "",
       notes: "",
+      garden: "",
+      category: "",
     });
-  }, []);
+  }, [viewerBody, loadProjectCatalog]);
   const submitProject = useCallback(async () => {
     if (!apPick) return;
     const act = apPick.action.trim();
@@ -1127,6 +1168,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       projectAction: act,
       type: apPick.type,
       notes: apPick.notes.trim(),
+      garden: apPick.garden.trim(),
+      category: apPick.category.trim(),
       items: apPick.items
         .map((r) => ({ name: r.name.trim(), qty: r.qty.trim(), size: r.size.trim(), notes: r.notes.trim() }))
         .filter((i) => i.name),
@@ -1943,6 +1986,26 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 </button>
               ))}
             </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Garden</label>
+                <ComboSelect
+                  value={apPick.garden}
+                  options={gardenOptions}
+                  onChange={(v) => setApPick({ ...apPick, garden: v })}
+                  placeholder="Select garden…"
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Category</label>
+                <ComboSelect
+                  value={apPick.category}
+                  options={categoryOptions}
+                  onChange={(v) => setApPick({ ...apPick, category: v })}
+                  placeholder="Select category…"
+                />
+              </div>
+            </div>
             <label style={labelStyle}>Notes (optional)</label>
             <input
               value={apPick.notes}
@@ -2535,7 +2598,7 @@ function ModalOverlay({ children }: { children: ReactNode }) {
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,.75)",
-        zIndex: 250,
+        zIndex: 400,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -3116,6 +3179,18 @@ function Viewer({
   showConfirm: boolean;
 }) {
   const quo = it.source === "quo";
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const prevMsgCount = useRef(0);
+  const msgCount =
+    body && (body.kind === "gmail" || body.kind === "quo") ? body.messages.length : 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || msgCount === 0) return;
+    const grew = msgCount > prevMsgCount.current;
+    const firstLoad = prevMsgCount.current === 0;
+    el.scrollTo({ top: el.scrollHeight, behavior: firstLoad ? "auto" : grew ? "smooth" : "auto" });
+    prevMsgCount.current = msgCount;
+  }, [msgCount]);
   return (
     <div
       style={{
@@ -3153,7 +3228,7 @@ function Viewer({
           <X size={24} />
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
         {!body || body.kind === "loading" ? (
           <span>Loading thread<Dots /></span>
         ) : body.kind === "error" ? (
