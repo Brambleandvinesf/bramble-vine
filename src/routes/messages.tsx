@@ -448,9 +448,11 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   }, []);
 
   const loadInbox = useCallback(async () => {
+    const emailParam = (email || "").trim().toLowerCase();
+    if (!emailParam) return;
     setRefreshing(true);
     try {
-      let url = SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(email);
+      let url = SCRIPT_URL + "?action=getInbox&email=" + encodeURIComponent(emailParam);
       if (viewAll) url += "&viewAll=1";
       const r: InboxResponse = await fetch(url).then((x) => x.json());
       sessionCache.set(cacheKey, r);
