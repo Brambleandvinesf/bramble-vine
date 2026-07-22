@@ -208,13 +208,11 @@ function SchedulePage() {
     const id = window.setInterval(tick, 10_000);
     return () => { cancelled = true; window.clearInterval(id); };
   }, [isFieldCrew, effectiveRole]);
-  useEffect(() => {
-    if (!isFieldCrew) return;
-    if (confirmed !== true) return;
-    if (confirmSeenRef.current) return;
-    confirmSeenRef.current = true;
-    void navigate({ to: "/loading" });
-  }, [confirmed, isFieldCrew, navigate]);
+  // Assistant stays on /schedule as the morning holding state until they
+  // navigate to /field themselves. The Field screen's own state machine
+  // owns the Loading step once they arrive there.
+  void confirmSeenRef;
+
 
   const submitBaseLoadYes = useCallback(async () => {
     setBaseLoadSubmitting(true);
