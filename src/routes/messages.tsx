@@ -16,6 +16,7 @@ import { setBadge, BK } from "../lib/badges";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
+import { confirmModal } from "../components/ConfirmModal";
 
 const CK_DEFAULT = "messages:getInbox";
 const CK_ALL = "messages:getInbox:all";
