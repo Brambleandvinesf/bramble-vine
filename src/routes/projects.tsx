@@ -5,6 +5,7 @@ import { useViewAs } from "../lib/view-as";
 import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { confirmModal } from "../components/ConfirmModal";
 
 const CK = "projects:getProjects";
 
