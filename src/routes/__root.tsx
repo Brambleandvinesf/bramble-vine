@@ -8,6 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import type React from "react";
 import { useEffect, useState, type ReactNode, type ComponentType } from "react";
 import {
   Home,
