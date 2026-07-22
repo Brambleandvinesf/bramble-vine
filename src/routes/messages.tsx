@@ -3360,6 +3360,74 @@ function AttView({ a }: { a: ThreadAttachment }) {
   );
 }
 
+function MediaStrip({ media }: { media: ThreadMedia[] }) {
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        justifyContent: "center",
+      }}
+    >
+      {media.map((m, i) => {
+        const isImage = (m.type || "").toLowerCase().indexOf("image") === 0 ||
+          /\.(jpe?g|png|gif|webp|heic|bmp)(\?|$)/i.test(m.url);
+        if (isImage) {
+          return (
+            <a
+              key={i}
+              href={m.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: "block", lineHeight: 0 }}
+            >
+              <img
+                src={m.url}
+                alt="attachment"
+                loading="lazy"
+                style={{
+                  width: 120,
+                  height: 120,
+                  objectFit: "cover",
+                  borderRadius: 8,
+                  border: `1px solid ${T.lime}`,
+                  cursor: "zoom-in",
+                  display: "block",
+                }}
+              />
+            </a>
+          );
+        }
+        return (
+          <a
+            key={i}
+            href={m.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              border: `1px solid ${T.lime}`,
+              color: T.lime,
+              borderRadius: 6,
+              padding: "8px 12px",
+              fontSize: ".85rem",
+              textDecoration: "none",
+              fontWeight: "bold",
+              letterSpacing: 1,
+            }}
+          >
+            <Paperclip size={14} /> View attachment
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 /* PDF.js lazy loader */
 let PDFJS_READY: Promise<void> | null = null;
 function ensurePdfJs(): Promise<void> {
