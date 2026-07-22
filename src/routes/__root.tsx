@@ -162,11 +162,17 @@ function RootComponent() {
 }
 
 function AppFrame() {
-  const { user, ready } = useAuth();
+  const { user, email, role, ready } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
 
   const onLogin = pathname === "/login";
+
+  useBadgePoller({
+    email: user ? email : null,
+    canMessages: canSee(role, "messages"),
+    canReceipts: canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice"),
+  });
 
   // Client-side gate. Legacy screens hit external endpoints and require identity;
   // we bounce unauthenticated visitors to /login. SSR renders nothing until ready.
