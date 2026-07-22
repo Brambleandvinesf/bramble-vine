@@ -9,6 +9,7 @@ import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
 import { PayrollConfirm } from "../components/PayrollConfirm";
+import { confirmModal } from "../components/ConfirmModal";
 
 const CK = "field:getField";
 
@@ -730,13 +731,13 @@ function FieldBody({
     setRosterEdit(true);
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     if (isPreview) return;
     const label = clientMatch ?? currentEvent?.title ?? "this client";
     const msg = isLastStop
       ? `Skip ${label}? No stops remain.`
       : `Skip ${label}? The visit stays on the calendar.`;
-    if (!window.confirm(msg)) return;
+    if (!(await confirmModal(msg))) return;
     if (isLastStop) {
       void send({ action: "setRoute", stopIndex: stopIndex + 1, state: "next" });
     } else {
@@ -1042,7 +1043,7 @@ async function confirmNoShow(
   send: (b: unknown) => Promise<{ ok: boolean; raw: unknown }>,
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void,
 ) {
-  if (!window.confirm("Mark this stop a no-show? Everyone clocks out and the schedule pulls earlier.")) return;
+  if (!(await confirmModal({ message: "Mark this stop a no-show? Everyone clocks out and the schedule pulls earlier.", destructive: true }))) return;
   const r = await send({ action: "noShow" });
   if (r.ok) {
     const pulled = (r.raw as { pulledEarlierMin?: number })?.pulledEarlierMin;
@@ -2023,7 +2024,7 @@ function StateArrived({
     : "";
 
   const handleNavigate = async () => {
-    const wantsText = window.confirm(`Text ${label} your ETA?`);
+    const wantsText = await confirmModal(`Text ${label} your ETA?`);
     if (wantsText) {
       const r = await send({ action: "textClient", kind: "eta" }, { silent: true });
       const raw = (r.raw ?? {}) as { ok?: boolean; to?: string; error?: string };
