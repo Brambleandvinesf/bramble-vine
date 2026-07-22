@@ -123,30 +123,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
 
-  const signIn = useCallback((email: string) => {
-    const e = lookup(email);
-    if (!e) {
-      return { ok: false as const, error: "This email is not on the crew allowlist." };
-    }
-    try {
-      localStorage.setItem(STORAGE_KEY, e.email);
-    } catch {
-      // ignore
-    }
-    setUser(e.email);
-    setEntry(e);
-    return { ok: true as const };
-  }, []);
-
   const signOut = useCallback(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(DAY_KEY);
     } catch {
       // ignore
     }
     setUser(null);
     setEntry(null);
   }, []);
+
 
   return (
     <Ctx.Provider
