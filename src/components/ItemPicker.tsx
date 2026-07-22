@@ -227,7 +227,7 @@ export function ItemPicker({
       <div style={SHEET} onClick={(e) => e.stopPropagation()}>
         <div style={HEADER}>
           <div style={{ color: LIME, fontSize: 14, fontWeight: "bold", letterSpacing: 2, flex: 1 }}>
-            {showDetail ? "ADD ITEM" : "SELECT ITEM"}
+            {showDetail ? "ADD ITEM" : customOpen ? "CUSTOM ITEM" : "SELECT ITEM"}
           </div>
           <button
             onClick={onCancel}
@@ -246,16 +246,77 @@ export function ItemPicker({
           </button>
         </div>
 
-        {!showDetail && (
+        {!showDetail && !customOpen && (
           <>
             <div style={{ padding: "10px 14px", borderBottom: `1px solid ${LINE}` }}>
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search catalog…"
-                style={INPUT}
-              />
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  // Enter/Go just commits current query (search is live already);
+                  // no-op if empty.
+                }}
+                style={{ display: "flex", gap: 8, alignItems: "stretch" }}
+              >
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search catalog…"
+                  style={{ ...INPUT, flex: 1 }}
+                  enterKeyHint="search"
+                />
+                <button
+                  type="submit"
+                  style={{
+                    background: LIME,
+                    color: BG,
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "0 16px",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    letterSpacing: 2,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    minHeight: 44,
+                  }}
+                  aria-label="Search"
+                >
+                  GO
+                </button>
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    style={{
+                      ...GHOST_BTN,
+                      flex: "0 0 auto",
+                      minHeight: 44,
+                      padding: "0 12px",
+                      fontSize: 18,
+                    }}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+              </form>
+              {/* Always-visible Custom pill so search never dead-ends. */}
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  style={{
+                    ...CHIP,
+                    borderColor: LIME,
+                    color: LIME,
+                    fontWeight: "bold",
+                    letterSpacing: 1,
+                  }}
+                  onClick={() => setCustomOpen(true)}
+                >
+                  + Custom{query ? ` "${query.trim()}"` : ""}
+                </button>
+              </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 14px" }}>
@@ -265,7 +326,7 @@ export function ItemPicker({
                 </div>
               )}
               {error && (
-                <div style={{ color: "#ff3b30", padding: "12px 0", fontSize: 13 }}>
+                <div style={{ color: LIME, padding: "12px 0", fontSize: 13 }}>
                   Couldn't load catalog — {error}
                 </div>
               )}
@@ -274,7 +335,7 @@ export function ItemPicker({
                 <div style={{ marginTop: 8 }}>
                   {searchResults.length === 0 ? (
                     <div style={{ color: DIM_GREEN, padding: "20px 0", textAlign: "center", fontSize: 13 }}>
-                      No catalog match — item must exist in QB Products &amp; Services.
+                      No catalog match — use <strong style={{ color: LIME }}>+ Custom</strong> above to add it as free text.
                     </div>
                   ) : (
                     searchResults.map((p) => (
@@ -353,6 +414,14 @@ export function ItemPicker({
               )}
             </div>
           </>
+        )}
+
+        {customOpen && !showDetail && (
+          <CustomItemForm
+            initialName={query.trim()}
+            onCancel={() => setCustomOpen(false)}
+            onAdd={(item) => onAdd(item)}
+          />
         )}
 
         {showDetail && selected && (
