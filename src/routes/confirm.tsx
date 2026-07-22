@@ -575,11 +575,7 @@ function ConfirmPage() {
             ✓ Confirmed{state.at ? ` at ${timeLabel(state.at)}` : ""} — re-confirming allowed
           </div>
         )}
-        {user && (
-          <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
-            SIGNED IN AS {user.toUpperCase()}
-          </div>
-        )}
+        {user ? null : null}
       </header>
 
       {loadErr && (
