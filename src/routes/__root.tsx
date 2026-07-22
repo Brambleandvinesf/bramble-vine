@@ -255,8 +255,8 @@ import type { Role } from "../lib/auth";
 // inside the ⋯ popover (rendered as second-to-last slot when non-empty).
 // Messages is always last.
 const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
-  lead:       { row: ["home","schedule","confirm","field","loading","messages"], more: ["projects","receipts"] },
-  assistant:  { row: ["home","schedule","loading","field","messages"],            more: ["receipts"] },
+  lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts"] },
+  assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts"] },
   office:     { row: ["home","schedule","visits","messages"],                     more: ["projects","receipts"] },
   management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","admin"] },
 };
