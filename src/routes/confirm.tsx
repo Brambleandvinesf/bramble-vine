@@ -564,10 +564,10 @@ function ConfirmPage() {
             CONFIRM DAY
           </div>
           <RefreshDot refreshing={refreshing} offline={offline} />
-          {offline && <span style={{ color: MUTED, fontSize: 11 }}>offline — last data</span>}
+          {offline && <span style={{ color: MUTED, fontSize: 14 }}>offline — last data</span>}
         </div>
         <div style={{ marginTop: 4, color: TEXT, fontSize: 14 }}>{todayLabel()}</div>
-        <div style={{ marginTop: 2, fontSize: 12, color: MUTED }}>
+        <div style={{ marginTop: 2, fontSize: 14, color: MUTED }}>
           Confirm today's loading list
         </div>
         {state?.confirmed && (
