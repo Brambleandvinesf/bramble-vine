@@ -1012,22 +1012,18 @@ function ConfirmPage() {
                   <div style={ROW2}>
                     <div style={{ flex: 1 }}>
                       <label style={LABEL}>GARDEN</label>
-                      <input
+                      <ComboSelect
                         value={n.garden}
-                        onChange={(ev) =>
-                          updateNewProject(client, n.key, { garden: ev.target.value })
-                        }
-                        style={INPUT}
+                        options={gardenOptions}
+                        onChange={(v) => updateNewProject(client, n.key, { garden: v })}
                       />
                     </div>
                     <div style={{ flex: 1 }}>
                       <label style={LABEL}>CATEGORY</label>
-                      <input
+                      <ComboSelect
                         value={n.category}
-                        onChange={(ev) =>
-                          updateNewProject(client, n.key, { category: ev.target.value })
-                        }
-                        style={INPUT}
+                        options={categoryOptions}
+                        onChange={(v) => updateNewProject(client, n.key, { category: v })}
                       />
                     </div>
                   </div>
