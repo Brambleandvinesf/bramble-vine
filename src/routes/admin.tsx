@@ -145,7 +145,7 @@ function AdminPage() {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
 
-  const [tab, setTab] = useState<"perms" | "teams" | "notifications">("perms");
+  const [tab, setTab] = useState<"perms" | "teams" | "notifications" | "todo">("perms");
   const [perms, setPerms] = useState<PermMap | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -232,7 +232,7 @@ function AdminPage() {
         </h1>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          {(["perms", "teams", "notifications"] as const).map((k) => {
+          {(["perms", "teams", "notifications", "todo"] as const).map((k) => {
             const active = tab === k;
             return (
               <button
@@ -251,7 +251,13 @@ function AdminPage() {
                   textTransform: "uppercase",
                 }}
               >
-                {k === "perms" ? "Permissions" : k === "teams" ? "Teams" : "Notifications"}
+                {k === "perms"
+                  ? "Permissions"
+                  : k === "teams"
+                    ? "Teams"
+                    : k === "notifications"
+                      ? "Notifications"
+                      : "To-Do"}
               </button>
             );
           })}
@@ -260,6 +266,8 @@ function AdminPage() {
         {tab === "teams" ? <TeamsAdmin /> : null}
 
         {tab === "notifications" ? <NotificationScheduleCard /> : null}
+
+        {tab === "todo" ? <TodoAdmin /> : null}
 
         {tab === "perms" ? (
           <p style={{ color: "#8f8f8f", fontSize: 11, margin: "0 0 16px" }}>
@@ -981,5 +989,308 @@ function NotificationScheduleCard() {
     </div>
   );
 }
+
+/* ============================================================
+ * To-Do Admin — collapsible groups from getTodo.
+ * ============================================================ */
+
+type TodoItem = {
+  category: string;
+  task: string;
+  details: string;
+  status: string;
+  added: string;
+};
+
+type TodoGroups = {
+  now: TodoItem[];
+  soon: TodoItem[];
+  someday: TodoItem[];
+};
+
+const TODO_LABELS: Record<keyof TodoGroups, string> = {
+  now: "Now",
+  soon: "Soon",
+  someday: "Someday",
+};
+
+function TodoAdmin() {
+  const [groups, setGroups] = useState<TodoGroups | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "error" | "ok">("idle");
+  const [expanded, setExpanded] = useState<Set<keyof TodoGroups>>(new Set(["now"]));
+  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
+
+  const load = useCallback(async () => {
+    setStatus((s) => (s === "ok" ? "ok" : "loading"));
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getTodo`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = (await res.json()) as { groups?: TodoGroups };
+      const g: TodoGroups = {
+        now: j.groups?.now ?? [],
+        soon: j.groups?.soon ?? [],
+        someday: j.groups?.someday ?? [],
+      };
+      setGroups(g);
+      setStatus("ok");
+    } catch {
+      setStatus("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const toggleGroup = (key: keyof TodoGroups) => {
+    setExpanded((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  };
+
+  const toggleItem = (key: string) => {
+    setOpenItems((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  };
+
+  const btn = (active: boolean): React.CSSProperties => ({
+    background: active ? "#7cff00" : "transparent",
+    color: active ? "#0a0a0a" : "#7cff00",
+    border: "1px solid #7cff00",
+    borderRadius: 4,
+    padding: "4px 10px",
+    fontFamily: "inherit",
+    fontSize: 11,
+    letterSpacing: 1,
+    cursor: "pointer",
+  });
+
+  if (status === "loading" && !groups) {
+    return <div style={{ color: "#8f8f8f", fontSize: 12 }}>Loading to-do…</div>;
+  }
+
+  if (status === "error" && !groups) {
+    return (
+      <div style={{ color: "#e8e8e8", fontSize: 12 }}>
+        Couldn't load to-do.{" "}
+        <button onClick={() => void load()} style={btn(false)}>
+          RETRY
+        </button>
+      </div>
+    );
+  }
+
+  if (!groups) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {(Object.keys(TODO_LABELS) as (keyof TodoGroups)[]).map((key) => {
+        const items = groups[key];
+        const open = expanded.has(key);
+        const count = items.length;
+        return (
+          <div
+            key={key}
+            style={{
+              border: "1px solid #2a2a2a",
+              background: "#121212",
+              borderRadius: 6,
+              overflow: "hidden",
+            }}
+          >
+            <button
+              onClick={() => toggleGroup(key)}
+              aria-expanded={open}
+              style={{
+                width: "100%",
+                minHeight: 48,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "0 14px",
+                background: "transparent",
+                color: "#e8e8e8",
+                border: "none",
+                fontFamily: "inherit",
+                fontSize: 13,
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  color: "#7cff00",
+                  display: "inline-block",
+                  width: 12,
+                  transform: open ? "rotate(90deg)" : "none",
+                  transition: "transform 120ms",
+                }}
+              >
+                ▸
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {TODO_LABELS[key]}
+              </span>
+              <span
+                style={{
+                  color: "#8f8f8f",
+                  fontSize: 11,
+                  letterSpacing: 1,
+                }}
+              >
+                {count} item{count === 1 ? "" : "s"}
+              </span>
+            </button>
+
+            {open ? (
+              <div style={{ borderTop: "1px solid #2a2a2a" }}>
+                {items.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      color: "#8f8f8f",
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Clear
+                  </div>
+                ) : (
+                  items.map((item, i) => {
+                    const itemKey = `${key}:${i}`;
+                    const itemOpen = openItems.has(itemKey);
+                    return (
+                      <div
+                        key={itemKey}
+                        style={{
+                          borderTop: i === 0 ? "none" : "1px solid #1a1a1a",
+                        }}
+                      >
+                        <button
+                          onClick={() => toggleItem(itemKey)}
+                          aria-expanded={itemOpen}
+                          style={{
+                            width: "100%",
+                            padding: "10px 14px",
+                            background: "transparent",
+                            border: "none",
+                            fontFamily: "inherit",
+                            textAlign: "left",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: 10,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                background: "#7cff00",
+                                color: "#0a0a0a",
+                                borderRadius: 4,
+                                padding: "2px 6px",
+                                fontSize: 9,
+                                letterSpacing: 1,
+                                textTransform: "uppercase",
+                                whiteSpace: "nowrap",
+                                marginTop: 1,
+                              }}
+                            >
+                              {item.category || "General"}
+                            </span>
+                            <span
+                              style={{
+                                flex: 1,
+                                color: "#e8e8e8",
+                                fontSize: 13,
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {item.task}
+                            </span>
+                            <span
+                              style={{
+                                color: "#8f8f8f",
+                                fontSize: 11,
+                                transform: itemOpen ? "rotate(180deg)" : "none",
+                                transition: "transform 120ms",
+                              }}
+                            >
+                                ▾
+                            </span>
+                          </div>
+                        </button>
+                        {itemOpen ? (
+                          <div
+                            style={{
+                              padding: "0 14px 12px 14px",
+                              color: "#b8b8b8",
+                              fontSize: 13,
+                              lineHeight: 1.5,
+                              whiteSpace: "pre-wrap",
+                            }}
+                          >
+                            {item.details || "No details."}
+                            {item.status ? (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  color: "#7cff00",
+                                  fontSize: 10,
+                                  letterSpacing: 1,
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                status: {item.status}
+                                {item.added ? ` · added ${item.added}` : null}
+                              </div>
+                            ) : null}
+                            {!item.status && item.added ? (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  color: "#8f8f8f",
+                                  fontSize: 10,
+                                  letterSpacing: 1,
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                added {item.added}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 
 
