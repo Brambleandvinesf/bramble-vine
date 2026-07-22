@@ -736,17 +736,26 @@ function FieldBody({
       )}
       {/* ROUTE COMPLETE handled separately */}
       {routeComplete ? (
-        <RouteComplete
-          events={events}
-          roster={roster}
-          isLead={isLead}
-          onApprove={async () => {
-            const r = await send({ action: "qbApprove" });
-            if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
-          }}
-          busy={busy}
-        />
-      ) : (
+        <>
+          <RouteComplete
+            events={events}
+            roster={roster}
+            isLead={isLead}
+            onApprove={async () => {
+              const r = await send({ action: "qbApprove" });
+              if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
+            }}
+            busy={busy}
+          />
+          {personalClockSlot && (
+            <div style={{ padding: "0 14px 20px" }}>
+              <div style={{ ...SECTION_HEAD, marginTop: 8 }}>END SHIFT</div>
+              {personalClockSlot}
+            </div>
+          )}
+        </>
+      )}
+      {!routeComplete && (
         <>
           {currentEvent && (
             <ClientHeader event={currentEvent} clientMatch={clientMatch} state={state} />
