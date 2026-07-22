@@ -111,17 +111,17 @@ function ensureFresh(force = false): Promise<ProductRow[]> {
       cache.products = p;
       cache.fetchedAt = Date.now();
       cache.error = null;
-      notify();
       return p;
     })
     .catch((e) => {
       cache.error = e instanceof Error ? e.message : "Failed to load products";
-      notify();
       throw e;
     })
     .finally(() => {
       cache.inflight = null;
+      notify();
     });
+  notify(); // notify subscribers that inflight is now set (loading=true)
   return cache.inflight;
 }
 
