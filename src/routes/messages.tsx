@@ -12,6 +12,7 @@ import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, 
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
+import { setBadge, BK } from "../lib/badges";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
