@@ -735,7 +735,7 @@ function FieldBody({
         <ClockingAsHeader me={me} roster={roster} onChange={handleChangeIdentity} />
       )}
       {/* ROUTE COMPLETE handled separately */}
-      {routeComplete ? (
+      {routeComplete && (
         <>
           <RouteComplete
             events={events}
