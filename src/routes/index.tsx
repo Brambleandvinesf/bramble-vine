@@ -67,14 +67,24 @@ function HomePage() {
   );
   const [confirmLoading, setConfirmLoading] = useState(() => !sessionCache.has(CK_CONFIRM));
 
-  // Lead/management: Home is off-limits until the day is confirmed.
+  // Lead/assistant never land on Home — go straight to Field.
+  // Lead/management: Home is off-limits until the day is confirmed;
   // /schedule owns the base-load Yes/No gate.
   useEffect(() => {
+    if (role === "assistant") {
+      void navigate({ to: "/field" });
+      return;
+    }
     if (role !== "lead" && role !== "management") return;
+    if (role === "lead") {
+      void navigate({ to: "/field" });
+      return;
+    }
     if (confirmLoading) return;
     if (confirmState?.confirmed === true) return;
     void navigate({ to: "/schedule" });
   }, [role, confirmLoading, confirmState, navigate]);
+
 
 
   // Shared badge counts (published live by MessagesPage; polled globally in AppFrame).
