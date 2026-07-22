@@ -787,11 +787,15 @@ function EditForm({
 
 function NewProjectModal({
   clients,
+  gardenOptions,
+  categoryOptions,
   onCancel,
   onSubmit,
   submitting,
 }: {
   clients: string[];
+  gardenOptions: string[];
+  categoryOptions: string[];
   onCancel: () => void;
   onSubmit: (form: {
     client: string;
