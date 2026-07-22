@@ -77,12 +77,9 @@ function HomePage() {
   }, [role, confirmLoading, confirmState, navigate]);
 
 
-  const [msgCount, setMsgCount] = useState<number | null>(
-    () => sessionCache.get<number>(CK_INBOX) ?? null,
-  );
-  const [rcptCount, setRcptCount] = useState<number | null>(
-    () => sessionCache.get<number>(CK_RECEIPTS) ?? null,
-  );
+  // Shared badge counts (published live by MessagesPage; polled globally in AppFrame).
+  const msgCount = useBadge(BK.inbox);
+  const rcptCount = useBadge(BK.receipts);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
 
@@ -94,9 +91,6 @@ function HomePage() {
 
     const tick = async () => {
       if (!cancelled) setRefreshing(true);
-      let anyOk = false;
-      let anyErr = false;
-      // Confirm
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -104,51 +98,18 @@ function HomePage() {
         const state = json.state ?? null;
         if (!cancelled) setConfirmState(state);
         if (state) sessionCache.set(CK_CONFIRM, state);
-        anyOk = true;
+        if (!cancelled) setOffline(false);
       } catch (e) {
         console.error("[home confirm] error", e);
-        anyErr = true;
         if (!cancelled && !sessionCache.has(CK_CONFIRM)) {
           setConfirmState((prev) => (prev?.confirmed === true ? prev : { confirmed: false }));
         }
+        if (!cancelled) setOffline(true);
       } finally {
-        if (!cancelled) setConfirmLoading(false);
-      }
-      // Messages awaiting
-      if (canMsg) {
-        try {
-          const r = await fetch(`${SCRIPT_URL}?action=getInbox`);
-          const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
-          const n = (j.inbox ?? []).length;
-          if (!cancelled) setMsgCount(n);
-          sessionCache.set(CK_INBOX, n);
-          anyOk = true;
-        } catch (e) {
-          console.error("[home msg] error", e);
-          anyErr = true;
+        if (!cancelled) {
+          setConfirmLoading(false);
+          setRefreshing(false);
         }
-      }
-      // Receipts awaiting designation
-      if (canRcpt) {
-        try {
-          const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
-          const j = (await r.json()) as { lines?: Array<{ finalDesignation?: string; ["Final designation"]?: string; invoiced?: string; Invoiced?: string }> };
-          const n = (j.lines ?? []).filter((l) => {
-            const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
-            const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
-            return !fd && !inv;
-          }).length;
-          if (!cancelled) setRcptCount(n);
-          sessionCache.set(CK_RECEIPTS, n);
-          anyOk = true;
-        } catch (e) {
-          console.error("[home rcpt] error", e);
-          anyErr = true;
-        }
-      }
-      if (!cancelled) {
-        setRefreshing(false);
-        setOffline(anyErr && !anyOk);
       }
     };
 
@@ -165,7 +126,7 @@ function HomePage() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [canMsg, canRcpt]);
+  }, []);
 
 
   const tiles = useMemo(() => (role ? TILES_BY_ROLE[role] : []), [role]);
