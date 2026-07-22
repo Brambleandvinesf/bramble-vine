@@ -1203,7 +1203,7 @@ const LIME_BRIGHT = "#bfff3c";
 const LIME_DIM = "rgba(124,255,0,.35)";
 const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
-const MUTED = "#8f8f8f";
+const MUTED = "#b8b8b8";
 const LINE = "#2a2a2a";
 const RED = "#ff3b30";
 
