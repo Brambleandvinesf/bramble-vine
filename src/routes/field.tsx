@@ -874,40 +874,51 @@ function FieldBody({
           )}
 
           {(state === "enroute" || state === "arrived") && (
-            <StateArrived
-              roster={roster}
-              clientMatch={clientMatch}
-              stopIndex={stopIndex}
-              isLead={isLead}
-              delegated={!!route.delegated}
-              busy={busy}
-              clockSlot={personalClockSlot}
-              onBackToCrew={handleBackToCrew}
-              backNotice={backNotice}
-              isPreview={isPreview}
-              role={role}
-              event={currentEvent}
-              send={send}
-              locationCheck={route.locationCheck ?? null}
-              onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
-              onStart={async () => {
-                if (state === "enroute") {
-                  if (!currentEvent || !clientMatch) return;
-                  const r = await send({
-                    action: "setRoute",
-                    state: "arrived",
-                    client: clientMatch,
-                    eventId: currentEvent.id,
-                    stopIndex,
-                  });
-                  if (!r.ok) return;
-                }
-                const r = await send({ action: "setRoute", state: "visit" });
-                if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
-              }}
-              onNoShow={() => void confirmNoShow(send, setBanner)}
-            />
+            assistantGateOpen ? (
+              <AssistantLoadingGate
+                clockSlot={personalClockSlot}
+                confirmed={loadingSnap.confirmed === true}
+                items={loadingSnap.items}
+                ready={loadingSnap.ready}
+                onToggle={loadingSnap.toggle}
+              />
+            ) : (
+              <StateArrived
+                roster={roster}
+                clientMatch={clientMatch}
+                stopIndex={stopIndex}
+                isLead={isLead}
+                delegated={!!route.delegated}
+                busy={busy}
+                clockSlot={personalClockSlot}
+                onBackToCrew={handleBackToCrew}
+                backNotice={backNotice}
+                isPreview={isPreview}
+                role={role}
+                event={currentEvent}
+                send={send}
+                locationCheck={route.locationCheck ?? null}
+                onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
+                onStart={async () => {
+                  if (state === "enroute") {
+                    if (!currentEvent || !clientMatch) return;
+                    const r = await send({
+                      action: "setRoute",
+                      state: "arrived",
+                      client: clientMatch,
+                      eventId: currentEvent.id,
+                      stopIndex,
+                    });
+                    if (!r.ok) return;
+                  }
+                  const r = await send({ action: "setRoute", state: "visit" });
+                  if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
+                }}
+                onNoShow={() => void confirmNoShow(send, setBanner)}
+              />
+            )
           )}
+
 
 
           {state === "visit" && (
