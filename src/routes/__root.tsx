@@ -215,9 +215,18 @@ function AppFrame() {
 
   // Register the minimal service worker so Chrome/Android/iOS treat this as
   // an installable PWA. Network-first passthrough, no caching.
+  // When a new worker activates and takes control, reload once so the page
+  // runs under the latest version.
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
+    let reloaded = false;
+    const onControllerChange = () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
     const onLoad = () => {
       navigator.serviceWorker.register("/sw.js").catch((err) => {
         console.warn("SW registration failed", err);
@@ -225,7 +234,10 @@ function AppFrame() {
     };
     if (document.readyState === "complete") onLoad();
     else window.addEventListener("load", onLoad, { once: true });
-    return () => window.removeEventListener("load", onLoad);
+    return () => {
+      window.removeEventListener("load", onLoad);
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+    };
   }, []);
 
 
