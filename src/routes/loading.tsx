@@ -302,7 +302,7 @@ function LoadingPage() {
               />
             </div>
             {user && (
-              <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
+              <div style={{ marginTop: 6, fontSize: 14, color: MUTED, letterSpacing: 1 }}>
                 SIGNED IN AS {user.toUpperCase()}
               </div>
             )}
