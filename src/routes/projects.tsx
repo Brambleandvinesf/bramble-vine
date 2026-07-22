@@ -971,7 +971,7 @@ function NewProjectModal({
         <div style={ROW2}>
           <div style={{ flex: 1 }}>
             <label style={LABEL}>Garden</label>
-            <input value={garden} onChange={(e) => setGarden(e.target.value)} style={INPUT} />
+            <ComboSelect value={garden} options={gardenOptions} onChange={setGarden} />
           </div>
           <div style={{ flex: 1 }}>
             <label style={LABEL}>Category</label>
