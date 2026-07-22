@@ -1114,8 +1114,23 @@ function ConfirmPage() {
               >
                 + ADD PROJECT
               </button>
+
+              <button
+                style={{ ...SOLID_BTN, width: "100%", marginTop: 16 }}
+                onClick={() => {
+                  setFlashClient(client);
+                  window.setTimeout(() => {
+                    setFlashClient(null);
+                    toggleClientConfirmed(client);
+                  }, 280);
+                }}
+              >
+                CONFIRM {client.toUpperCase()}
+              </button>
               </div>
+              )}
             </section>
+
 
           );
         })}
