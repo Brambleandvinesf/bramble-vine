@@ -6,13 +6,12 @@ import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { useBadge, BK } from "../lib/badges";
 
 
 
 
 const CK_CONFIRM = "home:getConfirm";
-const CK_INBOX = "home:getInbox:count";
-const CK_RECEIPTS = "home:getReceipts:count";
 
 export const Route = createFileRoute("/")({
   head: () => ({
