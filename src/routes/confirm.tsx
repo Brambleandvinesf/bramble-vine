@@ -751,7 +751,19 @@ function ConfirmPage() {
                             .join(" · ");
                           return (
                             <span key={i} style={ITEM_PILL} title={it.notes || undefined}>
-                              {label || it.name}
+                              <span style={{ paddingRight: 4 }}>{label || it.name}</span>
+                              {p.projectId && (
+                                <button
+                                  aria-label="Remove item"
+                                  title="Remove item"
+                                  onClick={() =>
+                                    void removeItemFromExisting(client, p.projectId, i, it)
+                                  }
+                                  style={ITEM_PILL_X}
+                                >
+                                  ×
+                                </button>
+                              )}
                             </span>
                           );
                         })}
