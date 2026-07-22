@@ -162,6 +162,7 @@ export function ItemPicker({
   const { products, loading, error } = useProducts(true);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ProductRow | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
   const [browseCategory, setBrowseCategory] = useState<string | null>(null);
   const [browseSub, setBrowseSub] = useState<string | null>(null);
 
@@ -226,7 +227,7 @@ export function ItemPicker({
       <div style={SHEET} onClick={(e) => e.stopPropagation()}>
         <div style={HEADER}>
           <div style={{ color: LIME, fontSize: 14, fontWeight: "bold", letterSpacing: 2, flex: 1 }}>
-            {showDetail ? "ADD ITEM" : "SELECT ITEM"}
+            {showDetail ? "ADD ITEM" : customOpen ? "CUSTOM ITEM" : "SELECT ITEM"}
           </div>
           <button
             onClick={onCancel}
@@ -245,16 +246,77 @@ export function ItemPicker({
           </button>
         </div>
 
-        {!showDetail && (
+        {!showDetail && !customOpen && (
           <>
             <div style={{ padding: "10px 14px", borderBottom: `1px solid ${LINE}` }}>
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search catalog…"
-                style={INPUT}
-              />
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  // Enter/Go just commits current query (search is live already);
+                  // no-op if empty.
+                }}
+                style={{ display: "flex", gap: 8, alignItems: "stretch" }}
+              >
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search catalog…"
+                  style={{ ...INPUT, flex: 1 }}
+                  enterKeyHint="search"
+                />
+                <button
+                  type="submit"
+                  style={{
+                    background: LIME,
+                    color: BG,
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "0 16px",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    letterSpacing: 2,
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                    minHeight: 44,
+                  }}
+                  aria-label="Search"
+                >
+                  GO
+                </button>
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    style={{
+                      ...GHOST_BTN,
+                      flex: "0 0 auto",
+                      minHeight: 44,
+                      padding: "0 12px",
+                      fontSize: 18,
+                    }}
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+              </form>
+              {/* Always-visible Custom pill so search never dead-ends. */}
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  style={{
+                    ...CHIP,
+                    borderColor: LIME,
+                    color: LIME,
+                    fontWeight: "bold",
+                    letterSpacing: 1,
+                  }}
+                  onClick={() => setCustomOpen(true)}
+                >
+                  + Custom{query ? ` "${query.trim()}"` : ""}
+                </button>
+              </div>
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 14px" }}>
@@ -264,7 +326,7 @@ export function ItemPicker({
                 </div>
               )}
               {error && (
-                <div style={{ color: "#ff3b30", padding: "12px 0", fontSize: 13 }}>
+                <div style={{ color: LIME, padding: "12px 0", fontSize: 13 }}>
                   Couldn't load catalog — {error}
                 </div>
               )}
@@ -273,7 +335,7 @@ export function ItemPicker({
                 <div style={{ marginTop: 8 }}>
                   {searchResults.length === 0 ? (
                     <div style={{ color: DIM_GREEN, padding: "20px 0", textAlign: "center", fontSize: 13 }}>
-                      No catalog match — item must exist in QB Products &amp; Services.
+                      No catalog match — use <strong style={{ color: LIME }}>+ Custom</strong> above to add it as free text.
                     </div>
                   ) : (
                     searchResults.map((p) => (
@@ -352,6 +414,14 @@ export function ItemPicker({
               )}
             </div>
           </>
+        )}
+
+        {customOpen && !showDetail && (
+          <CustomItemForm
+            initialName={query.trim()}
+            onCancel={() => setCustomOpen(false)}
+            onAdd={(item) => onAdd(item)}
+          />
         )}
 
         {showDetail && selected && (
@@ -512,6 +582,81 @@ function ItemDetail({
         <button
           style={SOLID_BTN}
           onClick={() => onAdd(qty.trim(), size.trim(), notes.trim())}
+        >
+          ADD ITEM
+        </button>
+      </div>
+    </>
+  );
+}
+
+function CustomItemForm({
+  initialName,
+  onCancel,
+  onAdd,
+}: {
+  initialName: string;
+  onCancel: () => void;
+  onAdd: (item: PickedItem) => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [qty, setQty] = useState("");
+  const [size, setSize] = useState("");
+  const [notes, setNotes] = useState("");
+  const canSubmit = name.trim().length > 0;
+  return (
+    <>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px" }}>
+        <div style={{ color: MUTED, fontSize: 10, letterSpacing: 2 }}>CUSTOM ITEM</div>
+        <div style={{ color: MUTED, fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
+          Free-text — not in the catalog. Won't sync to QB Products & Services.
+        </div>
+
+        <label style={LABEL}>Name</label>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={INPUT}
+          placeholder="e.g. Extra tarp"
+        />
+
+        <label style={LABEL}>Quantity</label>
+        <input value={qty} onChange={(e) => setQty(e.target.value)} style={INPUT} inputMode="decimal" />
+
+        <label style={LABEL}>Size</label>
+        <input value={size} onChange={(e) => setSize(e.target.value)} style={INPUT} />
+
+        <label style={LABEL}>Notes</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          style={{ ...INPUT, minHeight: 72, resize: "vertical" }}
+        />
+      </div>
+      <div
+        style={{
+          padding: "10px 14px",
+          borderTop: `1px solid ${LINE}`,
+          display: "flex",
+          gap: 8,
+          background: BG,
+        }}
+      >
+        <button style={GHOST_BTN} onClick={onCancel}>
+          BACK
+        </button>
+        <button
+          style={{ ...SOLID_BTN, opacity: canSubmit ? 1 : 0.5 }}
+          disabled={!canSubmit}
+          onClick={() =>
+            onAdd({
+              name: name.trim(),
+              qty: qty.trim(),
+              size: size.trim(),
+              notes: notes.trim(),
+            })
+          }
         >
           ADD ITEM
         </button>
