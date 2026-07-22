@@ -867,7 +867,9 @@ function ConfirmPage() {
                         aria-label="Confirm"
                         title="Confirm"
                         style={ICON_ACTION_BTN}
-                        onClick={() => setEdit(key, { status: "Confirmed" })}
+                        onClick={() =>
+                          beginAnim(key, "confirm", () => setEdit(key, { status: "Confirmed" }))
+                        }
                       >
                         <Check size={20} />
                       </button>
@@ -875,7 +877,9 @@ function ConfirmPage() {
                         aria-label="Skip"
                         title="Skip"
                         style={ICON_ACTION_BTN}
-                        onClick={() => setEdit(key, { status: "SKIP" })}
+                        onClick={() =>
+                          beginAnim(key, "skip", () => setEdit(key, { status: "SKIP" }))
+                        }
                       >
                         <SkipForward size={20} />
                       </button>
@@ -884,7 +888,21 @@ function ConfirmPage() {
                           aria-label="Delete"
                           title="Delete"
                           style={ICON_ACTION_BTN}
-                          onClick={() => requestDelete(p.projectId, e.action)}
+                          onClick={() => {
+                            if (
+                              !window.confirm(
+                                `Delete this project?\n\n${e.action || "(no action)"}`,
+                              )
+                            )
+                              return;
+                            beginAnim(key, "delete", () => {
+                              setDeletes((prev) => {
+                                const next = new Set(prev);
+                                next.add(p.projectId);
+                                return next;
+                              });
+                            });
+                          }}
                         >
                           <Trash2 size={20} />
                         </button>
