@@ -294,22 +294,10 @@ function ConfirmPage() {
 
   // A card is "handled" (hidden) when deleted, skipped, or explicitly confirmed.
   // Submit surfaces only when zero reviewable cards remain.
-  const allHandled = useMemo(() => {
-    for (const c of todaysClients) {
-      const list = grouped[c] ?? [];
-      for (const p of list) {
-        const key = p.projectId || `row-${p.row}`;
-        const e = edits[key];
-        if (!e) continue;
-        const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
-        const skip = e.status === "SKIP";
-        const confirmed = e.status === "Confirmed";
-        if (isDeleted || skip || confirmed) continue;
-        return false;
-      }
-    }
-    return true;
-  }, [todaysClients, grouped, edits, deletes]);
+  // Cards are hidden when deleted, skipped, or explicitly confirmed. Retained
+  // for potential future use; per-client confirm now drives submit gating.
+  void useMemo(() => grouped, [grouped]);
+
 
   const setEdit = useCallback((key: string, patch: Partial<Edit>) => {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
