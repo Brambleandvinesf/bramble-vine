@@ -72,7 +72,29 @@ export function DayStateSpine() {
     return out;
   }, [state]);
 
-  if (!state || flat.length === 0) return null;
+  if (!state || flat.length === 0) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 90,
+          padding: "4px 10px",
+          background: "#0a0a0a",
+          borderTop: "1px solid #1a1a1a",
+          color: DIM_TEXT,
+          fontFamily: "'Courier New', Courier, monospace",
+          fontSize: 10,
+          letterSpacing: 1,
+          textAlign: "center",
+        }}
+      >
+        day state loading…
+      </div>
+    );
+  }
 
   const currentIdx = flat.findIndex(
     (n) => n.phase === state.phase && n.subStep === state.subStep,
@@ -102,15 +124,17 @@ export function DayStateSpine() {
       <div
         aria-label="Day progress"
         style={{
-          position: "sticky",
-          top: 44,
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
           zIndex: 90,
           display: "flex",
           alignItems: "center",
           gap: 6,
           padding: "6px 10px",
           background: "#0a0a0a",
-          borderBottom: "1px solid #1a1a1a",
+          borderTop: "1px solid #1a1a1a",
           overflowX: "auto",
           fontFamily: "'Courier New', Courier, monospace",
           WebkitOverflowScrolling: "touch",
