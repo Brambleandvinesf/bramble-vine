@@ -175,7 +175,7 @@ function sanitizeDescription(html: string): Array<{ kind: "text"; value: string 
 
 
 function SchedulePage() {
-  const { role } = useAuth();
+  useAuth();
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
 

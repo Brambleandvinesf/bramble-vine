@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, crewDayLA } from "../lib/auth";
 
 /**
@@ -63,9 +63,13 @@ export function OfficeTeamSetup() {
   const [confirming, setConfirming] = useState(false);
 
   const active = ready && !!user && role === "office";
+  const didFetchRef = useRef(false);
 
   useEffect(() => {
     if (!active) return;
+    if (didFetchRef.current) return;
+    if (loaded) return;
+    didFetchRef.current = true;
     let cancelled = false;
     (async () => {
       try {
@@ -97,7 +101,8 @@ export function OfficeTeamSetup() {
       }
     })();
     return () => { cancelled = true; };
-  }, [active, dismissKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   const dismiss = useCallback(() => {
     try { sessionStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
