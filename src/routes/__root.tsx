@@ -38,6 +38,8 @@ import { ReviewableTodayProvider } from "../lib/reviewable-today";
 import { useBadge, useBadgePoller, BK } from "../lib/badges";
 import { ConfirmModalHost } from "../components/ConfirmModal";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
+import { DayStateSpine } from "../components/DayStateSpine";
+import { DayStateProvider } from "../lib/day-state";
 
 function NotFoundComponent() {
   return (
