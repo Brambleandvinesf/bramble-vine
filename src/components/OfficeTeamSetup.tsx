@@ -109,6 +109,19 @@ export function OfficeTeamSetup() {
     setOpen(false);
   }, [dismissKey]);
 
+  // Spine "team_assign" tap re-opens the overlay for office role, even if
+  // dismissed for the day, as long as we have data loaded.
+  useEffect(() => {
+    if (!active) return;
+    const onOpenReq = () => {
+      if (!loaded || !data) return;
+      try { sessionStorage.removeItem(dismissKey); } catch { /* ignore */ }
+      setOpen(true);
+    };
+    window.addEventListener("bv:open-team-setup", onOpenReq);
+    return () => window.removeEventListener("bv:open-team-setup", onOpenReq);
+  }, [active, loaded, data, dismissKey]);
+
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
