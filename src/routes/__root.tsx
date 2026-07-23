@@ -158,11 +158,20 @@ function RootComponent() {
       <AuthProvider>
         <ViewAsProvider>
           <ReviewableTodayProvider>
-            <AppFrame />
+            <DayStateProviderGate>
+              <AppFrame />
+            </DayStateProviderGate>
           </ReviewableTodayProvider>
         </ViewAsProvider>
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function DayStateProviderGate({ children }: { children: ReactNode }) {
+  const { user, ready } = useAuth();
+  return (
+    <DayStateProvider enabled={ready && !!user}>{children}</DayStateProvider>
   );
 }
 
