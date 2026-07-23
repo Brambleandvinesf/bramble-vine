@@ -2624,7 +2624,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   opacity:
                     !compose.text.trim() ||
                     (compose.channel === "text"
-                      ? !(compose.picked || normalizePhone(compose.manual))
+                      ? !((compose.recipients || []).length > 0 || compose.picked || normalizePhone(compose.manual))
                       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
                       ? 0.4
                       : 1,
@@ -2634,13 +2634,14 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 disabled={
                   !compose.text.trim() ||
                   (compose.channel === "text"
-                    ? !(compose.picked || normalizePhone(compose.manual))
+                    ? !((compose.recipients || []).length > 0 || compose.picked || normalizePhone(compose.manual))
                     : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
                 }
                 onClick={() => void sendCompose()}
               >
                 <Send size={22} />
               </button>
+
               <button
                 style={iconBtn}
                 title="Close (draft is saved)"
