@@ -304,6 +304,7 @@ function AppFrame() {
   return (
     <>
       <NavBar />
+      {ready && user && !onLogin ? <DayStateSpine /> : null}
       {ready && (user || onLogin) ? <Outlet /> : null}
       {ready && user && !onLogin ? <BottomTabBar /> : null}
       <Toaster position="top-center" richColors />
