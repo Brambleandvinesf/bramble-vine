@@ -175,11 +175,12 @@ function sanitizeDescription(html: string): Array<{ kind: "text"; value: string 
 
 
 function SchedulePage() {
-  const { role } = useAuth();
+  useAuth();
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
 
-  const denied = role === "office" || effectiveRole === "office";
+  // Office lands on /schedule as their default surface; do not redirect away.
+  const denied = false;
   useEffect(() => {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
