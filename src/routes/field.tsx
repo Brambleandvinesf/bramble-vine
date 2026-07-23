@@ -686,6 +686,55 @@ function FieldBody({
     assistantGateEnabled &&
     (!loadingSnap.ready || loadingSnap.confirmed !== true || !loadingSnap.allLoaded);
 
+  /* --- hooks that must run every render (moved above early returns) --- */
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const payrollResolveRef = useRef<((v: boolean) => void) | null>(null);
+  const openPayrollGate = useCallback(() => {
+    return new Promise<boolean>((resolve) => {
+      payrollResolveRef.current = resolve;
+      setPayrollOpen(true);
+    });
+  }, []);
+  const closePayroll = useCallback((proceed: boolean) => {
+    setPayrollOpen(false);
+    const r = payrollResolveRef.current;
+    payrollResolveRef.current = null;
+    if (r) r(proceed);
+  }, []);
+
+  const _state: RouteState = previewState ?? liveState;
+  const locActive = !isPreview && (_state === "enroute" || _state === "arrived" || _state === "visit");
+  useEffect(() => {
+    if (!locActive) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const report = () => {
+      if (cancelled) return;
+      if (typeof document !== "undefined" && document.hidden) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled) return;
+          void send(
+            { action: "reportLocation", lat: pos.coords.latitude, lon: pos.coords.longitude },
+            { silent: true },
+          );
+        },
+        () => { /* denied or unavailable — silent */ },
+        { enableHighAccuracy: false, maximumAge: 30_000, timeout: 15_000 },
+      );
+    };
+    report();
+    timer = setInterval(report, 45_000);
+    const onVis = () => { if (!document.hidden) report(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [locActive, send]);
+
   /* --- manage-full-crew fallback (lead only, always reachable via link) --- */
   if (rosterEdit && !isPreview) {
     return (
