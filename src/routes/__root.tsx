@@ -304,15 +304,17 @@ function AppFrame() {
   return (
     <>
       <NavBar />
-      {ready && user && !onLogin ? <DayStateSpine /> : null}
+      {ready && user && !onLogin ? <HamburgerMenu /> : null}
+      {ready && user && !onLogin ? <MessagesFab /> : null}
       {ready && (user || onLogin) ? <Outlet /> : null}
-      {ready && user && !onLogin ? <BottomTabBar /> : null}
+      {ready && user && !onLogin ? <DayStateSpine /> : null}
       <Toaster position="top-center" richColors />
       <ConfirmModalHost />
       <OfficeTeamSetup />
     </>
   );
 }
+
 
 type TabDef = {
   to: string;
