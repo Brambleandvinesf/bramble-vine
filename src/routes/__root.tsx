@@ -38,6 +38,8 @@ import { ReviewableTodayProvider } from "../lib/reviewable-today";
 import { useBadge, useBadgePoller, BK } from "../lib/badges";
 import { ConfirmModalHost } from "../components/ConfirmModal";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
+import { DayStateSpine } from "../components/DayStateSpine";
+import { DayStateProvider } from "../lib/day-state";
 
 function NotFoundComponent() {
   return (
@@ -156,11 +158,20 @@ function RootComponent() {
       <AuthProvider>
         <ViewAsProvider>
           <ReviewableTodayProvider>
-            <AppFrame />
+            <DayStateProviderGate>
+              <AppFrame />
+            </DayStateProviderGate>
           </ReviewableTodayProvider>
         </ViewAsProvider>
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function DayStateProviderGate({ children }: { children: ReactNode }) {
+  const { user, ready } = useAuth();
+  return (
+    <DayStateProvider enabled={ready && !!user}>{children}</DayStateProvider>
   );
 }
 
@@ -293,6 +304,7 @@ function AppFrame() {
   return (
     <>
       <NavBar />
+      {ready && user && !onLogin ? <DayStateSpine /> : null}
       {ready && (user || onLogin) ? <Outlet /> : null}
       {ready && user && !onLogin ? <BottomTabBar /> : null}
       <Toaster position="top-center" richColors />
