@@ -2097,18 +2097,28 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       <button
         aria-label="New message"
         onClick={() => {
+          setComposeShowAdd(false);
           let restored: typeof compose = null;
           try {
             const raw = window.localStorage.getItem(composeStorageKey);
             if (raw) restored = JSON.parse(raw);
           } catch { /* ignore */ }
-          if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked)) {
-            setCompose({ ...restored, attachments: Array.isArray(restored.attachments) ? restored.attachments : [] });
+          if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked || (restored.recipients && restored.recipients.length))) {
+            const recipients = Array.isArray(restored.recipients) && restored.recipients.length
+              ? restored.recipients
+              : (restored.picked ? [restored.picked] : []);
+            setCompose({
+              ...restored,
+              recipients,
+              picked: null,
+              attachments: Array.isArray(restored.attachments) ? restored.attachments : [],
+            });
             flash("Restored saved draft");
           } else {
-            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "", attachments: [] });
+            setCompose({ channel: "text", q: "", picked: null, recipients: [], manual: "", emailTo: "", subject: "", text: "", attachments: [] });
           }
         }}
+
         style={{
           position: "fixed",
           right: 16,
