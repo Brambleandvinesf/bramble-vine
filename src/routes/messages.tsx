@@ -838,33 +838,45 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       }
       return;
     }
-    const phone = compose.picked?.phone || normalizePhone(compose.manual);
-    if (!phone) {
+    // Build recipient list: existing recipients + any pending manual entry.
+    const collected: { phone: string; name: string }[] = [...(compose.recipients || [])];
+    const manualPhone = normalizePhone(compose.manual);
+    if (manualPhone) collected.push({ phone: manualPhone, name: manualPhone });
+    if (compose.picked?.phone) collected.push(compose.picked);
+    const seen = new Set<string>();
+    const recipients = collected.filter((r) => {
+      if (!r.phone || seen.has(r.phone)) return false;
+      seen.add(r.phone);
+      return true;
+    });
+    if (recipients.length === 0) {
       flash("Pick a recipient or enter a valid phone number.", true);
       return;
     }
-    const name = compose.picked?.name || phone;
+    const phones = recipients.map((r) => r.phone);
+    const nameList = recipients.map((r) => r.name).join(", ");
     const optimisticId = `optim-${Date.now()}`;
     const optimistic: InboxItem = {
       id: optimisticId,
       source: "quo",
-      from: name,
+      from: nameList,
       date: new Date().toISOString(),
       threadId: optimisticId,
-      participants: [phone],
+      participants: phones,
       awaiting: false,
       isClient: false,
       snippet: text,
     };
     setItems((prev) => [optimistic, ...prev]);
     setCompose(null);
-    flash("Message sent to " + name + " \u2713");
+    flash("Message sent to " + nameList + " \u2713");
     const attachments = compose.attachments || [];
-    const res = await postAction({ action: "replyQuo", participants: [phone], text, email, ...(attachments.length ? { attachments } : {}) });
+    const res = await postAction({ action: "replyQuo", participants: phones, text, email, ...(attachments.length ? { attachments } : {}) });
     if (!(res && res.ok && res.sent)) {
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
-      flash("Message NOT sent to " + name + "!", true);
+      flash("Message NOT sent to " + nameList + "!", true);
     }
+
   }, [compose, normalizePhone, flash, email]);
 
 
