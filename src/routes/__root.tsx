@@ -297,7 +297,8 @@ function AppFrame() {
       {ready && user && !onLogin ? <BottomTabBar /> : null}
       <Toaster position="top-center" richColors />
       <ConfirmModalHost />
-      <OfficeTeamSetup />
+      {/* Temporarily disabled while investigating office sign-in freeze */}
+      {/* <OfficeTeamSetup /> */}
     </>
   );
 }
