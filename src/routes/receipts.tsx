@@ -587,22 +587,32 @@ function DesignateTab({
                   {(() => {
                     const groupRows = g.lines.map((l) => l.row);
                     const groupCount = groupRows.filter((r) => picks[r]).length;
+                    const total = rec?.total || "";
                     return (
-                      <button
-                        style={{
-                          ...SOLID_BTN,
-                          width: "100%",
-                          marginTop: 4,
-                          opacity: groupCount ? 1 : 0.4,
-                          cursor: groupCount ? "pointer" : "not-allowed",
-                        }}
-                        disabled={!groupCount}
-                        onClick={() => submitGroup(groupRows)}
-                      >
-                        {groupCount
-                          ? `SAVE ${groupCount} DESIGNATION${groupCount === 1 ? "" : "S"}`
-                          : "ASSIGN A CLIENT TO SUBMIT"}
-                      </button>
+                      <>
+                        {total && (
+                          <div style={{ textAlign: "right", marginTop: 6 }}>
+                            <span style={{ fontSize: 16, color: LIME, fontWeight: "bold" }}>
+                              Total {fmtMoney(total)}
+                            </span>
+                          </div>
+                        )}
+                        <button
+                          style={{
+                            ...SOLID_BTN,
+                            width: "100%",
+                            marginTop: 4,
+                            opacity: groupCount ? 1 : 0.4,
+                            cursor: groupCount ? "pointer" : "not-allowed",
+                          }}
+                          disabled={!groupCount}
+                          onClick={() => submitGroup(groupRows)}
+                        >
+                          {groupCount
+                            ? `SAVE ${groupCount} DESIGNATION${groupCount === 1 ? "" : "S"}`
+                            : "ASSIGN A CLIENT TO SUBMIT"}
+                        </button>
+                      </>
                     );
                   })()}
                 </div>
@@ -856,22 +866,32 @@ function InvoiceTab({
                         {(() => {
                           const groupRows = g.lines.map((l) => l.row);
                           const groupCount = groupRows.filter((r) => checked.has(r)).length;
+                          const total = rec?.total || "";
                           return (
-                            <button
-                              style={{
-                                ...SOLID_BTN,
-                                width: "100%",
-                                marginTop: 10,
-                                opacity: groupCount ? 1 : 0.4,
-                                cursor: groupCount ? "pointer" : "not-allowed",
-                              }}
-                              disabled={!groupCount}
-                              onClick={() => submitReceipt(groupRows)}
-                            >
-                              {groupCount
-                                ? `ADD ${groupCount} TO INVOICES`
-                                : "SELECT LINES TO INVOICE"}
-                            </button>
+                            <>
+                              {total && (
+                                <div style={{ textAlign: "right", marginTop: 8 }}>
+                                  <span style={{ fontSize: 16, color: LIME, fontWeight: "bold" }}>
+                                    Total {fmtMoney(total)}
+                                  </span>
+                                </div>
+                              )}
+                              <button
+                                style={{
+                                  ...SOLID_BTN,
+                                  width: "100%",
+                                  marginTop: 10,
+                                  opacity: groupCount ? 1 : 0.4,
+                                  cursor: groupCount ? "pointer" : "not-allowed",
+                                }}
+                                disabled={!groupCount}
+                                onClick={() => submitReceipt(groupRows)}
+                              >
+                                {groupCount
+                                  ? `ADD ${groupCount} TO INVOICES`
+                                  : "SELECT LINES TO INVOICE"}
+                              </button>
+                            </>
                           );
                         })()}
                       </div>
@@ -1154,10 +1174,10 @@ const INPUT: React.CSSProperties = {
 function LineBody({ line }: { line: Line }) {
   return (
     <>
-      <div style={{ fontSize: 13, color: TEXT }}>
+      <div style={{ fontSize: 15, color: LIME, fontWeight: "bold" }}>
         {line.description || "(no description)"}
       </div>
-      <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+      <div style={{ fontSize: 13, color: LIME, marginTop: 2 }}>
         {line.quantity && `${line.quantity} × `}
         {line.unitPrice && fmtMoney(line.unitPrice)}
         {line.total && ` = ${fmtMoney(line.total)}`}
