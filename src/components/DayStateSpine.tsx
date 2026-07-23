@@ -1,21 +1,24 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { useDayState, type DayPhase } from "../lib/day-state";
 import { useAuth } from "../lib/auth";
 
 const LIME = "#7cff00";
+const LIME_DIM = "#2f5f10";
 const DIM = "#2a2a2a";
 const DIM_TEXT = "#4a7a1e";
 const YELLOW = "#ffd400";
+const BG = "#0a0a0a";
 
-const LABELS: Record<string, string> = {
+const SUB_LABEL: Record<string, string> = {
   signin: "SIGN IN",
   team_assign: "TEAM",
-  dailyload_confirm: "DAILY",
+  dailyload_confirm: "DAILY LOAD",
   special_confirm: "SPECIAL",
-  loading: "LOAD",
-  enroute: "GO",
-  arrived: "ARR",
+  loading: "LOADING",
+  enroute: "EN ROUTE",
+  arrived: "ARRIVED",
   visit: "VISIT",
   debrief: "DEBRIEF",
   next: "NEXT",
@@ -23,21 +26,22 @@ const LABELS: Record<string, string> = {
   confirm_hours: "HOURS",
 };
 
-const PHASE_LABEL: Record<DayPhase, string> = {
-  HQ_LOADING: "HQ",
-  FIELD_VISIT: "FIELD",
-  HQ_UNLOADING: "HQ",
-};
+function anchorLabel(phase: DayPhase, client: string | null | undefined): string {
+  if (phase === "FIELD_VISIT") return (client && client.trim()) || "FIELD";
+  return "HQ";
+}
 
-function routeFor(subStep: string, isOffice: boolean): {
-  to?: string;
-  event?: string;
-} | null {
+function routeFor(
+  subStep: string,
+  isOffice: boolean,
+): { to?: string; event?: string } | null {
   switch (subStep) {
     case "signin":
       return { to: "/login" };
     case "team_assign":
-      return isOffice ? { event: "bv:open-team-setup", to: "/schedule" } : { to: "/schedule" };
+      return isOffice
+        ? { event: "bv:open-team-setup", to: "/schedule" }
+        : { to: "/schedule" };
     case "dailyload_confirm":
     case "special_confirm":
       return { to: "/confirm" };
@@ -56,23 +60,80 @@ function routeFor(subStep: string, isOffice: boolean): {
   }
 }
 
+type Status = "done" | "current" | "upcoming";
+
+function circleStyle(
+  size: number,
+  status: Status,
+  interactive: boolean,
+): React.CSSProperties {
+  const base: React.CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: 999,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "transparent",
+    padding: 0,
+    boxSizing: "border-box",
+    cursor: interactive ? "pointer" : "default",
+    transition: "all .25s ease",
+  };
+  if (status === "done") {
+    return {
+      ...base,
+      border: `2px solid ${LIME}`,
+      background: LIME,
+      boxShadow: `0 0 8px ${LIME}, 0 0 16px rgba(124,255,0,0.35)`,
+    };
+  }
+  if (status === "current") {
+    return {
+      ...base,
+      border: `2px solid ${YELLOW}`,
+      background: YELLOW,
+      boxShadow: `0 0 10px ${YELLOW}, 0 0 22px rgba(255,212,0,0.55)`,
+      animation: "bvSpinePulse 1.8s ease-out infinite",
+    };
+  }
+  return {
+    ...base,
+    border: `2px solid ${LIME_DIM}`,
+    background: "transparent",
+    opacity: 0.75,
+  };
+}
+
 export function DayStateSpine() {
   const state = useDayState();
   const router = useRouter();
   const { role } = useAuth();
   const isOffice = role === "office";
 
-  const flat = useMemo(() => {
-    if (!state) return [] as { phase: DayPhase; subStep: string }[];
-    const out: { phase: DayPhase; subStep: string }[] = [];
-    for (const p of state.phaseOrder) {
-      const steps = state.subSteps[p] || [];
-      for (const s of steps) out.push({ phase: p, subStep: s });
+  const [collapsed, setCollapsed] = useState(false);
+  const lastKeyRef = useRef<string>("");
+
+  // Auto-reveal when state changes (uncollapse briefly on transitions)
+  useEffect(() => {
+    if (!state) return;
+    const key = `${state.phase}:${state.subStep}`;
+    if (lastKeyRef.current && lastKeyRef.current !== key) {
+      setCollapsed(false);
     }
-    return out;
+    lastKeyRef.current = key;
   }, [state]);
 
-  if (!state || flat.length === 0) {
+  const phases = state?.phaseOrder ?? [];
+  const activeIdx = state ? phases.indexOf(state.phase) : -1;
+
+  const activeSubs = useMemo(() => {
+    if (!state) return [];
+    return state.subSteps[state.phase] || [];
+  }, [state]);
+  const currentSubIdx = state ? activeSubs.indexOf(state.subStep) : -1;
+
+  if (!state || phases.length === 0) {
     return (
       <div
         style={{
@@ -81,8 +142,8 @@ export function DayStateSpine() {
           left: 0,
           right: 0,
           zIndex: 90,
-          padding: "4px 10px",
-          background: "#0a0a0a",
+          padding: "6px 10px calc(6px + env(safe-area-inset-bottom, 0px))",
+          background: BG,
           borderTop: "1px solid #1a1a1a",
           color: DIM_TEXT,
           fontFamily: "'Courier New', Courier, monospace",
@@ -96,9 +157,11 @@ export function DayStateSpine() {
     );
   }
 
-  const currentIdx = flat.findIndex(
-    (n) => n.phase === state.phase && n.subStep === state.subStep,
-  );
+  const N = phases.length;
+  const parentSize = 26;
+  const parentCurrentSize = 32;
+  const subSize = 18;
+  const subCurrentSize = 26;
 
   const onTap = (subStep: string) => {
     const target = routeFor(subStep, isOffice);
@@ -113,14 +176,22 @@ export function DayStateSpine() {
     if (target.to) void router.navigate({ to: target.to });
   };
 
+  const currentSubLabel = SUB_LABEL[state.subStep] || state.subStep;
+
   return (
     <>
       <style>{`
         @keyframes bvSpinePulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(255,212,0,0.55); }
-          50%      { box-shadow: 0 0 0 6px rgba(255,212,0,0);    }
+          0%,100% { box-shadow: 0 0 10px ${YELLOW}, 0 0 22px rgba(255,212,0,0.55); }
+          50%     { box-shadow: 0 0 14px ${YELLOW}, 0 0 34px rgba(255,212,0,0.75); }
         }
+        @keyframes bvSpineFade {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+        .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
       `}</style>
+
       <div
         aria-label="Day progress"
         style={{
@@ -129,106 +200,267 @@ export function DayStateSpine() {
           left: 0,
           right: 0,
           zIndex: 90,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "8px 10px calc(8px + env(safe-area-inset-bottom, 0px))",
-          background: "#0a0a0a",
-          borderTop: "2px solid #1a1a1a",
-          overflowX: "auto",
+          background: BG,
+          borderTop: "1px solid #1a1a1a",
           fontFamily: "'Courier New', Courier, monospace",
-          WebkitOverflowScrolling: "touch",
-          minHeight: 48,
-
+          paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
         }}
       >
-        {flat.map((node, i) => {
-          const isCurrent = i === currentIdx;
-          const isDone = currentIdx >= 0 && i < currentIdx;
-          const isUpcoming = !isCurrent && !isDone;
+        {/* toggle handle */}
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? "Expand day spine" : "Collapse day spine"}
+          style={{
+            position: "absolute",
+            top: -14,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 44,
+            height: 18,
+            borderRadius: "10px 10px 0 0",
+            background: BG,
+            border: "1px solid #1a1a1a",
+            borderBottom: "none",
+            color: DIM_TEXT,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          {collapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
 
-          const phaseChange = i === 0 || flat[i - 1]!.phase !== node.phase;
-
-          const size = isCurrent ? 36 : 28;
-          const bg = isCurrent ? YELLOW : isDone ? LIME : "transparent";
-          const border = isCurrent
-            ? YELLOW
-            : isDone
-              ? LIME
-              : DIM;
-
-          const textColor = isCurrent || isDone ? "#0a0a0a" : DIM_TEXT;
-
-          const target = routeFor(node.subStep, isOffice);
-          const canTap = !isUpcoming && !!target;
-
-          const dot = (
-            <button
-              key={`${node.phase}:${node.subStep}`}
-              type="button"
-              onClick={canTap ? () => onTap(node.subStep) : undefined}
-              disabled={!canTap}
-              aria-label={`${node.phase} ${node.subStep}`}
-              aria-current={isCurrent ? "step" : undefined}
-              title={LABELS[node.subStep] || node.subStep}
+        {collapsed ? (
+          <div
+            style={{
+              padding: "8px 12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              color: YELLOW,
+              fontSize: 11,
+              letterSpacing: 1.5,
+              fontWeight: 700,
+              minHeight: 32,
+            }}
+          >
+            <span
               style={{
-                position: "relative",
-                flex: "0 0 auto",
-                minWidth: size,
-                height: size,
-                padding: "0 10px",
+                width: 10,
+                height: 10,
                 borderRadius: 999,
-                background: bg,
-                border: `1px solid ${border}`,
-                color: textColor,
-                fontSize: isCurrent ? 12 : 11,
-                fontWeight: 700,
-                letterSpacing: 1,
+                background: YELLOW,
+                boxShadow: `0 0 8px ${YELLOW}`,
+              }}
+            />
+            {currentSubLabel}
+          </div>
+        ) : (
+          <div
+            style={{
+              position: "relative",
+              height: 108,
+              width: "100%",
+            }}
+          >
+            {/* Horizontal connectors between parent anchors */}
+            {phases.map((_, i) => {
+              if (i === N - 1) return null;
+              const leftPct = ((i + 0.5) / N) * 100;
+              const widthPct = (1 / N) * 100;
+              const done = i < activeIdx;
+              return (
+                <div
+                  key={`hline-${i}`}
+                  style={{
+                    position: "absolute",
+                    left: `${leftPct}%`,
+                    width: `${widthPct}%`,
+                    bottom: 26,
+                    height: 2,
+                    background: done ? LIME : LIME_DIM,
+                    opacity: done ? 1 : 0.5,
+                    boxShadow: done ? `0 0 6px ${LIME}` : "none",
+                  }}
+                />
+              );
+            })}
 
-                cursor: canTap ? "pointer" : "default",
-                opacity: isUpcoming ? 0.85 : 1,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                whiteSpace: "nowrap",
-                animation: isCurrent ? "bvSpinePulse 1.6s ease-out infinite" : undefined,
+            {/* Phase columns */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "stretch",
               }}
             >
-              {LABELS[node.subStep] || node.subStep}
-            </button>
-          );
+              {phases.map((phase, i) => {
+                const isActive = i === activeIdx;
+                const isDone = i < activeIdx;
+                const status: Status = isActive
+                  ? currentSubIdx < 0
+                    ? "current"
+                    : isDone
+                      ? "done"
+                      : "upcoming"
+                  : isDone
+                    ? "done"
+                    : "upcoming";
+                // Parent status: mark active phase's parent as done once we've
+                // started sub-steps but haven't finished the phase; visually
+                // treat it as "done" while sub-nodes progress above it.
+                const parentStatus: Status = isActive
+                  ? currentSubIdx >= 0
+                    ? "done"
+                    : "current"
+                  : isDone
+                    ? "done"
+                    : "upcoming";
 
-          if (phaseChange && i > 0) {
-            return (
-              <span
-                key={`sep-${i}`}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-              >
-                <span style={{ color: DIM_TEXT, fontSize: 10, letterSpacing: 1 }}>
-                  ›
-                </span>
-                <span style={{ color: DIM_TEXT, fontSize: 9, letterSpacing: 1 }}>
-                  {PHASE_LABEL[node.phase]}
-                </span>
-                {dot}
-              </span>
-            );
-          }
-          if (i === 0) {
-            return (
-              <span
-                key={`head-${i}`}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-              >
-                <span style={{ color: DIM_TEXT, fontSize: 9, letterSpacing: 1 }}>
-                  {PHASE_LABEL[node.phase]}
-                </span>
-                {dot}
-              </span>
-            );
-          }
-          return dot;
-        })}
+                const showLabel = isActive; // label active phase's anchor (client name for FIELD)
+                const label = anchorLabel(phase, state.client);
+                const parentPx = parentStatus === "current" ? parentCurrentSize : parentSize;
+
+                return (
+                  <div
+                    key={`ph-${phase}-${i}`}
+                    className="bv-spine-node"
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      position: "relative",
+                      paddingBottom: 8,
+                    }}
+                  >
+                    {/* Sub-nodes for the active phase */}
+                    {isActive && activeSubs.length > 0 ? (
+                      <>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 8,
+                            marginTop: 4,
+                            flexWrap: "nowrap",
+                          }}
+                        >
+                          {activeSubs.map((s, si) => {
+                            const sStatus: Status =
+                              si < currentSubIdx
+                                ? "done"
+                                : si === currentSubIdx
+                                  ? "current"
+                                  : "upcoming";
+                            const size = sStatus === "current" ? subCurrentSize : subSize;
+                            const target = routeFor(s, isOffice);
+                            const canTap = sStatus !== "upcoming" && !!target;
+                            return (
+                              <div
+                                key={s}
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 2,
+                                }}
+                              >
+                                {/* connector to next sub */}
+                                <button
+                                  type="button"
+                                  disabled={!canTap}
+                                  onClick={canTap ? () => onTap(s) : undefined}
+                                  aria-label={SUB_LABEL[s] || s}
+                                  aria-current={sStatus === "current" ? "step" : undefined}
+                                  title={SUB_LABEL[s] || s}
+                                  className="bv-spine-node"
+                                  style={circleStyle(size, sStatus, canTap)}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* label for current sub-node */}
+                        <div
+                          style={{
+                            height: 12,
+                            marginTop: 2,
+                            color: YELLOW,
+                            fontSize: 10,
+                            letterSpacing: 1.5,
+                            fontWeight: 700,
+                            textAlign: "center",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {currentSubIdx >= 0 ? currentSubLabel : ""}
+                        </div>
+
+                        {/* vertical connector down to parent */}
+                        <div
+                          style={{
+                            width: 2,
+                            height: 10,
+                            background: LIME,
+                            boxShadow: `0 0 4px ${LIME}`,
+                            marginTop: 2,
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <div style={{ flex: 1 }} />
+                    )}
+
+                    {/* Parent anchor circle */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 2,
+                        position: "relative",
+                        zIndex: 1,
+                      }}
+                    >
+                      <div
+                        aria-label={label}
+                        style={{
+                          ...circleStyle(parentPx, parentStatus, false),
+                        }}
+                      />
+                      {showLabel && (
+                        <div
+                          style={{
+                            color: parentStatus === "current" ? YELLOW : LIME,
+                            fontSize: 9,
+                            letterSpacing: 1.2,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            whiteSpace: "nowrap",
+                            maxWidth: 140,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {label}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
