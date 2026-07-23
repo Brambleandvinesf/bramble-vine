@@ -40,10 +40,12 @@ export function DayStateProvider({
     let cancelled = false;
     const tick = async () => {
       try {
-        const res = await fetch(`${SCRIPT_URL}?action=getState`);
+        const res = await fetch(`${SCRIPT_URL}?action=getDayState`);
         if (!res.ok) return;
         const json = (await res.json()) as DayState;
         if (cancelled) return;
+        // eslint-disable-next-line no-console
+        console.log("[dayState]", json);
         if (!json || !json.phase || !json.subSteps) return;
         sessionCache.set(CK, json);
         setState(json);
