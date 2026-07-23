@@ -132,12 +132,14 @@ export function DayStateSpine() {
           display: "flex",
           alignItems: "center",
           gap: 6,
-          padding: "6px 10px",
+          padding: "8px 10px calc(8px + env(safe-area-inset-bottom, 0px))",
           background: "#0a0a0a",
-          borderTop: "1px solid #1a1a1a",
+          borderTop: "2px solid #1a1a1a",
           overflowX: "auto",
           fontFamily: "'Courier New', Courier, monospace",
           WebkitOverflowScrolling: "touch",
+          minHeight: 48,
+
         }}
       >
         {flat.map((node, i) => {
