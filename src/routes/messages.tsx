@@ -367,13 +367,16 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     channel: "text" | "email";
     q: string;
     picked: { phone: string; name: string } | null;
+    recipients: { phone: string; name: string }[];
     manual: string;
     emailTo: string;
     subject: string;
     text: string;
     attachments: Attachment[];
   } | null>(null);
+  const [composeShowAdd, setComposeShowAdd] = useState(false);
   const composeFileInputRef = useRef<HTMLInputElement | null>(null);
+
   const viewAllSwapRef = useRef(false);
 
   // Persist compose to localStorage so a crash/close doesn't lose the draft
@@ -835,33 +838,45 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       }
       return;
     }
-    const phone = compose.picked?.phone || normalizePhone(compose.manual);
-    if (!phone) {
+    // Build recipient list: existing recipients + any pending manual entry.
+    const collected: { phone: string; name: string }[] = [...(compose.recipients || [])];
+    const manualPhone = normalizePhone(compose.manual);
+    if (manualPhone) collected.push({ phone: manualPhone, name: manualPhone });
+    if (compose.picked?.phone) collected.push(compose.picked);
+    const seen = new Set<string>();
+    const recipients = collected.filter((r) => {
+      if (!r.phone || seen.has(r.phone)) return false;
+      seen.add(r.phone);
+      return true;
+    });
+    if (recipients.length === 0) {
       flash("Pick a recipient or enter a valid phone number.", true);
       return;
     }
-    const name = compose.picked?.name || phone;
+    const phones = recipients.map((r) => r.phone);
+    const nameList = recipients.map((r) => r.name).join(", ");
     const optimisticId = `optim-${Date.now()}`;
     const optimistic: InboxItem = {
       id: optimisticId,
       source: "quo",
-      from: name,
+      from: nameList,
       date: new Date().toISOString(),
       threadId: optimisticId,
-      participants: [phone],
+      participants: phones,
       awaiting: false,
       isClient: false,
       snippet: text,
     };
     setItems((prev) => [optimistic, ...prev]);
     setCompose(null);
-    flash("Message sent to " + name + " \u2713");
+    flash("Message sent to " + nameList + " \u2713");
     const attachments = compose.attachments || [];
-    const res = await postAction({ action: "replyQuo", participants: [phone], text, email, ...(attachments.length ? { attachments } : {}) });
+    const res = await postAction({ action: "replyQuo", participants: phones, text, email, ...(attachments.length ? { attachments } : {}) });
     if (!(res && res.ok && res.sent)) {
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
-      flash("Message NOT sent to " + name + "!", true);
+      flash("Message NOT sent to " + nameList + "!", true);
     }
+
   }, [compose, normalizePhone, flash, email]);
 
 
@@ -2094,18 +2109,28 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       <button
         aria-label="New message"
         onClick={() => {
+          setComposeShowAdd(false);
           let restored: typeof compose = null;
           try {
             const raw = window.localStorage.getItem(composeStorageKey);
             if (raw) restored = JSON.parse(raw);
           } catch { /* ignore */ }
-          if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked)) {
-            setCompose({ ...restored, attachments: Array.isArray(restored.attachments) ? restored.attachments : [] });
+          if (restored && (restored.text || restored.emailTo || restored.subject || restored.manual || restored.picked || (restored.recipients && restored.recipients.length))) {
+            const recipients = Array.isArray(restored.recipients) && restored.recipients.length
+              ? restored.recipients
+              : (restored.picked ? [restored.picked] : []);
+            setCompose({
+              ...restored,
+              recipients,
+              picked: null,
+              attachments: Array.isArray(restored.attachments) ? restored.attachments : [],
+            });
             flash("Restored saved draft");
           } else {
-            setCompose({ channel: "text", q: "", picked: null, manual: "", emailTo: "", subject: "", text: "", attachments: [] });
+            setCompose({ channel: "text", q: "", picked: null, recipients: [], manual: "", emailTo: "", subject: "", text: "", attachments: [] });
           }
         }}
+
         style={{
           position: "fixed",
           right: 16,
@@ -2291,11 +2316,12 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               return (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {pills.map((p) => {
+                    const inRecipients = !isEmail && !!p.value && (compose.recipients || []).some((r) => r.phone === p.value);
                     const selected = isEmail
                       ? !!p.value && compose.emailTo === p.value
                       : p.clientQuery
-                      ? !compose.picked && (compose.manual === p.clientQuery || compose.q === p.clientQuery)
-                      : !!p.value && compose.picked?.phone === p.value;
+                      ? (compose.recipients || []).length === 0 && (compose.manual === p.clientQuery || compose.q === p.clientQuery)
+                      : inRecipients;
                     return (
                       <button
                         key={p.key}
@@ -2314,12 +2340,11 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                               manual: p.clientQuery,
                             });
                           } else {
-                            setCompose({
-                              ...compose,
-                              picked: { phone: p.value, name: p.label },
-                              q: "",
-                              manual: "",
-                            });
+                            const cur = compose.recipients || [];
+                            const next = inRecipients
+                              ? cur.filter((r) => r.phone !== p.value)
+                              : [...cur, { phone: p.value, name: p.label }];
+                            setCompose({ ...compose, recipients: next, picked: null });
                           }
                         }}
                       >
@@ -2350,101 +2375,152 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   style={{ ...inputStyle, minHeight: 44 }}
                 />
               </>
-            ) : compose.picked ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 10px",
-                  border: `1px solid ${T.lime}`,
-                  borderRadius: 6,
-                }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: "bold" }}>{compose.picked.name}</div>
-                  <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{compose.picked.phone}</div>
-                </div>
-                <button
-                  style={ghostBtn}
-                  onClick={() => setCompose({ ...compose, picked: null })}
-                >
-                  Change
-                </button>
-              </div>
             ) : (
               <>
-                <input
-                  autoFocus
-                  value={compose.q}
-                  onChange={(e) => setCompose({ ...compose, q: e.target.value, manual: e.target.value })}
-                  placeholder="Search contacts or type phone…"
-                  style={{ ...inputStyle, minHeight: 48 }}
-                />
-                <div
-                  style={{
-                    overflowY: "auto",
-                    maxHeight: "35vh",
-                    borderTop: `1px solid ${T.border}`,
-                  }}
-                >
-                  {(() => {
-                    const ql = compose.q.trim().toLowerCase();
-                    const digits = ql.replace(/\D/g, "");
-                    const hits = contacts
-                      .filter((c) => {
-                        if (!ql) return false;
-                        if (c.n.toLowerCase().indexOf(ql) >= 0) return true;
-                        if (digits && c.r.replace(/\D/g, "").indexOf(digits) >= 0) return true;
-                        return false;
-                      })
-                      .slice(0, 40);
-                    const normalized = normalizePhone(compose.manual);
-                    return (
-                      <>
-                        {hits.map((c) => (
-                          <div
-                            key={c.r + c.n}
-                            onClick={() =>
-                              setCompose({
-                                ...compose,
-                                picked: { phone: c.r, name: c.n },
-                                q: "",
-                                manual: "",
-                              })
-                            }
-                            style={pickRowStyle}
-                          >
-                            <div style={{ fontWeight: "bold" }}>{c.n}</div>
-                            <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{c.r}</div>
-                          </div>
-                        ))}
-                        {normalized && !hits.some((c) => c.r === normalized) && (
-                          <div
-                            onClick={() =>
-                              setCompose({
-                                ...compose,
-                                picked: { phone: normalized, name: normalized },
-                                q: "",
-                                manual: "",
-                              })
-                            }
-                            style={{ ...pickRowStyle, color: T.dim }}
-                          >
-                            + Send to {normalized}
-                          </div>
-                        )}
-                        {ql && hits.length === 0 && !normalized && (
-                          <div style={{ padding: 12, fontSize: ".85rem", opacity: 0.6 }}>
-                            No matches. Enter a 10-digit US phone number.
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                {/* Recipient pills + add button */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  {(compose.recipients || []).map((r) => (
+                    <span
+                      key={r.phone}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        background: T.lime,
+                        color: "#0a0a0a",
+                        border: `1px solid ${T.lime}`,
+                        borderRadius: 999,
+                        padding: "6px 6px 6px 12px",
+                        fontFamily: fontStack,
+                        fontSize: ".8rem",
+                        fontWeight: "bold",
+                        letterSpacing: 1,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      <span>{r.name}</span>
+                      <button
+                        onClick={() =>
+                          setCompose({
+                            ...compose,
+                            recipients: (compose.recipients || []).filter((x) => x.phone !== r.phone),
+                          })
+                        }
+                        aria-label={`Remove ${r.name}`}
+                        title="Remove"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#0a0a0a",
+                          cursor: "pointer",
+                          padding: 0,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          fontFamily: fontStack,
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    onClick={() => setComposeShowAdd((v) => !v)}
+                    aria-label="Add recipient"
+                    title="Add recipient"
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 999,
+                      background: composeShowAdd ? T.lime : "transparent",
+                      color: composeShowAdd ? "#0a0a0a" : T.lime,
+                      border: `1px solid ${T.lime}`,
+                      cursor: "pointer",
+                      fontFamily: fontStack,
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      lineHeight: 1,
+                    }}
+                  >
+                    +
+                  </button>
                 </div>
+                {(composeShowAdd || (compose.recipients || []).length === 0) && (
+                  <>
+                    <input
+                      autoFocus
+                      value={compose.q}
+                      onChange={(e) => setCompose({ ...compose, q: e.target.value, manual: e.target.value })}
+                      placeholder="Search contacts or type phone…"
+                      style={{ ...inputStyle, minHeight: 48 }}
+                    />
+                    <div
+                      style={{
+                        overflowY: "auto",
+                        maxHeight: "35vh",
+                        borderTop: `1px solid ${T.border}`,
+                      }}
+                    >
+                      {(() => {
+                        const ql = compose.q.trim().toLowerCase();
+                        const digits = ql.replace(/\D/g, "");
+                        const existing = new Set((compose.recipients || []).map((r) => r.phone));
+                        const hits = contacts
+                          .filter((c) => {
+                            if (!ql) return false;
+                            if (c.n.toLowerCase().indexOf(ql) >= 0) return true;
+                            if (digits && c.r.replace(/\D/g, "").indexOf(digits) >= 0) return true;
+                            return false;
+                          })
+                          .slice(0, 40);
+                        const normalized = normalizePhone(compose.manual);
+                        const addRecipient = (rec: { phone: string; name: string }) => {
+                          if (!rec.phone || existing.has(rec.phone)) {
+                            setCompose({ ...compose, q: "", manual: "" });
+                          } else {
+                            setCompose({
+                              ...compose,
+                              recipients: [...(compose.recipients || []), rec],
+                              picked: null,
+                              q: "",
+                              manual: "",
+                            });
+                          }
+                          setComposeShowAdd(false);
+                        };
+                        return (
+                          <>
+                            {hits.map((c) => (
+                              <div
+                                key={c.r + c.n}
+                                onClick={() => addRecipient({ phone: c.r, name: c.n })}
+                                style={pickRowStyle}
+                              >
+                                <div style={{ fontWeight: "bold" }}>{c.n}</div>
+                                <div style={{ fontSize: ".8rem", opacity: 0.7 }}>{c.r}</div>
+                              </div>
+                            ))}
+                            {normalized && !hits.some((c) => c.r === normalized) && !existing.has(normalized) && (
+                              <div
+                                onClick={() => addRecipient({ phone: normalized, name: normalized })}
+                                style={{ ...pickRowStyle, color: T.dim }}
+                              >
+                                + Add {normalized}
+                              </div>
+                            )}
+                            {ql && hits.length === 0 && !normalized && (
+                              <div style={{ padding: 12, fontSize: ".85rem", opacity: 0.6 }}>
+                                No matches. Enter a 10-digit US phone number.
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </>
+                )}
               </>
             )}
+
             <textarea
               value={compose.text}
               onChange={(e) => setCompose({ ...compose, text: e.target.value })}
@@ -2548,7 +2624,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                   opacity:
                     !compose.text.trim() ||
                     (compose.channel === "text"
-                      ? !(compose.picked || normalizePhone(compose.manual))
+                      ? !((compose.recipients || []).length > 0 || compose.picked || normalizePhone(compose.manual))
                       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
                       ? 0.4
                       : 1,
@@ -2558,13 +2634,14 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
                 disabled={
                   !compose.text.trim() ||
                   (compose.channel === "text"
-                    ? !(compose.picked || normalizePhone(compose.manual))
+                    ? !((compose.recipients || []).length > 0 || compose.picked || normalizePhone(compose.manual))
                     : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(compose.emailTo.trim()))
                 }
                 onClick={() => void sendCompose()}
               >
                 <Send size={22} />
               </button>
+
               <button
                 style={iconBtn}
                 title="Close (draft is saved)"
