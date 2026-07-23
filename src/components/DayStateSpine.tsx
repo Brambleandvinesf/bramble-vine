@@ -147,13 +147,14 @@ export function DayStateSpine() {
 
           const phaseChange = i === 0 || flat[i - 1]!.phase !== node.phase;
 
-          const size = isCurrent ? 30 : 22;
+          const size = isCurrent ? 36 : 28;
           const bg = isCurrent ? YELLOW : isDone ? LIME : "transparent";
           const border = isCurrent
             ? YELLOW
             : isDone
               ? LIME
               : DIM;
+
           const textColor = isCurrent || isDone ? "#0a0a0a" : DIM_TEXT;
 
           const target = routeFor(node.subStep, isOffice);
