@@ -132,12 +132,14 @@ export function DayStateSpine() {
           display: "flex",
           alignItems: "center",
           gap: 6,
-          padding: "6px 10px",
+          padding: "8px 10px calc(8px + env(safe-area-inset-bottom, 0px))",
           background: "#0a0a0a",
-          borderTop: "1px solid #1a1a1a",
+          borderTop: "2px solid #1a1a1a",
           overflowX: "auto",
           fontFamily: "'Courier New', Courier, monospace",
           WebkitOverflowScrolling: "touch",
+          minHeight: 48,
+
         }}
       >
         {flat.map((node, i) => {
@@ -147,13 +149,14 @@ export function DayStateSpine() {
 
           const phaseChange = i === 0 || flat[i - 1]!.phase !== node.phase;
 
-          const size = isCurrent ? 30 : 22;
+          const size = isCurrent ? 36 : 28;
           const bg = isCurrent ? YELLOW : isDone ? LIME : "transparent";
           const border = isCurrent
             ? YELLOW
             : isDone
               ? LIME
               : DIM;
+
           const textColor = isCurrent || isDone ? "#0a0a0a" : DIM_TEXT;
 
           const target = routeFor(node.subStep, isOffice);
@@ -173,14 +176,15 @@ export function DayStateSpine() {
                 flex: "0 0 auto",
                 minWidth: size,
                 height: size,
-                padding: "0 8px",
+                padding: "0 10px",
                 borderRadius: 999,
                 background: bg,
                 border: `1px solid ${border}`,
                 color: textColor,
-                fontSize: isCurrent ? 11 : 10,
+                fontSize: isCurrent ? 12 : 11,
                 fontWeight: 700,
                 letterSpacing: 1,
+
                 cursor: canTap ? "pointer" : "default",
                 opacity: isUpcoming ? 0.85 : 1,
                 display: "inline-flex",
