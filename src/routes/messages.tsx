@@ -367,13 +367,16 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     channel: "text" | "email";
     q: string;
     picked: { phone: string; name: string } | null;
+    recipients: { phone: string; name: string }[];
     manual: string;
     emailTo: string;
     subject: string;
     text: string;
     attachments: Attachment[];
   } | null>(null);
+  const [composeShowAdd, setComposeShowAdd] = useState(false);
   const composeFileInputRef = useRef<HTMLInputElement | null>(null);
+
   const viewAllSwapRef = useRef(false);
 
   // Persist compose to localStorage so a crash/close doesn't lose the draft
