@@ -844,38 +844,6 @@ function FieldBody({
     void textClient(send, "done", clientMatch, stopIndex, isPreview);
   };
 
-  /* --- geolocation reporter (foreground only, enroute→visit) --- */
-  const locActive = !isPreview && (state === "enroute" || state === "arrived" || state === "visit");
-  useEffect(() => {
-    if (!locActive) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const report = () => {
-      if (cancelled) return;
-      if (typeof document !== "undefined" && document.hidden) return;
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (cancelled) return;
-          void send(
-            { action: "reportLocation", lat: pos.coords.latitude, lon: pos.coords.longitude },
-            { silent: true },
-          );
-        },
-        () => { /* denied or unavailable — silent */ },
-        { enableHighAccuracy: false, maximumAge: 30_000, timeout: 15_000 },
-      );
-    };
-    report();
-    timer = setInterval(report, 45_000);
-    const onVis = () => { if (!document.hidden) report(); };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      cancelled = true;
-      if (timer) clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [locActive, send]);
 
   return (
     <div>
