@@ -383,7 +383,7 @@ function AdminPage() {
                             const preview = FIELD_PREVIEW[key];
                             void navigate({
                               to: "/field",
-                              search: preview ? { preview, ...(step ? { step } : {}) } : {},
+                              search: preview ? { preview, ...(step ? { step: step as never } : {}) } : {},
                             });
                           } else {
                             void navigate({ to: target as "/" });
