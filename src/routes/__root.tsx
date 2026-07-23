@@ -306,7 +306,11 @@ function AppFrame() {
       <NavBar />
       {ready && user && !onLogin ? <HamburgerMenu /> : null}
       {ready && user && !onLogin ? <MessagesFab /> : null}
-      {ready && (user || onLogin) ? <Outlet /> : null}
+      {ready && (user || onLogin) ? (
+        <div style={{ paddingTop: user && !onLogin ? 56 : 0, paddingBottom: user && !onLogin ? 128 : 0 }}>
+          <Outlet />
+        </div>
+      ) : null}
       {ready && user && !onLogin ? <DayStateSpine /> : null}
       <Toaster position="top-center" richColors />
       <ConfirmModalHost />
