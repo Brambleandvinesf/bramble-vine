@@ -179,7 +179,8 @@ function SchedulePage() {
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
 
-  const denied = role === "office" || effectiveRole === "office";
+  // Office lands on /schedule as their default surface; do not redirect away.
+  const denied = false;
   useEffect(() => {
     if (denied) void navigate({ to: "/" });
   }, [denied, navigate]);
