@@ -594,8 +594,9 @@ function SchedulePage() {
       ) : null}
 
       {view === "day" ? (
-        <DayList
+        <DayGrid
           events={byDay.get(anchor) ?? []}
+          isToday={isToday}
           expanded={expanded}
           onToggle={toggle}
         />
