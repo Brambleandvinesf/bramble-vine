@@ -207,8 +207,8 @@ export function DayStateSpine() {
     <>
       <style>{`
         @keyframes bvSpineBlink {
-          0%,100% { box-shadow: 0 0 6px ${LIME}, 0 0 14px rgba(124,255,0,0.35); opacity: 1; }
-          50%     { box-shadow: 0 0 12px ${LIME}, 0 0 26px rgba(124,255,0,0.75); opacity: 0.85; }
+          0%,100% { box-shadow: 0 0 5px rgba(124,255,0,0.4), 0 0 10px rgba(124,255,0,0.15); opacity: 0.4; }
+          50%     { box-shadow: 0 0 12px ${LIME}, 0 0 26px rgba(124,255,0,0.7); opacity: 1; }
         }
         @keyframes bvSpineCapsuleIn {
           from { transform: scale(0.85); opacity: 0; }
@@ -223,8 +223,8 @@ export function DayStateSpine() {
           to   { stroke-dashoffset: -28; }
         }
         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
-        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 2s ease-in-out infinite; }
-        .bv-spine-dot-blink { animation: bvSpineBlink 2s ease-in-out infinite; }
+        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
+        .bv-spine-dot-blink { animation: bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
         .bv-spine-enroute { stroke-dasharray: 8 6; animation: bvSpineDash 1.2s linear infinite; }
       `}</style>
 
