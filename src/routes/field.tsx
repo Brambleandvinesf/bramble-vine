@@ -858,11 +858,6 @@ function FieldBody({
     />
   ) : null;
 
-  const handleChangeIdentity = () => {
-    clearMe();
-    setMe(null);
-  };
-
   const handleVisitComplete = async () => {
     void textClient(send, "done", clientMatch, stopIndex, isPreview);
   };
@@ -871,7 +866,7 @@ function FieldBody({
   return (
     <div>
       {me && (
-        <ClockingAsHeader me={me} roster={roster} onChange={handleChangeIdentity} />
+        <ClockingAsHeader me={me} roster={roster} />
       )}
       {/* ROUTE COMPLETE handled separately */}
       {routeComplete && (
