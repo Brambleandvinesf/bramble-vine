@@ -6,7 +6,6 @@ import { useAuth } from "../lib/auth";
 
 const LIME = "#7cff00";
 const LIME_DIM = "#2f5f10";
-const YELLOW = "#ffd400";
 const DIM_TEXT = "#4a7a1e";
 const BG = "#0a0a0a";
 
