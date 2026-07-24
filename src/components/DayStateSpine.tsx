@@ -426,8 +426,8 @@ export function DayStateSpine() {
                     si < currentSubIdx ? "done" : si === currentSubIdx ? "current" : "upcoming";
                   const target = routeFor(s, isOffice);
                   const canTap = sStatus !== "upcoming" && !!target;
-                  const setRef = (el: HTMLDivElement | null) => {
-                    subRefs.current[si] = el;
+                  const setRef = (el: HTMLElement | null) => {
+                    subRefs.current[si] = el as HTMLDivElement | null;
                   };
                   if (sStatus === "current") {
                     return (
