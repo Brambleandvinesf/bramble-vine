@@ -6,24 +6,23 @@ import { useAuth } from "../lib/auth";
 
 const LIME = "#7cff00";
 const LIME_DIM = "#2f5f10";
-const DIM = "#2a2a2a";
 const DIM_TEXT = "#4a7a1e";
 const YELLOW = "#ffd400";
 const BG = "#0a0a0a";
 
-const SUB_LABEL: Record<string, string> = {
-  signin: "SIGN IN",
-  team_assign: "TEAM",
-  dailyload_confirm: "DAILY LOAD",
-  special_confirm: "SPECIAL",
-  loading: "LOADING",
-  enroute: "EN ROUTE",
-  arrived: "ARRIVED",
-  visit: "VISIT",
-  debrief: "DEBRIEF",
-  next: "NEXT",
-  unload: "UNLOAD",
-  confirm_hours: "HOURS",
+const SUB_DESC: Record<string, string> = {
+  signin: "Sign In",
+  team_assign: "Assign Teams",
+  dailyload_confirm: "Confirm Daily Load",
+  special_confirm: "Confirm Special Loading",
+  loading: "Load Vehicle",
+  enroute: "En Route",
+  arrived: "Arrived",
+  visit: "Visit In Progress",
+  debrief: "Debrief",
+  next: "Next Stop",
+  unload: "Unload",
+  confirm_hours: "Confirm Hours",
 };
 
 function anchorLabel(phase: DayPhase, client: string | null | undefined): string {
@@ -61,6 +60,17 @@ function routeFor(
 }
 
 type Status = "done" | "current" | "upcoming";
+
+// Layout constants
+const H = 108;
+const PARENT_CY = 76; // anchor center-y from top
+const SUB_CY = 26; // sub-node center-y from top
+const JOG_Y = 50; // horizontal jog between parent and sub-row
+const parentSize = 26;
+const parentCurrentSize = 32;
+const subSize = 18;
+const subCurrentSize = 26;
+const SUB_GAP = 10;
 
 function circleStyle(
   size: number,
@@ -105,6 +115,36 @@ function circleStyle(
   };
 }
 
+function capsuleStyle(width: number, height: number, interactive: boolean): React.CSSProperties {
+  return {
+    width,
+    height,
+    borderRadius: 999,
+    border: `2px solid ${YELLOW}`,
+    background: YELLOW,
+    color: "#0a0a0a",
+    boxShadow: `0 0 10px ${YELLOW}, 0 0 22px rgba(255,212,0,0.55)`,
+    animation: "bvSpinePulse 1.8s ease-out infinite",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0 12px",
+    fontFamily: "'Courier New', Courier, monospace",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    whiteSpace: "nowrap",
+    boxSizing: "border-box",
+    cursor: interactive ? "pointer" : "default",
+    transition: "all .25s ease",
+  };
+}
+
+function measureCapsuleWidth(text: string): number {
+  // Approx monospace 11px: ~6.7px per char + 24px padding + 4px border
+  return Math.max(subCurrentSize + 24, Math.round(text.length * 6.7 + 28));
+}
+
 export function DayStateSpine() {
   const state = useDayState();
   const router = useRouter();
@@ -114,7 +154,6 @@ export function DayStateSpine() {
   const [collapsed, setCollapsed] = useState(false);
   const lastKeyRef = useRef<string>("");
 
-  // Auto-reveal when state changes (uncollapse briefly on transitions)
   useEffect(() => {
     if (!state) return;
     const key = `${state.phase}:${state.subStep}`;
@@ -158,10 +197,6 @@ export function DayStateSpine() {
   }
 
   const N = phases.length;
-  const parentSize = 26;
-  const parentCurrentSize = 32;
-  const subSize = 18;
-  const subCurrentSize = 26;
 
   const onTap = (subStep: string) => {
     const target = routeFor(subStep, isOffice);
@@ -176,7 +211,29 @@ export function DayStateSpine() {
     if (target.to) void router.navigate({ to: target.to });
   };
 
-  const currentSubLabel = SUB_LABEL[state.subStep] || state.subStep;
+  const currentDesc = SUB_DESC[state.subStep] || state.subStep;
+
+  // Compute sub-node dimensions for the active phase
+  const subDims = activeSubs.map((s, si) => {
+    const cur = si === currentSubIdx;
+    if (cur) {
+      const text = SUB_DESC[s] ?? s;
+      return { w: measureCapsuleWidth(text), h: subCurrentSize, capsule: true, text };
+    }
+    return { w: subSize, h: subSize, capsule: false, text: "" };
+  });
+  const totalSubW =
+    subDims.reduce((acc, d) => acc + d.w, 0) + SUB_GAP * Math.max(0, subDims.length - 1);
+  const subCenters: number[] = [];
+  {
+    let acc = 0;
+    for (let i = 0; i < subDims.length; i++) {
+      subCenters.push(acc + subDims[i].w / 2);
+      acc += subDims[i].w + SUB_GAP;
+    }
+  }
+  const firstOffset =
+    subCenters.length > 0 ? -totalSubW / 2 + subCenters[0] : 0; // relative to column center
 
   return (
     <>
@@ -242,8 +299,8 @@ export function DayStateSpine() {
               justifyContent: "center",
               gap: 10,
               color: YELLOW,
-              fontSize: 11,
-              letterSpacing: 1.5,
+              fontSize: 12,
+              letterSpacing: 1.2,
               fontWeight: 700,
               minHeight: 32,
             }}
@@ -257,17 +314,18 @@ export function DayStateSpine() {
                 boxShadow: `0 0 8px ${YELLOW}`,
               }}
             />
-            {currentSubLabel}
+            {currentDesc}
           </div>
         ) : (
           <div
             style={{
               position: "relative",
-              height: 108,
+              height: H,
               width: "100%",
+              overflow: "visible",
             }}
           >
-            {/* Horizontal connectors between parent anchors */}
+            {/* Horizontal baseline segments between anchor centers */}
             {phases.map((_, i) => {
               if (i === N - 1) return null;
               const leftPct = ((i + 0.5) / N) * 100;
@@ -280,7 +338,7 @@ export function DayStateSpine() {
                     position: "absolute",
                     left: `${leftPct}%`,
                     width: `${widthPct}%`,
-                    bottom: 26,
+                    top: PARENT_CY - 1,
                     height: 2,
                     background: done ? LIME : LIME_DIM,
                     opacity: done ? 1 : 0.5,
@@ -291,29 +349,10 @@ export function DayStateSpine() {
             })}
 
             {/* Phase columns */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "stretch",
-              }}
-            >
+            <div style={{ position: "absolute", inset: 0, display: "flex" }}>
               {phases.map((phase, i) => {
                 const isActive = i === activeIdx;
                 const isDone = i < activeIdx;
-                const status: Status = isActive
-                  ? currentSubIdx < 0
-                    ? "current"
-                    : isDone
-                      ? "done"
-                      : "upcoming"
-                  : isDone
-                    ? "done"
-                    : "upcoming";
-                // Parent status: mark active phase's parent as done once we've
-                // started sub-steps but haven't finished the phase; visually
-                // treat it as "done" while sub-nodes progress above it.
                 const parentStatus: Status = isActive
                   ? currentSubIdx >= 0
                     ? "done"
@@ -321,139 +360,165 @@ export function DayStateSpine() {
                   : isDone
                     ? "done"
                     : "upcoming";
-
-                const showLabel = isActive; // label active phase's anchor (client name for FIELD)
-                const label = anchorLabel(phase, state.client);
                 const parentPx = parentStatus === "current" ? parentCurrentSize : parentSize;
+                const label = anchorLabel(phase, state.client);
 
                 return (
                   <div
                     key={`ph-${phase}-${i}`}
-                    className="bv-spine-node"
                     style={{
                       flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
                       position: "relative",
-                      paddingBottom: 8,
+                      overflow: "visible",
                     }}
                   >
-                    {/* Sub-nodes for the active phase */}
-                    {isActive && activeSubs.length > 0 ? (
+                    {/* Active phase: sub-row + connectors */}
+                    {isActive && activeSubs.length > 0 && subCenters.length > 0 && (
                       <>
+                        {/* Segment A: vertical from parent top up to JOG_Y (at column center) */}
                         <div
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 8,
-                            marginTop: 4,
-                            flexWrap: "nowrap",
-                          }}
-                        >
-                          {activeSubs.map((s, si) => {
-                            const sStatus: Status =
-                              si < currentSubIdx
-                                ? "done"
-                                : si === currentSubIdx
-                                  ? "current"
-                                  : "upcoming";
-                            const size = sStatus === "current" ? subCurrentSize : subSize;
-                            const target = routeFor(s, isOffice);
-                            const canTap = sStatus !== "upcoming" && !!target;
-                            return (
-                              <div
-                                key={s}
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "center",
-                                  gap: 2,
-                                }}
-                              >
-                                {/* connector to next sub */}
-                                <button
-                                  type="button"
-                                  disabled={!canTap}
-                                  onClick={canTap ? () => onTap(s) : undefined}
-                                  aria-label={SUB_LABEL[s] || s}
-                                  aria-current={sStatus === "current" ? "step" : undefined}
-                                  title={SUB_LABEL[s] || s}
-                                  className="bv-spine-node"
-                                  style={circleStyle(size, sStatus, canTap)}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* label for current sub-node */}
-                        <div
-                          style={{
-                            height: 12,
-                            marginTop: 2,
-                            color: YELLOW,
-                            fontSize: 10,
-                            letterSpacing: 1.5,
-                            fontWeight: 700,
-                            textAlign: "center",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {currentSubIdx >= 0 ? currentSubLabel : ""}
-                        </div>
-
-                        {/* vertical connector down to parent */}
-                        <div
-                          style={{
+                            position: "absolute",
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            top: JOG_Y,
+                            height: PARENT_CY - parentPx / 2 - JOG_Y,
                             width: 2,
-                            height: 10,
                             background: LIME,
                             boxShadow: `0 0 4px ${LIME}`,
-                            marginTop: 2,
                           }}
                         />
-                      </>
-                    ) : (
-                      <div style={{ flex: 1 }} />
-                    )}
-
-                    {/* Parent anchor circle */}
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 2,
-                        position: "relative",
-                        zIndex: 1,
-                      }}
-                    >
-                      <div
-                        aria-label={label}
-                        style={{
-                          ...circleStyle(parentPx, parentStatus, false),
-                        }}
-                      />
-                      {showLabel && (
+                        {/* Segment B: horizontal at JOG_Y from column center to first sub center */}
                         <div
                           style={{
-                            color: parentStatus === "current" ? YELLOW : LIME,
-                            fontSize: 9,
-                            letterSpacing: 1.2,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            whiteSpace: "nowrap",
-                            maxWidth: 140,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
+                            position: "absolute",
+                            left:
+                              firstOffset < 0
+                                ? `calc(50% + ${firstOffset}px)`
+                                : "50%",
+                            width: Math.abs(firstOffset),
+                            top: JOG_Y - 1,
+                            height: 2,
+                            background: LIME,
+                            boxShadow: `0 0 4px ${LIME}`,
                           }}
-                        >
-                          {label}
-                        </div>
-                      )}
+                        />
+                        {/* Segment C: vertical at first sub center from JOG_Y up to bottom of first sub */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: `calc(50% + ${firstOffset}px)`,
+                            transform: "translateX(-50%)",
+                            top: SUB_CY + subDims[0].h / 2,
+                            height: JOG_Y - (SUB_CY + subDims[0].h / 2),
+                            width: 2,
+                            background: LIME,
+                            boxShadow: `0 0 4px ${LIME}`,
+                          }}
+                        />
+
+                        {/* Horizontal line connecting sub-nodes (from first center to last center) */}
+                        {subCenters.length > 1 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: `calc(50% + ${firstOffset}px)`,
+                              width: subCenters[subCenters.length - 1] - subCenters[0],
+                              top: SUB_CY - 1,
+                              height: 2,
+                              background: LIME,
+                              boxShadow: `0 0 4px ${LIME}`,
+                              opacity: 0.9,
+                            }}
+                          />
+                        )}
+
+                        {/* Sub-nodes */}
+                        {activeSubs.map((s, si) => {
+                          const d = subDims[si];
+                          const sStatus: Status =
+                            si < currentSubIdx
+                              ? "done"
+                              : si === currentSubIdx
+                                ? "current"
+                                : "upcoming";
+                          const offsetFromCenter = -totalSubW / 2 + subCenters[si];
+                          const target = routeFor(s, isOffice);
+                          const canTap = sStatus !== "upcoming" && !!target;
+                          const commonPos: React.CSSProperties = {
+                            position: "absolute",
+                            left: `calc(50% + ${offsetFromCenter}px)`,
+                            top: SUB_CY,
+                            transform: "translate(-50%, -50%)",
+                            zIndex: 2,
+                          };
+                          if (d.capsule) {
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                disabled={!canTap}
+                                onClick={canTap ? () => onTap(s) : undefined}
+                                aria-label={d.text}
+                                aria-current="step"
+                                title={d.text}
+                                className="bv-spine-node"
+                                style={{ ...commonPos, ...capsuleStyle(d.w, d.h, canTap) }}
+                              >
+                                {d.text}
+                              </button>
+                            );
+                          }
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              disabled={!canTap}
+                              onClick={canTap ? () => onTap(s) : undefined}
+                              aria-label={SUB_DESC[s] || s}
+                              title={SUB_DESC[s] || s}
+                              className="bv-spine-node"
+                              style={{ ...commonPos, ...circleStyle(d.w, sStatus, canTap) }}
+                            />
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Parent anchor circle at column center, y=PARENT_CY */}
+                    <div
+                      aria-label={label}
+                      className="bv-spine-node"
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: PARENT_CY,
+                        transform: "translate(-50%, -50%)",
+                        zIndex: 3,
+                        ...circleStyle(parentPx, parentStatus, false),
+                      }}
+                    />
+
+                    {/* Anchor label — always shown */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: PARENT_CY + parentPx / 2 + 3,
+                        transform: "translateX(-50%)",
+                        color: parentStatus === "upcoming" ? DIM_TEXT : LIME,
+                        fontSize: 9,
+                        letterSpacing: 1.2,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                        maxWidth: 140,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        textAlign: "center",
+                      }}
+                    >
+                      {label}
                     </div>
                   </div>
                 );
