@@ -8,6 +8,7 @@ const CK = "dayState:getState";
 const POLL_MS = 30_000;
 
 export type DayPhase = "HQ_LOADING" | "FIELD_VISIT" | "HQ_UNLOADING";
+export type FieldPhone = { id: string; name: string } | null;
 export type DayState = {
   ok?: boolean;
   phase: DayPhase;
@@ -17,6 +18,7 @@ export type DayState = {
   lineState?: string;
   caption?: string;
   flags?: Record<string, boolean>;
+  fieldPhone?: FieldPhone;
   phaseOrder: DayPhase[];
   subSteps: Record<DayPhase, string[]>;
 };
