@@ -414,44 +414,43 @@ export function DayStateSpine() {
                     );
                   })()}
 
-                {/* horizontal sub-line connecting all sub-node centers */}
+                {/* horizontal sub-line: segments between adjacent sub-node edges */}
                 {activeSubs.length > 1 &&
                   geom.subs.length === activeSubs.length &&
                   (() => {
-                    const first = geom.subs[0];
-                    const last = geom.subs[geom.subs.length - 1];
-                    if (!first || !last) return null;
-                    return (
-                      <line
-                        x1={first.cx}
-                        x2={last.cx}
-                        y1={first.cy}
-                        y2={last.cy}
-                        stroke={LIME_DIM}
-                        strokeWidth={2}
-                        opacity={0.7}
-                      />
-                    );
-                  })()}
-                {/* done segment overlay for sub-line */}
-                {activeSubs.length > 1 &&
-                  currentSubIdx > 0 &&
-                  geom.subs.length === activeSubs.length &&
-                  (() => {
-                    const first = geom.subs[0];
-                    const doneTo = geom.subs[Math.min(currentSubIdx, geom.subs.length - 1)];
-                    if (!first || !doneTo) return null;
-                    return (
-                      <line
-                        x1={first.cx}
-                        x2={doneTo.cx}
-                        y1={first.cy}
-                        y2={doneTo.cy}
-                        stroke={LIME}
-                        strokeWidth={2}
-                        filter="url(#bvLimeGlow)"
-                      />
-                    );
+                    const r = subSize / 2;
+                    const gap = 2;
+                    const segs: React.ReactNode[] = [];
+                    for (let i = 0; i < geom.subs.length - 1; i++) {
+                      const a = geom.subs[i];
+                      const b = geom.subs[i + 1];
+                      if (!a || !b) continue;
+                      const done = i + 1 <= currentSubIdx;
+                      const dx = b.cx - a.cx;
+                      const dy = b.cy - a.cy;
+                      const len = Math.hypot(dx, dy) || 1;
+                      const ux = dx / len;
+                      const uy = dy / len;
+                      const off = r + gap;
+                      const x1 = a.cx + ux * off;
+                      const y1 = a.cy + uy * off;
+                      const x2 = b.cx - ux * off;
+                      const y2 = b.cy - uy * off;
+                      segs.push(
+                        <line
+                          key={`sub-seg-${i}`}
+                          x1={x1}
+                          x2={x2}
+                          y1={y1}
+                          y2={y2}
+                          stroke={done ? LIME : LIME_DIM}
+                          strokeWidth={2}
+                          opacity={done ? 1 : 0.7}
+                          filter={done ? "url(#bvLimeGlow)" : undefined}
+                        />,
+                      );
+                    }
+                    return <g>{segs}</g>;
                   })()}
               </svg>
             )}
