@@ -207,8 +207,8 @@ export function DayStateSpine() {
     <>
       <style>{`
         @keyframes bvSpineBlink {
-          0%,100% { box-shadow: 0 0 6px ${LIME}, 0 0 14px rgba(124,255,0,0.35); opacity: 1; }
-          50%     { box-shadow: 0 0 12px ${LIME}, 0 0 26px rgba(124,255,0,0.75); opacity: 0.85; }
+          0%,100% { box-shadow: 0 0 5px rgba(124,255,0,0.4), 0 0 10px rgba(124,255,0,0.15); opacity: 0.4; }
+          50%     { box-shadow: 0 0 12px ${LIME}, 0 0 26px rgba(124,255,0,0.7); opacity: 1; }
         }
         @keyframes bvSpineCapsuleIn {
           from { transform: scale(0.85); opacity: 0; }
@@ -223,8 +223,8 @@ export function DayStateSpine() {
           to   { stroke-dashoffset: -28; }
         }
         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
-        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 2s ease-in-out infinite; }
-        .bv-spine-dot-blink { animation: bvSpineBlink 2s ease-in-out infinite; }
+        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
+        .bv-spine-dot-blink { animation: bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
         .bv-spine-enroute { stroke-dasharray: 8 6; animation: bvSpineDash 1.2s linear infinite; }
       `}</style>
 
@@ -414,44 +414,43 @@ export function DayStateSpine() {
                     );
                   })()}
 
-                {/* horizontal sub-line connecting all sub-node centers */}
+                {/* horizontal sub-line: segments between adjacent sub-node edges */}
                 {activeSubs.length > 1 &&
                   geom.subs.length === activeSubs.length &&
                   (() => {
-                    const first = geom.subs[0];
-                    const last = geom.subs[geom.subs.length - 1];
-                    if (!first || !last) return null;
-                    return (
-                      <line
-                        x1={first.cx}
-                        x2={last.cx}
-                        y1={first.cy}
-                        y2={last.cy}
-                        stroke={LIME_DIM}
-                        strokeWidth={2}
-                        opacity={0.7}
-                      />
-                    );
-                  })()}
-                {/* done segment overlay for sub-line */}
-                {activeSubs.length > 1 &&
-                  currentSubIdx > 0 &&
-                  geom.subs.length === activeSubs.length &&
-                  (() => {
-                    const first = geom.subs[0];
-                    const doneTo = geom.subs[Math.min(currentSubIdx, geom.subs.length - 1)];
-                    if (!first || !doneTo) return null;
-                    return (
-                      <line
-                        x1={first.cx}
-                        x2={doneTo.cx}
-                        y1={first.cy}
-                        y2={doneTo.cy}
-                        stroke={LIME}
-                        strokeWidth={2}
-                        filter="url(#bvLimeGlow)"
-                      />
-                    );
+                    const r = subSize / 2;
+                    const gap = 2;
+                    const segs: React.ReactNode[] = [];
+                    for (let i = 0; i < geom.subs.length - 1; i++) {
+                      const a = geom.subs[i];
+                      const b = geom.subs[i + 1];
+                      if (!a || !b) continue;
+                      const done = i + 1 <= currentSubIdx;
+                      const dx = b.cx - a.cx;
+                      const dy = b.cy - a.cy;
+                      const len = Math.hypot(dx, dy) || 1;
+                      const ux = dx / len;
+                      const uy = dy / len;
+                      const off = r + gap;
+                      const x1 = a.cx + ux * off;
+                      const y1 = a.cy + uy * off;
+                      const x2 = b.cx - ux * off;
+                      const y2 = b.cy - uy * off;
+                      segs.push(
+                        <line
+                          key={`sub-seg-${i}`}
+                          x1={x1}
+                          x2={x2}
+                          y1={y1}
+                          y2={y2}
+                          stroke={done ? LIME : LIME_DIM}
+                          strokeWidth={2}
+                          opacity={done ? 1 : 0.7}
+                          filter={done ? "url(#bvLimeGlow)" : undefined}
+                        />,
+                      );
+                    }
+                    return <g>{segs}</g>;
                   })()}
               </svg>
             )}
