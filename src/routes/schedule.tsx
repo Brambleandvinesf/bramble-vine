@@ -392,6 +392,38 @@ function SchedulePage() {
         padding: "16px 12px 96px",
       }}
     >
+      <style>{`
+        @keyframes bvStandbyPulse {
+          0%,100% { box-shadow: 0 0 14px rgba(124,255,0,0.28), inset 0 0 12px rgba(124,255,0,0.10); }
+          50%     { box-shadow: 0 0 26px rgba(124,255,0,0.55), inset 0 0 18px rgba(124,255,0,0.18); }
+        }
+      `}</style>
+
+      {standbyCaption && (
+        <div
+          role="status"
+          style={{
+            background: PANEL,
+            border: `2px solid ${LIME}`,
+            borderRadius: 10,
+            padding: "14px 16px",
+            marginBottom: 14,
+            color: LIME,
+            fontSize: 18,
+            letterSpacing: 2,
+            fontWeight: "bold",
+            textTransform: "uppercase",
+            textAlign: "center",
+            animation: "bvStandbyPulse 2.4s ease-in-out infinite",
+          }}
+        >
+          <div style={{ color: DIM_GREEN, fontSize: 10, letterSpacing: 3, marginBottom: 4 }}>
+            STANDBY
+          </div>
+          {standbyCaption}
+        </div>
+      )}
+
       {/* Header */}
       {!(isLeadOrMgmt && confirmed === false) && (
         <div
