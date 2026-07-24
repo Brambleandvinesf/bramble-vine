@@ -69,7 +69,7 @@ function fmtHMM(ms: number): string {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-const CHIP_BASE: React.CSSProperties = {
+const CHIP_BASE: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
