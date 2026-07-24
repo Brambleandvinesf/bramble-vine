@@ -415,6 +415,7 @@ function SchedulePage() {
           {standbyCaption}
         </div>
       )}
+      <CountdownChips />
       {/* Header */}
       {!(isLeadOrMgmt && confirmed === false) && (
         <div
