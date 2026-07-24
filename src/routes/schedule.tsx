@@ -205,6 +205,8 @@ function SchedulePage() {
   useAuth();
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
+  const dayState = useDayState();
+  const standbyCaption = (dayState?.caption ?? "").trim();
 
   // Office lands on /schedule as their default surface; do not redirect away.
   const denied = false;
