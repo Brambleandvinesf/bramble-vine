@@ -767,18 +767,25 @@ function FieldBody({
     );
   }
 
-  /* --- who's on this phone (sticky per-phone identity) --- */
-  if (!me && !isPreview) {
-    return (
-      <WhoAmI
-        employees={employees}
-        isLead={isLead}
-        onManageCrew={isLead ? () => setRosterEdit(true) : undefined}
-        send={send}
-        onIdentified={(m) => setMe(m)}
-        onLoading={() => void bodyRouter.navigate({ to: "/schedule" })}
-      />
-    );
+  /* --- assistant gate: needs a field-phone assignment AND HQ_LOADING team_assign/
+     dailyload_confirm/special_confirm completed. Otherwise route to /schedule. --- */
+  useEffect(() => {
+    if (isPreview) return;
+    if (role !== "assistant") return;
+    if (!dayState) return;
+    const hq = dayState.subSteps?.HQ_LOADING || [];
+    const iSpecial = hq.indexOf("special_confirm");
+    const iCur = hq.indexOf(dayState.subStep);
+    const hqReady =
+      dayState.phase !== "HQ_LOADING" || (iSpecial >= 0 && iCur > iSpecial);
+    if (!fieldPhone || !hqReady) {
+      void bodyRouter.navigate({ to: "/schedule" });
+    }
+  }, [role, dayState, fieldPhone, isPreview, bodyRouter]);
+
+  if (role === "assistant" && !me && !isPreview) {
+    // Gate effect above will redirect; render nothing meanwhile.
+    return null;
   }
 
   const anyClockedIn = roster.some((m) => !!m.in && !m.out);
