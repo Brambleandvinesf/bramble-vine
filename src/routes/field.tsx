@@ -10,6 +10,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
+import { useDayState } from "../lib/day-state";
 
 const CK = "field:getField";
 
@@ -659,7 +660,22 @@ function FieldBody({
 
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
-  const [me, setMe] = useState<Me | null>(() => loadMe());
+  // Identity now comes from day-state's fieldPhone; there's no per-phone picker.
+  const dayState = useDayState();
+  const fieldPhone = dayState?.fieldPhone ?? null;
+  const derivedMeRole: "lead" | "assistant" = role === "assistant" ? "assistant" : "lead";
+  const me: Me | null = useMemo(
+    () =>
+      fieldPhone
+        ? { id: fieldPhone.id, name: fieldPhone.name, role: derivedMeRole }
+        : null,
+    [fieldPhone, derivedMeRole],
+  );
+  // Persist for legacy readers of loadMe().
+  useEffect(() => {
+    if (me) saveMe(me);
+    else clearMe();
+  }, [me?.id, me?.name, me?.role]);
   const [breakFrom, setBreakFromState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     try { return window.sessionStorage.getItem("field:breakFrom") || null; } catch { return null; }
@@ -751,18 +767,25 @@ function FieldBody({
     );
   }
 
-  /* --- who's on this phone (sticky per-phone identity) --- */
-  if (!me && !isPreview) {
-    return (
-      <WhoAmI
-        employees={employees}
-        isLead={isLead}
-        onManageCrew={isLead ? () => setRosterEdit(true) : undefined}
-        send={send}
-        onIdentified={(m) => setMe(m)}
-        onLoading={() => void bodyRouter.navigate({ to: "/schedule" })}
-      />
-    );
+  /* --- assistant gate: needs a field-phone assignment AND HQ_LOADING team_assign/
+     dailyload_confirm/special_confirm completed. Otherwise route to /schedule. --- */
+  useEffect(() => {
+    if (isPreview) return;
+    if (role !== "assistant") return;
+    if (!dayState) return;
+    const hq = dayState.subSteps?.HQ_LOADING || [];
+    const iSpecial = hq.indexOf("special_confirm");
+    const iCur = hq.indexOf(dayState.subStep);
+    const hqReady =
+      dayState.phase !== "HQ_LOADING" || (iSpecial >= 0 && iCur > iSpecial);
+    if (!fieldPhone || !hqReady) {
+      void bodyRouter.navigate({ to: "/schedule" });
+    }
+  }, [role, dayState, fieldPhone, isPreview, bodyRouter]);
+
+  if (role === "assistant" && !me && !isPreview) {
+    // Gate effect above will redirect; render nothing meanwhile.
+    return null;
   }
 
   const anyClockedIn = roster.some((m) => !!m.in && !m.out);
@@ -835,11 +858,6 @@ function FieldBody({
     />
   ) : null;
 
-  const handleChangeIdentity = () => {
-    clearMe();
-    setMe(null);
-  };
-
   const handleVisitComplete = async () => {
     void textClient(send, "done", clientMatch, stopIndex, isPreview);
   };
@@ -848,7 +866,7 @@ function FieldBody({
   return (
     <div>
       {me && (
-        <ClockingAsHeader me={me} roster={roster} onChange={handleChangeIdentity} />
+        <ClockingAsHeader me={me} roster={roster} />
       )}
       {/* ROUTE COMPLETE handled separately */}
       {routeComplete && (
@@ -1300,15 +1318,10 @@ function WhoAmI({
  * ============================================================ */
 function ClockingAsHeader({
   me,
-  roster,
-  onChange,
 }: {
   me: Me;
   roster: RosterMember[];
-  onChange: () => void;
 }) {
-  const row = roster.find((r) => r.id === me.id);
-  const open = !!row?.in && !row?.out;
   return (
     <div
       style={{
@@ -1321,24 +1334,6 @@ function ClockingAsHeader({
     >
       <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKING AS:</span>
       <span style={{ color: LIME, fontSize: 12, letterSpacing: 1 }}>{me.name.toUpperCase()}</span>
-      <button
-        onClick={onChange}
-        disabled={open}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: open ? "rgba(255,59,48,.7)" : DIM_GREEN,
-          fontFamily: "inherit",
-          fontSize: 11,
-          letterSpacing: 1,
-          textDecoration: open ? "none" : "underline",
-          cursor: open ? "default" : "pointer",
-          padding: 0,
-          marginLeft: 4,
-        }}
-      >
-        {open ? "clock out first" : "change"}
-      </button>
     </div>
   );
 }

@@ -28,6 +28,7 @@ type TeamSetup = {
   employeeTeams?: Record<string, string>;
   clients?: ClientRow[];
   teamsConfirmed?: boolean;
+  fieldPhone?: { id: string; name: string } | null;
 };
 
 type Team = "Alpha" | "Bravo";
@@ -59,6 +60,7 @@ export function OfficeTeamSetup() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teams, setTeams] = useState<Record<string, Team>>({});
   const [clientTeams, setClientTeams] = useState<Record<string, string[]>>({});
+  const [fieldPhoneId, setFieldPhoneId] = useState<string | null>(null);
   const [showExcluded, setShowExcluded] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -94,6 +96,7 @@ export function OfficeTeamSetup() {
         const ct: Record<string, string[]> = {};
         for (const c of j.clients || []) ct[c.title] = (c.teams || []).map((x) => normTeam(x));
         setClientTeams(ct);
+        setFieldPhoneId(j.fieldPhone?.id ?? null);
         setOpen(true);
       } catch (e) {
         console.warn("[team-setup] load failed", e);
@@ -146,6 +149,11 @@ export function OfficeTeamSetup() {
       void post("setTeamAssignment", { match: title, teams: arr });
       return next;
     });
+  }, []);
+
+  const chooseFieldPhone = useCallback((id: string, name: string) => {
+    setFieldPhoneId(id);
+    void post("setFieldPhone", { id, name });
   }, []);
 
   const onConfirm = useCallback(async () => {
@@ -255,6 +263,28 @@ export function OfficeTeamSetup() {
                 );
               })}
             </div>
+          )}
+        </Section>
+
+        {/* Section 2b — Field phone */}
+        <Section title="FIELD PHONE">
+          {selectedList.length === 0 ? (
+            <div style={{ color: MUTED, fontSize: 13 }}>Select someone above.</div>
+          ) : (
+            <>
+              <div style={{ color: MUTED, fontSize: 12, marginBottom: 8 }}>
+                Who holds the field phone today?
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {selectedList.map((e) => (
+                  <Chip
+                    key={e.id}
+                    active={fieldPhoneId === e.id}
+                    onClick={() => chooseFieldPhone(e.id, e.name)}
+                  >{e.name}</Chip>
+                ))}
+              </div>
+            </>
           )}
         </Section>
 
