@@ -151,6 +151,11 @@ export function OfficeTeamSetup() {
     });
   }, []);
 
+  const chooseFieldPhone = useCallback((id: string, name: string) => {
+    setFieldPhoneId(id);
+    void post("setFieldPhone", { id, name });
+  }, []);
+
   const onConfirm = useCallback(async () => {
     setConfirming(true);
     await post("confirmTeams", {});
