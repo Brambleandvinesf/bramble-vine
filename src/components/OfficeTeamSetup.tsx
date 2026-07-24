@@ -60,6 +60,7 @@ export function OfficeTeamSetup() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [teams, setTeams] = useState<Record<string, Team>>({});
   const [clientTeams, setClientTeams] = useState<Record<string, string[]>>({});
+  const [fieldPhoneId, setFieldPhoneId] = useState<string | null>(null);
   const [showExcluded, setShowExcluded] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
