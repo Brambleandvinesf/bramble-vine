@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useDayState, type DayPhase } from "../lib/day-state";
@@ -6,24 +6,23 @@ import { useAuth } from "../lib/auth";
 
 const LIME = "#7cff00";
 const LIME_DIM = "#2f5f10";
-const DIM = "#2a2a2a";
-const DIM_TEXT = "#4a7a1e";
 const YELLOW = "#ffd400";
+const DIM_TEXT = "#4a7a1e";
 const BG = "#0a0a0a";
 
-const SUB_LABEL: Record<string, string> = {
-  signin: "SIGN IN",
-  team_assign: "TEAM",
-  dailyload_confirm: "DAILY LOAD",
-  special_confirm: "SPECIAL",
-  loading: "LOADING",
-  enroute: "EN ROUTE",
-  arrived: "ARRIVED",
-  visit: "VISIT",
-  debrief: "DEBRIEF",
-  next: "NEXT",
-  unload: "UNLOAD",
-  confirm_hours: "HOURS",
+const ACTION_TEXT: Record<string, string> = {
+  signin: "Sign In",
+  team_assign: "Assign Teams",
+  dailyload_confirm: "Confirm Daily Load",
+  special_confirm: "Confirm Special Loading",
+  loading: "Load Vehicle",
+  enroute: "En Route",
+  arrived: "Arrived",
+  visit: "Visit In Progress",
+  debrief: "Debrief",
+  next: "Next Stop",
+  unload: "Unload",
+  confirm_hours: "Confirm Hours",
 };
 
 function anchorLabel(phase: DayPhase, client: string | null | undefined): string {
@@ -62,23 +61,18 @@ function routeFor(
 
 type Status = "done" | "current" | "upcoming";
 
-function circleStyle(
-  size: number,
-  status: Status,
-  interactive: boolean,
-): React.CSSProperties {
+function circleStyle(size: number, status: Status, interactive: boolean): React.CSSProperties {
   const base: React.CSSProperties = {
     width: size,
     height: size,
     borderRadius: 999,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "transparent",
-    padding: 0,
+    display: "inline-block",
     boxSizing: "border-box",
+    padding: 0,
     cursor: interactive ? "pointer" : "default",
     transition: "all .25s ease",
+    border: 0,
+    flex: "0 0 auto",
   };
   if (status === "done") {
     return {
@@ -86,15 +80,6 @@ function circleStyle(
       border: `2px solid ${LIME}`,
       background: LIME,
       boxShadow: `0 0 8px ${LIME}, 0 0 16px rgba(124,255,0,0.35)`,
-    };
-  }
-  if (status === "current") {
-    return {
-      ...base,
-      border: `2px solid ${YELLOW}`,
-      background: YELLOW,
-      boxShadow: `0 0 10px ${YELLOW}, 0 0 22px rgba(255,212,0,0.55)`,
-      animation: "bvSpinePulse 1.8s ease-out infinite",
     };
   }
   return {
@@ -114,13 +99,10 @@ export function DayStateSpine() {
   const [collapsed, setCollapsed] = useState(false);
   const lastKeyRef = useRef<string>("");
 
-  // Auto-reveal when state changes (uncollapse briefly on transitions)
   useEffect(() => {
     if (!state) return;
     const key = `${state.phase}:${state.subStep}`;
-    if (lastKeyRef.current && lastKeyRef.current !== key) {
-      setCollapsed(false);
-    }
+    if (lastKeyRef.current && lastKeyRef.current !== key) setCollapsed(false);
     lastKeyRef.current = key;
   }, [state]);
 
@@ -132,6 +114,53 @@ export function DayStateSpine() {
     return state.subSteps[state.phase] || [];
   }, [state]);
   const currentSubIdx = state ? activeSubs.indexOf(state.subStep) : -1;
+
+  // ---- measurement for connector routing ----
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const subRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const [geom, setGeom] = useState<{
+    w: number;
+    h: number;
+    anchors: { cx: number; cy: number; top: number }[];
+    subs: { cx: number; cy: number; bottom: number }[];
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    const measure = () => {
+      const el = containerRef.current;
+      if (!el) return;
+      const c = el.getBoundingClientRect();
+      const anchors = anchorRefs.current.map((n) => {
+        if (!n) return { cx: 0, cy: 0, top: 0 };
+        const r = n.getBoundingClientRect();
+        return {
+          cx: r.left + r.width / 2 - c.left,
+          cy: r.top + r.height / 2 - c.top,
+          top: r.top - c.top,
+        };
+      });
+      const subs = subRefs.current.map((n) => {
+        if (!n) return { cx: 0, cy: 0, bottom: 0 };
+        const r = n.getBoundingClientRect();
+        return {
+          cx: r.left + r.width / 2 - c.left,
+          cy: r.top + r.height / 2 - c.top,
+          bottom: r.bottom - c.top,
+        };
+      });
+      setGeom({ w: c.width, h: c.height, anchors, subs });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(containerRef.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [state, collapsed, activeSubs.length, currentSubIdx, activeIdx, phases.length]);
 
   if (!state || phases.length === 0) {
     return (
@@ -157,26 +186,23 @@ export function DayStateSpine() {
     );
   }
 
-  const N = phases.length;
-  const parentSize = 26;
-  const parentCurrentSize = 32;
-  const subSize = 18;
-  const subCurrentSize = 26;
-
   const onTap = (subStep: string) => {
     const target = routeFor(subStep, isOffice);
     if (!target) return;
     if (target.event) {
       try {
         window.dispatchEvent(new CustomEvent(target.event));
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     }
     if (target.to) void router.navigate({ to: target.to });
   };
 
-  const currentSubLabel = SUB_LABEL[state.subStep] || state.subStep;
+  const currentActionText =
+    ACTION_TEXT[state.subStep] || state.subStep.replace(/_/g, " ").toUpperCase();
+
+  const N = phases.length;
+  const parentSize = 26;
+  const subSize = 18;
 
   return (
     <>
@@ -185,11 +211,16 @@ export function DayStateSpine() {
           0%,100% { box-shadow: 0 0 10px ${YELLOW}, 0 0 22px rgba(255,212,0,0.55); }
           50%     { box-shadow: 0 0 14px ${YELLOW}, 0 0 34px rgba(255,212,0,0.75); }
         }
+        @keyframes bvSpineCapsuleIn {
+          from { transform: scale(0.85); opacity: 0; }
+          to   { transform: scale(1);    opacity: 1; }
+        }
         @keyframes bvSpineFade {
           from { opacity: 0; transform: translateY(4px); }
           to   { opacity: 1; transform: translateY(0);   }
         }
         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
+        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpinePulse 1.8s ease-out infinite; }
       `}</style>
 
       <div
@@ -257,75 +288,219 @@ export function DayStateSpine() {
                 boxShadow: `0 0 8px ${YELLOW}`,
               }}
             />
-            {currentSubLabel}
+            {currentActionText.toUpperCase()}
           </div>
         ) : (
           <div
+            ref={containerRef}
             style={{
               position: "relative",
-              height: 108,
+              height: 128,
               width: "100%",
+              overflow: "hidden",
             }}
           >
-            {/* Horizontal connectors between parent anchors */}
-            {phases.map((_, i) => {
-              if (i === N - 1) return null;
-              const leftPct = ((i + 0.5) / N) * 100;
-              const widthPct = (1 / N) * 100;
-              const done = i < activeIdx;
-              return (
-                <div
-                  key={`hline-${i}`}
-                  style={{
-                    position: "absolute",
-                    left: `${leftPct}%`,
-                    width: `${widthPct}%`,
-                    bottom: 26,
-                    height: 2,
-                    background: done ? LIME : LIME_DIM,
-                    opacity: done ? 1 : 0.5,
-                    boxShadow: done ? `0 0 6px ${LIME}` : "none",
-                  }}
-                />
-              );
-            })}
+            {/* SVG connector layer */}
+            {geom && (
+              <svg
+                width={geom.w}
+                height={geom.h}
+                style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+              >
+                <defs>
+                  <filter id="bvLimeGlow" x="-50%" y="-50%" width="200%" height="200%">
+                    <feGaussianBlur stdDeviation="1.2" result="blur" />
+                    <feMerge>
+                      <feMergeNode in="blur" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
 
-            {/* Phase columns */}
+                {/* horizontal baseline between anchors, at anchor center */}
+                {geom.anchors.map((a, i) => {
+                  if (i === geom.anchors.length - 1) return null;
+                  const b = geom.anchors[i + 1];
+                  const done = i < activeIdx;
+                  const stroke = done ? LIME : LIME_DIM;
+                  const r = parentSize / 2;
+                  return (
+                    <line
+                      key={`base-${i}`}
+                      x1={a.cx + r}
+                      x2={b.cx - r}
+                      y1={a.cy}
+                      y2={b.cy}
+                      stroke={stroke}
+                      strokeWidth={2}
+                      opacity={done ? 1 : 0.55}
+                      filter={done ? "url(#bvLimeGlow)" : undefined}
+                    />
+                  );
+                })}
+
+                {/* L-connector: active anchor → first sub-node */}
+                {activeIdx >= 0 &&
+                  activeSubs.length > 0 &&
+                  geom.anchors[activeIdx] &&
+                  geom.subs[0] &&
+                  (() => {
+                    const a = geom.anchors[activeIdx];
+                    const first = geom.subs[0];
+                    const anchorTopEdge = a.cy - parentSize / 2;
+                    const subBottomEdge = first.bottom;
+                    // bend halfway between sub row and anchor
+                    const bendY = Math.round((subBottomEdge + anchorTopEdge) / 2);
+                    return (
+                      <g stroke={LIME} strokeWidth={2} fill="none" filter="url(#bvLimeGlow)">
+                        {/* up from anchor center */}
+                        <line x1={a.cx} y1={anchorTopEdge} x2={a.cx} y2={bendY} />
+                        {/* horizontal to first sub's x */}
+                        <line x1={a.cx} y1={bendY} x2={first.cx} y2={bendY} />
+                        {/* up into first sub center (clipped at bottom edge) */}
+                        <line x1={first.cx} y1={bendY} x2={first.cx} y2={subBottomEdge} />
+                      </g>
+                    );
+                  })()}
+
+                {/* horizontal sub-line connecting all sub-node centers */}
+                {activeSubs.length > 1 &&
+                  geom.subs.length === activeSubs.length &&
+                  (() => {
+                    const first = geom.subs[0];
+                    const last = geom.subs[geom.subs.length - 1];
+                    if (!first || !last) return null;
+                    return (
+                      <line
+                        x1={first.cx}
+                        x2={last.cx}
+                        y1={first.cy}
+                        y2={last.cy}
+                        stroke={LIME_DIM}
+                        strokeWidth={2}
+                        opacity={0.7}
+                      />
+                    );
+                  })()}
+                {/* done segment overlay for sub-line */}
+                {activeSubs.length > 1 &&
+                  currentSubIdx > 0 &&
+                  geom.subs.length === activeSubs.length &&
+                  (() => {
+                    const first = geom.subs[0];
+                    const doneTo = geom.subs[Math.min(currentSubIdx, geom.subs.length - 1)];
+                    if (!first || !doneTo) return null;
+                    return (
+                      <line
+                        x1={first.cx}
+                        x2={doneTo.cx}
+                        y1={first.cy}
+                        y2={doneTo.cy}
+                        stroke={LIME}
+                        strokeWidth={2}
+                        filter="url(#bvLimeGlow)"
+                      />
+                    );
+                  })()}
+              </svg>
+            )}
+
+            {/* Sub-row for active phase (centered above its anchor, clamped) */}
+            {activeIdx >= 0 && activeSubs.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  left: `${((activeIdx + 0.5) / N) * 100}%`,
+                  transform: "translateX(-50%)",
+                  maxWidth: "calc(100vw - 16px)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "0 8px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {activeSubs.map((s, si) => {
+                  const sStatus: Status =
+                    si < currentSubIdx ? "done" : si === currentSubIdx ? "current" : "upcoming";
+                  const target = routeFor(s, isOffice);
+                  const canTap = sStatus !== "upcoming" && !!target;
+                  const setRef = (el: HTMLElement | null) => {
+                    subRefs.current[si] = el as HTMLDivElement | null;
+                  };
+                  if (sStatus === "current") {
+                    return (
+                      <button
+                        key={s}
+                        ref={setRef}
+                        type="button"
+                        disabled={!canTap}
+                        onClick={canTap ? () => onTap(s) : undefined}
+                        aria-current="step"
+                        aria-label={ACTION_TEXT[s] || s}
+                        className="bv-spine-capsule"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          height: 30,
+                          padding: "0 14px",
+                          borderRadius: 999,
+                          background: YELLOW,
+                          color: "#111",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          letterSpacing: 1.4,
+                          textTransform: "uppercase",
+                          border: `2px solid ${YELLOW}`,
+                          cursor: canTap ? "pointer" : "default",
+                          whiteSpace: "nowrap",
+                          fontFamily: "'Courier New', Courier, monospace",
+                        }}
+                      >
+                        {ACTION_TEXT[s] || s}
+                      </button>
+                    );
+                  }
+                  return (
+                    <div
+                      key={s}
+                      ref={setRef}
+                      role={canTap ? "button" : undefined}
+                      tabIndex={canTap ? 0 : -1}
+                      onClick={canTap ? () => onTap(s) : undefined}
+                      aria-label={ACTION_TEXT[s] || s}
+                      className="bv-spine-node"
+                      style={circleStyle(subSize, sStatus, canTap)}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Anchor row (always show labels) */}
             <div
               style={{
                 position: "absolute",
-                inset: 0,
+                left: 0,
+                right: 0,
+                bottom: 6,
                 display: "flex",
-                alignItems: "stretch",
+                alignItems: "flex-end",
               }}
             >
               {phases.map((phase, i) => {
-                const isActive = i === activeIdx;
+                const isActivePhase = i === activeIdx;
                 const isDone = i < activeIdx;
-                const status: Status = isActive
-                  ? currentSubIdx < 0
-                    ? "current"
-                    : isDone
-                      ? "done"
-                      : "upcoming"
-                  : isDone
-                    ? "done"
-                    : "upcoming";
-                // Parent status: mark active phase's parent as done once we've
-                // started sub-steps but haven't finished the phase; visually
-                // treat it as "done" while sub-nodes progress above it.
-                const parentStatus: Status = isActive
+                // parent status: done once its sub-steps have begun; upcoming if not reached
+                const parentStatus: Status = isActivePhase
                   ? currentSubIdx >= 0
                     ? "done"
-                    : "current"
+                    : "upcoming"
                   : isDone
                     ? "done"
                     : "upcoming";
-
-                const showLabel = isActive; // label active phase's anchor (client name for FIELD)
                 const label = anchorLabel(phase, state.client);
-                const parentPx = parentStatus === "current" ? parentCurrentSize : parentSize;
-
                 return (
                   <div
                     key={`ph-${phase}-${i}`}
@@ -335,125 +510,31 @@ export function DayStateSpine() {
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      justifyContent: "flex-end",
-                      position: "relative",
-                      paddingBottom: 8,
+                      gap: 3,
                     }}
                   >
-                    {/* Sub-nodes for the active phase */}
-                    {isActive && activeSubs.length > 0 ? (
-                      <>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 8,
-                            marginTop: 4,
-                            flexWrap: "nowrap",
-                          }}
-                        >
-                          {activeSubs.map((s, si) => {
-                            const sStatus: Status =
-                              si < currentSubIdx
-                                ? "done"
-                                : si === currentSubIdx
-                                  ? "current"
-                                  : "upcoming";
-                            const size = sStatus === "current" ? subCurrentSize : subSize;
-                            const target = routeFor(s, isOffice);
-                            const canTap = sStatus !== "upcoming" && !!target;
-                            return (
-                              <div
-                                key={s}
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "center",
-                                  gap: 2,
-                                }}
-                              >
-                                {/* connector to next sub */}
-                                <button
-                                  type="button"
-                                  disabled={!canTap}
-                                  onClick={canTap ? () => onTap(s) : undefined}
-                                  aria-label={SUB_LABEL[s] || s}
-                                  aria-current={sStatus === "current" ? "step" : undefined}
-                                  title={SUB_LABEL[s] || s}
-                                  className="bv-spine-node"
-                                  style={circleStyle(size, sStatus, canTap)}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* label for current sub-node */}
-                        <div
-                          style={{
-                            height: 12,
-                            marginTop: 2,
-                            color: YELLOW,
-                            fontSize: 10,
-                            letterSpacing: 1.5,
-                            fontWeight: 700,
-                            textAlign: "center",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {currentSubIdx >= 0 ? currentSubLabel : ""}
-                        </div>
-
-                        {/* vertical connector down to parent */}
-                        <div
-                          style={{
-                            width: 2,
-                            height: 10,
-                            background: LIME,
-                            boxShadow: `0 0 4px ${LIME}`,
-                            marginTop: 2,
-                          }}
-                        />
-                      </>
-                    ) : (
-                      <div style={{ flex: 1 }} />
-                    )}
-
-                    {/* Parent anchor circle */}
+                    <div
+                      ref={(el) => {
+                        anchorRefs.current[i] = el;
+                      }}
+                      aria-label={label}
+                      style={circleStyle(parentSize, parentStatus, false)}
+                    />
                     <div
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 2,
-                        position: "relative",
-                        zIndex: 1,
+                        color: parentStatus === "done" ? LIME : DIM_TEXT,
+                        fontSize: 9,
+                        letterSpacing: 1.2,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                        maxWidth: 140,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        textAlign: "center",
                       }}
                     >
-                      <div
-                        aria-label={label}
-                        style={{
-                          ...circleStyle(parentPx, parentStatus, false),
-                        }}
-                      />
-                      {showLabel && (
-                        <div
-                          style={{
-                            color: parentStatus === "current" ? YELLOW : LIME,
-                            fontSize: 9,
-                            letterSpacing: 1.2,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            whiteSpace: "nowrap",
-                            maxWidth: 140,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {label}
-                        </div>
-                      )}
+                      {label}
                     </div>
                   </div>
                 );
