@@ -394,6 +394,26 @@ function SchedulePage() {
         padding: "16px 12px 96px",
       }}
     >
+      {standbyCaption && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: "14px 16px",
+            background: PANEL,
+            border: `2px solid ${LIME}`,
+            borderRadius: 8,
+            color: LIME,
+            fontSize: 15,
+            fontWeight: "bold",
+            letterSpacing: 2.5,
+            textTransform: "uppercase",
+            textAlign: "center",
+            boxShadow: "0 0 22px rgba(124,255,0,.18)",
+          }}
+        >
+          {standbyCaption}
+        </div>
+      )}
       {/* Header */}
       {!(isLeadOrMgmt && confirmed === false) && (
         <div
