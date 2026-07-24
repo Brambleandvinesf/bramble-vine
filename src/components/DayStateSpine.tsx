@@ -154,6 +154,22 @@ export function DayStateSpine() {
   const [collapsed, setCollapsed] = useState(false);
   const lastKeyRef = useRef<string>("");
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerW, setContainerW] = useState(0);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [collapsed]);
+
   useEffect(() => {
     if (!state) return;
     const key = `${state.phase}:${state.subStep}`;
@@ -213,7 +229,9 @@ export function DayStateSpine() {
 
   const currentDesc = SUB_DESC[state.subStep] || state.subStep;
 
-  // Compute sub-node dimensions for the active phase
+  // Compute sub-node dimensions for the active phase.
+  // Widths are accumulated with SUB_GAP so the current-step capsule always
+  // reserves its own space; neighbors reflow around it (spec #7).
   const subDims = activeSubs.map((s, si) => {
     const cur = si === currentSubIdx;
     if (cur) {
@@ -232,8 +250,19 @@ export function DayStateSpine() {
       acc += subDims[i].w + SUB_GAP;
     }
   }
-  const firstOffset =
-    subCenters.length > 0 ? -totalSubW / 2 + subCenters[0] : 0; // relative to column center
+
+  // Center sub-row over the active parent anchor; clamp to viewport with padding.
+  const PAD = 8;
+  const anchorCenterX =
+    containerW > 0 && activeIdx >= 0 ? (containerW * (activeIdx + 0.5)) / N : 0;
+  let clampedLeft = anchorCenterX - totalSubW / 2;
+  if (containerW > 0) {
+    const maxLeft = Math.max(PAD, containerW - totalSubW - PAD);
+    clampedLeft = Math.min(Math.max(PAD, clampedLeft), maxLeft);
+  }
+  const subXs = subCenters.map((c) => clampedLeft + c);
+  const activeParentPx =
+    currentSubIdx >= 0 ? parentSize : parentCurrentSize; /* current-when-no-sub */
 
   return (
     <>
@@ -318,6 +347,7 @@ export function DayStateSpine() {
           </div>
         ) : (
           <div
+            ref={containerRef}
             style={{
               position: "relative",
               height: H,
@@ -348,7 +378,7 @@ export function DayStateSpine() {
               );
             })}
 
-            {/* Phase columns */}
+            {/* Phase anchors (parents + labels) */}
             <div style={{ position: "absolute", inset: 0, display: "flex" }}>
               {phases.map((phase, i) => {
                 const isActive = i === activeIdx;
@@ -372,120 +402,7 @@ export function DayStateSpine() {
                       overflow: "visible",
                     }}
                   >
-                    {/* Active phase: sub-row + connectors */}
-                    {isActive && activeSubs.length > 0 && subCenters.length > 0 && (
-                      <>
-                        {/* Segment A: vertical from parent top up to JOG_Y (at column center) */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: "50%",
-                            transform: "translateX(-50%)",
-                            top: JOG_Y,
-                            height: PARENT_CY - parentPx / 2 - JOG_Y,
-                            width: 2,
-                            background: LIME,
-                            boxShadow: `0 0 4px ${LIME}`,
-                          }}
-                        />
-                        {/* Segment B: horizontal at JOG_Y from column center to first sub center */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left:
-                              firstOffset < 0
-                                ? `calc(50% + ${firstOffset}px)`
-                                : "50%",
-                            width: Math.abs(firstOffset),
-                            top: JOG_Y - 1,
-                            height: 2,
-                            background: LIME,
-                            boxShadow: `0 0 4px ${LIME}`,
-                          }}
-                        />
-                        {/* Segment C: vertical at first sub center from JOG_Y up to bottom of first sub */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: `calc(50% + ${firstOffset}px)`,
-                            transform: "translateX(-50%)",
-                            top: SUB_CY + subDims[0].h / 2,
-                            height: JOG_Y - (SUB_CY + subDims[0].h / 2),
-                            width: 2,
-                            background: LIME,
-                            boxShadow: `0 0 4px ${LIME}`,
-                          }}
-                        />
-
-                        {/* Horizontal line connecting sub-nodes (from first center to last center) */}
-                        {subCenters.length > 1 && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: `calc(50% + ${firstOffset}px)`,
-                              width: subCenters[subCenters.length - 1] - subCenters[0],
-                              top: SUB_CY - 1,
-                              height: 2,
-                              background: LIME,
-                              boxShadow: `0 0 4px ${LIME}`,
-                              opacity: 0.9,
-                            }}
-                          />
-                        )}
-
-                        {/* Sub-nodes */}
-                        {activeSubs.map((s, si) => {
-                          const d = subDims[si];
-                          const sStatus: Status =
-                            si < currentSubIdx
-                              ? "done"
-                              : si === currentSubIdx
-                                ? "current"
-                                : "upcoming";
-                          const offsetFromCenter = -totalSubW / 2 + subCenters[si];
-                          const target = routeFor(s, isOffice);
-                          const canTap = sStatus !== "upcoming" && !!target;
-                          const commonPos: React.CSSProperties = {
-                            position: "absolute",
-                            left: `calc(50% + ${offsetFromCenter}px)`,
-                            top: SUB_CY,
-                            transform: "translate(-50%, -50%)",
-                            zIndex: 2,
-                          };
-                          if (d.capsule) {
-                            return (
-                              <button
-                                key={s}
-                                type="button"
-                                disabled={!canTap}
-                                onClick={canTap ? () => onTap(s) : undefined}
-                                aria-label={d.text}
-                                aria-current="step"
-                                title={d.text}
-                                className="bv-spine-node"
-                                style={{ ...commonPos, ...capsuleStyle(d.w, d.h, canTap) }}
-                              >
-                                {d.text}
-                              </button>
-                            );
-                          }
-                          return (
-                            <button
-                              key={s}
-                              type="button"
-                              disabled={!canTap}
-                              onClick={canTap ? () => onTap(s) : undefined}
-                              aria-label={SUB_DESC[s] || s}
-                              title={SUB_DESC[s] || s}
-                              className="bv-spine-node"
-                              style={{ ...commonPos, ...circleStyle(d.w, sStatus, canTap) }}
-                            />
-                          );
-                        })}
-                      </>
-                    )}
-
-                    {/* Parent anchor circle at column center, y=PARENT_CY */}
+                    {/* Parent anchor circle at column center */}
                     <div
                       aria-label={label}
                       className="bv-spine-node"
@@ -498,8 +415,7 @@ export function DayStateSpine() {
                         ...circleStyle(parentPx, parentStatus, false),
                       }}
                     />
-
-                    {/* Anchor label — always shown */}
+                    {/* Anchor label */}
                     <div
                       style={{
                         position: "absolute",
@@ -524,6 +440,132 @@ export function DayStateSpine() {
                 );
               })}
             </div>
+
+            {/* Active sub-row + connectors — rendered at absolute px positions
+                so the row can be centered over the parent anchor and clamped
+                to the viewport regardless of column width. */}
+            {activeIdx >= 0 &&
+              activeSubs.length > 0 &&
+              subCenters.length > 0 &&
+              containerW > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    pointerEvents: "none",
+                    zIndex: 4,
+                  }}
+                >
+                  {/* Segment A: vertical from parent TOP CENTER up to JOG_Y */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: anchorCenterX - 1,
+                      top: JOG_Y,
+                      height: Math.max(0, PARENT_CY - activeParentPx / 2 - JOG_Y),
+                      width: 2,
+                      background: LIME,
+                      boxShadow: `0 0 4px ${LIME}`,
+                    }}
+                  />
+                  {/* Segment B: horizontal at JOG_Y from anchor center to sub[0] center */}
+                  {(() => {
+                    const x0 = Math.min(anchorCenterX, subXs[0]);
+                    const w = Math.abs(subXs[0] - anchorCenterX);
+                    return (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: x0,
+                          width: w,
+                          top: JOG_Y - 1,
+                          height: 2,
+                          background: LIME,
+                          boxShadow: `0 0 4px ${LIME}`,
+                        }}
+                      />
+                    );
+                  })()}
+                  {/* Segment C: vertical at sub[0] center from JOG_Y up to bottom of sub[0] */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: subXs[0] - 1,
+                      top: SUB_CY + subDims[0].h / 2,
+                      height: Math.max(0, JOG_Y - (SUB_CY + subDims[0].h / 2)),
+                      width: 2,
+                      background: LIME,
+                      boxShadow: `0 0 4px ${LIME}`,
+                    }}
+                  />
+
+                  {/* Horizontal baseline connecting all sub-node centers */}
+                  {subXs.length > 1 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: subXs[0],
+                        width: subXs[subXs.length - 1] - subXs[0],
+                        top: SUB_CY - 1,
+                        height: 2,
+                        background: LIME,
+                        boxShadow: `0 0 4px ${LIME}`,
+                        opacity: 0.9,
+                      }}
+                    />
+                  )}
+
+                  {/* Sub-nodes */}
+                  {activeSubs.map((s, si) => {
+                    const d = subDims[si];
+                    const sStatus: Status =
+                      si < currentSubIdx
+                        ? "done"
+                        : si === currentSubIdx
+                          ? "current"
+                          : "upcoming";
+                    const target = routeFor(s, isOffice);
+                    const canTap = sStatus !== "upcoming" && !!target;
+                    const commonPos: React.CSSProperties = {
+                      position: "absolute",
+                      left: subXs[si],
+                      top: SUB_CY,
+                      transform: "translate(-50%, -50%)",
+                      zIndex: 5,
+                      pointerEvents: "auto",
+                    };
+                    if (d.capsule) {
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          disabled={!canTap}
+                          onClick={canTap ? () => onTap(s) : undefined}
+                          aria-label={d.text}
+                          aria-current="step"
+                          title={d.text}
+                          className="bv-spine-node"
+                          style={{ ...commonPos, ...capsuleStyle(d.w, d.h, canTap) }}
+                        >
+                          {d.text}
+                        </button>
+                      );
+                    }
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        disabled={!canTap}
+                        onClick={canTap ? () => onTap(s) : undefined}
+                        aria-label={SUB_DESC[s] || s}
+                        title={SUB_DESC[s] || s}
+                        className="bv-spine-node"
+                        style={{ ...commonPos, ...circleStyle(d.w, sStatus, canTap) }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
           </div>
         )}
       </div>
