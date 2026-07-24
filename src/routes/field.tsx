@@ -660,7 +660,22 @@ function FieldBody({
 
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
-  const [me, setMe] = useState<Me | null>(() => loadMe());
+  // Identity now comes from day-state's fieldPhone; there's no per-phone picker.
+  const dayState = useDayState();
+  const fieldPhone = dayState?.fieldPhone ?? null;
+  const derivedMeRole: "lead" | "assistant" = role === "assistant" ? "assistant" : "lead";
+  const me: Me | null = useMemo(
+    () =>
+      fieldPhone
+        ? { id: fieldPhone.id, name: fieldPhone.name, role: derivedMeRole }
+        : null,
+    [fieldPhone, derivedMeRole],
+  );
+  // Persist for legacy readers of loadMe().
+  useEffect(() => {
+    if (me) saveMe(me);
+    else clearMe();
+  }, [me?.id, me?.name, me?.role]);
   const [breakFrom, setBreakFromState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     try { return window.sessionStorage.getItem("field:breakFrom") || null; } catch { return null; }
