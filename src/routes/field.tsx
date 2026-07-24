@@ -1337,8 +1337,6 @@ function ClockingAsHeader({
     </div>
   );
 }
-  );
-}
 
 /* ============================================================
  * PERSONAL CLOCK PANEL — replaces whole-crew grids
