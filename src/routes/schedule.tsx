@@ -860,3 +860,416 @@ function EventRow({
     </div>
   );
 }
+
+type GridBlock = {
+  ev: EventItem;
+  top: number;
+  height: number;
+  startFrac: number;
+  endFrac: number;
+};
+
+function DayGrid({
+  events,
+  isToday,
+  expanded,
+  onToggle,
+}: {
+  events: EventItem[];
+  isToday: boolean;
+  expanded: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isToday) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [isToday]);
+
+  const gridHeight = HOURS * PX_PER_HOUR;
+
+  const { blocks, cellFor } = useMemo(() => {
+    const raw: GridBlock[] = [];
+    for (const ev of events) {
+      const s = laHM(ev.start);
+      const e = laHM(ev.end || ev.start);
+      const startFrac = s.hour + s.minute / 60;
+      let endFrac = e.hour + e.minute / 60;
+      if (endFrac <= startFrac) endFrac = startFrac + 1;
+      // Clip to visible window
+      const clippedStart = Math.max(startFrac, HOUR_START);
+      const clippedEnd = Math.min(endFrac, HOUR_END);
+      if (clippedEnd <= HOUR_START || clippedStart >= HOUR_END) continue;
+      const top = (clippedStart - HOUR_START) * PX_PER_HOUR;
+      const height = Math.max(30, (clippedEnd - clippedStart) * PX_PER_HOUR);
+      raw.push({ ev, top, height, startFrac, endFrac });
+    }
+    raw.sort((a, b) => a.startFrac - b.startFrac);
+
+    // Cluster overlapping events and pack columns
+    const cells = new Map<string, { col: number; cols: number }>();
+    let cluster: GridBlock[] = [];
+    let clusterEnd = -Infinity;
+    const flush = () => {
+      if (!cluster.length) return;
+      const colEnds: number[] = [];
+      const idx = new Map<GridBlock, number>();
+      for (const b of cluster) {
+        let placed = -1;
+        for (let i = 0; i < colEnds.length; i++) {
+          if (colEnds[i] <= b.startFrac + 1e-6) {
+            colEnds[i] = b.endFrac;
+            placed = i;
+            break;
+          }
+        }
+        if (placed < 0) {
+          colEnds.push(b.endFrac);
+          placed = colEnds.length - 1;
+        }
+        idx.set(b, placed);
+      }
+      const total = colEnds.length;
+      for (const b of cluster) {
+        cells.set(b.ev.id, { col: idx.get(b) ?? 0, cols: total });
+      }
+    };
+    for (const b of raw) {
+      if (b.startFrac >= clusterEnd) {
+        flush();
+        cluster = [b];
+        clusterEnd = b.endFrac;
+      } else {
+        cluster.push(b);
+        clusterEnd = Math.max(clusterEnd, b.endFrac);
+      }
+    }
+    flush();
+    return { blocks: raw, cellFor: cells };
+  }, [events]);
+
+  const nowTop = useMemo(() => {
+    if (!isToday) return null;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: TZ,
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(new Date(nowMs));
+    const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    const frac = (h === 24 ? 0 : h) + m / 60;
+    if (frac < HOUR_START || frac > HOUR_END) return null;
+    return (frac - HOUR_START) * PX_PER_HOUR;
+  }, [isToday, nowMs]);
+
+  const hourLabel = (h: number) => {
+    if (h === 12) return "12 PM";
+    if (h === 24 || h === 0) return "12 AM";
+    return h > 12 ? `${h - 12} PM` : `${h} AM`;
+  };
+
+  const expandedBlocks = blocks.filter((b) => expanded.has(b.ev.id));
+
+  return (
+    <div>
+      {events.length === 0 && (
+        <div
+          style={{
+            textAlign: "center",
+            color: DIM_GREEN,
+            padding: "12px 12px 16px",
+            fontSize: 12,
+            letterSpacing: 1,
+          }}
+        >
+          No visits scheduled.
+        </div>
+      )}
+      <div
+        style={{
+          position: "relative",
+          height: gridHeight,
+          marginTop: 4,
+          userSelect: "none",
+        }}
+      >
+        {/* Hour rows: gridline + label */}
+        {Array.from({ length: HOURS + 1 }, (_, i) => HOUR_START + i).map((h) => {
+          const top = (h - HOUR_START) * PX_PER_HOUR;
+          return (
+            <div key={`hr-${h}`}>
+              <div
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: top - 6,
+                  width: GUTTER - 8,
+                  textAlign: "right",
+                  color: DIM_GREEN,
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  fontFamily: MONO,
+                }}
+              >
+                {hourLabel(h)}
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  left: GUTTER,
+                  right: 0,
+                  top,
+                  height: 1,
+                  background: "#1a2a10",
+                }}
+              />
+            </div>
+          );
+        })}
+
+        {/* Half-hour faint lines */}
+        {Array.from({ length: HOURS }, (_, i) => HOUR_START + i + 0.5).map((h) => {
+          const top = (h - HOUR_START) * PX_PER_HOUR;
+          return (
+            <div
+              key={`half-${h}`}
+              style={{
+                position: "absolute",
+                left: GUTTER,
+                right: 0,
+                top,
+                height: 1,
+                background: "#101a08",
+              }}
+            />
+          );
+        })}
+
+        {/* Event blocks */}
+        <div
+          style={{
+            position: "absolute",
+            left: GUTTER,
+            right: 4,
+            top: 0,
+            bottom: 0,
+          }}
+        >
+          {blocks.map((b) => {
+            const c = cellFor.get(b.ev.id) ?? { col: 0, cols: 1 };
+            const widthPct = 100 / c.cols;
+            const leftPct = c.col * widthPct;
+            const isOpen = expanded.has(b.ev.id);
+            return (
+              <button
+                key={b.ev.id}
+                onClick={() => onToggle(b.ev.id)}
+                aria-expanded={isOpen}
+                style={{
+                  position: "absolute",
+                  top: b.top,
+                  height: b.height,
+                  left: `calc(${leftPct}% + 2px)`,
+                  width: `calc(${widthPct}% - 6px)`,
+                  background: "rgba(124,255,0,0.08)",
+                  border: `1px solid ${LIME}`,
+                  borderRadius: 6,
+                  color: "#e8e8e8",
+                  fontFamily: MONO,
+                  textAlign: "left",
+                  padding: "6px 8px",
+                  cursor: "pointer",
+                  overflow: "hidden",
+                  boxShadow: isOpen ? `0 0 10px rgba(124,255,0,0.35)` : "none",
+                }}
+              >
+                <div
+                  style={{
+                    color: DIM_GREEN,
+                    fontSize: 10,
+                    letterSpacing: 1,
+                    marginBottom: 2,
+                  }}
+                >
+                  {fmtTime(b.ev.start)}
+                  {b.ev.end ? ` – ${fmtTime(b.ev.end)}` : ""}
+                </div>
+                <div
+                  style={{
+                    color: LIME,
+                    fontSize: 13,
+                    fontWeight: "bold",
+                    letterSpacing: 0.5,
+                    lineHeight: 1.2,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {b.ev.title || "(untitled)"}
+                </div>
+                {b.ev.location && b.height >= 44 ? (
+                  <div
+                    style={{
+                      color: "#cfcfcf",
+                      fontSize: 11,
+                      marginTop: 2,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {b.ev.location}
+                  </div>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Now indicator */}
+        {nowTop !== null && (
+          <>
+            <div
+              style={{
+                position: "absolute",
+                left: GUTTER - 5,
+                top: nowTop - 4,
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: LIME,
+                boxShadow: `0 0 6px ${LIME}, 0 0 14px rgba(124,255,0,0.5)`,
+                zIndex: 3,
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: GUTTER,
+                right: 0,
+                top: nowTop,
+                height: 2,
+                background: LIME,
+                boxShadow: `0 0 6px ${LIME}`,
+                zIndex: 2,
+              }}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Expanded details for tapped events */}
+      {expandedBlocks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
+          {expandedBlocks.map((b) => (
+            <ExpandedEvent key={b.ev.id} ev={b.ev} onClose={() => onToggle(b.ev.id)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpandedEvent({ ev, onClose }: { ev: EventItem; onClose: () => void }) {
+  const desc = useMemo(() => sanitizeDescription(ev.description ?? ""), [ev.description]);
+  return (
+    <div
+      style={{
+        background: PANEL,
+        border: `1px solid ${LIME}`,
+        borderRadius: 8,
+        padding: "12px 14px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: DIM_GREEN, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}>
+            {fmtTime(ev.start)}
+            {ev.end ? ` – ${fmtTime(ev.end)}` : ""}
+          </div>
+          <div
+            style={{
+              color: LIME,
+              fontSize: 15,
+              fontWeight: "bold",
+              letterSpacing: 1,
+              marginBottom: 4,
+            }}
+          >
+            {ev.title || "(untitled)"}
+          </div>
+          {ev.location ? (
+            <a
+              href={mapsHref(ev.location)}
+              onClick={(e) => {
+                e.preventDefault();
+                window.open(mapsHref(ev.location), "_blank", "noopener,noreferrer");
+              }}
+              style={{
+                color: "#e8e8e8",
+                textDecoration: "underline",
+                fontSize: 12,
+              }}
+            >
+              {ev.location}
+            </a>
+          ) : null}
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          style={{
+            background: "transparent",
+            color: LIME,
+            border: `1px solid ${LIME}`,
+            borderRadius: 4,
+            fontFamily: MONO,
+            fontSize: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+          }}
+        >
+          ×
+        </button>
+      </div>
+      {desc.length > 0 && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: "10px 12px",
+            background: BG,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 4,
+            color: "#cfcfcf",
+            fontSize: 12,
+            whiteSpace: "pre-wrap",
+            fontFamily: MONO,
+            lineHeight: 1.5,
+          }}
+        >
+          {desc.map((seg, i) =>
+            seg.kind === "link" ? (
+              <a
+                key={i}
+                href={seg.href}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.open(seg.href, "_blank", "noopener,noreferrer");
+                }}
+                style={{ color: LIME, textDecoration: "underline", cursor: "pointer" }}
+              >
+                {seg.text}
+              </a>
+            ) : (
+              <span key={i}>{seg.value}</span>
+            ),
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
