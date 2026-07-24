@@ -28,6 +28,7 @@ type TeamSetup = {
   employeeTeams?: Record<string, string>;
   clients?: ClientRow[];
   teamsConfirmed?: boolean;
+  fieldPhone?: { id: string; name: string } | null;
 };
 
 type Team = "Alpha" | "Bravo";
