@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { useReviewableToday } from "../lib/reviewable-today";
+import { useDayState } from "../lib/day-state";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { MessagesFab } from "../components/MessagesFab";
@@ -173,11 +174,39 @@ function sanitizeDescription(html: string): Array<{ kind: "text"; value: string 
   return out;
 }
 
+/** Return LA-local hour+minute for a Date (0..23, 0..59). */
+function laHourMinute(d: Date): { h: number; m: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(d);
+  const rawH = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return { h: rawH % 24, m };
+}
+
+const DAY_START_HOUR = 8;
+const DAY_END_HOUR = 18;
+const HOUR_PX = 56;
+const GUTTER_PX = 56;
+
+/** Minutes since 8:00 AM LA; can be <0 or > range. */
+function laMinutesFromStart(iso: string): number {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return NaN;
+  const { h, m } = laHourMinute(d);
+  return (h - DAY_START_HOUR) * 60 + m;
+}
+
 
 function SchedulePage() {
   useAuth();
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
+  const dayState = useDayState();
+  const standbyCaption = (dayState?.caption ?? "").trim();
 
   // Office lands on /schedule as their default surface; do not redirect away.
   const denied = false;
@@ -365,6 +394,26 @@ function SchedulePage() {
         padding: "16px 12px 96px",
       }}
     >
+      {standbyCaption && (
+        <div
+          style={{
+            marginBottom: 14,
+            padding: "14px 16px",
+            background: PANEL,
+            border: `2px solid ${LIME}`,
+            borderRadius: 8,
+            color: LIME,
+            fontSize: 15,
+            fontWeight: "bold",
+            letterSpacing: 2.5,
+            textTransform: "uppercase",
+            textAlign: "center",
+            boxShadow: "0 0 22px rgba(124,255,0,.18)",
+          }}
+        >
+          {standbyCaption}
+        </div>
+      )}
       {/* Header */}
       {!(isLeadOrMgmt && confirmed === false) && (
         <div
@@ -535,8 +584,9 @@ function SchedulePage() {
       ) : null}
 
       {view === "day" ? (
-        <DayList
+        <DayGrid
           events={byDay.get(anchor) ?? []}
+          isToday={anchor === laDateKey(new Date())}
           expanded={expanded}
           onToggle={toggle}
         />
@@ -797,6 +847,248 @@ function EventRow({
           )}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function DayGrid({
+  events,
+  isToday,
+  expanded,
+  onToggle,
+}: {
+  events: EventItem[];
+  isToday: boolean;
+  expanded: Set<string>;
+  onToggle: (id: string) => void;
+}) {
+  const totalHours = DAY_END_HOUR - DAY_START_HOUR;
+  const gridHeight = totalHours * HOUR_PX;
+
+  // Live "now" tick — updates every 30s while mounted.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    if (!isToday) return;
+    const id = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(id);
+  }, [isToday]);
+
+  const nowMin = isToday ? laMinutesFromStart(now.toISOString()) : NaN;
+  const nowInRange = isToday && !isNaN(nowMin) && nowMin >= 0 && nowMin <= totalHours * 60;
+  const nowTop = nowInRange ? (nowMin / 60) * HOUR_PX : 0;
+
+  const hours = Array.from({ length: totalHours + 1 }, (_, i) => DAY_START_HOUR + i);
+
+  const blocks = useMemo(() => {
+    return events
+      .map((ev) => {
+        const startMin = laMinutesFromStart(ev.start);
+        const endMin = laMinutesFromStart(ev.end);
+        if (isNaN(startMin) || isNaN(endMin)) return null;
+        const top = Math.max(0, startMin);
+        const bottom = Math.min(totalHours * 60, endMin);
+        if (bottom <= 0 || top >= totalHours * 60) return null;
+        const heightMin = Math.max(24, bottom - top);
+        return {
+          ev,
+          topPx: (top / 60) * HOUR_PX,
+          heightPx: (heightMin / 60) * HOUR_PX,
+        };
+      })
+      .filter((b): b is { ev: EventItem; topPx: number; heightPx: number } => !!b);
+  }, [events, totalHours]);
+
+  if (events.length === 0) {
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          color: DIM_GREEN,
+          padding: "24px 12px",
+          fontSize: 12,
+          letterSpacing: 1,
+        }}
+      >
+        No visits scheduled.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        height: gridHeight,
+        marginTop: 8,
+      }}
+    >
+      {/* hour rows */}
+      {hours.map((h, i) => {
+        const label = new Date(2000, 0, 1, h).toLocaleString("en-US", {
+          hour: "numeric",
+          hour12: true,
+        });
+        return (
+          <div
+            key={h}
+            style={{
+              position: "absolute",
+              top: i * HOUR_PX,
+              left: 0,
+              right: 0,
+              height: 0,
+              borderTop: `1px solid ${DIM_GREEN}`,
+              opacity: 0.35,
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                top: -8,
+                left: 0,
+                width: GUTTER_PX - 8,
+                textAlign: "right",
+                color: DIM_GREEN,
+                fontSize: 11,
+                letterSpacing: 1,
+                fontFamily: MONO,
+              }}
+            >
+              {label}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* event blocks */}
+      {blocks.map(({ ev, topPx, heightPx }) => {
+        const isOpen = expanded.has(ev.id);
+        return (
+          <div
+            key={ev.id}
+            style={{
+              position: "absolute",
+              top: topPx,
+              left: GUTTER_PX,
+              right: 4,
+              minHeight: heightPx,
+              height: isOpen ? "auto" : heightPx,
+              background: PANEL,
+              border: `1.5px solid ${LIME}`,
+              borderRadius: 6,
+              boxShadow: "0 0 10px rgba(124,255,0,.15)",
+              padding: "6px 10px",
+              overflow: "hidden",
+              cursor: "pointer",
+              zIndex: 2,
+            }}
+            onClick={() => onToggle(ev.id)}
+          >
+            <div
+              style={{
+                color: LIME,
+                fontSize: 13,
+                fontWeight: "bold",
+                letterSpacing: 1,
+                lineHeight: 1.2,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {ev.title || "(untitled)"}
+              </span>
+              <span style={{ color: DIM_GREEN, fontSize: 10, letterSpacing: 1, flexShrink: 0 }}>
+                {fmtTime(ev.start)}
+              </span>
+            </div>
+            {ev.location ? (
+              <a
+                href={mapsHref(ev.location)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  window.open(mapsHref(ev.location), "_blank", "noopener,noreferrer");
+                }}
+                style={{
+                  display: "block",
+                  marginTop: 2,
+                  color: "#e8e8e8",
+                  textDecoration: "underline",
+                  fontSize: 11,
+                  lineHeight: 1.3,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {ev.location}
+              </a>
+            ) : null}
+            {isOpen && ev.description ? (
+              <div
+                style={{
+                  marginTop: 6,
+                  color: "#cfcfcf",
+                  fontSize: 11,
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.4,
+                }}
+              >
+                {sanitizeDescription(ev.description).map((seg, i) =>
+                  seg.kind === "link" ? (
+                    <a
+                      key={i}
+                      href={seg.href}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        window.open(seg.href, "_blank", "noopener,noreferrer");
+                      }}
+                      style={{ color: LIME, textDecoration: "underline" }}
+                    >
+                      {seg.text}
+                    </a>
+                  ) : (
+                    <span key={i}>{seg.value}</span>
+                  ),
+                )}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {/* now line */}
+      {nowInRange && (
+        <div
+          style={{
+            position: "absolute",
+            top: nowTop,
+            left: 0,
+            right: 0,
+            height: 0,
+            borderTop: `2px solid ${LIME}`,
+            boxShadow: `0 0 8px ${LIME}`,
+            zIndex: 5,
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              top: -6,
+              left: GUTTER_PX - 6,
+              width: 12,
+              height: 12,
+              borderRadius: 999,
+              background: LIME,
+              boxShadow: `0 0 8px ${LIME}`,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
