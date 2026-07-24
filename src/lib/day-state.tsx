@@ -40,6 +40,7 @@ export function DayStateProvider({
 }) {
   const cached = sessionCache.get<DayState>(CK);
   const [state, setState] = useState<DayState | null>(cached ?? null);
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
@@ -56,6 +57,10 @@ export function DayStateProvider({
         if (!json || !json.phase || !json.subSteps) return;
         sessionCache.set(CK, json);
         setState(json);
+        if (json.serverNow) {
+          const sn = Date.parse(json.serverNow);
+          if (!isNaN(sn)) setServerOffsetMs(sn - Date.now());
+        }
       } catch {
         /* keep last known */
       }
@@ -74,7 +79,7 @@ export function DayStateProvider({
   }, [enabled, nonce]);
 
   return (
-    <DayStateCtx.Provider value={{ state, refresh: () => setNonce((n) => n + 1) }}>
+    <DayStateCtx.Provider value={{ state, serverOffsetMs, refresh: () => setNonce((n) => n + 1) }}>
       {children}
     </DayStateCtx.Provider>
   );
@@ -82,4 +87,8 @@ export function DayStateProvider({
 
 export function useDayState(): DayState | null {
   return useContext(DayStateCtx).state;
+}
+
+export function useServerOffsetMs(): number {
+  return useContext(DayStateCtx).serverOffsetMs;
 }
