@@ -96,6 +96,7 @@ export function OfficeTeamSetup() {
         const ct: Record<string, string[]> = {};
         for (const c of j.clients || []) ct[c.title] = (c.teams || []).map((x) => normTeam(x));
         setClientTeams(ct);
+        setFieldPhoneId(j.fieldPhone?.id ?? null);
         setOpen(true);
       } catch (e) {
         console.warn("[team-setup] load failed", e);
