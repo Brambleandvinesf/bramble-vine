@@ -266,6 +266,28 @@ export function OfficeTeamSetup() {
           )}
         </Section>
 
+        {/* Section 2b — Field phone */}
+        <Section title="FIELD PHONE">
+          {selectedList.length === 0 ? (
+            <div style={{ color: MUTED, fontSize: 13 }}>Select someone above.</div>
+          ) : (
+            <>
+              <div style={{ color: MUTED, fontSize: 12, marginBottom: 8 }}>
+                Who holds the field phone today?
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {selectedList.map((e) => (
+                  <Chip
+                    key={e.id}
+                    active={fieldPhoneId === e.id}
+                    onClick={() => chooseFieldPhone(e.id, e.name)}
+                  >{e.name}</Chip>
+                ))}
+              </div>
+            </>
+          )}
+        </Section>
+
         {/* Section 3 — Today's clients */}
         <Section title="TODAY'S CLIENTS">
           {(data.clients || []).length === 0 ? (
