@@ -174,6 +174,32 @@ function sanitizeDescription(html: string): Array<{ kind: "text"; value: string 
   return out;
 }
 
+/** Return LA-local hour+minute for a Date (0..23, 0..59). */
+function laHourMinute(d: Date): { h: number; m: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(d);
+  const rawH = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return { h: rawH % 24, m };
+}
+
+const DAY_START_HOUR = 8;
+const DAY_END_HOUR = 18;
+const HOUR_PX = 56;
+const GUTTER_PX = 56;
+
+/** Minutes since 8:00 AM LA; can be <0 or > range. */
+function laMinutesFromStart(iso: string): number {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return NaN;
+  const { h, m } = laHourMinute(d);
+  return (h - DAY_START_HOUR) * 60 + m;
+}
+
 
 function SchedulePage() {
   useAuth();
