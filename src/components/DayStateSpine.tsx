@@ -6,7 +6,6 @@ import { useAuth } from "../lib/auth";
 
 const LIME = "#7cff00";
 const LIME_DIM = "#2f5f10";
-const YELLOW = "#ffd400";
 const DIM_TEXT = "#4a7a1e";
 const BG = "#0a0a0a";
 
@@ -207,9 +206,9 @@ export function DayStateSpine() {
   return (
     <>
       <style>{`
-        @keyframes bvSpinePulse {
-          0%,100% { box-shadow: 0 0 10px ${YELLOW}, 0 0 22px rgba(255,212,0,0.55); }
-          50%     { box-shadow: 0 0 14px ${YELLOW}, 0 0 34px rgba(255,212,0,0.75); }
+        @keyframes bvSpineBlink {
+          0%,100% { box-shadow: 0 0 6px ${LIME}, 0 0 14px rgba(124,255,0,0.35); opacity: 1; }
+          50%     { box-shadow: 0 0 12px ${LIME}, 0 0 26px rgba(124,255,0,0.75); opacity: 0.85; }
         }
         @keyframes bvSpineCapsuleIn {
           from { transform: scale(0.85); opacity: 0; }
@@ -219,8 +218,14 @@ export function DayStateSpine() {
           from { opacity: 0; transform: translateY(4px); }
           to   { opacity: 1; transform: translateY(0);   }
         }
+        @keyframes bvSpineDash {
+          from { stroke-dashoffset: 0; }
+          to   { stroke-dashoffset: -28; }
+        }
         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
-        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpinePulse 1.8s ease-out infinite; }
+        .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 2s ease-in-out infinite; }
+        .bv-spine-dot-blink { animation: bvSpineBlink 2s ease-in-out infinite; }
+        .bv-spine-enroute { stroke-dasharray: 8 6; animation: bvSpineDash 1.2s linear infinite; }
       `}</style>
 
       <div
@@ -272,7 +277,7 @@ export function DayStateSpine() {
               alignItems: "center",
               justifyContent: "center",
               gap: 10,
-              color: YELLOW,
+              color: LIME,
               fontSize: 11,
               letterSpacing: 1.5,
               fontWeight: 700,
@@ -280,12 +285,12 @@ export function DayStateSpine() {
             }}
           >
             <span
+              className="bv-spine-dot-blink"
               style={{
                 width: 10,
                 height: 10,
                 borderRadius: 999,
-                background: YELLOW,
-                boxShadow: `0 0 8px ${YELLOW}`,
+                background: LIME,
               }}
             />
             {currentActionText.toUpperCase()}
@@ -322,8 +327,54 @@ export function DayStateSpine() {
                   if (i === geom.anchors.length - 1) return null;
                   const b = geom.anchors[i + 1];
                   const done = i < activeIdx;
-                  const stroke = done ? LIME : LIME_DIM;
                   const r = parentSize / 2;
+                  const isEnrouteSeg =
+                    state.phase === "FIELD_VISIT" &&
+                    state.subStep === "enroute" &&
+                    phases[i] === "HQ_LOADING" &&
+                    phases[i + 1] === "FIELD_VISIT";
+                  if (isEnrouteSeg) {
+                    const midX = (a.cx + r + (b.cx - r)) / 2;
+                    return (
+                      <g key={`base-${i}`}>
+                        <line
+                          x1={a.cx + r}
+                          x2={b.cx - r}
+                          y1={a.cy}
+                          y2={b.cy}
+                          stroke={LIME_DIM}
+                          strokeWidth={2}
+                          opacity={0.6}
+                        />
+                        <line
+                          className="bv-spine-enroute"
+                          x1={a.cx + r}
+                          x2={b.cx - r}
+                          y1={a.cy}
+                          y2={b.cy}
+                          stroke={LIME}
+                          strokeWidth={2}
+                          filter="url(#bvLimeGlow)"
+                        />
+                        <text
+                          x={midX}
+                          y={a.cy - 6}
+                          textAnchor="middle"
+                          fill={LIME}
+                          style={{
+                            fontFamily: "'Courier New', Courier, monospace",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: 1.2,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          En Route
+                        </text>
+                      </g>
+                    );
+                  }
+                  const stroke = done ? LIME : LIME_DIM;
                   return (
                     <line
                       key={`base-${i}`}
@@ -446,13 +497,13 @@ export function DayStateSpine() {
                           height: 30,
                           padding: "0 14px",
                           borderRadius: 999,
-                          background: YELLOW,
-                          color: "#111",
+                          background: LIME,
+                          color: "#0a0a0a",
                           fontSize: 11,
                           fontWeight: 800,
                           letterSpacing: 1.4,
                           textTransform: "uppercase",
-                          border: `2px solid ${YELLOW}`,
+                          border: `2px solid ${LIME}`,
                           cursor: canTap ? "pointer" : "default",
                           whiteSpace: "nowrap",
                           fontFamily: "'Courier New', Courier, monospace",
