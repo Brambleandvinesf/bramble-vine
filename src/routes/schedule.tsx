@@ -7,6 +7,7 @@ import { useDayState } from "../lib/day-state";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { MessagesFab } from "../components/MessagesFab";
+import { CountdownChips } from "../components/CountdownChips";
 import { appendTeamParam } from "../lib/team";
 
 
@@ -414,6 +415,7 @@ function SchedulePage() {
           {standbyCaption}
         </div>
       )}
+      <CountdownChips />
       {/* Header */}
       {!(isLeadOrMgmt && confirmed === false) && (
         <div

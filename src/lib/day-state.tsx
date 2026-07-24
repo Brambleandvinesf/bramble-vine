@@ -9,6 +9,7 @@ const POLL_MS = 30_000;
 
 export type DayPhase = "HQ_LOADING" | "FIELD_VISIT" | "HQ_UNLOADING";
 export type FieldPhone = { id: string; name: string } | null;
+export type BreakItem = { time: string; label: string };
 export type DayState = {
   ok?: boolean;
   phase: DayPhase;
@@ -21,10 +22,14 @@ export type DayState = {
   fieldPhone?: FieldPhone;
   phaseOrder: DayPhase[];
   subSteps: Record<DayPhase, string[]>;
+  serverNow?: string;
+  departAt?: string | null;
+  travelMin?: number;
+  breaks?: BreakItem[];
 };
 
-type Ctx = { state: DayState | null; refresh: () => void };
-const DayStateCtx = createContext<Ctx>({ state: null, refresh: () => {} });
+type Ctx = { state: DayState | null; serverOffsetMs: number; refresh: () => void };
+const DayStateCtx = createContext<Ctx>({ state: null, serverOffsetMs: 0, refresh: () => {} });
 
 export function DayStateProvider({
   enabled,
@@ -35,6 +40,7 @@ export function DayStateProvider({
 }) {
   const cached = sessionCache.get<DayState>(CK);
   const [state, setState] = useState<DayState | null>(cached ?? null);
+  const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
@@ -51,6 +57,10 @@ export function DayStateProvider({
         if (!json || !json.phase || !json.subSteps) return;
         sessionCache.set(CK, json);
         setState(json);
+        if (json.serverNow) {
+          const sn = Date.parse(json.serverNow);
+          if (!isNaN(sn)) setServerOffsetMs(sn - Date.now());
+        }
       } catch {
         /* keep last known */
       }
@@ -69,7 +79,7 @@ export function DayStateProvider({
   }, [enabled, nonce]);
 
   return (
-    <DayStateCtx.Provider value={{ state, refresh: () => setNonce((n) => n + 1) }}>
+    <DayStateCtx.Provider value={{ state, serverOffsetMs, refresh: () => setNonce((n) => n + 1) }}>
       {children}
     </DayStateCtx.Provider>
   );
@@ -77,4 +87,8 @@ export function DayStateProvider({
 
 export function useDayState(): DayState | null {
   return useContext(DayStateCtx).state;
+}
+
+export function useServerOffsetMs(): number {
+  return useContext(DayStateCtx).serverOffsetMs;
 }
