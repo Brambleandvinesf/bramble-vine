@@ -125,9 +125,31 @@ function fmtTime(iso: string): string {
 function eventDateKey(iso: string): string {
   return laDateKey(new Date(iso));
 }
+/** LA-local hour (0-23) and minute for an ISO string. */
+function laHM(iso: string): { hour: number; minute: number } {
+  if (!iso) return { hour: 0, minute: 0 };
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return { hour: 0, minute: 0 };
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(d);
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return { hour: h === 24 ? 0 : h, minute: m };
+}
 function mapsHref(loc: string): string {
   return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(loc)}`;
 }
+
+// Day-grid layout
+const HOUR_START = 8;
+const HOUR_END = 18;
+const HOURS = HOUR_END - HOUR_START;
+const PX_PER_HOUR = 64;
+const GUTTER = 56;
 
 /** Sanitize: allow ONLY <a href="..."> tags. Preserve structure from legacy HTML
  *  (<br>, <p>, <li>, <ul>, <ol>, <h1..h6>, <div>) as newlines / bullets.
