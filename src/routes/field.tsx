@@ -1318,15 +1318,10 @@ function WhoAmI({
  * ============================================================ */
 function ClockingAsHeader({
   me,
-  roster,
-  onChange,
 }: {
   me: Me;
   roster: RosterMember[];
-  onChange: () => void;
 }) {
-  const row = roster.find((r) => r.id === me.id);
-  const open = !!row?.in && !row?.out;
   return (
     <div
       style={{
@@ -1339,25 +1334,9 @@ function ClockingAsHeader({
     >
       <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKING AS:</span>
       <span style={{ color: LIME, fontSize: 12, letterSpacing: 1 }}>{me.name.toUpperCase()}</span>
-      <button
-        onClick={onChange}
-        disabled={open}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: open ? "rgba(255,59,48,.7)" : DIM_GREEN,
-          fontFamily: "inherit",
-          fontSize: 11,
-          letterSpacing: 1,
-          textDecoration: open ? "none" : "underline",
-          cursor: open ? "default" : "pointer",
-          padding: 0,
-          marginLeft: 4,
-        }}
-      >
-        {open ? "clock out first" : "change"}
-      </button>
     </div>
+  );
+}
   );
 }
 
