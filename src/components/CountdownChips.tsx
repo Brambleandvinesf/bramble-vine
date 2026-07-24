@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useDayState, useServerOffsetMs, type BreakItem } from "../lib/day-state";
 import { useViewAs } from "../lib/view-as";
 
