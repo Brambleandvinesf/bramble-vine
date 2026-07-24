@@ -379,6 +379,8 @@ function SchedulePage() {
   if (denied) return null;
 
   const weekKeys = view === "week" ? Array.from({ length: 7 }, (_, i) => addDaysKey(start, i)) : [];
+  const todayKey = laDateKey(new Date());
+  const isToday = anchor === todayKey;
 
   return (
     <div
