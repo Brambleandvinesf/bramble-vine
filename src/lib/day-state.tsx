@@ -9,6 +9,7 @@ const POLL_MS = 30_000;
 
 export type DayPhase = "HQ_LOADING" | "FIELD_VISIT" | "HQ_UNLOADING";
 export type FieldPhone = { id: string; name: string } | null;
+export type BreakItem = { time: string; label: string };
 export type DayState = {
   ok?: boolean;
   phase: DayPhase;
@@ -21,10 +22,14 @@ export type DayState = {
   fieldPhone?: FieldPhone;
   phaseOrder: DayPhase[];
   subSteps: Record<DayPhase, string[]>;
+  serverNow?: string;
+  departAt?: string | null;
+  travelMin?: number;
+  breaks?: BreakItem[];
 };
 
-type Ctx = { state: DayState | null; refresh: () => void };
-const DayStateCtx = createContext<Ctx>({ state: null, refresh: () => {} });
+type Ctx = { state: DayState | null; serverOffsetMs: number; refresh: () => void };
+const DayStateCtx = createContext<Ctx>({ state: null, serverOffsetMs: 0, refresh: () => {} });
 
 export function DayStateProvider({
   enabled,
