@@ -327,8 +327,54 @@ export function DayStateSpine() {
                   if (i === geom.anchors.length - 1) return null;
                   const b = geom.anchors[i + 1];
                   const done = i < activeIdx;
-                  const stroke = done ? LIME : LIME_DIM;
                   const r = parentSize / 2;
+                  const isEnrouteSeg =
+                    state.phase === "FIELD_VISIT" &&
+                    state.subStep === "enroute" &&
+                    phases[i] === "HQ_LOADING" &&
+                    phases[i + 1] === "FIELD_VISIT";
+                  if (isEnrouteSeg) {
+                    const midX = (a.cx + r + (b.cx - r)) / 2;
+                    return (
+                      <g key={`base-${i}`}>
+                        <line
+                          x1={a.cx + r}
+                          x2={b.cx - r}
+                          y1={a.cy}
+                          y2={b.cy}
+                          stroke={LIME_DIM}
+                          strokeWidth={2}
+                          opacity={0.6}
+                        />
+                        <line
+                          className="bv-spine-enroute"
+                          x1={a.cx + r}
+                          x2={b.cx - r}
+                          y1={a.cy}
+                          y2={b.cy}
+                          stroke={LIME}
+                          strokeWidth={2}
+                          filter="url(#bvLimeGlow)"
+                        />
+                        <text
+                          x={midX}
+                          y={a.cy - 6}
+                          textAnchor="middle"
+                          fill={LIME}
+                          style={{
+                            fontFamily: "'Courier New', Courier, monospace",
+                            fontSize: 9,
+                            fontWeight: 700,
+                            letterSpacing: 1.2,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          En Route
+                        </text>
+                      </g>
+                    );
+                  }
+                  const stroke = done ? LIME : LIME_DIM;
                   return (
                     <line
                       key={`base-${i}`}
