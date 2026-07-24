@@ -277,7 +277,7 @@ export function DayStateSpine() {
               alignItems: "center",
               justifyContent: "center",
               gap: 10,
-              color: YELLOW,
+              color: LIME,
               fontSize: 11,
               letterSpacing: 1.5,
               fontWeight: 700,
@@ -285,12 +285,12 @@ export function DayStateSpine() {
             }}
           >
             <span
+              className="bv-spine-dot-blink"
               style={{
                 width: 10,
                 height: 10,
                 borderRadius: 999,
-                background: YELLOW,
-                boxShadow: `0 0 8px ${YELLOW}`,
+                background: LIME,
               }}
             />
             {currentActionText.toUpperCase()}
