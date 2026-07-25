@@ -6,6 +6,7 @@ import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
 import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
+import { useOptimistic } from "../lib/optimistic";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { Check, SkipForward, Trash2 } from "lucide-react";
@@ -195,7 +196,16 @@ function ConfirmPage() {
     }
     return initial;
   });
+  // Staged deletions, cleared once submitted.
   const [deletes, setDeletes] = useState<Set<string>>(new Set());
+  // Submitted deletions, held until the server confirms them; see
+  // src/lib/optimistic.ts for why a payload alone is not proof.
+  const { decide: optDecide, reconcile: optReconcile, records: optRecords } =
+    useOptimistic("confirm:deleted-projects");
+  const committedDeletes = useMemo(
+    () => new Set(optRecords.filter((r) => r.kind === "deleted").map((r) => r.id)),
+    [optRecords],
+  );
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
   const [pickerFor, setPickerFor] = useState<
     | { mode: "new"; client: string; key: string }
@@ -240,6 +250,20 @@ function ConfirmPage() {
 
   const applyData = useCallback((d: GetConfirmResponse) => {
     const ps = (d.projects ?? []).map(normProject);
+    // A submitted delete stays suppressed until this payload stops carrying the
+    // project. getConfirm can be served before the delete is readable, so
+    // trusting each payload outright is what let deleted rows come back.
+    const seen = new Set(ps.map((p) => p.projectId).filter(Boolean));
+    const abandoned = optReconcile((r) => !seen.has(r.id));
+    if (abandoned.length) {
+      setSubmitFlash({
+        msg:
+          abandoned.length === 1
+            ? "1 deletion may not have saved — showing the server's version."
+            : `${abandoned.length} deletions may not have saved — showing the server's version.`,
+        err: true,
+      });
+    }
     setState(d.state ?? {});
     setTodaysClients((d.todaysClients ?? []).map((c) => String(c).trim()).filter(Boolean));
     setProjects(ps);
@@ -261,7 +285,7 @@ function ConfirmPage() {
       }
       return next;
     });
-  }, []);
+  }, [optReconcile]);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -290,17 +314,19 @@ function ConfirmPage() {
     })();
   }, [load]);
 
-  // Group projects by client, in todaysClients order.
+  // Group projects by client, in todaysClients order. Projects whose deletion
+  // has been submitted are withheld until the server stops sending them.
   const grouped = useMemo(() => {
     const map: Record<string, Project[]> = {};
     for (const c of todaysClients) map[c] = [];
     for (const p of projects) {
       if (!p.client) continue;
+      if (p.projectId && committedDeletes.has(p.projectId)) continue;
       if (!map[p.client]) map[p.client] = [];
       map[p.client].push(p);
     }
     return map;
-  }, [projects, todaysClients]);
+  }, [projects, todaysClients, committedDeletes]);
 
   // A card is "handled" (hidden) when deleted, skipped, or explicitly confirmed.
   // Submit surfaces only when zero reviewable cards remain.
@@ -595,6 +621,9 @@ function ConfirmPage() {
         err: false,
       });
       if (json.state) setState(json.state);
+      // Hand the staged deletions to the optimistic store before clearing them,
+      // so the reload below cannot resurrect what was just deleted.
+      for (const id of deletes) if (id) optDecide("deleted", id);
       setDeletes(new Set());
       setNewByClient({});
       // Reload to reflect authoritative server state
@@ -612,7 +641,7 @@ function ConfirmPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [projects, edits, deletes, newByClient, sendText, load]);
+  }, [projects, edits, deletes, newByClient, sendText, load, optDecide]);
 
   if (!allowed) return null;
 
