@@ -6,6 +6,7 @@ import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
 import { sessionCache } from "../lib/session-cache";
+import { useOptimistic } from "../lib/optimistic";
 import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
 import { PayrollConfirm } from "../components/PayrollConfirm";
@@ -118,8 +119,40 @@ type LoadingItem = {
 
 function useLoadingSnapshot(enabled: boolean) {
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
-  const [items, setItems] = useState<LoadingItem[]>([]);
+  // Raw server truth. Ticks every POLL_MS and replaces the list wholesale, so
+  // it must never be the thing a checkbox reads: see `items` below.
+  const [rawItems, setRawItems] = useState<LoadingItem[]>([]);
   const [ready, setReady] = useState(false);
+
+  // A tick that lands before setLoaded is readable used to flip a just-ticked
+  // box back. Toggles are held here until the payload agrees.
+  const {
+    records: optRecords,
+    decide: optDecide,
+    revert: optRevert,
+    reconcile: optReconcile,
+  } = useOptimistic("field:loaded");
+  const loadedOverride = useMemo(() => {
+    const out: Record<string, boolean> = {};
+    for (const r of optRecords) if (r.kind === "loaded") out[r.id] = r.value === true;
+    return out;
+  }, [optRecords]);
+
+  const items = useMemo(
+    () =>
+      rawItems.map((it) =>
+        it.materialId && it.materialId in loadedOverride
+          ? { ...it, loaded: loadedOverride[it.materialId] }
+          : it,
+      ),
+    [rawItems, loadedOverride],
+  );
+
+  // Toggle needs the currently displayed value without depending on it.
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -159,7 +192,20 @@ function useLoadingSnapshot(enabled: boolean) {
           .filter(
             (it) => it.item && clientSet.has(it.client) && projectStatus[it.project] === "Confirmed",
           );
-        setItems(list);
+        const byId = new Map(list.map((i) => [i.materialId, i]));
+        const abandoned = optReconcile((r) => {
+          const it = byId.get(r.id);
+          if (!it) return true; // row gone from the checklist entirely
+          return it.loaded === (r.value === true);
+        });
+        if (abandoned.length) {
+          toast.warning(
+            abandoned.length === 1
+              ? "1 loading change may not have saved."
+              : `${abandoned.length} loading changes may not have saved.`,
+          );
+        }
+        setRawItems(list);
         setReady(true);
       } catch {
         /* keep last snapshot */
@@ -171,32 +217,31 @@ function useLoadingSnapshot(enabled: boolean) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [enabled]);
+  }, [enabled, optReconcile]);
 
-  const toggle = useCallback(async (row: number) => {
-    let prev = false;
-    let materialId = "";
-    setItems((cur) =>
-      cur.map((it) => {
-        if (it.row !== row) return it;
-        prev = it.loaded;
-        materialId = it.materialId;
-        return { ...it, loaded: !it.loaded };
-      }),
-    );
-    if (!materialId) return;
-    try {
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "setLoaded", materialId, row, loaded: !prev }),
-      });
-    } catch {
-      setItems((cur) =>
-        cur.map((it) => (it.row === row ? { ...it, loaded: prev } : it)),
-      );
-    }
-  }, []);
+  const toggle = useCallback(
+    async (row: number) => {
+      const it = itemsRef.current.find((x) => x.row === row);
+      if (!it || !it.materialId) return;
+      const next = !it.loaded;
+      // The record is the optimistic flip - no separate local mutation needed,
+      // and it now outlives the polls instead of being overwritten by them.
+      optDecide("loaded", it.materialId, next);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "setLoaded", materialId: it.materialId, row, loaded: next }),
+        });
+        // Previously only a thrown error rolled back, so an HTTP 500 read as success.
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      } catch {
+        optRevert("loaded", it.materialId);
+        toast.error("Couldn't save that item — try again.");
+      }
+    },
+    [optDecide, optRevert],
+  );
 
   const allLoaded = items.length === 0 || items.every((i) => i.loaded);
   return { confirmed, items, allLoaded, ready, toggle };
