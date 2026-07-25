@@ -24,6 +24,7 @@ import {
   MoreVertical,
   Maximize2,
   Minimize2,
+  Users,
   X,
 } from "lucide-react";
 import { Toaster } from "sonner";
@@ -363,6 +364,12 @@ function HamburgerMenu() {
 
   if (!effectiveRole) return null;
 
+  // Team assignment is office/lead/management (MASTERPLAN §5 failsafe). The
+  // spine's "Assign Teams" node only exists during HQ_LOADING, so this is the
+  // way in for the rest of the day.
+  const canAssignTeams =
+    effectiveRole === "office" || effectiveRole === "lead" || effectiveRole === "management";
+
   const layout = LAYOUTS[effectiveRole];
   // All tabs the role can see, excluding messages (rendered as floating FAB).
   const keys = [...layout.row, ...layout.more].filter((k) => k !== "messages");
@@ -472,6 +479,39 @@ function HamburgerMenu() {
                 </Link>
               );
             })}
+            {canAssignTeams && (
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  try {
+                    window.dispatchEvent(new CustomEvent("bv:open-team-setup"));
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "12px 14px",
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  borderTop: tabs.length > 0 ? "1px solid #2a2a2a" : "none",
+                  color: "#cfcfcf",
+                  fontFamily: "inherit",
+                  fontSize: 12,
+                  letterSpacing: 1.5,
+                  fontWeight: "bold",
+                  whiteSpace: "nowrap",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                <Users size={16} color="#cfcfcf" strokeWidth={2} />
+                <span style={{ flex: 1 }}>EDIT TEAMS</span>
+              </button>
+            )}
           </div>
         </>
       )}

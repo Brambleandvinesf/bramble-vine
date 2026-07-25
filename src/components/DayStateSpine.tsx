@@ -210,11 +210,13 @@ export function DayStateSpine() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const subRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const subRowRef = useRef<HTMLDivElement | null>(null);
   const [geom, setGeom] = useState<{
     w: number;
     h: number;
     anchors: { cx: number; cy: number; top: number }[];
     subs: { cx: number; cy: number; bottom: number }[];
+    subRowW: number;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -241,11 +243,17 @@ export function DayStateSpine() {
           bottom: r.bottom - c.top,
         };
       });
-      setGeom({ w: c.width, h: c.height, anchors, subs });
+      const subRowW = subRowRef.current
+        ? subRowRef.current.getBoundingClientRect().width
+        : 0;
+      setGeom({ w: c.width, h: c.height, anchors, subs, subRowW });
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(containerRef.current);
+    // The sub-row is absolutely positioned, so container resizes miss it; watch
+    // it directly or a late font load leaves a stale width behind.
+    if (subRowRef.current) ro.observe(subRowRef.current);
     window.addEventListener("resize", measure);
     return () => {
       ro.disconnect();
@@ -294,6 +302,25 @@ export function DayStateSpine() {
   const N = phases.length;
   const parentSize = 26;
   const subSize = 18;
+
+  // The sub-row wants to centre over its anchor, but the first and last anchors
+  // sit near the screen edges: centring a wide row over anchor 0 pushes its left
+  // edge negative and the container's overflow:hidden eats the first node
+  // (reported on a phone, 2026-07-24). Clamp the centre so the row always fits.
+  const SUB_ROW_PAD = 8;
+  const subRowPos: { left: number; transform: string } = (() => {
+    const cw = geom?.w ?? 0;
+    const rw = geom?.subRowW ?? 0;
+    // Before the first measurement, or when the row simply cannot fit, pin it to
+    // the left edge rather than letting it hang off into the clipped region.
+    if (!cw || !rw || rw + SUB_ROW_PAD * 2 >= cw) {
+      return { left: SUB_ROW_PAD, transform: "none" };
+    }
+    const desired = ((activeIdx + 0.5) / N) * cw;
+    const half = rw / 2;
+    const clamped = Math.min(Math.max(desired, half + SUB_ROW_PAD), cw - half - SUB_ROW_PAD);
+    return { left: clamped, transform: "translateX(-50%)" };
+  })();
 
   return (
     <>
@@ -558,16 +585,16 @@ export function DayStateSpine() {
             {/* Sub-row for active phase (centered above its anchor, clamped) */}
             {activeIdx >= 0 && activeSubs.length > 0 && (
               <div
+                ref={subRowRef}
                 style={{
                   position: "absolute",
                   top: 10,
-                  left: `${((activeIdx + 0.5) / N) * 100}%`,
-                  transform: "translateX(-50%)",
-                  maxWidth: "calc(100vw - 16px)",
+                  left: subRowPos.left,
+                  transform: subRowPos.transform,
+                  maxWidth: `calc(100% - ${SUB_ROW_PAD * 2}px)`,
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  padding: "0 8px",
                   whiteSpace: "nowrap",
                 }}
               >
