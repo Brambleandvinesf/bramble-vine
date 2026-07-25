@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, crewDayLA } from "../lib/auth";
 
 /**
- * Office-only once-daily team setup overlay.
- * - Fetches getTeamSetup on office sign-in.
- * - If teamsConfirmed → renders nothing.
- * - Otherwise shows a dismissible overlay ("×" closes for the session);
- *   reappears on next sign-in until confirmTeams is posted.
+ * Once-daily team setup overlay.
+ *
+ * Office keeps the original behaviour: getTeamSetup is fetched on sign-in and
+ * the overlay pops automatically until confirmTeams is posted (dismissible per
+ * session with "×"). Lead and management can also assign teams — the failsafe
+ * in MASTERPLAN §5 — but only on demand: they get no automatic pop-up, and the
+ * fetch is deferred until they actually tap "Assign Teams" in the spine.
  */
 
 const SCRIPT_URL =
@@ -64,66 +66,92 @@ export function OfficeTeamSetup() {
   const [showExcluded, setShowExcluded] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  const active = ready && !!user && role === "office";
+  const canAssignTeams = role === "office" || role === "lead" || role === "management";
+  const active = ready && !!user && canAssignTeams;
+  const autoOpens = role === "office";
   const didFetchRef = useRef(false);
 
+  const fetchSetup = useCallback(async (): Promise<TeamSetup | null> => {
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getTeamSetup`);
+      if (!res.ok) throw new Error(String(res.status));
+      return (await res.json()) as TeamSetup;
+    } catch (e) {
+      console.warn("[team-setup] load failed", e);
+      return null;
+    }
+  }, []);
+
+  const populate = useCallback((j: TeamSetup) => {
+    setSelected(new Set<string>(j.suggestedIds || []));
+    const t: Record<string, Team> = {};
+    for (const e of j.employees || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
+    for (const e of j.excluded || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
+    setTeams(t);
+    const ct: Record<string, string[]> = {};
+    for (const c of j.clients || []) ct[c.title] = (c.teams || []).map((x) => normTeam(x));
+    setClientTeams(ct);
+    setFieldPhoneId(j.fieldPhone?.id ?? null);
+  }, []);
+
+  // Office only: fetch on sign-in and pop the overlay until teams are confirmed.
   useEffect(() => {
-    if (!active) return;
+    if (!active || !autoOpens) return;
     if (didFetchRef.current) return;
     if (loaded) return;
     didFetchRef.current = true;
     let cancelled = false;
     (async () => {
-      try {
-        const res = await fetch(`${SCRIPT_URL}?action=getTeamSetup`);
-        if (!res.ok) throw new Error(String(res.status));
-        const j = (await res.json()) as TeamSetup;
-        if (cancelled) return;
-        setData(j);
-        setLoaded(true);
-        if (j.teamsConfirmed) return;
-        const dismissed = (() => {
-          try { return sessionStorage.getItem(dismissKey) === "1"; } catch { return false; }
-        })();
-        if (dismissed) return;
-
-        const sel = new Set<string>(j.suggestedIds || []);
-        setSelected(sel);
-        const t: Record<string, Team> = {};
-        for (const e of j.employees || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
-        for (const e of j.excluded || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
-        setTeams(t);
-        const ct: Record<string, string[]> = {};
-        for (const c of j.clients || []) ct[c.title] = (c.teams || []).map((x) => normTeam(x));
-        setClientTeams(ct);
-        setFieldPhoneId(j.fieldPhone?.id ?? null);
-        setOpen(true);
-      } catch (e) {
-        console.warn("[team-setup] load failed", e);
-        setLoaded(true);
-      }
+      const j = await fetchSetup();
+      if (cancelled) return;
+      setLoaded(true);
+      if (!j) return;
+      setData(j);
+      if (j.teamsConfirmed) return;
+      const dismissed = (() => {
+        try { return sessionStorage.getItem(dismissKey) === "1"; } catch { return false; }
+      })();
+      if (dismissed) return;
+      populate(j);
+      setOpen(true);
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, autoOpens]);
 
   const dismiss = useCallback(() => {
     try { sessionStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
     setOpen(false);
   }, [dismissKey]);
 
-  // Spine "team_assign" tap re-opens the overlay for office role, even if
-  // dismissed for the day, as long as we have data loaded.
+  // Spine "team_assign" tap opens the overlay for any role that may assign
+  // teams, even if dismissed for the day. Lead and management have not fetched
+  // yet at this point, so pull the data on demand. Always re-populate from the
+  // response so a reopened overlay reflects server truth rather than a stale
+  // or empty form.
   useEffect(() => {
     if (!active) return;
+    let cancelled = false;
     const onOpenReq = () => {
-      if (!loaded || !data) return;
-      try { sessionStorage.removeItem(dismissKey); } catch { /* ignore */ }
-      setOpen(true);
+      void (async () => {
+        let j = data;
+        if (!j) {
+          j = await fetchSetup();
+          if (cancelled || !j) return;
+          setData(j);
+          setLoaded(true);
+        }
+        try { sessionStorage.removeItem(dismissKey); } catch { /* ignore */ }
+        populate(j);
+        setOpen(true);
+      })();
     };
     window.addEventListener("bv:open-team-setup", onOpenReq);
-    return () => window.removeEventListener("bv:open-team-setup", onOpenReq);
-  }, [active, loaded, data, dismissKey]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("bv:open-team-setup", onOpenReq);
+    };
+  }, [active, data, dismissKey, fetchSetup, populate]);
 
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {

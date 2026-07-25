@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useDayState, type DayPhase } from "../lib/day-state";
-import { useAuth } from "../lib/auth";
+import { useAuth, type Role } from "../lib/auth";
+import { canSee } from "../lib/permissions";
 
 const LIME = "#7cff00";
 const LIME_DIM = "#2f5f10";
@@ -29,15 +30,64 @@ function anchorLabel(phase: DayPhase, client: string | null | undefined): string
   return "HQ";
 }
 
+// Roles whose screen follows the spine's active node automatically. The guided
+// linear day belongs to the field crew; office runs from schedule + messages
+// and management moves around freely, so neither gets yanked between screens.
+const FOLLOW_ROLES = new Set<Role>(["lead", "assistant"]);
+
+// Never pull the crew off these screens. When the day advances while they are
+// here, the spine glows instead (see nudge below) so the change is noticed
+// without stealing the screen out from under them.
+const NO_FOLLOW_FROM = new Set(["/messages", "/receipts"]);
+
+// "Glowfire": pulse the spine whenever the active node changes.
+//
+// TEMPORARY (2026-07-24) - true so the animation can be observed on every role
+// and every screen. Setting this back to false narrows it to its intended job:
+// glowing only for crew who were deliberately NOT navigated (see NO_FOLLOW_FROM).
+const GLOW_ON_EVERY_CHANGE = true;
+
+/**
+ * Where a followed role's screen belongs for a given sub-step.
+ *
+ * This deliberately mirrors the destination screens' own guards instead of
+ * reusing routeFor: /confirm bounces anyone without special_confirm (assistants)
+ * back to "/", and /loading redirects assistants to /field. Following those
+ * blindly would ping-pong the crew between screens. null means "leave it alone".
+ */
+function followTo(subStep: string, role: Role): string | null {
+  switch (subStep) {
+    case "team_assign":
+      return "/schedule";
+    case "dailyload_confirm":
+    case "special_confirm":
+      return canSee(role, "special_confirm") ? "/confirm" : null;
+    case "loading":
+      if (role === "assistant") return "/field";
+      return canSee(role, "loading") ? "/loading" : null;
+    case "enroute":
+    case "arrived":
+    case "visit":
+    case "debrief":
+    case "next":
+    case "unload":
+    case "confirm_hours":
+      return canSee(role, "route_enroute") ? "/field" : null;
+    default:
+      // signin, and anything the backend adds later: do not move the screen.
+      return null;
+  }
+}
+
 function routeFor(
   subStep: string,
-  isOffice: boolean,
+  canAssignTeams: boolean,
 ): { to?: string; event?: string } | null {
   switch (subStep) {
     case "signin":
       return { to: "/login" };
     case "team_assign":
-      return isOffice
+      return canAssignTeams
         ? { event: "bv:open-team-setup", to: "/schedule" }
         : { to: "/schedule" };
     case "dailyload_confirm":
@@ -93,17 +143,59 @@ export function DayStateSpine() {
   const state = useDayState();
   const router = useRouter();
   const { role } = useAuth();
-  const isOffice = role === "office";
+  const canAssignTeams = role === "office" || role === "lead" || role === "management";
 
   const [collapsed, setCollapsed] = useState(false);
+  const [nudge, setNudge] = useState(0);
+  const [nudging, setNudging] = useState(false);
   const lastKeyRef = useRef<string>("");
+  const followKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!state) return;
     const key = `${state.phase}:${state.subStep}`;
-    if (lastKeyRef.current && lastKeyRef.current !== key) setCollapsed(false);
+    if (lastKeyRef.current && lastKeyRef.current !== key) {
+      setCollapsed(false);
+      // Fires for every role on every screen while GLOW_ON_EVERY_CHANGE is on.
+      if (GLOW_ON_EVERY_CHANGE) setNudge((n) => n + 1);
+    }
     lastKeyRef.current = key;
   }, [state]);
+
+  // Keep the screen on the spine's active node. Only fires when the node
+  // actually changes, so a poll that returns identical state never navigates,
+  // and never on the first reading - that would fight the role landing routes.
+  useEffect(() => {
+    if (!state) return;
+    const key = `${state.phase}:${state.subStep}`;
+    const prev = followKeyRef.current;
+    if (prev === key) return;
+    followKeyRef.current = key;
+    if (!prev) return;
+    if (!role || !FOLLOW_ROLES.has(role)) return;
+
+    const to = followTo(state.subStep, role);
+    if (!to) return;
+    const here = router.state.location.pathname;
+    if (here === to) return;
+    if (NO_FOLLOW_FROM.has(here)) {
+      // Stay put, but glow the spine so the new state gets noticed. Skipped
+      // when GLOW_ON_EVERY_CHANGE already fired it for this change.
+      if (!GLOW_ON_EVERY_CHANGE) setNudge((n) => n + 1);
+      return;
+    }
+    // Navigates only. Advancing the day should move the screen, never throw a
+    // modal (such as team setup) over it unasked.
+    void router.navigate({ to });
+  }, [state, role, router]);
+
+  // Drives the one-shot glow. Keyed off a counter so repeated changes replay it.
+  useEffect(() => {
+    if (!nudge) return;
+    setNudging(true);
+    const t = window.setTimeout(() => setNudging(false), 2800);
+    return () => window.clearTimeout(t);
+  }, [nudge]);
 
   const phases = state?.phaseOrder ?? [];
   const activeIdx = state ? phases.indexOf(state.phase) : -1;
@@ -186,7 +278,7 @@ export function DayStateSpine() {
   }
 
   const onTap = (subStep: string) => {
-    const target = routeFor(subStep, isOffice);
+    const target = routeFor(subStep, canAssignTeams);
     if (!target) return;
     if (target.event) {
       try {
@@ -222,6 +314,13 @@ export function DayStateSpine() {
           from { stroke-dashoffset: 0; }
           to   { stroke-dashoffset: -28; }
         }
+        @keyframes bvSpineNudge {
+          0%   { box-shadow: 0 0 0 rgba(124,255,0,0); }
+          18%  { box-shadow: 0 -7px 22px rgba(124,255,0,0.6), 0 -2px 6px rgba(124,255,0,0.5); }
+          100% { box-shadow: 0 0 0 rgba(124,255,0,0); }
+        }
+        /* Animated box-shadow only: the bar's border/background are inline. */
+        .bv-spine-nudge { animation: bvSpineNudge 1.4s ease-out 2; }
         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
         .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
         .bv-spine-dot-blink { animation: bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
@@ -230,6 +329,7 @@ export function DayStateSpine() {
 
       <div
         aria-label="Day progress"
+        className={nudging ? "bv-spine-nudge" : undefined}
         style={{
           position: "fixed",
           bottom: 0,
@@ -474,7 +574,7 @@ export function DayStateSpine() {
                 {activeSubs.map((s, si) => {
                   const sStatus: Status =
                     si < currentSubIdx ? "done" : si === currentSubIdx ? "current" : "upcoming";
-                  const target = routeFor(s, isOffice);
+                  const target = routeFor(s, canAssignTeams);
                   const canTap = sStatus !== "upcoming" && !!target;
                   const setRef = (el: HTMLElement | null) => {
                     subRefs.current[si] = el as HTMLDivElement | null;

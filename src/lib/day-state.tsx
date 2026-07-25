@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { sessionCache } from "./session-cache";
 
 const SCRIPT_URL =
@@ -42,6 +51,7 @@ export function DayStateProvider({
   const [state, setState] = useState<DayState | null>(cached ?? null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [nonce, setNonce] = useState(0);
+  const sigRef = useRef<string>("");
 
   useEffect(() => {
     if (!enabled) return;
@@ -52,14 +62,30 @@ export function DayStateProvider({
         if (!res.ok) return;
         const json = (await res.json()) as DayState;
         if (cancelled) return;
-        // eslint-disable-next-line no-console
-        console.log("[dayState]", json);
         if (!json || !json.phase || !json.subSteps) return;
-        sessionCache.set(CK, json);
-        setState(json);
-        if (json.serverNow) {
-          const sn = Date.parse(json.serverNow);
-          if (!isNaN(sn)) setServerOffsetMs(sn - Date.now());
+
+        // serverNow ticks on every poll, so it is excluded from the change
+        // signature; including it would make every poll look like a change and
+        // re-render every consumer (field and schedule are the expensive ones).
+        const { serverNow, ...rest } = json;
+        const sig = JSON.stringify(rest);
+        if (sig !== sigRef.current) {
+          sigRef.current = sig;
+          sessionCache.set(CK, json);
+          setState(json);
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.log("[dayState]", json);
+          }
+        }
+
+        if (serverNow) {
+          const sn = Date.parse(serverNow);
+          if (!isNaN(sn)) {
+            const next = sn - Date.now();
+            // Sub-second drift is noise; re-rendering for it is not worth it.
+            setServerOffsetMs((prev) => (Math.abs(next - prev) > 1000 ? next : prev));
+          }
         }
       } catch {
         /* keep last known */
@@ -78,11 +104,15 @@ export function DayStateProvider({
     };
   }, [enabled, nonce]);
 
-  return (
-    <DayStateCtx.Provider value={{ state, serverOffsetMs, refresh: () => setNonce((n) => n + 1) }}>
-      {children}
-    </DayStateCtx.Provider>
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  // Memoised so provider re-renders alone cannot re-render every consumer.
+  const value = useMemo<Ctx>(
+    () => ({ state, serverOffsetMs, refresh }),
+    [state, serverOffsetMs, refresh],
   );
+
+  return <DayStateCtx.Provider value={value}>{children}</DayStateCtx.Provider>;
 }
 
 export function useDayState(): DayState | null {
