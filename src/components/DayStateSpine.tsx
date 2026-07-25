@@ -227,7 +227,8 @@ export function DayStateSpine() {
       const el = containerRef.current;
       if (!el) return;
       const c = el.getBoundingClientRect();
-      const anchors = anchorRefs.current.map((n) => {
+      const anchors = phases.map((_, i) => {
+        const n = anchorRefs.current[i];
         if (!n) return { cx: 0, cy: 0, top: 0 };
         const r = n.getBoundingClientRect();
         return {
@@ -236,20 +237,28 @@ export function DayStateSpine() {
           top: r.top - c.top,
         };
       });
-      const subs = subRefs.current.map((n) => {
+      // Iterate the current sub-steps, not the ref array: that array never
+      // shrinks, so after a phase with fewer sub-steps (unloading has 2 against
+      // a visit's 5) its stale tail made subs.length disagree with
+      // activeSubs.length, and the connector block silently drew nothing.
+      const subs = activeSubs.map((_, i) => {
+        const n = subRefs.current[i];
         if (!n) return { cx: 0, cy: 0, bottom: 0, hw: 0, hh: 0 };
         const r = n.getBoundingClientRect();
-        return {
-          cx: r.left + r.width / 2 - c.left,
-          cy: r.top + r.height / 2 - c.top,
-          bottom: r.bottom - c.top,
-          hw: r.width / 2,
-          hh: r.height / 2,
-        };
+        // Centres come from the visual box: scale is centre-origin, so they hold
+        // still while the capsule inflates. Extents must come from the LAYOUT box
+        // (offsetWidth ignores transforms). The capsule mounts under a
+        // scale(0.85) keyframe with fill "both", so it is already scaled at this
+        // first measurement, and a ResizeObserver never fires for a transform -
+        // a visual-box reading would stay 15% short for the rest of the day.
+        const hw = (n.offsetWidth || r.width) / 2;
+        const hh = (n.offsetHeight || r.height) / 2;
+        const cx = r.left + r.width / 2 - c.left;
+        const cy = r.top + r.height / 2 - c.top;
+        return { cx, cy, bottom: cy + hh, hw, hh };
       });
-      const subRowW = subRowRef.current
-        ? subRowRef.current.getBoundingClientRect().width
-        : 0;
+      // Layout width again, for the same reason as the sub extents above.
+      const subRowW = subRowRef.current ? subRowRef.current.offsetWidth : 0;
       setGeom({ w: c.width, h: c.height, anchors, subs, subRowW });
     };
     measure();
@@ -263,7 +272,7 @@ export function DayStateSpine() {
       ro.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [state, collapsed, activeSubs.length, currentSubIdx, activeIdx, phases.length]);
+  }, [state, collapsed, activeSubs, currentSubIdx, activeIdx, phases]);
 
   if (!state || phases.length === 0) {
     return (
