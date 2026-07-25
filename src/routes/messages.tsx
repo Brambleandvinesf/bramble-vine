@@ -12,6 +12,7 @@ import { Volume2, VolumeX, RotateCw, Smile, X, Send, Check, Trash2, FolderPlus, 
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
+import { useOptimistic } from "../lib/optimistic";
 import { setBadge, BK } from "../lib/badges";
 import { RefreshDot } from "../components/RefreshDot";
 import { useAuth } from "../lib/auth";
@@ -349,10 +350,29 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [route, setRoute] = useState<RouteInfo>(() => cached?.route ?? {});
 
 
-  // Optimistic
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const [removed, setRemoved] = useState<Set<string>>(new Set());
-  const [awaitingOverride, setAwaitingOverride] = useState<Record<string, boolean>>({});
+  // Optimistic. Backed by useOptimistic so a poll that raced the write cannot
+  // resurrect a handled row; see src/lib/optimistic.ts. The three views below
+  // keep the same shapes the rest of this screen already reads.
+  const optimistic = useOptimistic(`inbox:${(email || "anon").trim().toLowerCase()}`);
+  const {
+    records: optRecords,
+    decide: optDecide,
+    revert: optRevert,
+    reconcile: optReconcile,
+  } = optimistic;
+  const hidden = useMemo(
+    () => new Set(optRecords.filter((r) => r.kind === "hidden").map((r) => r.id)),
+    [optRecords],
+  );
+  const removed = useMemo(
+    () => new Set(optRecords.filter((r) => r.kind === "removed").map((r) => r.id)),
+    [optRecords],
+  );
+  const awaitingOverride = useMemo(() => {
+    const out: Record<string, boolean> = {};
+    for (const r of optRecords) if (r.kind === "awaiting") out[r.id] = r.value === true;
+    return out;
+  }, [optRecords]);
   const [staged, setStaged] = useState<Record<string, Attachment[]>>({});
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(getConfirmedIds);
 
@@ -520,16 +540,36 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       setFeedError(false);
       setFeedLoaded(true);
       setOffline(false);
-      // clear optimistic sets on fresh load: rows that are actually gone stay gone,
-      // rows the server still sends are visible again
-      setHidden(new Set());
-      setRemoved(new Set());
-      setAwaitingOverride({});
+      // Reconcile optimistic decisions against this payload rather than wiping
+      // them. Wiping assumed the payload was always current, but Sheets writes
+      // are not immediately readable, so a poll that raced a write used to bring
+      // handled rows straight back. A decision now survives until the server
+      // agrees with it, or until it has been contradicted for too long to be
+      // believable - and that case is reported rather than swallowed.
+      const serverById = new Map(its.map((i) => [i.id, i]));
+      const abandoned = optReconcile((r) => {
+        const it = serverById.get(r.id);
+        if (!it) return true; // gone from the feed: nothing left to suppress
+        if (r.kind === "removed") return false; // still sent, so still needed
+        if (r.kind === "hidden") return !it.awaiting;
+        if (r.kind === "awaiting") return it.awaiting === (r.value === true);
+        return false;
+      });
+      if (abandoned.length) {
+        // Worded as "may not" on purpose: all we know is the server kept
+        // disagreeing for two minutes, not that the write definitely failed.
+        flash(
+          abandoned.length === 1
+            ? "1 change may not have saved — showing the server's version."
+            : `${abandoned.length} changes may not have saved — showing the server's version.`,
+          true,
+        );
+      }
       detectNew(its);
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew, email, viewAll, cacheKey]);
+  }, [detectNew, email, viewAll, cacheKey, optReconcile, flash]);
 
   const safeLoad = useCallback(async () => {
     try {
@@ -734,17 +774,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
 
 
   /* ---- optimistic helpers ---- */
-  const hideId = useCallback((id: string) => setHidden((s) => new Set(s).add(id)), []);
-  const unhideId = useCallback(
-    (id: string) =>
-      setHidden((s) => {
-        const n = new Set(s);
-        n.delete(id);
-        return n;
-      }),
-    [],
-  );
-  const removeId = useCallback((id: string) => setRemoved((s) => new Set(s).add(id)), []);
+  const hideId = useCallback((id: string) => optDecide("hidden", id), [optDecide]);
+  const unhideId = useCallback((id: string) => optRevert("hidden", id), [optRevert]);
+  const removeId = useCallback((id: string) => optDecide("removed", id), [optDecide]);
 
   /* ---- reply ---- */
   const sendReply = useCallback(
@@ -758,7 +790,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       const wasAwaiting = !!it.awaiting;
       // optimistic
       opts?.onClearField?.();
-      setAwaitingOverride((s) => ({ ...s, [it.id]: false }));
+      optDecide("awaiting", it.id, false);
       setStaged((s) => {
         const n = { ...s };
         delete n[it.threadId];
@@ -783,8 +815,9 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
         if (res.warning) flash("Replied to " + it.from + " \u2713 (" + res.warning + ")", true);
         return true;
       }
-      // rollback
-      setAwaitingOverride((s) => ({ ...s, [it.id]: wasAwaiting }));
+      // rollback: drop the override so the server's own value shows through
+      optRevert("awaiting", it.id);
+      void wasAwaiting;
       if (attachments.length) setStaged((s) => ({ ...s, [it.threadId]: attachments }));
       if (opts?.fromViewer) setVReply(t);
       flash("Message NOT sent to " + it.from + "!", true);
