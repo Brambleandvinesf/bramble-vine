@@ -24,11 +24,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * Records are persisted per scope, so a reload or a re-mount does not
  * resurrect anything either.
  */
+/** JSON-safe scalars only, so records survive a round trip through storage. */
+export type OptimisticValue = string | number | boolean;
+
 export type OptimisticRecord = {
   kind: string;
   id: string;
   /** Decided value. Defaults to true, which is all a hide/remove needs. */
-  value?: boolean;
+  value?: OptimisticValue;
   /** Epoch ms the decision was made, for TTL. */
   at: number;
 };
@@ -66,7 +69,7 @@ export type Optimistic = {
   /** Live records. Build screen-shaped views off this with useMemo. */
   records: OptimisticRecord[];
   /** Record a choice. Re-deciding the same kind+id restarts its TTL. */
-  decide: (kind: string, id: string, value?: boolean) => void;
+  decide: (kind: string, id: string, value?: OptimisticValue) => void;
   /** Drop a choice - use when the POST came back not-ok. */
   revert: (kind: string, id: string) => void;
   /**
@@ -106,7 +109,7 @@ export function useOptimistic(scope: string, ttlMs: number = OPTIMISTIC_TTL_MS):
   }, [scope, records]);
 
   const decide = useCallback(
-    (kind: string, id: string, value: boolean = true) => {
+    (kind: string, id: string, value: OptimisticValue = true) => {
       const kept = ref.current.filter((r) => !(r.kind === kind && r.id === id));
       commit([...kept, { kind, id, value, at: Date.now() }]);
     },

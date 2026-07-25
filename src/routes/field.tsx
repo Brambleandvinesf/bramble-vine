@@ -461,6 +461,12 @@ function FieldPage() {
     if (search.step) setPreviewStep(search.step);
   }, [search.step]);
 
+  const {
+    records: routeRecords,
+    decide: routeDecide,
+    revert: routeRevert,
+    reconcile: routeReconcile,
+  } = useOptimistic("field:route");
   const [data, setData] = useState<GetFieldResponse | null>(
     () => sessionCache.get<GetFieldResponse>(CK) ?? null,
   );
@@ -478,6 +484,19 @@ function FieldPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as GetFieldResponse;
       sessionCache.set(CK, json);
+      const srvRoute = json.route ?? {};
+      const abandoned = routeReconcile((r) => {
+        if (r.kind === "route:state") return srvRoute.state === r.value;
+        if (r.kind === "route:stopIndex") return (srvRoute.stopIndex ?? 0) === r.value;
+        if (r.kind === "route:delegated") return !!srvRoute.delegated === (r.value === true);
+        return false;
+      });
+      if (abandoned.length) {
+        setBanner({
+          kind: "err",
+          text: "That step may not have saved — showing the server's version.",
+        });
+      }
       setData(json);
       setLoadErr(null);
       setOffline(false);
@@ -487,7 +506,7 @@ function FieldPage() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [routeReconcile]);
 
   useEffect(() => {
     if (!canSeeField) return;
@@ -500,9 +519,31 @@ function FieldPage() {
     };
   }, [canSeeField, fetchOnce]);
 
+  // Route progression is the laggiest thing in the app: every setRoute waited on
+  // the next 10s getField before the screen moved, and a poll that raced the
+  // write could bounce it back. Recording the patch here shows it immediately
+  // and holds it until getField agrees. Wrapping send rather than the seven
+  // call sites means children calling send(...) get this too.
+  const routePatchOf = useCallback((body: unknown): Partial<RouteDoc> | null => {
+    if (!body || typeof body !== "object") return null;
+    const b = body as Record<string, unknown>;
+    if (b.action !== "setRoute") return null;
+    const patch: Partial<RouteDoc> = {};
+    if (typeof b.state === "string") patch.state = b.state as RouteState;
+    if (typeof b.stopIndex === "number") patch.stopIndex = b.stopIndex;
+    if (typeof b.delegated === "boolean") patch.delegated = b.delegated;
+    return Object.keys(patch).length ? patch : null;
+  }, []);
+
   const send = useCallback(
     async (body: unknown, opts?: { silent?: boolean }): Promise<{ ok: boolean; raw: unknown }> => {
       if (isPreview) return { ok: false, raw: null };
+      const patch = routePatchOf(body);
+      if (patch) {
+        if (patch.state !== undefined) routeDecide("route:state", "current", patch.state);
+        if (patch.stopIndex !== undefined) routeDecide("route:stopIndex", "current", patch.stopIndex);
+        if (patch.delegated !== undefined) routeDecide("route:delegated", "current", patch.delegated);
+      }
       setBusy(true);
       const r = await postScript(body);
       setBusy(false);
@@ -512,16 +553,40 @@ function FieldPage() {
         setBanner(null);
         void fetchOnce();
       }
+      if (patch && !r.ok) {
+        // The move did not happen; drop the overlay so the screen goes back.
+        if (patch.state !== undefined) routeRevert("route:state", "current");
+        if (patch.stopIndex !== undefined) routeRevert("route:stopIndex", "current");
+        if (patch.delegated !== undefined) routeRevert("route:delegated", "current");
+      }
       return { ok: r.ok, raw: r.raw };
     },
-    [fetchOnce, isPreview],
+    [fetchOnce, isPreview, routePatchOf, routeDecide, routeRevert],
   );
+
+  // What the screen renders: server data with any un-confirmed route move laid
+  // over it. Everything below reads this, so the whole subtree moves at once.
+  const view = useMemo<GetFieldResponse | null>(() => {
+    if (!data) return null;
+    const patch: Partial<RouteDoc> = {};
+    for (const r of routeRecords) {
+      if (r.kind === "route:state" && typeof r.value === "string") patch.state = r.value as RouteState;
+      if (r.kind === "route:stopIndex" && typeof r.value === "number") patch.stopIndex = r.value;
+      if (r.kind === "route:delegated" && typeof r.value === "boolean") patch.delegated = r.value;
+    }
+    if (!Object.keys(patch).length) return data;
+    return { ...data, route: { ...(data.route ?? {}), ...patch } };
+  }, [data, routeRecords]);
 
   if (!canSeeField) return null;
 
   return (
     <div style={PAGE}>
-      <TopBar user={user} state={previewState ?? data?.route?.state} delegated={!!data?.route?.delegated} />
+      <TopBar
+        user={user}
+        state={previewState ?? view?.route?.state}
+        delegated={!!view?.route?.delegated}
+      />
       {(refreshing || offline) && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 12px 0" }}>
           <RefreshDot refreshing={refreshing} offline={offline} />
@@ -544,9 +609,9 @@ function FieldPage() {
       )}
       {loadErr && !data && <div style={STATE}>Loading field data…<br /><span style={{ color: RED }}>{loadErr}</span></div>}
       {!loadErr && !data && <div style={STATE}>Loading…</div>}
-      {data && (
+      {view && (
         <FieldBody
-          data={data}
+          data={view}
           now={now}
           send={send}
           busy={busy}
