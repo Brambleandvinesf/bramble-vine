@@ -61,54 +61,67 @@ export function useBadgePoller({ email, canMessages, canReceipts, canVisits }: P
     if (!email) return;
     let cancelled = false;
 
-    const tick = async () => {
+    // These three counts are independent, but used to be awaited in sequence, so
+    // a role with all three paid three Apps Script round trips end to end - the
+    // slowest thing on first paint. They now run together. Each keeps its own
+    // try/catch, which also means one failure cannot cancel the others the way a
+    // bare Promise.all would.
+    const countInbox = async () => {
       const e = email.trim().toLowerCase();
-      if (canMessages) {
-        try {
-          const r = await fetch(`${SCRIPT_URL}?action=getInbox&email=${encodeURIComponent(e)}`);
-          const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
-          const n = (j.inbox ?? []).filter((i) => !!i.awaiting).length;
-          if (!cancelled) setBadge(BK.inbox, n);
-        } catch {
-          /* keep last value */
-        }
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getInbox&email=${encodeURIComponent(e)}`);
+        const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
+        const n = (j.inbox ?? []).filter((i) => !!i.awaiting).length;
+        if (!cancelled) setBadge(BK.inbox, n);
+      } catch {
+        /* keep last value */
       }
-      if (canVisits) {
-        try {
-          const r = await fetch(`${SCRIPT_URL}?action=getQueue`);
-          const j = (await r.json()) as {
-            queue?: Array<{ status?: string; Status?: string }>;
-          };
-          const n = (j.queue ?? []).filter((row) => {
-            const s = String(row.status ?? row.Status ?? "").trim().toLowerCase();
-            return s === "" || s === "pending";
-          }).length;
-          if (!cancelled) setBadge(BK.visits, n);
-        } catch {
-          /* keep last value */
-        }
+    };
+
+    const countVisits = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getQueue`);
+        const j = (await r.json()) as {
+          queue?: Array<{ status?: string; Status?: string }>;
+        };
+        const n = (j.queue ?? []).filter((row) => {
+          const s = String(row.status ?? row.Status ?? "").trim().toLowerCase();
+          return s === "" || s === "pending";
+        }).length;
+        if (!cancelled) setBadge(BK.visits, n);
+      } catch {
+        /* keep last value */
       }
-      if (canReceipts) {
-        try {
-          const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
-          const j = (await r.json()) as {
-            lines?: Array<{
-              finalDesignation?: string;
-              ["Final designation"]?: string;
-              invoiced?: string;
-              Invoiced?: string;
-            }>;
-          };
-          const n = (j.lines ?? []).filter((l) => {
-            const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
-            const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
-            return !fd && !inv;
-          }).length;
-          if (!cancelled) setBadge(BK.receipts, n);
-        } catch {
-          /* keep last value */
-        }
+    };
+
+    const countReceipts = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+        const j = (await r.json()) as {
+          lines?: Array<{
+            finalDesignation?: string;
+            ["Final designation"]?: string;
+            invoiced?: string;
+            Invoiced?: string;
+          }>;
+        };
+        const n = (j.lines ?? []).filter((l) => {
+          const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
+          const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
+          return !fd && !inv;
+        }).length;
+        if (!cancelled) setBadge(BK.receipts, n);
+      } catch {
+        /* keep last value */
       }
+    };
+
+    const tick = async () => {
+      const jobs: Array<Promise<void>> = [];
+      if (canMessages) jobs.push(countInbox());
+      if (canVisits) jobs.push(countVisits());
+      if (canReceipts) jobs.push(countReceipts());
+      await Promise.all(jobs);
     };
 
     void tick();

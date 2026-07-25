@@ -4,6 +4,10 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { confirmModal } from "../components/ConfirmModal";
+import { sessionCache } from "../lib/session-cache";
+
+/** Queue payload cache, so re-entering the screen paints from the last one. */
+const CK = "visits:getQueue";
 
 export const Route = createFileRoute("/visits")({
   head: () => ({
@@ -106,12 +110,29 @@ function VisitsPage() {
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
-  const [rows, setRows] = useState<QueueRow[] | null>(null);
-  const [clients, setClients] = useState<string[]>([]);
-  const [lastYes, setLastYes] = useState<string | null>(null);
+  // Stale-while-revalidate: paint the last payload immediately, then refresh in
+  // the background. Without this the screen sat on "Loading…" for a full Apps
+  // Script round trip every single time it was opened.
+  const cached = sessionCache.get<QueueResponse>(CK) ?? null;
+  const [rows, setRows] = useState<QueueRow[] | null>(
+    cached ? (cached.queue ?? []).map(normalizeRow) : null,
+  );
+  const [clients, setClients] = useState<string[]>(
+    cached ? (cached.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean) : [],
+  );
+  const [lastYes, setLastYes] = useState<string | null>(
+    cached?.lastYes ? String(cached.lastYes) : null,
+  );
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
-  const [cards, setCards] = useState<Record<string, CardState>>({});
+  const [cards, setCards] = useState<Record<string, CardState>>(() => {
+    if (!cached) return {};
+    const out: Record<string, CardState> = {};
+    for (const r of (cached.queue ?? []).map(normalizeRow)) {
+      out[r.eventId] = { text: r.draft, busy: false, sent: false, flash: null };
+    }
+    return out;
+  });
   const [suppressGate, setSuppressGate] = useState(false);
   const [forceGate, setForceGate] = useState(false);
   const [yesBusy, setYesBusy] = useState(false);
@@ -155,6 +176,7 @@ function VisitsPage() {
     const res = await fetch(`${SCRIPT_URL}?action=getQueue`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as QueueResponse;
+    sessionCache.set(CK, json);
     applyQueue(json);
     return json;
   }, [applyQueue]);
@@ -163,10 +185,17 @@ function VisitsPage() {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
     (async () => {
+      setReloading(true);
       try {
         await loadQueue();
       } catch (e) {
-        setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        // With a cached payload on screen, a failed refresh is not a dead end:
+        // keep showing what we have rather than replacing it with an error.
+        if (!sessionCache.has(CK)) {
+          setLoadErr(e instanceof Error ? e.message : "Failed to load");
+        }
+      } finally {
+        setReloading(false);
       }
     })();
   }, [loadQueue]);
