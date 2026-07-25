@@ -215,7 +215,9 @@ export function DayStateSpine() {
     w: number;
     h: number;
     anchors: { cx: number; cy: number; top: number }[];
-    subs: { cx: number; cy: number; bottom: number }[];
+    // hw/hh are half extents: sub-nodes are 18px circles except the current one,
+    // which is a text capsule an order of magnitude wider.
+    subs: { cx: number; cy: number; bottom: number; hw: number; hh: number }[];
     subRowW: number;
   } | null>(null);
 
@@ -235,12 +237,14 @@ export function DayStateSpine() {
         };
       });
       const subs = subRefs.current.map((n) => {
-        if (!n) return { cx: 0, cy: 0, bottom: 0 };
+        if (!n) return { cx: 0, cy: 0, bottom: 0, hw: 0, hh: 0 };
         const r = n.getBoundingClientRect();
         return {
           cx: r.left + r.width / 2 - c.left,
           cy: r.top + r.height / 2 - c.top,
           bottom: r.bottom - c.top,
+          hw: r.width / 2,
+          hh: r.height / 2,
         };
       });
       const subRowW = subRowRef.current
@@ -308,6 +312,9 @@ export function DayStateSpine() {
   // edge negative and the container's overflow:hidden eats the first node
   // (reported on a phone, 2026-07-24). Clamp the centre so the row always fits.
   const SUB_ROW_PAD = 8;
+  // Connectors are drawn edge-to-edge, so this gap is the only room they have.
+  // At the old value of 10 they came out as 4px stubs once the overlap was fixed.
+  const SUB_ROW_GAP = 18;
   const subRowPos: { left: number; transform: string } = (() => {
     const cw = geom?.w ?? 0;
     const rw = geom?.subRowW ?? 0;
@@ -545,8 +552,16 @@ export function DayStateSpine() {
                 {activeSubs.length > 1 &&
                   geom.subs.length === activeSubs.length &&
                   (() => {
-                    const r = subSize / 2;
-                    const gap = 2;
+                    const gap = 3;
+                    // Distance from a node's centre to where the connector leaves
+                    // its box. Using a fixed radius here drew the line straight
+                    // over the current node, which is a wide capsule, not a dot.
+                    const edgeDist = (hw: number, hh: number, ux: number, uy: number) => {
+                      const tx = Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity;
+                      const ty = Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity;
+                      const t = Math.min(tx, ty);
+                      return Number.isFinite(t) ? t : Math.max(hw, hh);
+                    };
                     const segs: React.ReactNode[] = [];
                     for (let i = 0; i < geom.subs.length - 1; i++) {
                       const a = geom.subs[i];
@@ -558,11 +573,15 @@ export function DayStateSpine() {
                       const len = Math.hypot(dx, dy) || 1;
                       const ux = dx / len;
                       const uy = dy / len;
-                      const off = r + gap;
-                      const x1 = a.cx + ux * off;
-                      const y1 = a.cy + uy * off;
-                      const x2 = b.cx - ux * off;
-                      const y2 = b.cy - uy * off;
+                      const offA = edgeDist(a.hw, a.hh, ux, uy) + gap;
+                      const offB = edgeDist(b.hw, b.hh, ux, uy) + gap;
+                      // Adjacent nodes can sit closer than their two insets;
+                      // drawing then would render a backwards line.
+                      if (offA + offB >= len) continue;
+                      const x1 = a.cx + ux * offA;
+                      const y1 = a.cy + uy * offA;
+                      const x2 = b.cx - ux * offB;
+                      const y2 = b.cy - uy * offB;
                       segs.push(
                         <line
                           key={`sub-seg-${i}`}
@@ -594,7 +613,7 @@ export function DayStateSpine() {
                   maxWidth: `calc(100% - ${SUB_ROW_PAD * 2}px)`,
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
+                  gap: SUB_ROW_GAP,
                   whiteSpace: "nowrap",
                 }}
               >
