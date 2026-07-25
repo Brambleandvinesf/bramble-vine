@@ -1,0 +1,423 @@
+diff --git a/src/components/DayStateSpine.tsx b/src/components/DayStateSpine.tsx
+index 9e42cfb..5e92f31 100644
+--- a/src/components/DayStateSpine.tsx
++++ b/src/components/DayStateSpine.tsx
+@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+ import { useRouter } from "@tanstack/react-router";
+ import { ChevronUp, ChevronDown } from "lucide-react";
+ import { useDayState, type DayPhase } from "../lib/day-state";
+-import { useAuth } from "../lib/auth";
++import { useAuth, type Role } from "../lib/auth";
++import { canSee } from "../lib/permissions";
+ 
+ const LIME = "#7cff00";
+ const LIME_DIM = "#2f5f10";
+@@ -29,15 +30,64 @@ function anchorLabel(phase: DayPhase, client: string | null | undefined): string
+   return "HQ";
+ }
+ 
++// Roles whose screen follows the spine's active node automatically. The guided
++// linear day belongs to the field crew; office runs from schedule + messages
++// and management moves around freely, so neither gets yanked between screens.
++const FOLLOW_ROLES = new Set<Role>(["lead", "assistant"]);
++
++// Never pull the crew off these screens. When the day advances while they are
++// here, the spine glows instead (see nudge below) so the change is noticed
++// without stealing the screen out from under them.
++const NO_FOLLOW_FROM = new Set(["/messages", "/receipts"]);
++
++// "Glowfire": pulse the spine whenever the active node changes.
++//
++// TEMPORARY (2026-07-24) - true so the animation can be observed on every role
++// and every screen. Setting this back to false narrows it to its intended job:
++// glowing only for crew who were deliberately NOT navigated (see NO_FOLLOW_FROM).
++const GLOW_ON_EVERY_CHANGE = true;
++
++/**
++ * Where a followed role's screen belongs for a given sub-step.
++ *
++ * This deliberately mirrors the destination screens' own guards instead of
++ * reusing routeFor: /confirm bounces anyone without special_confirm (assistants)
++ * back to "/", and /loading redirects assistants to /field. Following those
++ * blindly would ping-pong the crew between screens. null means "leave it alone".
++ */
++function followTo(subStep: string, role: Role): string | null {
++  switch (subStep) {
++    case "team_assign":
++      return "/schedule";
++    case "dailyload_confirm":
++    case "special_confirm":
++      return canSee(role, "special_confirm") ? "/confirm" : null;
++    case "loading":
++      if (role === "assistant") return "/field";
++      return canSee(role, "loading") ? "/loading" : null;
++    case "enroute":
++    case "arrived":
++    case "visit":
++    case "debrief":
++    case "next":
++    case "unload":
++    case "confirm_hours":
++      return canSee(role, "route_enroute") ? "/field" : null;
++    default:
++      // signin, and anything the backend adds later: do not move the screen.
++      return null;
++  }
++}
++
+ function routeFor(
+   subStep: string,
+-  isOffice: boolean,
++  canAssignTeams: boolean,
+ ): { to?: string; event?: string } | null {
+   switch (subStep) {
+     case "signin":
+       return { to: "/login" };
+     case "team_assign":
+-      return isOffice
++      return canAssignTeams
+         ? { event: "bv:open-team-setup", to: "/schedule" }
+         : { to: "/schedule" };
+     case "dailyload_confirm":
+@@ -93,18 +143,60 @@ export function DayStateSpine() {
+   const state = useDayState();
+   const router = useRouter();
+   const { role } = useAuth();
+-  const isOffice = role === "office";
++  const canAssignTeams = role === "office" || role === "lead" || role === "management";
+ 
+   const [collapsed, setCollapsed] = useState(false);
++  const [nudge, setNudge] = useState(0);
++  const [nudging, setNudging] = useState(false);
+   const lastKeyRef = useRef<string>("");
++  const followKeyRef = useRef<string>("");
+ 
+   useEffect(() => {
+     if (!state) return;
+     const key = `${state.phase}:${state.subStep}`;
+-    if (lastKeyRef.current && lastKeyRef.current !== key) setCollapsed(false);
++    if (lastKeyRef.current && lastKeyRef.current !== key) {
++      setCollapsed(false);
++      // Fires for every role on every screen while GLOW_ON_EVERY_CHANGE is on.
++      if (GLOW_ON_EVERY_CHANGE) setNudge((n) => n + 1);
++    }
+     lastKeyRef.current = key;
+   }, [state]);
+ 
++  // Keep the screen on the spine's active node. Only fires when the node
++  // actually changes, so a poll that returns identical state never navigates,
++  // and never on the first reading - that would fight the role landing routes.
++  useEffect(() => {
++    if (!state) return;
++    const key = `${state.phase}:${state.subStep}`;
++    const prev = followKeyRef.current;
++    if (prev === key) return;
++    followKeyRef.current = key;
++    if (!prev) return;
++    if (!role || !FOLLOW_ROLES.has(role)) return;
++
++    const to = followTo(state.subStep, role);
++    if (!to) return;
++    const here = router.state.location.pathname;
++    if (here === to) return;
++    if (NO_FOLLOW_FROM.has(here)) {
++      // Stay put, but glow the spine so the new state gets noticed. Skipped
++      // when GLOW_ON_EVERY_CHANGE already fired it for this change.
++      if (!GLOW_ON_EVERY_CHANGE) setNudge((n) => n + 1);
++      return;
++    }
++    // Navigates only. Advancing the day should move the screen, never throw a
++    // modal (such as team setup) over it unasked.
++    void router.navigate({ to });
++  }, [state, role, router]);
++
++  // Drives the one-shot glow. Keyed off a counter so repeated changes replay it.
++  useEffect(() => {
++    if (!nudge) return;
++    setNudging(true);
++    const t = window.setTimeout(() => setNudging(false), 2800);
++    return () => window.clearTimeout(t);
++  }, [nudge]);
++
+   const phases = state?.phaseOrder ?? [];
+   const activeIdx = state ? phases.indexOf(state.phase) : -1;
+ 
+@@ -186,7 +278,7 @@ export function DayStateSpine() {
+   }
+ 
+   const onTap = (subStep: string) => {
+-    const target = routeFor(subStep, isOffice);
++    const target = routeFor(subStep, canAssignTeams);
+     if (!target) return;
+     if (target.event) {
+       try {
+@@ -222,6 +314,13 @@ export function DayStateSpine() {
+           from { stroke-dashoffset: 0; }
+           to   { stroke-dashoffset: -28; }
+         }
++        @keyframes bvSpineNudge {
++          0%   { box-shadow: 0 0 0 rgba(124,255,0,0); }
++          18%  { box-shadow: 0 -7px 22px rgba(124,255,0,0.6), 0 -2px 6px rgba(124,255,0,0.5); }
++          100% { box-shadow: 0 0 0 rgba(124,255,0,0); }
++        }
++        /* Animated box-shadow only: the bar's border/background are inline. */
++        .bv-spine-nudge { animation: bvSpineNudge 1.4s ease-out 2; }
+         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
+         .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
+         .bv-spine-dot-blink { animation: bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
+@@ -230,6 +329,7 @@ export function DayStateSpine() {
+ 
+       <div
+         aria-label="Day progress"
++        className={nudging ? "bv-spine-nudge" : undefined}
+         style={{
+           position: "fixed",
+           bottom: 0,
+@@ -474,7 +574,7 @@ export function DayStateSpine() {
+                 {activeSubs.map((s, si) => {
+                   const sStatus: Status =
+                     si < currentSubIdx ? "done" : si === currentSubIdx ? "current" : "upcoming";
+-                  const target = routeFor(s, isOffice);
++                  const target = routeFor(s, canAssignTeams);
+                   const canTap = sStatus !== "upcoming" && !!target;
+                   const setRef = (el: HTMLElement | null) => {
+                     subRefs.current[si] = el as HTMLDivElement | null;
+diff --git a/src/components/OfficeTeamSetup.tsx b/src/components/OfficeTeamSetup.tsx
+index 1eb734e..25b369c 100644
+--- a/src/components/OfficeTeamSetup.tsx
++++ b/src/components/OfficeTeamSetup.tsx
+@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+ import { useAuth, crewDayLA } from "../lib/auth";
+ 
+ /**
+- * Office-only once-daily team setup overlay.
+- * - Fetches getTeamSetup on office sign-in.
+- * - If teamsConfirmed → renders nothing.
+- * - Otherwise shows a dismissible overlay ("×" closes for the session);
+- *   reappears on next sign-in until confirmTeams is posted.
++ * Once-daily team setup overlay.
++ *
++ * Office keeps the original behaviour: getTeamSetup is fetched on sign-in and
++ * the overlay pops automatically until confirmTeams is posted (dismissible per
++ * session with "×"). Lead and management can also assign teams — the failsafe
++ * in MASTERPLAN §5 — but only on demand: they get no automatic pop-up, and the
++ * fetch is deferred until they actually tap "Assign Teams" in the spine.
+  */
+ 
+ const SCRIPT_URL =
+@@ -64,66 +66,92 @@ export function OfficeTeamSetup() {
+   const [showExcluded, setShowExcluded] = useState(false);
+   const [confirming, setConfirming] = useState(false);
+ 
+-  const active = ready && !!user && role === "office";
++  const canAssignTeams = role === "office" || role === "lead" || role === "management";
++  const active = ready && !!user && canAssignTeams;
++  const autoOpens = role === "office";
+   const didFetchRef = useRef(false);
+ 
++  const fetchSetup = useCallback(async (): Promise<TeamSetup | null> => {
++    try {
++      const res = await fetch(`${SCRIPT_URL}?action=getTeamSetup`);
++      if (!res.ok) throw new Error(String(res.status));
++      return (await res.json()) as TeamSetup;
++    } catch (e) {
++      console.warn("[team-setup] load failed", e);
++      return null;
++    }
++  }, []);
++
++  const populate = useCallback((j: TeamSetup) => {
++    setSelected(new Set<string>(j.suggestedIds || []));
++    const t: Record<string, Team> = {};
++    for (const e of j.employees || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
++    for (const e of j.excluded || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
++    setTeams(t);
++    const ct: Record<string, string[]> = {};
++    for (const c of j.clients || []) ct[c.title] = (c.teams || []).map((x) => normTeam(x));
++    setClientTeams(ct);
++    setFieldPhoneId(j.fieldPhone?.id ?? null);
++  }, []);
++
++  // Office only: fetch on sign-in and pop the overlay until teams are confirmed.
+   useEffect(() => {
+-    if (!active) return;
++    if (!active || !autoOpens) return;
+     if (didFetchRef.current) return;
+     if (loaded) return;
+     didFetchRef.current = true;
+     let cancelled = false;
+     (async () => {
+-      try {
+-        const res = await fetch(`${SCRIPT_URL}?action=getTeamSetup`);
+-        if (!res.ok) throw new Error(String(res.status));
+-        const j = (await res.json()) as TeamSetup;
+-        if (cancelled) return;
+-        setData(j);
+-        setLoaded(true);
+-        if (j.teamsConfirmed) return;
+-        const dismissed = (() => {
+-          try { return sessionStorage.getItem(dismissKey) === "1"; } catch { return false; }
+-        })();
+-        if (dismissed) return;
+-
+-        const sel = new Set<string>(j.suggestedIds || []);
+-        setSelected(sel);
+-        const t: Record<string, Team> = {};
+-        for (const e of j.employees || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
+-        for (const e of j.excluded || []) t[e.id] = normTeam(j.employeeTeams?.[e.id]);
+-        setTeams(t);
+-        const ct: Record<string, string[]> = {};
+-        for (const c of j.clients || []) ct[c.title] = (c.teams || []).map((x) => normTeam(x));
+-        setClientTeams(ct);
+-        setFieldPhoneId(j.fieldPhone?.id ?? null);
+-        setOpen(true);
+-      } catch (e) {
+-        console.warn("[team-setup] load failed", e);
+-        setLoaded(true);
+-      }
++      const j = await fetchSetup();
++      if (cancelled) return;
++      setLoaded(true);
++      if (!j) return;
++      setData(j);
++      if (j.teamsConfirmed) return;
++      const dismissed = (() => {
++        try { return sessionStorage.getItem(dismissKey) === "1"; } catch { return false; }
++      })();
++      if (dismissed) return;
++      populate(j);
++      setOpen(true);
+     })();
+     return () => { cancelled = true; };
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [active]);
++  }, [active, autoOpens]);
+ 
+   const dismiss = useCallback(() => {
+     try { sessionStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
+     setOpen(false);
+   }, [dismissKey]);
+ 
+-  // Spine "team_assign" tap re-opens the overlay for office role, even if
+-  // dismissed for the day, as long as we have data loaded.
++  // Spine "team_assign" tap opens the overlay for any role that may assign
++  // teams, even if dismissed for the day. Lead and management have not fetched
++  // yet at this point, so pull the data on demand. Always re-populate from the
++  // response so a reopened overlay reflects server truth rather than a stale
++  // or empty form.
+   useEffect(() => {
+     if (!active) return;
++    let cancelled = false;
+     const onOpenReq = () => {
+-      if (!loaded || !data) return;
+-      try { sessionStorage.removeItem(dismissKey); } catch { /* ignore */ }
+-      setOpen(true);
++      void (async () => {
++        let j = data;
++        if (!j) {
++          j = await fetchSetup();
++          if (cancelled || !j) return;
++          setData(j);
++          setLoaded(true);
++        }
++        try { sessionStorage.removeItem(dismissKey); } catch { /* ignore */ }
++        populate(j);
++        setOpen(true);
++      })();
+     };
+     window.addEventListener("bv:open-team-setup", onOpenReq);
+-    return () => window.removeEventListener("bv:open-team-setup", onOpenReq);
+-  }, [active, loaded, data, dismissKey]);
++    return () => {
++      cancelled = true;
++      window.removeEventListener("bv:open-team-setup", onOpenReq);
++    };
++  }, [active, data, dismissKey, fetchSetup, populate]);
+ 
+   const toggleSelected = useCallback((id: string) => {
+     setSelected((prev) => {
+diff --git a/src/lib/day-state.tsx b/src/lib/day-state.tsx
+index 3eec3e1..11668c8 100644
+--- a/src/lib/day-state.tsx
++++ b/src/lib/day-state.tsx
+@@ -1,4 +1,13 @@
+-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
++import {
++  createContext,
++  useCallback,
++  useContext,
++  useEffect,
++  useMemo,
++  useRef,
++  useState,
++  type ReactNode,
++} from "react";
+ import { sessionCache } from "./session-cache";
+ 
+ const SCRIPT_URL =
+@@ -42,6 +51,7 @@ export function DayStateProvider({
+   const [state, setState] = useState<DayState | null>(cached ?? null);
+   const [serverOffsetMs, setServerOffsetMs] = useState(0);
+   const [nonce, setNonce] = useState(0);
++  const sigRef = useRef<string>("");
+ 
+   useEffect(() => {
+     if (!enabled) return;
+@@ -52,14 +62,30 @@ export function DayStateProvider({
+         if (!res.ok) return;
+         const json = (await res.json()) as DayState;
+         if (cancelled) return;
+-        // eslint-disable-next-line no-console
+-        console.log("[dayState]", json);
+         if (!json || !json.phase || !json.subSteps) return;
+-        sessionCache.set(CK, json);
+-        setState(json);
+-        if (json.serverNow) {
+-          const sn = Date.parse(json.serverNow);
+-          if (!isNaN(sn)) setServerOffsetMs(sn - Date.now());
++
++        // serverNow ticks on every poll, so it is excluded from the change
++        // signature; including it would make every poll look like a change and
++        // re-render every consumer (field and schedule are the expensive ones).
++        const { serverNow, ...rest } = json;
++        const sig = JSON.stringify(rest);
++        if (sig !== sigRef.current) {
++          sigRef.current = sig;
++          sessionCache.set(CK, json);
++          setState(json);
++          if (import.meta.env.DEV) {
++            // eslint-disable-next-line no-console
++            console.log("[dayState]", json);
++          }
++        }
++
++        if (serverNow) {
++          const sn = Date.parse(serverNow);
++          if (!isNaN(sn)) {
++            const next = sn - Date.now();
++            // Sub-second drift is noise; re-rendering for it is not worth it.
++            setServerOffsetMs((prev) => (Math.abs(next - prev) > 1000 ? next : prev));
++          }
+         }
+       } catch {
+         /* keep last known */
+@@ -78,11 +104,15 @@ export function DayStateProvider({
+     };
+   }, [enabled, nonce]);
+ 
+-  return (
+-    <DayStateCtx.Provider value={{ state, serverOffsetMs, refresh: () => setNonce((n) => n + 1) }}>
+-      {children}
+-    </DayStateCtx.Provider>
++  const refresh = useCallback(() => setNonce((n) => n + 1), []);
++
++  // Memoised so provider re-renders alone cannot re-render every consumer.
++  const value = useMemo<Ctx>(
++    () => ({ state, serverOffsetMs, refresh }),
++    [state, serverOffsetMs, refresh],
+   );
++
++  return <DayStateCtx.Provider value={value}>{children}</DayStateCtx.Provider>;
+ }
+ 
+ export function useDayState(): DayState | null {

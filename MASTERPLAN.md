@@ -1,6 +1,6 @@
 # BRAMBLE & VINE — MASTER PLAN
 *Canonical context for AI-assisted build sessions. Tell Claude: "read MASTERPLAN.md in the repo before we start."*
-*Last updated: 2026-07-24 (v7.3.0 / spine Pass 1 era)*
+*Last updated: 2026-07-24 (v7.3.0 / spine Pass 1 era; garage clock verified end-to-end)*
 
 ## 1. VISION
 One PWA runs the whole field operation: a guided linear day for field crew
@@ -28,13 +28,21 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 - Calendars: "1. Client Visits" (route), "2. Field Team" (daily staffing)
 - Invoicing: QBO (realm 9130348705679206) in-script OAuth2
 - PTT: Zello Work "bramblevine" network — DOWNGRADE TO FREE planned
-- Garage clock: West Ocean WS604s at 192.168.4.95, PIN 3845. Web interface
-  at that IP (HTTP, session cookie). Endpoints: /login (POST password=PIN),
-  /get-timer (POST, returns JSON presets), /set-timer (POST JSON), /rc
-  (virtual remote). WebSocket ws://192.168.4.95:81/ — send '#CODE' strings.
-  Play/Pause code = #39015. M3 (minutes countdown) code = #22695. Bridge
-  script: clock_bridge.py on Pi (Edaphos, 192.168.4.106, user: info).
-  Pi installed with python3-websocket. /tmp/clock.jar holds session cookie.
+- Garage clock: West Ocean WS604s at 192.168.4.95 (MAC 48:ca:43:d8:d6:f0).
+  NO AUTH — the PIN 3845 login page is decorative; every endpoint answers
+  without a session and NO cookie is ever set (there is no session cookie;
+  /tmp/clock.jar was always empty). Do not expose this IP to the internet.
+  Endpoints (all POST): /get-timer, /set-timer, /get-sound, /set-sound,
+  /get-events, /set-events, /speaker, /relay, /direct, /ntp_sync; pages
+  /index /rc /default /console /alarm /timezone.
+  WebSocket ws://192.168.4.95:81/ — send '#CODE' to press a remote key, and
+  it ECHOES BACK the current display text (use this to verify state).
+  Codes: M1 57375 (clock face), M2 45645 (sec), M3 22695 (min), M4 59415 (hr),
+  Play/Pause 39015, Mode- 765, Mode+ 49725, digits 0-9 =
+  26775/12495/6375/31365/4335/14535/23205/17085/19125/21165.
+  Pi (Edaphos, 192.168.4.106, user: info) has python3-websocket installed.
+  Script: ~/clock/depart.py (manual/CLI trigger, working). ~/clock/ws604s.py
+  is a small key-code helper. clock_bridge.py was NEVER written to disk.
 
 ## 3. IRON RULES (never violate)
 - Deploy ritual: paste FULL file → Ctrl+S → Deploy → pencil on EXISTING
@@ -100,10 +108,53 @@ Nav: 3-dot menu top-left (hamburger), Messages floating button top-right.
   {time:'15:30',label:'Break'}]. Tunable via BREAK_TIMES Script Property.
 - Frontend (Lovable Prompt B, backend v7.3.0 required): departure chip on
   all Standby/Schedule screens; office break countdown chip.
-- Garage wall clock bridge: clock_bridge.py on Edaphos Pi polls getDayState,
-  programs m3_0 preset via set-timer, sends Play/Pause (#39015) to start
-  the countdown. Still being tested as of 7/24 (Play/Pause code confirmed;
-  test run with 25-minute preset pending).
+- Garage wall clock: VERIFIED WORKING 7/24 via ~/clock/depart.py on Edaphos.
+  Takes a departure time (HH:MM, +25m, or "YYYY-MM-DD HH:MM"), writes the
+  m3_0 preset, loads it, then sends Play/Pause. Measured accuracy +3 s.
+  The clock counts down on its own, so this fires ONCE per departure — no
+  polling loop or per-second pushing needed.
+    ssh -i ~/.ssh/edaphos_clock info@192.168.4.106 "~/clock/depart.py 17:45"
+  FIRMWARE GOTCHAS (these dictate the sequence — do not simplify):
+  1. /set-timer wants the JSON object DOUBLE-ENCODED as a quoted JSON string
+     (the stock UI does JSON.stringify on an already-JSON string).
+  2. M2/M3/M4 each hold THREE preset slots and the key CYCLES through them.
+     The FIRST press after a paused timer RESUMES THE STALE TIMER instead of
+     loading a preset. So press the key in a loop and read the websocket echo
+     until the display shows the wanted value, THEN press Play. Observed live:
+     press 1 showed a stale 03:56, press 2 loaded the correct 02:00.
+  3. Countdown fields cap at 99, so a minutes countdown maxes at 99 MINUTES.
+     Beyond that depart.py sleeps until the window opens (--no-wait to fail
+     instead). For long leads prefer the /set-events table (31 slots, each can
+     fire a countdown at a set time on chosen weekdays).
+  4. Digit keys do NOT enter arbitrary countdown values; presets are the only
+     path. M1 returns to the clock face; Play toggles pause.
+  5. Slots 1 and 2 are Brandon's own remote presets (m3 = 15/45 min,
+     m4 = 8/24 hr) — depart.py writes ONLY slot 0 and must keep leaving the
+     others alone, or the physical remote's buttons lose their settings.
+- clock_bridge.py NOW EXISTS AND IS INSTALLED AS A SERVICE (7/24). It polls
+  getDayState every 60s, and when departAt lands inside the 99-min window it
+  arms the clock so 00:00 falls on departAt. It re-arms if departAt moves more
+  than 45s (traffic recompute) and ignores smaller jitter, stands the display
+  down to the clock face when departAt clears, and uses serverNow to correct
+  Pi-vs-backend clock skew. Verified end-to-end against a stub backend:
+  a 320s-out departure produced a 5 min countdown after a 16s alignment hold,
+  landing +3s of target.
+    /home/info/clock_bridge.py            the service
+    /etc/clockbridge.env                  config (chmod 640, root:info)
+    /etc/systemd/system/clockbridge.service
+    sudo journalctl -u clockbridge -f     watch it work
+  ONE STEP LEFT: BV_BACKEND_URL in /etc/clockbridge.env is EMPTY. Paste the
+  Apps Script /exec URL there and `sudo systemctl restart clockbridge`. Until
+  then the service runs but idles, logging that it is unconfigured.
+- WARNING - the clock intermittently WIPES its countdown presets to zero.
+  Seen twice on 7/24; sound settings survived both times, so it is not a
+  factory reset, and the cause is NOT known (it is not the set-timer write -
+  that was tested in isolation and provably preserves other slots). Because a
+  wipe would silently blank the physical remote's M2/M3/M4 buttons, the bridge
+  now re-asserts the full preset set from BV_REMOTE_PRESETS on every arm and
+  logs what it restored. Brandon's values: m2 10/24/60, m3 5/15/45, m4 2/8/24.
+  Note depart.py does NOT self-heal - it preserves whatever it reads.
+  STILL OPEN: root-cause the preset wipe.
 
 ## 7. NOTIFICATION MATRIX (v7.2.2)
 | What | Who | When |
@@ -144,7 +195,23 @@ payrollNightly_, autoSortOnChange, updateDepartureEta.
   En Route line pulses traveling glow; Play/Pause = #39015 on WS604s.
 - 7/24: field-phone self-assignment retired; absorbed into team overlay.
 - 7/24: Edaphos (Pi) login confirmed: user=info, can SSH via 192.168.4.106.
-- 7/24: garage clock WS604s fully reverse-engineered; bridge script written.
+- 7/24: Pi PASSWORD SSH IS BROKEN — rejected for both pi and info, and even
+  from the Pi's own console ("connection closed"); root cause undiagnosed.
+  Access is now key-based: ssh -i ~/.ssh/edaphos_clock info@192.168.4.106
+  (private key on Brandon's Windows box). Diagnose later via
+  sudo journalctl -u ssh -n 50.
+- 7/24: garage clock countdown VERIFIED END-TO-END (see §6). Corrections to
+  earlier notes: the clock has NO auth and sets NO session cookie, and
+  clock_bridge.py never existed on disk — the working script is
+  ~/clock/depart.py. M3 cycles 3 preset slots and resumes stale paused
+  timers, so the start sequence must verify the display echo before Play.
+- 7/24: clock presets found ZEROED; restored from a 12:06 capture
+  (/tmp/t.json) to m2 10/24/60, m3 5/15/45, m4 2/8/24. They then zeroed a
+  SECOND time during bridge testing. Initially blamed on a bad set-timer write,
+  but that was disproved by testing the write in isolation - cause still
+  unknown. Mitigation: clock_bridge.py re-asserts all presets every arm.
+- 7/24: clock_bridge.py written, installed, enabled as clockbridge.service and
+  verified against a stub backend. Blocked only on BV_BACKEND_URL (see §6).
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## 10. WORK QUEUE
