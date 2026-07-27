@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "../lib/auth";
+import { useAuth, crewDayLA } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
@@ -136,6 +136,58 @@ type NewProject = {
   items: NewItem[];
 };
 
+/**
+ * Confirming a client, skipping a card or staging a delete only lived in React
+ * state, so a reload - or the screen being revisited - undid all of it and the
+ * cards came back. None of it is written to the sheet until Submit, so it has
+ * to survive locally until then.
+ *
+ * Day-scoped: yesterday's confirmations must never hide today's work. Cleared
+ * on a successful submit, when the server becomes the record.
+ */
+const STAGE_KEY = "bv.confirm.staged";
+
+type StagedWork = {
+  day: string;
+  confirmedClients: string[];
+  /** uid -> handled status. Keyed by uid, never projectId; see Project.uid. */
+  statuses: Record<string, "Confirmed" | "SKIP">;
+  deletes: string[];
+};
+
+function readStaged(): StagedWork | null {
+  try {
+    const raw = localStorage.getItem(STAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as StagedWork;
+    if (!s || s.day !== crewDayLA()) return null;
+    return {
+      day: s.day,
+      confirmedClients: Array.isArray(s.confirmedClients) ? s.confirmedClients : [],
+      statuses: s.statuses && typeof s.statuses === "object" ? s.statuses : {},
+      deletes: Array.isArray(s.deletes) ? s.deletes : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStaged(s: Omit<StagedWork, "day">): void {
+  try {
+    localStorage.setItem(STAGE_KEY, JSON.stringify({ day: crewDayLA(), ...s }));
+  } catch {
+    /* private mode: staging simply will not survive a reload */
+  }
+}
+
+function clearStaged(): void {
+  try {
+    localStorage.removeItem(STAGE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 function todayLabel(): string {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -204,6 +256,9 @@ function ConfirmPage() {
     () => projects.map((p) => p.category).filter(Boolean),
     [projects],
   );
+  // Read once per mount: later writes go through writeStaged, and re-reading
+  // would fight the state we just restored.
+  const stagedRef = useRef<StagedWork | null>(readStaged());
   const [edits, setEdits] = useState<Record<string, Edit>>(() => {
     const initial: Record<string, Edit> = {};
     for (const p of (cached?.projects ?? []).map(normProject)) {
@@ -214,7 +269,7 @@ function ConfirmPage() {
         type: p.type,
         category: p.category,
         notes: p.notes,
-        status: "Pending",
+        status: stagedRef.current?.statuses[key] ?? "Pending",
         expanded: p.showOnReview,
         notesOpen: !!p.notes,
       };
@@ -222,7 +277,9 @@ function ConfirmPage() {
     return initial;
   });
   // Staged deletions, cleared once submitted.
-  const [deletes, setDeletes] = useState<Set<string>>(new Set());
+  const [deletes, setDeletes] = useState<Set<string>>(
+    () => new Set(stagedRef.current?.deletes ?? []),
+  );
   // Submitted deletions, held until the server confirms them; see
   // src/lib/optimistic.ts for why a payload alone is not proof.
   const { decide: optDecide, reconcile: optReconcile, records: optRecords } =
@@ -250,7 +307,9 @@ function ConfirmPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [animating, setAnimating] = useState<Record<string, "confirm" | "skip" | "delete">>({});
-  const [confirmedClients, setConfirmedClients] = useState<Set<string>>(new Set());
+  const [confirmedClients, setConfirmedClients] = useState<Set<string>>(
+    () => new Set(stagedRef.current?.confirmedClients ?? []),
+  );
   const [flashClient, setFlashClient] = useState<string | null>(null);
   const toggleClientConfirmed = useCallback((client: string) => {
     setConfirmedClients((prev) => {
@@ -274,6 +333,28 @@ function ConfirmPage() {
     },
     [],
   );
+
+  // Mirror the handled markers to localStorage whenever they move. Only the
+  // markers - not the field edits - because a restored edit would silently win
+  // over a newer value from the sheet, and these three are what make a card
+  // vanish and come back.
+  useEffect(() => {
+    const statuses: Record<string, "Confirmed" | "SKIP"> = {};
+    for (const [uid, e] of Object.entries(edits)) {
+      if (e.status === "Confirmed" || e.status === "SKIP") statuses[uid] = e.status;
+    }
+    const next = {
+      confirmedClients: [...confirmedClients],
+      statuses,
+      deletes: [...deletes],
+    };
+    stagedRef.current = { day: crewDayLA(), ...next };
+    if (!next.confirmedClients.length && !next.deletes.length && !Object.keys(statuses).length) {
+      clearStaged();
+    } else {
+      writeStaged(next);
+    }
+  }, [edits, deletes, confirmedClients]);
 
   const fetchedRef = useRef(false);
   /** Reconciliation is suspended until this moment; see applyData and submit. */
@@ -330,7 +411,9 @@ function ConfirmPage() {
           type: p.type,
           category: p.category,
           notes: p.notes,
-          status: "Pending",
+          // A card handled before a reload stays handled: the first payload
+          // after remounting is exactly when it would otherwise come back.
+          status: stagedRef.current?.statuses[key] ?? "Pending",
           expanded: p.showOnReview,
           notesOpen: !!p.notes,
         };
@@ -392,26 +475,8 @@ function ConfirmPage() {
     return map;
   }, [projects, todaysClients, committedDeletes]);
 
-  // A card is "handled" (hidden) when deleted, skipped, or explicitly confirmed.
-  // Submit surfaces only when zero reviewable cards remain.
-  // Cards are hidden when deleted, skipped, or explicitly confirmed. Retained
-  // for potential future use; per-client confirm now drives submit gating.
-  void useMemo(() => grouped, [grouped]);
-
   const setEdit = useCallback((key: string, patch: Partial<Edit>) => {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
-  }, []);
-
-  // Staged by uid, not projectId: four clients share proj-1, and staging that
-  // id deleted every one of them.
-  const requestDelete = useCallback(async (uid: string, actionLabel: string) => {
-    if (!uid) return;
-    if (!(await confirmModal({ message: `Delete this project?\n\n${actionLabel || "(no action)"}`, destructive: true }))) return;
-    setDeletes((prev) => {
-      const next = new Set(prev);
-      next.add(uid);
-      return next;
-    });
   }, []);
 
   const undoDelete = useCallback((uid: string) => {
@@ -693,6 +758,11 @@ function ConfirmPage() {
       // response - the reload below can easily be served ahead of it.
       sessionCache.clear(CK);
       reconcileHoldRef.current = Date.now() + 2000;
+      // The sheet is the record now, so the local staging copy is spent.
+      // Cleared before the reload, or restoring it would re-hide cards the
+      // server has already accounted for.
+      stagedRef.current = null;
+      clearStaged();
       setDeletes(new Set());
       setNewByClient({});
       // Reload to reflect authoritative server state
@@ -873,6 +943,7 @@ function ConfirmPage() {
                         gap: 6,
                         marginBottom: 10,
                         alignItems: "center",
+                        justifyContent: "center",
                         flexWrap: "wrap",
                       }}
                     >
@@ -1390,6 +1461,10 @@ function TypeSelect({
         letterSpacing: 2,
         fontWeight: "bold",
         cursor: "pointer",
+        // Fixed so Type, Garden and Category are visibly one set of three.
+        width: 128,
+        flex: "0 0 auto",
+        textOverflow: "ellipsis",
       }}
     >
       {!value && <option value="">—</option>}

@@ -136,9 +136,13 @@ const SELECT: CSSProperties = {
  */
 const COMPACT_SELECT: CSSProperties = {
   ...SELECT,
-  width: "auto",
-  flex: 1,
+  // Sized to match the Type selector rather than stretching: flex:1 made these
+  // two eat the whole row while Type stayed small, so the three read as one
+  // big control and two little ones.
+  width: 128,
+  flex: "0 0 auto",
   minWidth: 0,
+  textOverflow: "ellipsis",
   background: "transparent",
   color: LIME,
   border: `1px solid ${LIME}`,
