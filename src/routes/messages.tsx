@@ -1340,17 +1340,30 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     const q = searchQ.trim().toLowerCase();
     if (!q) return [];
     const digits = q.replace(/\D/g, "");
-    return displayItems
+    // Searches `items`, not the rendered feed: a thread filed or marked done
+    // stays findable, and matching now includes subject and snippet, not just
+    // who it came from.
+    return items
       .filter((it) => {
         if ((it.from || "").toLowerCase().indexOf(q) >= 0) return true;
         if ((it.fromEmail || "").toLowerCase().indexOf(q) >= 0) return true;
+        if ((it.subject || "").toLowerCase().indexOf(q) >= 0) return true;
+        if ((it.snippet || "").toLowerCase().indexOf(q) >= 0) return true;
         if (digits) return (it.participants || []).some((p) => p.replace(/\D/g, "").indexOf(digits) >= 0);
         return false;
       })
       .slice(0, 8);
-  }, [searchQ, displayItems]);
+  }, [searchQ, items]);
   const jumpTo = useCallback((id: string) => {
     setSearchQ("");
+    const hit = items.find((x) => x.id === id);
+    // Open the thread directly. Scrolling to the card only ever worked for
+    // threads still in the feed, so a filed one reported "not in the current
+    // feed" even though search had just listed it.
+    if (hit) {
+      void openViewer(hit);
+      return;
+    }
     const el = document.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
     if (!el) {
       flash("Conversation not in the current feed.", true);
@@ -1359,7 +1372,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     setFoundId(id);
     window.setTimeout(() => setFoundId((cur) => (cur === id ? null : cur)), 2500);
-  }, [flash]);
+  }, [flash, items, openViewer]);
 
   /* ---- countdown text ---- */
   const countdownEl = useMemo(() => {
@@ -2986,6 +2999,9 @@ function FeedCard({
   onDraftEdit?: (text: string) => void;
 }) {
   const [reply, setReply] = useState(draft?.text || "");
+  // Cards start collapsed at two rows - header and snippet - and open on tap.
+  // A card with a draft in progress starts open, or the draft would be hidden.
+  const [expanded, setExpanded] = useState(!!draft);
   const quo = it.source === "quo";
   const role = internalRoleFor(it);
   const isInternal = !!role;
@@ -2996,7 +3012,19 @@ function FeedCard({
   return (
     <div
       data-item-id={it.id}
+      onClick={() => setExpanded((v) => !v)}
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      onKeyDown={(ev) => {
+        if (ev.target !== ev.currentTarget) return;
+        if (ev.key === "Enter" || ev.key === " ") {
+          ev.preventDefault();
+          setExpanded((v) => !v);
+        }
+      }}
       style={{
+        cursor: "pointer",
         display: hidden ? "none" : "flex",
         background: it.unread ? T.panel2 : T.panel,
         border: draft ? `2px dashed ${T.brightLime}` : `2px solid ${isNew ? T.brightLime : T.lime}`,
@@ -3034,14 +3062,14 @@ function FeedCard({
           <SrcIcon source={it.source} />
         )}
       </div>
-      <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
+      <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
         <div
           style={{
             display: "flex",
             gap: 8,
             alignItems: "baseline",
             flexWrap: "wrap",
-            justifyContent: "center",
+            justifyContent: "flex-start",
             position: "relative",
             paddingRight: 56,
           }}
@@ -3139,6 +3167,7 @@ function FeedCard({
             {it.snippet}
           </div>
         )}
+        {expanded && (
         <textarea
           rows={2}
           placeholder={draft ? "Draft…" : "Reply…"}
@@ -3156,6 +3185,8 @@ function FeedCard({
           }}
           style={{ ...inputStyle, width: "100%", marginTop: 10, minHeight: 56, maxHeight: 160, resize: "vertical" }}
         />
+        )}
+        {expanded && (
         <div style={btnRowStyle}>
           <button style={iconBtn} title="Emoji" aria-label="Emoji" onClick={(ev) => { ev.stopPropagation(); onEmoji((e) => { setReply((v) => { const nv = v + e; if (onDraftEdit) onDraftEdit(nv); return nv; }); }); }}>
             <IconSmile />
@@ -3208,7 +3239,8 @@ function FeedCard({
             <IconFs />
           </button>
         </div>
-        {staged.length > 0 && (
+        )}
+        {expanded && staged.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
             {staged.map((a, i) => (
               <span
@@ -3323,7 +3355,7 @@ function Viewer({
           borderBottom: `1px solid ${T.lime}`,
         }}
       >
-        <div style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
+        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
           <div style={{ fontSize: "1.05rem", fontWeight: "bold" }}>{it.from}</div>
           <div style={{ fontSize: ".9rem", opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {quo ? "Text conversation" : it.subject || "(no subject)"}
@@ -3363,10 +3395,10 @@ function Viewer({
                     opacity: inc ? 1 : 0.75,
                   }}
                 >
-                  <div style={{ fontSize: ".85rem", opacity: 0.8, marginBottom: 8, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, textAlign: "center" }}>
+                  <div style={{ fontSize: ".85rem", opacity: 0.8, marginBottom: 8, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, textAlign: "left" }}>
                     <b>{who}</b> — {new Date(m.date).toLocaleString()}
                   </div>
-                  <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "center" }}>
+                  <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "left" }}>
                     {m.body}
                   </div>
                   {m.media && m.media.length > 0 && (
@@ -3379,10 +3411,10 @@ function Viewer({
         ) : (
           body.messages.map((m, i) => (
             <div key={i} style={{ border: `1px solid ${T.border}`, borderRadius: 6, background: T.panel, padding: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: ".85rem", opacity: 0.8, marginBottom: 8, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, textAlign: "center" }}>
+              <div style={{ fontSize: ".85rem", opacity: 0.8, marginBottom: 8, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, textAlign: "left" }}>
                 <b>{m.from || ""}</b> — {new Date(m.date).toLocaleString()}
               </div>
-              <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "center" }}>
+              <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "left" }}>
                 {m.body}
               </div>
               {(m.attachments || []).map((a, j) => (
