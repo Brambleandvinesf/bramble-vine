@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { crewDayLA } from "./auth";
+import { useDayState } from "./day-state";
 import { sessionCache } from "./session-cache";
 import { SCRIPT_URL } from "../routes/confirm";
 
@@ -10,14 +11,20 @@ import { SCRIPT_URL } from "../routes/confirm";
  * Only lead and assistant: office and management do not carry a QB Time clock.
  *
  * The QB Time user id is not in the auth table, which knows only email, role and
- * display name, so it is looked up by matching the signed-in email against the
- * employees list. Failure at any step is silent by design - a sign-in must never
- * be blocked by this, and a crew member who cannot be matched simply clocks in by
- * hand as before.
+ * display name, so identity is resolved in two steps:
  *
- * Fires once per person per crew day, and only records that once the write has
- * actually succeeded, so a failed attempt is retried on the next load rather
- * than being written off for the day.
+ *   1. match the signed-in email against the employees list (the lead's case)
+ *   2. for an assistant with no match, fall back to dayState.fieldPhone
+ *
+ * Step 2 exists because thornsandtendrils@ is a shared device, not a person, so
+ * no email will ever resolve it - fieldPhone is the record of who is actually
+ * carrying it today.
+ *
+ * Failure at any step is silent by design: a sign-in must never be blocked by
+ * this, and anyone unresolved clocks in by hand as before.
+ *
+ * Fires once per QB Time id per crew day, recorded only once the write has
+ * succeeded, so a failure retries on the next load rather than being written off.
  */
 
 /** Same cache key field.tsx writes, to reuse its payload when it has one. */
@@ -25,8 +32,9 @@ const FIELD_CK = "field:getField";
 
 type EmployeeRow = { id?: string; name?: string; email?: string | null };
 
-function dayKeyFor(email: string): string {
-  return `bv.autoClockIn.${email}.${crewDayLA()}`;
+/** Keyed by QB Time user id, not login, so a shared device tracks the person. */
+function dayKeyFor(userId: string): string {
+  return `bv.autoClockIn.${userId}.${crewDayLA()}`;
 }
 
 async function loadEmployees(): Promise<EmployeeRow[]> {
@@ -49,55 +57,79 @@ export function useAutoClockIn(opts: {
   name: string | null;
 }): void {
   const { ready, email, role, name } = opts;
-  // One attempt per mount; a genuine retry comes with the next page load.
-  const triedRef = useRef<string | null>(null);
+  const fieldPhone = useDayState()?.fieldPhone ?? null;
+  // Keyed by the QB Time id actually clocked in, not by the login. The assistant
+  // device is shared, so two people can legitimately clock in under one account
+  // on the same day and each needs their own attempt.
+  const attemptedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!ready || !email) return;
     if (role !== "lead" && role !== "assistant") return;
-
     const who = email.trim().toLowerCase();
     if (!who) return;
-    if (triedRef.current === who) return;
-    triedRef.current = who;
-
-    const dayKey = dayKeyFor(who);
-    try {
-      if (localStorage.getItem(dayKey)) return; // already done today
-    } catch {
-      /* private mode: fall through and just attempt it */
-    }
 
     let cancelled = false;
     void (async () => {
       const employees = await loadEmployees();
       if (cancelled) return;
-      const me = employees.find(
+
+      const match = employees.find(
         (e) => String(e.email ?? "").trim().toLowerCase() === who,
       );
-      // No QB Time id for this email: nothing to clock in, and nothing to say.
-      if (!me?.id) return;
+      let userId = String(match?.id ?? "").trim();
+      let personName = name || match?.name || "";
 
-      let payload: { ok?: boolean; alreadyIn?: boolean } | null = null;
+      // thornsandtendrils@ is a shared device with no employee row of its own, so
+      // an email match will never resolve it. Whoever is holding that phone today
+      // is exactly what fieldPhone records, so it is the identity to clock in.
+      if (!userId && role === "assistant" && fieldPhone?.id) {
+        userId = String(fieldPhone.id).trim();
+        personName = fieldPhone.name || personName;
+      }
+
+      // No identity yet. Deliberately not recorded as an attempt: fieldPhone
+      // often arrives after sign-in, and this effect re-runs when it does.
+      if (!userId) return;
+      if (attemptedRef.current.has(userId)) return;
+
+      const dayKey = dayKeyFor(userId);
+      try {
+        if (localStorage.getItem(dayKey)) return; // already done today
+      } catch {
+        /* private mode: fall through and just attempt it */
+      }
+      attemptedRef.current.add(userId);
+
+      let payload: { ok?: boolean; alreadyIn?: boolean; error?: string } | null = null;
       try {
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
           body: JSON.stringify({
             action: "autoClockIn",
-            userId: me.id,
-            name: name || me.name || "",
+            userId,
+            name: personName,
             role,
           }),
         });
         if (!res.ok) return;
         // An undeployed action answers with an HTML error page, not JSON. Treat
         // anything unparseable as "not done" and stay quiet.
-        payload = JSON.parse(await res.text()) as { ok?: boolean; alreadyIn?: boolean };
+        payload = JSON.parse(await res.text()) as {
+          ok?: boolean;
+          alreadyIn?: boolean;
+          error?: string;
+        };
       } catch {
         return;
       }
-      if (cancelled || !payload?.ok) return;
+      // ok:false includes "user not found in QBT" - the v7.4.0 guard. Stay quiet
+      // and let the attempt happen again on the next load.
+      if (cancelled || !payload?.ok) {
+        attemptedRef.current.delete(userId);
+        return;
+      }
 
       try {
         localStorage.setItem(dayKey, "1");
@@ -110,5 +142,5 @@ export function useAutoClockIn(opts: {
     return () => {
       cancelled = true;
     };
-  }, [ready, email, role, name]);
+  }, [ready, email, role, name, fieldPhone?.id, fieldPhone?.name]);
 }
