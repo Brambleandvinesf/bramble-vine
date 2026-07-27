@@ -37,6 +37,7 @@ import { ViewAsProvider, useViewAs } from "../lib/view-as";
 import { canSee, type ScreenId } from "../lib/permissions";
 import { ReviewableTodayProvider } from "../lib/reviewable-today";
 import { useBadge, useBadgePoller, BK } from "../lib/badges";
+import { useAutoClockIn } from "../lib/auto-clock-in";
 import { ConfirmModalHost } from "../components/ConfirmModal";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
 import { DayStateSpine } from "../components/DayStateSpine";
@@ -177,11 +178,16 @@ function DayStateProviderGate({ children }: { children: ReactNode }) {
 }
 
 function AppFrame() {
-  const { user, email, role, ready } = useAuth();
+  const { user, email, role, name, ready } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
 
   const onLogin = pathname === "/login";
+
+  // Lives here rather than on a screen: the lead lands on /field but the
+  // assistant lands on /schedule, so anything screen-local would miss one of
+  // them or fire late.
+  useAutoClockIn({ ready, email: user ? email : null, role, name });
 
   useBadgePoller({
     email: user ? email : null,
