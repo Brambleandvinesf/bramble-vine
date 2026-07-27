@@ -26,7 +26,7 @@ type Props = {
   scriptUrl: string;
   byName: string;
   onClose: () => void;
-  onProceed: () => void; // called after payrollConfirm succeeds — parent then does qbClock out
+  onProceed: () => void; // called after payrollConfirm succeeds — the day is over at that point
 };
 
 function fmtHM(iso: string | null | undefined): string {
@@ -87,6 +87,22 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
   useEffect(() => {
     if (open) void load();
   }, [open, load]);
+
+  // Anyone whose timesheet is still open. Hours cannot be confirmed until every
+  // entry is closed, or the totals on screen would be short.
+  const stillOnClock = useMemo(
+    () => people.filter((p) => p.entries.some((e) => e.onClock)),
+    [people],
+  );
+  const waitingForClockOuts = stillOnClock.length > 0;
+
+  // While waiting, re-poll so the screen releases itself when the last person
+  // clocks out - nobody should have to leave and come back.
+  useEffect(() => {
+    if (!open || !waitingForClockOuts) return;
+    const id = window.setInterval(() => void load(), 60_000);
+    return () => window.clearInterval(id);
+  }, [open, waitingForClockOuts, load]);
 
   // Compute day time range across all entries.
   const range = useMemo(() => {
@@ -251,20 +267,39 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
         >
           {!showDecline ? (
             <>
+              {waitingForClockOuts && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    padding: "10px 12px",
+                    border: `1px solid ${LINE}`,
+                    borderRadius: 8,
+                    background: PANEL_2,
+                  }}
+                >
+                  {stillOnClock.map((p) => (
+                    <div key={p.userId} style={{ color: MUTED, fontSize: 13 }}>
+                      {p.name} time entries still in progress
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={() => void submitConfirm(true)}
-                disabled={loading || submitting}
+                disabled={loading || submitting || waitingForClockOuts}
                 style={{
                   minHeight: 56,
-                  background: LIME,
-                  color: BG,
-                  border: `2px solid ${LIME}`,
+                  background: waitingForClockOuts ? PANEL_2 : LIME,
+                  color: waitingForClockOuts ? MUTED : BG,
+                  border: `2px solid ${waitingForClockOuts ? LINE : LIME}`,
                   borderRadius: 8,
                   fontFamily: "inherit",
                   fontSize: 16,
                   fontWeight: "bold",
                   letterSpacing: 2,
-                  cursor: "pointer",
+                  cursor: waitingForClockOuts ? "not-allowed" : "pointer",
                   opacity: loading || submitting ? 0.5 : 1,
                 }}
               >
@@ -272,17 +307,17 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
               </button>
               <button
                 onClick={() => setShowDecline(true)}
-                disabled={loading || submitting}
+                disabled={loading || submitting || waitingForClockOuts}
                 style={{
                   minHeight: 44,
                   background: "transparent",
-                  color: LIME,
-                  border: `1px solid ${LIME_DIM}`,
+                  color: waitingForClockOuts ? MUTED : LIME,
+                  border: `1px solid ${waitingForClockOuts ? LINE : LIME_DIM}`,
                   borderRadius: 8,
                   fontFamily: "inherit",
                   fontSize: 13,
                   letterSpacing: 1.5,
-                  cursor: "pointer",
+                  cursor: waitingForClockOuts ? "not-allowed" : "pointer",
                 }}
               >
                 CAN'T CONFIRM

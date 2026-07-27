@@ -813,20 +813,12 @@ function FieldBody({
     (!loadingSnap.ready || loadingSnap.confirmed !== true || !loadingSnap.allLoaded);
 
   /* --- hooks that must run every render (moved above early returns) --- */
+  // Payroll confirm is the last step of the day, not a gate in front of the
+  // lead's clock-out: the clock-out has to land first, or the lead's own entry
+  // is still open and the hours on the screen are wrong.
   const [payrollOpen, setPayrollOpen] = useState(false);
-  const payrollResolveRef = useRef<((v: boolean) => void) | null>(null);
-  const openPayrollGate = useCallback(() => {
-    return new Promise<boolean>((resolve) => {
-      payrollResolveRef.current = resolve;
-      setPayrollOpen(true);
-    });
-  }, []);
-  const closePayroll = useCallback((proceed: boolean) => {
-    setPayrollOpen(false);
-    const r = payrollResolveRef.current;
-    payrollResolveRef.current = null;
-    if (r) r(proceed);
-  }, []);
+  const openPayroll = useCallback(() => setPayrollOpen(true), []);
+  const closePayroll = useCallback(() => setPayrollOpen(false), []);
 
   const _state: RouteState = previewState ?? liveState;
   const locActive = !isPreview && (_state === "enroute" || _state === "arrived" || _state === "visit");
@@ -964,7 +956,7 @@ function FieldBody({
       setBanner={setBanner}
       breakFrom={breakFrom}
       setBreakFrom={setBreakFrom}
-      beforeClockOut={leadEndOfDay ? openPayrollGate : undefined}
+      afterClockOut={leadEndOfDay ? openPayroll : undefined}
     />
   ) : null;
 
@@ -1163,8 +1155,8 @@ function FieldBody({
         open={payrollOpen}
         scriptUrl={SCRIPT_URL}
         byName={me?.name ?? "lead"}
-        onClose={() => closePayroll(false)}
-        onProceed={() => closePayroll(true)}
+        onClose={closePayroll}
+        onProceed={closePayroll}
       />
     </div>
   );
@@ -1462,7 +1454,7 @@ function PersonalClockPanel({
   setBanner,
   breakFrom,
   setBreakFrom,
-  beforeClockOut,
+  afterClockOut,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -1473,7 +1465,8 @@ function PersonalClockPanel({
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
   breakFrom: string | null;
   setBreakFrom: (v: string | null) => void;
-  beforeClockOut?: () => Promise<boolean>;
+  /** Lead's end of day: run after the clock-out actually registers. */
+  afterClockOut?: () => void;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
@@ -1523,15 +1516,17 @@ function PersonalClockPanel({
 
   const startBreak = async (fromClient: string) => {
     if (isPreview) return;
-    if (beforeClockOut) {
-      const proceed = await beforeClockOut();
-      if (!proceed) return;
-    }
     setBusy(true);
     const r = await send({ action: "qbClock", userId: me.id, dir: "out", client: fromClient });
     setBusy(false);
-    if (r.ok) setBreakFrom(fromClient);
-    else setBanner({ kind: "err", text: "Break failed — retry." });
+    if (r.ok) {
+      setBreakFrom(fromClient);
+      // Only once the clock-out has registered: payroll confirm is the last
+      // step of the day, and it needs this entry closed to total correctly.
+      afterClockOut?.();
+    } else {
+      setBanner({ kind: "err", text: "Break failed — retry." });
+    }
   };
 
   const since = row?.in
