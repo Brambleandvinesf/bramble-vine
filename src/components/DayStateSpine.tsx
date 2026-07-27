@@ -10,6 +10,19 @@ const LIME_DIM = "#2f5f10";
 const DIM_TEXT = "#4a7a1e";
 const BG = "#0a0a0a";
 
+// Height of the spine body. The body is always rendered at this height, in both
+// states, so collapsing can be a pure translate with no reflow.
+const SPINE_BODY_H = 128;
+// How much of the body stays on screen when collapsed. The sub-node row sits at
+// top:10 and the active capsule is 30 tall, so it occupies 10-40: 46 keeps the
+// whole capsule with a little breathing room and hides the anchors below it.
+const COLLAPSED_PEEK = 46;
+// Slide the body's hidden part plus the bottom padding off the bottom edge. The
+// arrow tab is anchored above the body, so it rides down with it and stays
+// visible as the peek handle.
+const COLLAPSED_SHIFT =
+  `calc(${SPINE_BODY_H - COLLAPSED_PEEK}px + 6px + env(safe-area-inset-bottom, 0px))`;
+
 const ACTION_TEXT: Record<string, string> = {
   signin: "Sign In",
   team_assign: "Assign Teams",
@@ -272,7 +285,11 @@ export function DayStateSpine() {
       ro.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [state, collapsed, activeSubs, currentSubIdx, activeIdx, phases]);
+    // No `collapsed` dependency: the body renders identically in both states, so
+    // collapsing cannot change any geometry. (A transform would not disturb the
+    // measurements either - they are all relative to the container, which moves
+    // with its children.)
+  }, [state, activeSubs, currentSubIdx, activeIdx, phases]);
 
   if (!state || phases.length === 0) {
     return (
@@ -308,9 +325,6 @@ export function DayStateSpine() {
     }
     if (target.to) void router.navigate({ to: target.to });
   };
-
-  const currentActionText =
-    ACTION_TEXT[state.subStep] || state.subStep.replace(/_/g, " ").toUpperCase();
 
   const N = phases.length;
   const parentSize = 26;
@@ -366,7 +380,6 @@ export function DayStateSpine() {
         .bv-spine-nudge { animation: bvSpineNudge 1.4s ease-out 2; }
         .bv-spine-node { animation: bvSpineFade .35s ease-out both; }
         .bv-spine-capsule { animation: bvSpineCapsuleIn .35s ease-out both, bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
-        .bv-spine-dot-blink { animation: bvSpineBlink 3s cubic-bezier(0.45,0,0.55,1) infinite; }
         .bv-spine-enroute { stroke-dasharray: 8 6; animation: bvSpineDash 1.2s linear infinite; }
       `}</style>
 
@@ -383,6 +396,12 @@ export function DayStateSpine() {
           borderTop: "1px solid #1a1a1a",
           fontFamily: "'Courier New', Courier, monospace",
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
+          // Collapsing slides the whole bar down and nothing else. The spine
+          // always renders at full size, so no node changes position, size or
+          // style between states - only this transform does.
+          transform: collapsed ? `translateY(${COLLAPSED_SHIFT})` : "translateY(0)",
+          transition: "transform 300ms ease-in-out",
+          willChange: "transform",
         }}
       >
         {/* toggle handle */}
@@ -412,42 +431,15 @@ export function DayStateSpine() {
           {collapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
-        {collapsed ? (
-          <div
-            style={{
-              padding: "8px 12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              color: LIME,
-              fontSize: 11,
-              letterSpacing: 1.5,
-              fontWeight: 700,
-              minHeight: 32,
-            }}
-          >
-            <span
-              className="bv-spine-dot-blink"
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: LIME,
-              }}
-            />
-            {currentActionText.toUpperCase()}
-          </div>
-        ) : (
-          <div
-            ref={containerRef}
-            style={{
-              position: "relative",
-              height: 128,
-              width: "100%",
-              overflow: "hidden",
-            }}
-          >
+        <div
+          ref={containerRef}
+          style={{
+            position: "relative",
+            height: SPINE_BODY_H,
+            width: "100%",
+            overflow: "hidden",
+          }}
+        >
             {/* SVG connector layer */}
             {geom && (
               <svg
@@ -744,9 +736,8 @@ export function DayStateSpine() {
                   </div>
                 );
               })}
-            </div>
           </div>
-        )}
+        </div>
       </div>
     </>
   );
