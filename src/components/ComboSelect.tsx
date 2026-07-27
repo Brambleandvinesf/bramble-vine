@@ -11,12 +11,15 @@ export function ComboSelect({
   onChange,
   placeholder = "Select…",
   disabled = false,
+  compact = false,
 }: {
   value: string;
   options: string[];
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** Match the inline pill styling of the Type selector, for a shared row. */
+  compact?: boolean;
 }) {
   const normalized = useMemo(() => {
     const map = new Map<string, string>();
@@ -47,7 +50,7 @@ export function ComboSelect({
           disabled={disabled}
           autoFocus
           placeholder="New value"
-          style={INPUT}
+          style={compact ? { ...INPUT, minHeight: 36, padding: "0 8px", fontSize: 11, letterSpacing: 1, color: LIME } : INPUT}
         />
         <button
           type="button"
@@ -78,7 +81,7 @@ export function ComboSelect({
         }
         onChange(v);
       }}
-      style={SELECT}
+      style={compact ? COMPACT_SELECT : SELECT}
     >
       <option value="" style={OPTION}>
         {placeholder}
@@ -125,6 +128,27 @@ const SELECT: CSSProperties = {
   backgroundSize: "5px 5px, 5px 5px",
   backgroundRepeat: "no-repeat",
   paddingRight: 28,
+};
+
+/**
+ * Same visual weight as the Type selector in Confirm Day, so Type, Garden and
+ * Category can share one row instead of stacking into a tall card.
+ */
+const COMPACT_SELECT: CSSProperties = {
+  ...SELECT,
+  width: "auto",
+  flex: 1,
+  minWidth: 0,
+  background: "transparent",
+  color: LIME,
+  border: `1px solid ${LIME}`,
+  padding: "0 24px 0 8px",
+  minHeight: 36,
+  fontSize: 11,
+  letterSpacing: 2,
+  fontWeight: "bold",
+  cursor: "pointer",
+  textTransform: "uppercase",
 };
 
 const OPTION: CSSProperties = {

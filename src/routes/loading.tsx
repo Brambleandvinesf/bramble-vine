@@ -9,6 +9,7 @@ import { useDayState } from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { MessagesFab } from "../components/MessagesFab";
+import { CountdownChips } from "../components/CountdownChips";
 import { appendTeamParam } from "../lib/team";
 import { confirmModal } from "../components/ConfirmModal";
 
@@ -290,6 +291,10 @@ function LoadingPage() {
 
       {!loadErr && confirm?.confirmed && reviewable !== false && (
         <>
+          {/* The departure countdown lives here and nowhere earlier: this is the
+              last step of the HQ_LOADING group, so DEPART NOW is an instruction
+              the crew can actually act on. */}
+          <CountdownChips showDeparture />
           <header style={HEADER}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>

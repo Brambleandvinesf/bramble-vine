@@ -863,8 +863,19 @@ function ConfirmPage() {
                               : undefined,
                     }}
                   >
-                    <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
-                      <div style={{ flex: 1 }} />
+                    {/* Type, Garden and Category share one row at the same
+                        weight. They used to be a right-aligned Type plus a
+                        two-column labelled block lower down, which was most of
+                        the card's height for three short values. */}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        marginBottom: 10,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <TypeSelect
                         value={e.type}
                         options={distinctTypes}
@@ -874,6 +885,22 @@ function ConfirmPage() {
                           if (val === e.type) return;
                           void editProjectLive(p, { type: val }, () => ({ type: val }));
                         }}
+                      />
+                      <ComboSelect
+                        value={e.garden}
+                        options={gardenOptions}
+                        onChange={(v) => setEdit(key, { garden: v })}
+                        disabled={isDeleted}
+                        placeholder="GARDEN"
+                        compact
+                      />
+                      <ComboSelect
+                        value={e.category}
+                        options={categoryOptions}
+                        onChange={(v) => setEdit(key, { category: v })}
+                        disabled={isDeleted}
+                        placeholder="CATEGORY"
+                        compact
                       />
                     </div>
 
@@ -892,7 +919,10 @@ function ConfirmPage() {
                       style={ACTION_INPUT}
                       disabled={isDeleted}
                     />
-                    {p.items.length > 0 && (
+                    {/* Items and their add button share one row: the button was
+                        a full-width block below the pills, which pushed every
+                        card taller than a phone screen. */}
+                    {(p.items.length > 0 || (p.projectId && !isDeleted)) && (
                       <div style={ITEMS_ROW}>
                         {p.items.map((it, i) => {
                           const label = [it.qty, it.name, it.size]
@@ -917,41 +947,19 @@ function ConfirmPage() {
                             </span>
                           );
                         })}
-                      </div>
-                    )}
-                    {p.projectId && !isDeleted && (
-                      <div style={{ marginTop: 10 }}>
-                        <button
-                          style={ADD_ITEM_BTN}
-                          onClick={() =>
-                            setPickerFor({ mode: "existing", client, projectId: p.projectId, uid: p.uid })
-                          }
-                        >
-                          + ADD ITEM
-                        </button>
+                        {p.projectId && !isDeleted && (
+                          <button
+                            style={ADD_ITEM_PILL}
+                            onClick={() =>
+                              setPickerFor({ mode: "existing", client, projectId: p.projectId, uid: p.uid })
+                            }
+                          >
+                            + ADD ITEM
+                          </button>
+                        )}
                       </div>
                     )}
 
-                    <div style={ROW2}>
-                      <div style={{ flex: 1 }}>
-                        <label style={LABEL}>GARDEN</label>
-                        <ComboSelect
-                          value={e.garden}
-                          options={gardenOptions}
-                          onChange={(v) => setEdit(key, { garden: v })}
-                          disabled={isDeleted}
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={LABEL}>CATEGORY</label>
-                        <ComboSelect
-                          value={e.category}
-                          options={categoryOptions}
-                          onChange={(v) => setEdit(key, { category: v })}
-                          disabled={isDeleted}
-                        />
-                      </div>
-                    </div>
                     {e.notesOpen ? (
                       <>
                         <label style={LABEL}>NOTES</label>
@@ -964,17 +972,7 @@ function ConfirmPage() {
                           autoFocus={!e.notes}
                         />
                       </>
-                    ) : (
-                      <div style={{ marginTop: 8 }}>
-                        <button
-                          style={GHOST_BTN_SM}
-                          onClick={() => setEdit(key, { notesOpen: true })}
-                          disabled={isDeleted}
-                        >
-                          + ADD NOTES
-                        </button>
-                      </div>
-                    )}
+                    ) : null}
 
                     <div
                       style={{
@@ -1012,6 +1010,17 @@ function ConfirmPage() {
                         gap: 8,
                       }}
                     >
+                      {/* Notes sits with the other card actions rather than
+                          occupying a row of its own. */}
+                      {!e.notesOpen && (
+                        <button
+                          style={{ ...GHOST_BTN_SM, marginRight: "auto" }}
+                          onClick={() => setEdit(key, { notesOpen: true })}
+                          disabled={isDeleted}
+                        >
+                          + ADD NOTES
+                        </button>
+                      )}
                       <button
                         aria-label="Confirm"
                         title="Confirm"
@@ -1574,19 +1583,42 @@ const ITEMS_ROW: React.CSSProperties = {
   borderLeft: `1px solid ${LIME_DIM}`,
   display: "flex",
   flexWrap: "wrap",
+  alignItems: "center",
   gap: 10,
 };
+/**
+ * Filled, because these are the items that ARE on the load. Add Item is the
+ * outlined pill beside them - the contrast is what separates a thing that
+ * exists from the control that makes another one.
+ */
 const ITEM_PILL: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 4,
   fontSize: 18,
-  color: LIME_BRIGHT,
-  background: "#0a0a0a",
+  color: "#0a0a0a",
+  background: LIME_BRIGHT,
   border: `1px solid ${LIME_BRIGHT}`,
   borderRadius: 999,
   padding: "4px 6px 4px 14px",
   letterSpacing: 0.5,
+  fontWeight: "bold",
+};
+
+const ADD_ITEM_PILL: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  fontSize: 14,
+  color: LIME,
+  background: "transparent",
+  border: `1px solid ${LIME}`,
+  borderRadius: 999,
+  padding: "0 16px",
+  minHeight: 38,
+  fontFamily: "inherit",
+  fontWeight: "bold",
+  letterSpacing: 1.5,
+  cursor: "pointer",
 };
 const ITEM_PILL_X: React.CSSProperties = {
   display: "inline-flex",
@@ -1598,9 +1630,10 @@ const ITEM_PILL_X: React.CSSProperties = {
   height: 32,
   padding: 0,
   marginLeft: 2,
+  // Sits on a filled lime pill now, so it has to be dark to be visible.
   background: "transparent",
-  color: LIME_BRIGHT,
-  border: `1px solid ${LIME_DIM}`,
+  color: "#0a0a0a",
+  border: `1px solid rgba(10,10,10,.45)`,
   borderRadius: 999,
   fontFamily: "inherit",
   fontSize: 18,

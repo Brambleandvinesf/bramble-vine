@@ -876,13 +876,59 @@ function DayGrid({
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     if (!isToday) return;
-    const id = window.setInterval(() => setNow(new Date()), 30_000);
+    // 10s rather than 30s: the grid now moves under a fixed centre, and a
+    // half-minute step reads as a jerk rather than drift.
+    const id = window.setInterval(() => setNow(new Date()), 10_000);
     return () => window.clearInterval(id);
   }, [isToday]);
 
   const nowMin = isToday ? laMinutesFromStart(now.toISOString()) : NaN;
   const nowInRange = isToday && !isNaN(nowMin) && nowMin >= 0 && nowMin <= totalHours * 60;
   const nowTop = nowInRange ? (nowMin / 60) * HOUR_PX : 0;
+
+  // Today's grid scrolls under a fixed centre so the now line is always the
+  // thing you look at, with the schedule moving up past it. Half-viewport
+  // spacers top and bottom let 8am and 6pm reach the centre too - without them
+  // the scroll clamps and the line drifts off-centre at the ends of the day.
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [viewportH, setViewportH] = useState(0);
+  // Set while we scroll ourselves, so our own scroll events are not mistaken
+  // for the user taking over.
+  const selfScrollRef = useRef(false);
+  const userHeldUntilRef = useRef(0);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || !nowInRange) return;
+    const measure = () => setViewportH(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [nowInRange]);
+
+  const spacer = nowInRange && viewportH ? Math.round(viewportH / 2) : 0;
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || !nowInRange || !viewportH) return;
+    if (Date.now() < userHeldUntilRef.current) return;
+    const target = spacer + nowTop - viewportH / 2;
+    if (Math.abs(el.scrollTop - target) < 1) return;
+    selfScrollRef.current = true;
+    el.scrollTo({ top: target, behavior: "smooth" });
+    // Smooth scrolling emits events for a while after the call.
+    window.setTimeout(() => {
+      selfScrollRef.current = false;
+    }, 700);
+  }, [nowTop, viewportH, spacer, nowInRange]);
+
+  const onViewportScroll = useCallback(() => {
+    // Browsing the rest of the day should not be yanked back mid-gesture;
+    // recentre once they have stopped.
+    if (selfScrollRef.current) return;
+    userHeldUntilRef.current = Date.now() + 8000;
+  }, []);
 
   const hours = Array.from({ length: totalHours + 1 }, (_, i) => DAY_START_HOUR + i);
 
@@ -921,7 +967,7 @@ function DayGrid({
     );
   }
 
-  return (
+  const grid = (
     <div
       style={{
         position: "relative",
@@ -1096,6 +1142,33 @@ function DayGrid({
           />
         </div>
       )}
+    </div>
+  );
+
+  // Any day but today keeps the plain flow layout: with no now line there is
+  // nothing to centre, and a scroll box would only crop the day.
+  if (!nowInRange) return grid;
+
+  return (
+    <div
+      ref={viewportRef}
+      onScroll={onViewportScroll}
+      style={{
+        position: "relative",
+        maxHeight: "min(60vh, 520px)",
+        overflowY: "auto",
+        overscrollBehavior: "contain",
+        // The centre is the focal point, so fade the edges toward it rather
+        // than ending the grid on a hard cut.
+        maskImage:
+          "linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%)",
+        WebkitMaskImage:
+          "linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%)",
+      }}
+    >
+      <div style={{ height: spacer }} aria-hidden="true" />
+      {grid}
+      <div style={{ height: spacer }} aria-hidden="true" />
     </div>
   );
 }
