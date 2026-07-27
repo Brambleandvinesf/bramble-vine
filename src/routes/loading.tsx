@@ -479,12 +479,20 @@ function LoadingPage() {
                 if (!allConfirmed) return;
                 setCompleting(true);
                 try {
-                  await fetch(SCRIPT_URL, {
+                  const res = await fetch(SCRIPT_URL, {
                     method: "POST",
                     headers: { "Content-Type": "text/plain" },
                     body: JSON.stringify({ action: "loadingComplete" }),
                   });
+                  // Previously only a thrown error was caught, so an HTTP error
+                  // still reported success and advanced the crew.
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
                   toast.success("Loading marked complete");
+                  // No sub-step override here: "loading" is the last step of
+                  // HQ_LOADING, so completing it moves the PHASE to FIELD_VISIT.
+                  // The override only rewrites sub-steps within the current
+                  // phase, on purpose - it must not invent a phase the payload
+                  // has not reported. This node still waits for the poll.
                   navigate({ to: "/field" });
                 } catch {
                   toast.error("Couldn't mark complete — retry");

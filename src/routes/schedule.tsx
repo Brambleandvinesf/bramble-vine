@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { useReviewableToday } from "../lib/reviewable-today";
-import { useDayState } from "../lib/day-state";
+import { useDayState, useSubStepOverride } from "../lib/day-state";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { MessagesFab } from "../components/MessagesFab";
@@ -207,6 +207,9 @@ function SchedulePage() {
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
   const dayState = useDayState();
+  const { advanceSubStep } = useSubStepOverride();
+  // dayState already carries any sub-step override, so a pending gate keeps its
+  // own caption and a fresh confirm shows the next one immediately.
   const standbyCaption = (dayState?.caption ?? "").trim();
 
   // Office lands on /schedule as their default surface; do not redirect away.
@@ -265,12 +268,14 @@ function SchedulePage() {
       if (!j.ok) throw new Error(j.error || "not ok");
       if (j.state?.confirmed) setConfirmed(true);
       setBaseLoadFlash("DAILY LOAD CONFIRMED — CREW NOTIFIED");
+      // Advance the spine on the ok, not on the next poll.
+      advanceSubStep("special_confirm");
     } catch (e) {
       setBaseLoadFlash(`FAILED: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
       setBaseLoadSubmitting(false);
     }
-  }, []);
+  }, [advanceSubStep]);
 
   const submitBaseLoadNo = useCallback(async () => {
     setBaseLoadSubmitting(true);

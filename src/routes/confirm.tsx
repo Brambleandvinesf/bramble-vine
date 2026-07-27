@@ -7,6 +7,7 @@ import { ItemPicker } from "../components/ItemPicker";
 import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { useOptimistic } from "../lib/optimistic";
+import { useSubStepOverride } from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { Check, SkipForward, Trash2 } from "lucide-react";
@@ -202,6 +203,7 @@ function ConfirmPage() {
   // src/lib/optimistic.ts for why a payload alone is not proof.
   const { decide: optDecide, reconcile: optReconcile, records: optRecords } =
     useOptimistic("confirm:deleted-projects");
+  const { advanceSubStep } = useSubStepOverride();
   const committedDeletes = useMemo(
     () => new Set(optRecords.filter((r) => r.kind === "deleted").map((r) => r.id)),
     [optRecords],
@@ -620,6 +622,9 @@ function ConfirmPage() {
         msg: reportSummary ? `Confirmed. ${reportSummary}` : "Confirmed.",
         err: false,
       });
+      // Advance the spine on the ok. The navigate below then lands on /loading
+      // with the day state already showing the next step.
+      advanceSubStep("loading");
       if (json.state) setState(json.state);
       // Hand the staged deletions to the optimistic store before clearing them,
       // so the reload below cannot resurrect what was just deleted.
@@ -641,7 +646,7 @@ function ConfirmPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [projects, edits, deletes, newByClient, sendText, load, optDecide]);
+  }, [projects, edits, deletes, newByClient, sendText, load, optDecide, advanceSubStep]);
 
   if (!allowed) return null;
 

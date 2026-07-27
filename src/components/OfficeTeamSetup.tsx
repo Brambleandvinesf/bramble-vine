@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth, crewDayLA } from "../lib/auth";
+import { useSubStepOverride } from "../lib/day-state";
 
 /**
  * Once-daily team setup overlay.
@@ -39,15 +40,28 @@ function normTeam(t: string | undefined): Team {
   return (t || "").toLowerCase().startsWith("b") ? "Bravo" : "Alpha";
 }
 
-async function post(action: string, extra: Record<string, unknown>) {
+/**
+ * Returns whether the write is believed to have landed. Only a positive signal
+ * of failure counts as failure - a body we cannot parse is treated as success,
+ * so an unreadable response never strands someone at a gate they did pass.
+ */
+async function post(action: string, extra: Record<string, unknown>): Promise<boolean> {
   try {
-    await fetch(SCRIPT_URL, {
+    const res = await fetch(SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action, ...extra }),
     });
+    if (!res.ok) return false;
+    try {
+      const j = (await res.json()) as { ok?: boolean };
+      return j?.ok !== false;
+    } catch {
+      return true;
+    }
   } catch (e) {
     console.warn("[team-setup] post failed", action, e);
+    return false;
   }
 }
 
@@ -66,6 +80,7 @@ export function OfficeTeamSetup() {
   const [showExcluded, setShowExcluded] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  const { advanceSubStep, holdSubStep, releaseSubStep } = useSubStepOverride();
   const canAssignTeams = role === "office" || role === "lead" || role === "management";
   const active = ready && !!user && canAssignTeams;
   const autoOpens = role === "office";
@@ -118,6 +133,16 @@ export function OfficeTeamSetup() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, autoOpens]);
+
+  // Item 1: while this gate is still pending - fetching, or open and unconfirmed
+  // - the caption must not read as though teams were assigned. Pin the displayed
+  // sub-step until confirmTeams lands, then release.
+  const gatePending = active && !data?.teamsConfirmed && (!loaded || open);
+  useEffect(() => {
+    if (!gatePending) return;
+    holdSubStep("team_assign");
+    return () => releaseSubStep();
+  }, [gatePending, holdSubStep, releaseSubStep]);
 
   const dismiss = useCallback(() => {
     try { sessionStorage.setItem(dismissKey, "1"); } catch { /* ignore */ }
@@ -186,10 +211,14 @@ export function OfficeTeamSetup() {
 
   const onConfirm = useCallback(async () => {
     setConfirming(true);
-    await post("confirmTeams", {});
+    const ok = await post("confirmTeams", {});
     setConfirming(false);
+    if (!ok) return; // leave the overlay up; the gate has not been passed
     setOpen(false);
-  }, []);
+    // Move the spine and captions now rather than up to a poll cycle later. The
+    // next screen renders from the cached day state; the poll reconciles.
+    advanceSubStep("dailyload_confirm");
+  }, [advanceSubStep]);
 
   if (!active || !loaded || !open || !data) return null;
 
