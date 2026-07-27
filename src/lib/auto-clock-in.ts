@@ -37,6 +37,41 @@ function dayKeyFor(userId: string): string {
   return `bv.autoClockIn.${userId}.${crewDayLA()}`;
 }
 
+/**
+ * When the assistant actually arrived, as opposed to when a team assignment
+ * finally named them.
+ *
+ * The assistant signs in on arrival, but the clock-in cannot happen until
+ * fieldPhone says who is holding the device - which can be a while. Stamping
+ * arrival here lets the backend backdate the timesheet to it (v7.4.2, capped at
+ * 45 min server-side). Day-scoped so yesterday's stamp can never leak into today.
+ */
+const PRESENCE_KEY = "bv.presenceAt";
+
+function presenceStamp(): string | null {
+  const day = crewDayLA();
+  try {
+    const raw = localStorage.getItem(PRESENCE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw) as { day?: string; at?: string };
+      if (saved?.day === day && saved.at) return saved.at;
+    }
+    const at = new Date().toISOString();
+    localStorage.setItem(PRESENCE_KEY, JSON.stringify({ day, at }));
+    return at;
+  } catch {
+    return null; // private mode: no presence, backend clocks in from now
+  }
+}
+
+function clearPresence(): void {
+  try {
+    localStorage.removeItem(PRESENCE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function loadEmployees(): Promise<EmployeeRow[]> {
   const cached = sessionCache.get<{ employees?: EmployeeRow[] }>(FIELD_CK);
   if (cached?.employees?.length) return cached.employees;
@@ -69,6 +104,10 @@ export function useAutoClockIn(opts: {
     const who = email.trim().toLowerCase();
     if (!who) return;
 
+    // Stamp arrival before anything can block. The assistant is present the
+    // moment they sign in, even though the clock-in waits on fieldPhone.
+    if (role === "assistant") presenceStamp();
+
     let cancelled = false;
     void (async () => {
       const employees = await loadEmployees();
@@ -79,6 +118,7 @@ export function useAutoClockIn(opts: {
       );
       let userId = String(match?.id ?? "").trim();
       let personName = name || match?.name || "";
+      let viaFieldPhone = false;
 
       // thornsandtendrils@ is a shared device with no employee row of its own, so
       // an email match will never resolve it. Whoever is holding that phone today
@@ -86,6 +126,7 @@ export function useAutoClockIn(opts: {
       if (!userId && role === "assistant" && fieldPhone?.id) {
         userId = String(fieldPhone.id).trim();
         personName = fieldPhone.name || personName;
+        viaFieldPhone = true;
       }
 
       // No identity yet. Deliberately not recorded as an attempt: fieldPhone
@@ -101,7 +142,13 @@ export function useAutoClockIn(opts: {
       }
       attemptedRef.current.add(userId);
 
-      let payload: { ok?: boolean; alreadyIn?: boolean; error?: string } | null = null;
+      // Only the fieldPhone route is retroactive: it is the one that waited on an
+      // assignment. A lead resolved by email clocks in from now, as before.
+      const startedAt = viaFieldPhone ? presenceStamp() : null;
+
+      let payload:
+        | { ok?: boolean; alreadyIn?: boolean; error?: string; retroFrom?: string | null }
+        | null = null;
       try {
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
@@ -111,6 +158,7 @@ export function useAutoClockIn(opts: {
             userId,
             name: personName,
             role,
+            ...(startedAt ? { start: startedAt } : {}),
           }),
         });
         if (!res.ok) return;
@@ -136,6 +184,9 @@ export function useAutoClockIn(opts: {
       } catch {
         /* ignore */
       }
+      // Cleared only on a landed write, so a failure keeps the arrival time for
+      // the retry rather than silently losing the minutes worked.
+      if (startedAt) clearPresence();
       toast.success(payload.alreadyIn ? "Already clocked in ✓" : "Clocked in as Bramble & Vine ✓");
     })();
 
