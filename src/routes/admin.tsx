@@ -506,7 +506,17 @@ function AdminPage() {
  * ============================================================ */
 type TeamKey = "Alpha" | "Bravo";
 type Employee = { id: string; name?: string; team?: TeamKey };
-type Assignment = { match: string; team: TeamKey };
+/**
+ * The backend has stored a teams ARRAY since v6.8.8 (a client can belong to
+ * more than one team); this screen was still sending and reading a single
+ * `team`. The write was dropped and silently defaulted to Alpha, and the read
+ * found nothing, so no team button ever showed as selected.
+ *
+ * The UI stays single-select - one team per rule - but it speaks the array
+ * contract, and reads tolerantly so a rule that really does carry two teams
+ * still highlights.
+ */
+type Assignment = { match: string; teams?: TeamKey[] };
 type GetTeamsRes = { employees?: Employee[]; assignments?: Assignment[] };
 
 const TEAMS: TeamKey[] = ["Alpha", "Bravo"];
@@ -573,7 +583,7 @@ function TeamsAdmin() {
     const m = newMatch.trim();
     if (!m) return;
     setBusy("add");
-    const ok = await postScript({ action: "setTeamAssignment", match: m, team: newTeam });
+    const ok = await postScript({ action: "setTeamAssignment", match: m, teams: [newTeam] });
     setBusy(null);
     if (ok) {
       setNewMatch("");
@@ -597,11 +607,13 @@ function TeamsAdmin() {
       d
         ? {
             ...d,
-            assignments: (d.assignments ?? []).map((a) => (a.match === match ? { ...a, team } : a)),
+            assignments: (d.assignments ?? []).map((a) =>
+              a.match === match ? { ...a, teams: [team] } : a,
+            ),
           }
         : d,
     );
-    const ok = await postScript({ action: "setTeamAssignment", match, team });
+    const ok = await postScript({ action: "setTeamAssignment", match, teams: [team] });
     setBusy(null);
     if (!ok) void load();
   };
@@ -732,7 +744,7 @@ function TeamsAdmin() {
                       key={t}
                       disabled={busy === `a:${a.match}`}
                       onClick={() => void setAssignmentTeam(a.match, t)}
-                      style={btn(a.team === t)}
+                      style={btn((a.teams ?? []).includes(t))}
                     >
                       {t}
                     </button>
