@@ -76,7 +76,14 @@ function internalRoleFor(it: InboxItem): string | null {
 /* ============ Types ============ */
 type Attachment = { name: string; mime: string; data: string; size: number };
 type ThreadAttachment = { name: string; mime: string; data?: string; size: number };
-type ThreadMessage = { from?: string; body: string; date: string; attachments?: ThreadAttachment[] };
+type ThreadMessage = {
+  from?: string;
+  body: string;
+  /** Raw HTML from threadDetail_, or null when the mail was plain text. */
+  htmlBody?: string | null;
+  date: string;
+  attachments?: ThreadAttachment[];
+};
 type ThreadMedia = { url: string; type?: string };
 type QuoMessage = { direction: "incoming" | "outgoing"; body: string; date: string; media?: ThreadMedia[] };
 
@@ -1336,43 +1343,56 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   );
 
   /* ---- search ---- */
-  const searchHits = useMemo(() => {
-    const q = searchQ.trim().toLowerCase();
-    if (!q) return [];
-    const digits = q.replace(/\D/g, "");
-    // Searches `items`, not the rendered feed: a thread filed or marked done
-    // stays findable, and matching now includes subject and snippet, not just
-    // who it came from.
-    return items
-      .filter((it) => {
-        if ((it.from || "").toLowerCase().indexOf(q) >= 0) return true;
-        if ((it.fromEmail || "").toLowerCase().indexOf(q) >= 0) return true;
-        if ((it.subject || "").toLowerCase().indexOf(q) >= 0) return true;
-        if ((it.snippet || "").toLowerCase().indexOf(q) >= 0) return true;
-        if (digits) return (it.participants || []).some((p) => p.replace(/\D/g, "").indexOf(digits) >= 0);
-        return false;
-      })
-      .slice(0, 8);
-  }, [searchQ, items]);
+  // Server-side search (getSearch), which reaches done and archived threads the
+  // feed never carries. Replaces the old client-side filter over the feed.
+  const [searchHits, setSearchHits] = useState<InboxItem[]>([]);
+  const [searchBusy, setSearchBusy] = useState(false);
+  useEffect(() => {
+    const q = searchQ.trim();
+    if (!q) {
+      setSearchHits([]);
+      setSearchBusy(false);
+      return;
+    }
+    setSearchBusy(true);
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      (async () => {
+        try {
+          const r = await fetch(`${SCRIPT_URL}?action=getSearch&q=${encodeURIComponent(q)}`)
+            .then((x) => x.json());
+          if (cancelled) return;
+          setSearchHits(Array.isArray(r?.results) ? (r.results as InboxItem[]) : []);
+        } catch {
+          if (!cancelled) setSearchHits([]);
+        } finally {
+          if (!cancelled) setSearchBusy(false);
+        }
+      })();
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [searchQ]);
+
   const jumpTo = useCallback((id: string) => {
+    const hit = searchHits.find((x) => x.id === id);
     setSearchQ("");
-    const hit = items.find((x) => x.id === id);
-    // Open the thread directly. Scrolling to the card only ever worked for
-    // threads still in the feed, so a filed one reported "not in the current
-    // feed" even though search had just listed it.
-    if (hit) {
-      void openViewer(hit);
+    if (!hit) return;
+    // getSearch results are lightweight and carry no participants/line, which
+    // getQuoThread needs. Prefer the fuller feed item when we already hold it,
+    // matching on id or threadId.
+    const fuller = items.find(
+      (x) => x.id === hit.id || (!!hit.threadId && x.threadId === hit.threadId),
+    );
+    const target = hit.source === "quo" && fuller ? fuller : hit;
+    if (target.source === "quo" && !(target.participants || []).length) {
+      flash("Can't open that text conversation from search yet.", true);
       return;
     }
-    const el = document.querySelector<HTMLElement>(`[data-item-id="${id}"]`);
-    if (!el) {
-      flash("Conversation not in the current feed.", true);
-      return;
-    }
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setFoundId(id);
-    window.setTimeout(() => setFoundId((cur) => (cur === id ? null : cur)), 2500);
-  }, [flash, items, openViewer]);
+    void openViewer(target);
+  }, [searchHits, items, openViewer, flash]);
 
   /* ---- countdown text ---- */
   const countdownEl = useMemo(() => {
@@ -1544,10 +1564,29 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
           <input
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
-            placeholder="Search recipients…"
+            placeholder="Search all messages…"
             autoComplete="off"
             style={{ ...inputStyle, width: "100%", minHeight: 48, boxSizing: "border-box" }}
           />
+          {searchQ.trim() !== "" && (searchBusy || searchHits.length === 0) && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 65,
+                background: T.panel,
+                border: `1px solid ${T.border}`,
+                borderRadius: "0 0 8px 8px",
+                padding: "12px 16px",
+                color: T.dim,
+                fontSize: ".9rem",
+              }}
+            >
+              {searchBusy ? "Searching…" : "No matches."}
+            </div>
+          )}
           {searchHits.length > 0 && (
             <div
               style={{
@@ -3414,9 +3453,13 @@ function Viewer({
               <div style={{ fontSize: ".85rem", opacity: 0.8, marginBottom: 8, borderBottom: `1px solid ${T.border}`, paddingBottom: 6, textAlign: "left" }}>
                 <b>{m.from || ""}</b> — {new Date(m.date).toLocaleString()}
               </div>
-              <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "left" }}>
-                {m.body}
-              </div>
+              {m.htmlBody ? (
+                <HtmlBody html={m.htmlBody} />
+              ) : (
+                <div style={{ whiteSpace: "pre-wrap", wordWrap: "break-word", fontSize: "1.05rem", textAlign: "left" }}>
+                  {m.body}
+                </div>
+              )}
               {(m.attachments || []).map((a, j) => (
                 <AttView key={j} a={a} />
               ))}
@@ -3552,6 +3595,42 @@ function Viewer({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A real HTML email, rendered in a sandboxed iframe.
+ *
+ * The card frame around it stays B&V; inside is the sender's own formatting,
+ * untouched, on the white the mail was designed for.
+ *
+ * sandbox has no allow-scripts and no allow-same-origin, so the mail cannot run
+ * anything or reach this document; images and CSS still load, and allow-popups
+ * plus <base target="_blank"> keeps links working. Because there is no
+ * same-origin access the height cannot be measured, so the frame is fixed and
+ * scrolls internally rather than guessing.
+ */
+function HtmlBody({ html }: { html: string }) {
+  const srcDoc = `<!doctype html><html><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1">` +
+    `<base target="_blank">` +
+    `<style>html,body{margin:0;padding:8px;background:#fff;}` +
+    `img{max-width:100%;height:auto;}</style></head><body>${html}</body></html>`;
+  return (
+    <iframe
+      title="Email content"
+      sandbox="allow-popups allow-popups-to-escape-sandbox"
+      srcDoc={srcDoc}
+      style={{
+        width: "100%",
+        height: "60vh",
+        minHeight: 240,
+        border: `1px solid ${T.border}`,
+        borderRadius: 4,
+        background: "#fff",
+        display: "block",
+      }}
+    />
   );
 }
 
