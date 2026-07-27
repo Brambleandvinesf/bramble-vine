@@ -73,6 +73,14 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Either way an asset is never lost: every blob stays in history, so
     git show <sha>^:public/icon-512.png > public/icon-512.png
   restores it byte-exact. Verify the verdict after Lovable's next commit.
+- FRONTEND AND BACKEND DISAGREE SILENTLY. Nothing at runtime checks that an
+  action the app posts exists, or that a key it sends is read. Three found on
+  7/27, all invisible: removeItem was never written (pill reappeared after the
+  x), Admin sent {team} where the backend reads {teams:[]} (every mapping
+  became Alpha), addProject never wrote Category/Garden (both lost). Before a
+  backend deploy, run:
+    node scripts/audit-actions.mjs --code /home/info/appsscript/Code.js
+  It exits non-zero on a mismatch. Add an allowlist entry only with a reason.
 - Lovable prompts must state: "Backend deploy required first: YES/NO."
 - Only crew vehicle is a black Prius (no truck references).
 - Script Properties hold all config; edits are live, no redeploy needed.
