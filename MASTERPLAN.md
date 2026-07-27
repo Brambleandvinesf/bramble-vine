@@ -228,6 +228,34 @@ payrollNightly_, autoSortOnChange, updateDepartureEta.
   unknown. Mitigation: clock_bridge.py re-asserts all presets every arm.
 - 7/24: clock_bridge.py written, installed, enabled as clockbridge.service and
   verified against a stub backend. Blocked only on BV_BACKEND_URL (see §6).
+- 7/27: clasp set up on the Pi — backend is now Claude-editable directly (§12).
+  Deployment id pinned; the /exec URL has not changed and must not.
+- 7/27: Confirm Day dropped the getData fetch entirely. It was added to merge
+  tools by Project ID, but Project ID is NOT unique — the join produced 643
+  phantom rows across 4 clients. Re-keyed on (Project ID, Client Name), then
+  measured: the merge added 0 items. Removed the fetch rather than keep a
+  second round-trip that contributed nothing.
+- 7/27: assistant identity resolves via dayState.fieldPhone, not email.
+  thornsandtendrils@ is a shared device with no employee row, so no email will
+  ever match it. This is the structural fix, not a workaround.
+- 7/27: assistant clock-in is retroactive. Arrival is stamped at sign-in as
+  bv.presenceAt (localStorage, day-scoped) and sent as `start`; the backend
+  backdates the timesheet, capped at 45 min, pushing management past that.
+  Without it the assistant lost every minute between arriving and being
+  assigned. Frontend clears the stamp only after the write lands.
+- 7/27: autoClockIn used to answer ok:true for a garbage userId. v7.4.0 guard
+  requires a returned timesheet with an id AND a user_id matching the one
+  submitted. A bad id now fails loudly.
+- 7/27: an employee email looked stale after being changed in QB Time. The
+  cache key is qbUsersV3 (not QB_EMPLOYEES as assumed) with a 6h TTL — QB Time
+  was already correct. Added action=refreshEmployees (v7.4.1) to bust it.
+- 7/27: two SVG/layout bugs worth remembering, both found by measuring in a
+  real browser after reasoning about them failed twice. (a) A CSS transform
+  makes an element an offsetParent, so spine anchors must sum the offsetParent
+  chain, not assume the row. (b) filterUnits defaults to objectBoundingBox, so
+  a glow filter on a zero-height horizontal line has an empty filter region and
+  renders nothing — use userSpaceOnUse. Build a DOM harness and measure; do not
+  reason about layout from the source.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## 10. WORK QUEUE
@@ -240,8 +268,11 @@ Rendered on Admin screen (management only). Claude may edit via Chrome.
 3. Lovable prompts: copiable blocks, deploy-prereq stated, one at a time,
    audit between; Claude can send via Lovable chat pipeline on request
 4. PUBLISH after every confirmed-working Lovable change
-5. Claude updates this file when big decisions land; Brandon uploads via
-   GitHub web → public folder is for assets; MASTERPLAN.md goes in repo root
+5. Claude updates this file when big decisions land and pushes it directly
+   (deploy key, since 7/27) — no GitHub web upload needed. It lives in the repo
+   root; the public folder is for assets. A copy also sits in Brandon's
+   Downloads; the repo copy is canonical, so re-pull before editing rather than
+   editing Downloads and hoping the two agree.
 
 ## 12. APPS SCRIPT VIA CLASP (7/27)
 Backend source is NOT in this repo. It is edited via clasp on the Pi.
@@ -257,6 +288,15 @@ Backend source is NOT in this repo. It is edited via clasp on the Pi.
 - BEFORE PUSHING: `node --check Code.js`, then `clasp pull` and diff against
   your copy. clasp push would otherwise clobber edits made in the web editor
   since you cloned. If nothing local changed, deploy-only is correct.
+- YOU ARE NOT THE ONLY WRITER. Brandon edits in the web editor and other Claude
+  sessions edit this same file. On 7/27 a v7.4.2 written on a pre-v7.4.0 copy
+  landed in HEAD and silently reverted the v7.4.0 autoClockIn guard and v7.4.1
+  refreshEmployees, while the live @133 still had them. It read as a clean
+  forward change; the tell was the changelog running v7.4.2 -> v7.3.9. Diff the
+  changelog block, not just the function you touched — a stale-copy write
+  reverts things nowhere near your edit. Merge forward into a new version
+  rather than redeploying either side. (Resolved as v7.4.3 @134.)
+  (Propagation delay after deploy: see the iron rule in §3.)
 - HEAD can sit well ahead of the live deployment. On 7/27 the source already
   held unreleased v7.3.8 and v7.3.9 while the deployment sat at @130, so
   autoClockIn threw ReferenceError and clearClockArmPending answered "unknown
