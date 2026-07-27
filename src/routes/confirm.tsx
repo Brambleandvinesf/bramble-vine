@@ -64,58 +64,7 @@ type GetConfirmResponse = {
   projects?: Array<Record<string, unknown>>;
   clients?: string[];
   serverTime?: string;
-  /** Tools-sheet rows, merged into project items. Sourced from getData. */
-  tools?: Array<Record<string, unknown>>;
 };
-
-/**
- * Fold tools-sheet rows into each project's items.
- *
- * Joined on Project ID AND Client Name, not Project ID alone. Project IDs are
- * NOT unique: measured against the live data, proj-1 exists four times, once
- * each for Fay & Robert, Jeff & Steve, Laura Roberts and Mike Davis. Keying on
- * the id by itself attached every client's rows to every one of them - 643 item
- * rows instead of 18 - so one client's load showed up on another's card. The
- * (id, client) pair is unique across all 52 projects.
- *
- * getConfirm carries no tools array of its own (its keys are clients, projects,
- * serverTime, state, todaysClients), so they come from getData, fetched
- * alongside it. Note that getConfirm already folds the matching rows into
- * p.items server-side, so today this adds nothing; it exists so a row that is
- * NOT already merged still appears rather than silently vanishing.
- */
-function mergeTools(projects: Project[], tools: Array<Record<string, unknown>>): Project[] {
-  if (!tools.length) return projects;
-  const pairKey = (pid: string, client: string) => `${pid}||${client}`;
-  const byProject = new Map<string, Item[]>();
-  for (const t of tools) {
-    const pid = String(t["Project ID"] ?? "").trim();
-    const client = String(t["Client Name"] ?? "").trim();
-    if (!pid || !client) continue;
-    const item: Item = {
-      name: String(t["Item Name"] ?? "").trim(),
-      qty: String(t["Quantity"] ?? "").trim(),
-      size: String(t["Size"] ?? "").trim(),
-      notes: String(t["Notes"] ?? "").trim(),
-    };
-    if (!item.name) continue;
-    const k = pairKey(pid, client);
-    const list = byProject.get(k);
-    if (list) list.push(item);
-    else byProject.set(k, [item]);
-  }
-  if (!byProject.size) return projects;
-  const itemKey = (i: Item) => `${i.name}|${i.qty}|${i.size}`;
-  return projects.map((p) => {
-    if (!p.projectId || !p.client) return p;
-    const extra = byProject.get(pairKey(p.projectId, p.client));
-    if (!extra || !extra.length) return p;
-    // The same row arrives from both sources; show it once.
-    const seen = new Set(p.items.map(itemKey));
-    const add = extra.filter((i) => !seen.has(itemKey(i)));
-    return add.length ? { ...p, items: [...p.items, ...add] } : p;
-  });
-}
 
 /** Size a textarea to its content, so nothing is hidden behind a scrollbar. */
 function autoGrow(el: HTMLTextAreaElement | null) {
@@ -326,7 +275,7 @@ function ConfirmPage() {
   }, []);
 
   const applyData = useCallback((d: GetConfirmResponse) => {
-    const ps = mergeTools((d.projects ?? []).map(normProject), d.tools ?? []);
+    const ps = (d.projects ?? []).map(normProject);
     // A submitted delete stays suppressed until this payload stops carrying the
     // project. getConfirm can be served before the delete is readable, so
     // trusting each payload outright is what let deleted rows come back.
@@ -373,19 +322,10 @@ function ConfirmPage() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Fired together, not chained: getConfirm is the screen's data and getData
-      // only supplies the tools rows, so the pair costs one round trip, not two.
-      const [res, tools] = await Promise.all([
-        fetch(`${SCRIPT_URL}?action=getConfirm`),
-        // Supplementary. If it fails the screen still renders, just without the
-        // tools-sheet items, so it must not reject the whole load.
-        fetch(`${SCRIPT_URL}?action=getData`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((j) => (Array.isArray(j?.tools) ? (j.tools as Array<Record<string, unknown>>) : []))
-          .catch(() => [] as Array<Record<string, unknown>>),
-      ]);
+
+      const res = await fetch(`${SCRIPT_URL}?action=getConfirm`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = { ...((await res.json()) as GetConfirmResponse), tools };
+      const json = (await res.json()) as GetConfirmResponse;
       sessionCache.set(CK, json);
       applyData(json);
       setOffline(false);
@@ -411,8 +351,8 @@ function ConfirmPage() {
   // has been submitted are withheld until the server stops sending them.
   //
   // What belongs on this screen: every SPECIAL project, and any RECURRING or
-  // untyped one that actually has items to load (counted AFTER the tools merge,
-  // or rows that live only on the tools sheet would drop their project). A
+  // untyped one that actually has items to load. getConfirm already folds the
+  // tools-sheet rows into p.items server-side, so that count is complete. A
   // RECURRING project with nothing to load has nothing to confirm, and other
   // types - FUTURE, for instance - are not this screen's business.
   const grouped = useMemo(() => {
@@ -437,7 +377,6 @@ function ConfirmPage() {
   // Cards are hidden when deleted, skipped, or explicitly confirmed. Retained
   // for potential future use; per-client confirm now drives submit gating.
   void useMemo(() => grouped, [grouped]);
-
 
   const setEdit = useCallback((key: string, patch: Partial<Edit>) => {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -506,11 +445,6 @@ function ConfirmPage() {
     },
     [],
   );
-
-
-
-
-
 
   const removeNewItem = useCallback((client: string, key: string, idx: number) => {
     setNewByClient((prev) => {
@@ -643,13 +577,11 @@ function ConfirmPage() {
     [projects, markSync],
   );
 
-
   const distinctTypes = useMemo(() => {
     const set = new Set<string>();
     for (const p of projects) if (p.type.trim()) set.add(p.type.trim());
     return [...set].sort();
   }, [projects]);
-
 
   const submit = useCallback(async () => {
     // Build payload
@@ -756,7 +688,6 @@ function ConfirmPage() {
   }, [projects, edits, deletes, newByClient, sendText, load, optDecide, advanceSubStep]);
 
   if (!allowed) return null;
-
 
   return (
     <div style={PAGE}>
@@ -880,8 +811,6 @@ function ConfirmPage() {
                 </div>
               </div>
 
-
-
               {rendered.map((p) => {
                 const key = p.projectId || `row-${p.row}`;
                 const e = edits[key];
@@ -922,7 +851,6 @@ function ConfirmPage() {
                         }}
                       />
                     </div>
-
 
                     <label style={LABEL}>ACTION</label>
                     {/* A textarea, not an input: an input cannot wrap, so any
@@ -1235,8 +1163,6 @@ function ConfirmPage() {
                       + ADD ITEM
                     </button>
 
-
-
                   </div>
                   <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
                     <button
@@ -1271,7 +1197,6 @@ function ConfirmPage() {
               </div>
               )}
             </section>
-
 
           );
         })}
@@ -1512,7 +1437,6 @@ function BigSegBtn({
     </button>
   );
 }
-
 
 /* ---------- styles ---------- */
 const LIME = "#7cff00";
