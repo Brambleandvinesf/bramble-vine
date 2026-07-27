@@ -306,9 +306,17 @@ async function textClient(
   client: string | null,
   stopIndex: number,
   isPreview: boolean,
+  skipTexts = false,
 ): Promise<boolean> {
   if (isPreview) return false;
   if (hasTexted(client, kind, stopIndex)) return false;
+  if (skipTexts) {
+    // This client is not to be texted again today. Record the stop as settled
+    // anyway: hasTexted is also what disables the visit button and stops it
+    // being tapped twice, so leaving it unset would change the visit flow.
+    markTexted(client, kind, stopIndex);
+    return false;
+  }
   const r = await send({ action: "textClient", kind }, { silent: true });
   if (r.ok) {
     markTexted(client, kind, stopIndex);
@@ -773,6 +781,9 @@ function FieldBody({
   // Identity now comes from day-state's fieldPhone; there's no per-phone picker.
   const dayState = useDayState();
   const fieldPhone = dayState?.fieldPhone ?? null;
+  // This client has already had their text today. Only a literal true suppresses
+  // anything, so a payload without the field behaves exactly as before.
+  const skipSameDayTexts = dayState?.skipSameDayTexts === true;
   const derivedMeRole: "lead" | "assistant" = role === "assistant" ? "assistant" : "lead";
   const me: Me | null = useMemo(
     () =>
@@ -961,7 +972,7 @@ function FieldBody({
   ) : null;
 
   const handleVisitComplete = async () => {
-    void textClient(send, "done", clientMatch, stopIndex, isPreview);
+    void textClient(send, "done", clientMatch, stopIndex, isPreview, skipSameDayTexts);
   };
 
 
@@ -1008,6 +1019,7 @@ function FieldBody({
               />
             ) : (
               <StateArrived
+                skipSameDayTexts={skipSameDayTexts}
                 roster={roster}
                 clientMatch={clientMatch}
                 stopIndex={stopIndex}
@@ -1036,7 +1048,7 @@ function FieldBody({
                     if (!r.ok) return;
                   }
                   const r = await send({ action: "setRoute", state: "visit" });
-                  if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview);
+                  if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
                 }}
                 onNoShow={() => void confirmNoShow(send, setBanner)}
               />
@@ -1047,6 +1059,7 @@ function FieldBody({
 
           {state === "visit" && (
             <StateVisit
+              skipSameDayTexts={skipSameDayTexts}
               event={currentEvent}
               clientMatch={clientMatch}
               stopIndex={stopIndex}
@@ -2075,6 +2088,7 @@ function AssistantLoadingGate({
 /* ============================================================ */
 
 function StateArrived({
+  skipSameDayTexts,
   roster,
   clientMatch,
   stopIndex,
@@ -2093,6 +2107,7 @@ function StateArrived({
   onStart,
   onNoShow,
 }: {
+  skipSameDayTexts: boolean;
   roster: RosterMember[];
   clientMatch: string | null;
   stopIndex: number;
@@ -2127,7 +2142,9 @@ function StateArrived({
     : "";
 
   const handleNavigate = async () => {
-    const wantsText = await confirmModal(`Text ${label} your ETA?`);
+    // Skip the ETA offer outright for a client already texted today - asking and
+    // then not sending would be worse than not asking.
+    const wantsText = skipSameDayTexts ? false : await confirmModal(`Text ${label} your ETA?`);
     if (wantsText) {
       const r = await send({ action: "textClient", kind: "eta" }, { silent: true });
       const raw = (r.raw ?? {}) as { ok?: boolean; to?: string; error?: string };
@@ -2244,7 +2261,13 @@ function StateArrived({
             disabled={!anyIn || busy || alreadyTexted || !!isPreview}
             style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (!anyIn || alreadyTexted) ? 0.45 : 1 }}
           >
-            {alreadyTexted ? "CLIENT TEXTED" : "START VISIT & TEXT CLIENT"}
+            {skipSameDayTexts
+              ? alreadyTexted
+                ? "VISIT STARTED"
+                : "START VISIT"
+              : alreadyTexted
+                ? "CLIENT TEXTED"
+                : "START VISIT & TEXT CLIENT"}
           </button>
         </>
       )}
@@ -2260,6 +2283,7 @@ function StateArrived({
 
 /* ============================================================ */
 function StateVisit({
+  skipSameDayTexts,
   event,
   clientMatch,
   stopIndex,
@@ -2278,6 +2302,7 @@ function StateVisit({
   onVisitComplete,
   onNoShow,
 }: {
+  skipSameDayTexts: boolean;
   event?: EventItem;
   clientMatch: string | null;
   stopIndex: number;
@@ -2468,7 +2493,13 @@ function StateVisit({
           disabled={alreadyTextedDone || !!isPreview}
           style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (alreadyTextedDone || isPreview) ? 0.45 : 1 }}
         >
-          {alreadyTextedDone ? "CLIENT TEXTED" : "END VISIT & TEXT CLIENT"}
+          {skipSameDayTexts
+            ? alreadyTextedDone
+              ? "VISIT ENDED"
+              : "END VISIT"
+            : alreadyTextedDone
+              ? "CLIENT TEXTED"
+              : "END VISIT & TEXT CLIENT"}
         </button>
       )}
 

@@ -35,6 +35,8 @@ export type DayState = {
   departAt?: string | null;
   travelMin?: number;
   breaks?: BreakItem[];
+  /** Current client has already been texted today; suppress further texts. */
+  skipSameDayTexts?: boolean;
 };
 
 /**
