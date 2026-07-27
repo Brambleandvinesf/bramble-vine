@@ -39,6 +39,19 @@ type Item = { name: string; qty: string; size: string; notes: string };
 
 type Project = {
   row: number;
+  /**
+   * Unique per row, unlike projectId.
+   *
+   * "Project ID" is only unique WITHIN a client - proj-1 exists once for every
+   * client on the schedule. Keying per-card state on it made four clients share
+   * one entry, so a card showed another client's action and type, deleting one
+   * staged all four, and submit diffed the shared edit against every row and
+   * wrote the differences back. Never key local state on projectId.
+   *
+   * The sheet's locked Row ID is the real identity; (client, projectId) is the
+   * fallback and is also unique.
+   */
+  uid: string;
   projectId: string;
   client: string;
   category: string;
@@ -81,10 +94,14 @@ function normProject(p: Record<string, unknown>): Project {
     size: String(it["Size"] ?? it.size ?? "").trim(),
     notes: String(it["Notes"] ?? it.notes ?? "").trim(),
   }));
+  const projectId = String(p["Project ID"] ?? p.projectId ?? "").trim();
+  const client = String(p["Client Name"] ?? p.client ?? "").trim();
+  const rowId = String(p["🔒 Row ID"] ?? p.rowId ?? "").trim();
   return {
     row: Number(p.row ?? 0),
-    projectId: String(p["Project ID"] ?? p.projectId ?? "").trim(),
-    client: String(p["Client Name"] ?? p.client ?? "").trim(),
+    uid: rowId || (projectId ? `${client}||${projectId}` : `row-${Number(p.row ?? 0)}`),
+    projectId,
+    client,
     category: String(p["Category"] ?? p.category ?? "").trim(),
     action: String(p["Project Action"] ?? p.action ?? "").trim(),
     garden: String(p["Garden"] ?? p.garden ?? "").trim(),
@@ -190,7 +207,7 @@ function ConfirmPage() {
   const [edits, setEdits] = useState<Record<string, Edit>>(() => {
     const initial: Record<string, Edit> = {};
     for (const p of (cached?.projects ?? []).map(normProject)) {
-      const key = p.projectId || `row-${p.row}`;
+      const key = p.uid;
       initial[key] = {
         action: p.action,
         garden: p.garden,
@@ -209,7 +226,10 @@ function ConfirmPage() {
   // Submitted deletions, held until the server confirms them; see
   // src/lib/optimistic.ts for why a payload alone is not proof.
   const { decide: optDecide, reconcile: optReconcile, records: optRecords } =
-    useOptimistic("confirm:deleted-projects");
+    // :v2 - overrides used to be stored under projectId. A persisted record
+    // from the old scheme would never match a uid, so it would look abandoned
+    // and raise a spurious "deletion may not have saved" on the first load.
+    useOptimistic("confirm:deleted-projects:v2");
   const { advanceSubStep } = useSubStepOverride();
   const committedDeletes = useMemo(
     () => new Set(optRecords.filter((r) => r.kind === "deleted").map((r) => r.id)),
@@ -218,7 +238,7 @@ function ConfirmPage() {
   const [newByClient, setNewByClient] = useState<Record<string, NewProject[]>>({});
   const [pickerFor, setPickerFor] = useState<
     | { mode: "new"; client: string; key: string }
-    | { mode: "existing"; client: string; projectId: string }
+    | { mode: "existing"; client: string; projectId: string; uid: string }
     | null
   >(null);
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
@@ -284,7 +304,7 @@ function ConfirmPage() {
     // one can easily beat the write, and judging the override against that
     // payload is what produced spurious "may not have saved" warnings.
     if (Date.now() >= reconcileHoldRef.current) {
-      const seen = new Set(ps.map((p) => p.projectId).filter(Boolean));
+      const seen = new Set(ps.map((p) => p.uid).filter(Boolean));
       const abandoned = optReconcile((r) => !seen.has(r.id));
       if (abandoned.length) {
         setSubmitFlash({
@@ -302,7 +322,7 @@ function ConfirmPage() {
     setEdits((prev) => {
       const next: Record<string, Edit> = {};
       for (const p of ps) {
-        const key = p.projectId || `row-${p.row}`;
+        const key = p.uid;
         const existing = prev[key];
         next[key] = existing ?? {
           action: p.action,
@@ -360,7 +380,7 @@ function ConfirmPage() {
     for (const c of todaysClients) map[c] = [];
     for (const p of projects) {
       if (!p.client) continue;
-      if (p.projectId && committedDeletes.has(p.projectId)) continue;
+      if (committedDeletes.has(p.uid)) continue;
       const type = (p.type || "").trim().toUpperCase();
       const keep =
         type === "SPECIAL" ||
@@ -382,20 +402,22 @@ function ConfirmPage() {
     setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }, []);
 
-  const requestDelete = useCallback(async (projectId: string, actionLabel: string) => {
-    if (!projectId) return;
+  // Staged by uid, not projectId: four clients share proj-1, and staging that
+  // id deleted every one of them.
+  const requestDelete = useCallback(async (uid: string, actionLabel: string) => {
+    if (!uid) return;
     if (!(await confirmModal({ message: `Delete this project?\n\n${actionLabel || "(no action)"}`, destructive: true }))) return;
     setDeletes((prev) => {
       const next = new Set(prev);
-      next.add(projectId);
+      next.add(uid);
       return next;
     });
   }, []);
 
-  const undoDelete = useCallback((projectId: string) => {
+  const undoDelete = useCallback((uid: string) => {
     setDeletes((prev) => {
       const next = new Set(prev);
-      next.delete(projectId);
+      next.delete(uid);
       return next;
     });
   }, []);
@@ -476,7 +498,7 @@ function ConfirmPage() {
   const editProjectLive = useCallback(
     async (p: Project, patch: Record<string, string>, applyToEdit?: (e: Edit) => Partial<Edit>) => {
       if (!p.projectId) return;
-      const key = p.projectId;
+      const key = p.uid;
       // optimistic
       if (applyToEdit) {
         setEdits((prev) => ({ ...prev, [key]: { ...prev[key], ...applyToEdit(prev[key]) } }));
@@ -503,17 +525,19 @@ function ConfirmPage() {
   );
 
   const addItemToExisting = useCallback(
-    async (client: string, projectId: string, picked: NewItem) => {
+    // uid identifies the row locally; the backend is addressed by
+    // (client, projectId), which is unique even though projectId alone is not.
+    async (client: string, projectId: string, uid: string, picked: NewItem) => {
       // optimistic append pill
       const snapshot = projects;
       setProjects((prev) =>
         prev.map((p) =>
-          p.projectId === projectId
+          p.uid === uid
             ? { ...p, items: [...p.items, picked] }
             : p,
         ),
       );
-      markSync(projectId, true);
+      markSync(uid, true);
       try {
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
@@ -534,23 +558,23 @@ function ConfirmPage() {
           err: true,
         });
       } finally {
-        markSync(projectId, false);
+        markSync(uid, false);
       }
     },
     [projects, markSync],
   );
 
   const removeItemFromExisting = useCallback(
-    async (client: string, projectId: string, idx: number, it: Item) => {
+    async (client: string, projectId: string, uid: string, idx: number, it: Item) => {
       const snapshot = projects;
       setProjects((prev) =>
         prev.map((p) =>
-          p.projectId === projectId
+          p.uid === uid
             ? { ...p, items: p.items.filter((_, i) => i !== idx) }
             : p,
         ),
       );
-      markSync(projectId, true);
+      markSync(uid, true);
       try {
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
@@ -571,7 +595,7 @@ function ConfirmPage() {
           err: true,
         });
       } finally {
-        markSync(projectId, false);
+        markSync(uid, false);
       }
     },
     [projects, markSync],
@@ -585,20 +609,21 @@ function ConfirmPage() {
 
   const submit = useCallback(async () => {
     // Build payload
-    const statuses: Array<{ projectId: string; status: "Confirmed" | "SKIP" }> = [];
+    // client travels with every id: projectId alone matches up to four rows.
+    const statuses: Array<{ projectId: string; client: string; status: "Confirmed" | "SKIP" }> = [];
     const updates: Array<Record<string, string>> = [];
     const deletesArr: Array<{ projectId: string; client: string }> = [];
     for (const p of projects) {
-      const key = p.projectId || `row-${p.row}`;
+      const key = p.uid;
       const e = edits[key];
       if (!e) continue;
       if (!p.projectId) continue;
-      if (deletes.has(p.projectId)) {
+      if (deletes.has(p.uid)) {
         deletesArr.push({ projectId: p.projectId, client: p.client });
         continue;
       }
       if (e.status === "Confirmed" || e.status === "SKIP") {
-        statuses.push({ projectId: p.projectId, status: e.status });
+        statuses.push({ projectId: p.projectId, client: p.client, status: e.status });
       }
       const diff: Record<string, string> = {};
       if (e.action !== p.action) diff.action = e.action;
@@ -748,12 +773,12 @@ function ConfirmPage() {
         todaysClients.map((client) => {
           const list = grouped[client] ?? [];
           const visible = list.filter((p) => {
-            const key = p.projectId || `row-${p.row}`;
+            const key = p.uid;
             const e = edits[key];
             return e ? e.expanded : p.showOnReview;
           });
           const collapsed = list.filter((p) => {
-            const key = p.projectId || `row-${p.row}`;
+            const key = p.uid;
             const e = edits[key];
             const isExpanded = e ? e.expanded : p.showOnReview;
             return !isExpanded;
@@ -812,10 +837,10 @@ function ConfirmPage() {
               </div>
 
               {rendered.map((p) => {
-                const key = p.projectId || `row-${p.row}`;
+                const key = p.uid;
                 const e = edits[key];
                 if (!e) return null;
-                const isDeleted = p.projectId ? deletes.has(p.projectId) : false;
+                const isDeleted = deletes.has(p.uid);
                 const skip = e.status === "SKIP";
                 const confirmed = e.status === "Confirmed";
                 // Optimistically hide handled cards (deleted / skipped / confirmed).
@@ -843,7 +868,7 @@ function ConfirmPage() {
                       <TypeSelect
                         value={e.type}
                         options={distinctTypes}
-                        syncing={p.projectId ? syncing.has(p.projectId) : false}
+                        syncing={syncing.has(p.uid)}
                         disabled={isDeleted || !p.projectId}
                         onChange={(val) => {
                           if (val === e.type) return;
@@ -882,7 +907,7 @@ function ConfirmPage() {
                                   aria-label="Remove item"
                                   title="Remove item"
                                   onClick={() =>
-                                    void removeItemFromExisting(client, p.projectId, i, it)
+                                    void removeItemFromExisting(client, p.projectId, p.uid, i, it)
                                   }
                                   style={ITEM_PILL_X}
                                 >
@@ -899,7 +924,7 @@ function ConfirmPage() {
                         <button
                           style={ADD_ITEM_BTN}
                           onClick={() =>
-                            setPickerFor({ mode: "existing", client, projectId: p.projectId })
+                            setPickerFor({ mode: "existing", client, projectId: p.projectId, uid: p.uid })
                           }
                         >
                           + ADD ITEM
@@ -970,7 +995,7 @@ function ConfirmPage() {
                       {isDeleted && (
                         <button
                           style={{ ...GHOST_BTN_SM, marginLeft: "auto" }}
-                          onClick={() => undoDelete(p.projectId)}
+                          onClick={() => undoDelete(p.uid)}
                         >
                           UNDO DELETE
                         </button>
@@ -1023,7 +1048,7 @@ function ConfirmPage() {
                             beginAnim(key, "delete", () => {
                               setDeletes((prev) => {
                                 const next = new Set(prev);
-                                next.add(p.projectId);
+                                next.add(p.uid);
                                 return next;
                               });
                             });
@@ -1274,7 +1299,7 @@ function ConfirmPage() {
             if (pickerFor.mode === "new") {
               appendNewItem(pickerFor.client, pickerFor.key, picked);
             } else {
-              void addItemToExisting(pickerFor.client, pickerFor.projectId, picked);
+              void addItemToExisting(pickerFor.client, pickerFor.projectId, pickerFor.uid, picked);
             }
             setPickerFor(null);
           }}
