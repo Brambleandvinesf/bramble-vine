@@ -143,9 +143,17 @@ Nav: 3-dot menu top-left (hamburger), Messages floating button top-right.
     /etc/clockbridge.env                  config (chmod 640, root:info)
     /etc/systemd/system/clockbridge.service
     sudo journalctl -u clockbridge -f     watch it work
-  ONE STEP LEFT: BV_BACKEND_URL in /etc/clockbridge.env is EMPTY. Paste the
-  Apps Script /exec URL there and `sudo systemctl restart clockbridge`. Until
-  then the service runs but idles, logging that it is unconfigured.
+  LIVE as of 7/26: BV_BACKEND_URL is set to the Apps Script /exec URL and the
+  service polls getDayState every 60s cleanly (no errors over repeated polls,
+  0 restarts). It sits idle until departAt appears, then arms the clock.
+- MINUTES SOURCE (7/26): the bridge prefers st["countdownMin"] when the backend
+  sends one > 0, using it VERBATIM, and only computes departAt − serverNow when
+  it is absent, null, non-numeric, or over the 99 the display can hold (each of
+  those falls back with a warning). Consequence to keep in mind: countdownMin is
+  a figure to display, not minutes-from-now, so when it is used the alignment
+  hold is skipped and 00:00 lands that many minutes after arming rather than on
+  departAt. The re-arm check tests countdownMin BEFORE the departAt-jitter test,
+  or a changed figure would be swallowed whenever departAt held steady.
 - WARNING - the clock intermittently WIPES its countdown presets to zero.
   Seen twice on 7/24; sound settings survived both times, so it is not a
   factory reset, and the cause is NOT known (it is not the set-timer write -
