@@ -40,7 +40,7 @@ import { useBadge, useBadgePoller, BK } from "../lib/badges";
 import { useAutoClockIn } from "../lib/auto-clock-in";
 import { ConfirmModalHost } from "../components/ConfirmModal";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
-import { DayStateSpine } from "../components/DayStateSpine";
+import { DayStateSpine, SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 import { DayStateProvider } from "../lib/day-state";
 
 function NotFoundComponent() {
@@ -313,8 +313,17 @@ function AppFrame() {
       <NavBar />
       {ready && user && !onLogin ? <HamburgerMenu /> : null}
       {ready && user && !onLogin ? <MessagesFab /> : null}
+      {/* The bottom reservation comes from the spine itself so the two cannot
+          drift. A flat 128 here matched only the spine's body, leaving its
+          arrow tab and the safe-area inset sitting over the foot of every page
+          - which is how Confirm Day's submit button ended up unreachable. */}
       {ready && (user || onLogin) ? (
-        <div style={{ paddingTop: user && !onLogin ? 56 : 0, paddingBottom: user && !onLogin ? 128 : 0 }}>
+        <div
+          style={{
+            paddingTop: user && !onLogin ? 56 : 0,
+            paddingBottom: user && !onLogin ? SPINE_RESERVE_CSS : 0,
+          }}
+        >
           <Outlet />
         </div>
       ) : null}

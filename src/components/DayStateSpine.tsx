@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useDayState, type DayPhase } from "../lib/day-state";
@@ -22,6 +22,17 @@ const COLLAPSED_PEEK = 46;
 // visible as the peek handle.
 const COLLAPSED_SHIFT =
   `calc(${SPINE_BODY_H - COLLAPSED_PEEK}px + 6px + env(safe-area-inset-bottom, 0px))`;
+
+// The arrow tab is anchored 14px ABOVE the body, and the bar carries 6px plus
+// the safe-area inset below it. Pages must reserve all of that, not just the
+// body: reserving 128 left the tab and the inset overlapping the bottom of
+// every screen, which is what hid the Confirm Special Loading button.
+export const SPINE_RESERVE_CSS =
+  `calc(${SPINE_BODY_H + 14 + 6}px + env(safe-area-inset-bottom, 0px))`;
+
+// How long the spine stays up before folding itself away. Long enough to read
+// the state that just changed, short enough not to sit on a button.
+const AUTO_COLLAPSE_MS = 2500;
 
 const ACTION_TEXT: Record<string, string> = {
   signin: "Sign In",
@@ -163,17 +174,42 @@ export function DayStateSpine() {
   const [nudging, setNudging] = useState(false);
   const lastKeyRef = useRef<string>("");
   const followKeyRef = useRef<string>("");
+  // Set once the arrow is used: a deliberate choice outranks the timer, so the
+  // spine stops folding itself away until the day state next changes.
+  const manualRef = useRef(false);
+  const autoRef = useRef<number | null>(null);
+
+  const armAutoCollapse = useCallback(() => {
+    if (autoRef.current) window.clearTimeout(autoRef.current);
+    autoRef.current = window.setTimeout(() => {
+      if (!manualRef.current) setCollapsed(true);
+    }, AUTO_COLLAPSE_MS);
+  }, []);
+
+  // Fold away shortly after the screen first paints. It comes up expanded so
+  // the day is legible on arrival, then gets out of the way of whatever is at
+  // the bottom of the page.
+  useEffect(() => {
+    armAutoCollapse();
+    return () => {
+      if (autoRef.current) window.clearTimeout(autoRef.current);
+    };
+  }, [armAutoCollapse]);
 
   useEffect(() => {
     if (!state) return;
     const key = `${state.phase}:${state.subStep}`;
     if (lastKeyRef.current && lastKeyRef.current !== key) {
+      // A real state change re-takes control from a manual collapse: this is
+      // the one moment the spine has something new to say.
+      manualRef.current = false;
       setCollapsed(false);
+      armAutoCollapse();
       // Fires for every role on every screen while GLOW_ON_EVERY_CHANGE is on.
       if (GLOW_ON_EVERY_CHANGE) setNudge((n) => n + 1);
     }
     lastKeyRef.current = key;
-  }, [state]);
+  }, [state, armAutoCollapse]);
 
   // Keep the screen on the spine's active node. Only fires when the node
   // actually changes, so a poll that returns identical state never navigates,
@@ -437,7 +473,11 @@ export function DayStateSpine() {
         {/* toggle handle */}
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => {
+            manualRef.current = true;
+            if (autoRef.current) window.clearTimeout(autoRef.current);
+            setCollapsed((c) => !c);
+          }}
           aria-label={collapsed ? "Expand day spine" : "Collapse day spine"}
           style={{
             position: "absolute",
