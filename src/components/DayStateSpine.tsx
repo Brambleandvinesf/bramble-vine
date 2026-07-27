@@ -583,7 +583,13 @@ export function DayStateSpine() {
                 {activeSubs.length > 1 &&
                   geom.subs.length === activeSubs.length &&
                   (() => {
-                    const gap = 3;
+                    // Endpoints land ON each node's edge, so the segments visibly
+                    // touch the nodes they join. The 1px bite absorbs the
+                    // sub-pixel error in the centres - offsetLeft is an integer,
+                    // so a centre can be up to ~0.5px out - which would otherwise
+                    // leave a hairline break. It is well inside the 2px ring, so
+                    // nothing reads as the line running over a node.
+                    const BITE = 1;
                     // Distance from a node's centre to where the connector leaves
                     // its box. Using a fixed radius here drew the line straight
                     // over the current node, which is a wide capsule, not a dot.
@@ -604,8 +610,8 @@ export function DayStateSpine() {
                       const len = Math.hypot(dx, dy) || 1;
                       const ux = dx / len;
                       const uy = dy / len;
-                      const offA = edgeDist(a.hw, a.hh, ux, uy) + gap;
-                      const offB = edgeDist(b.hw, b.hh, ux, uy) + gap;
+                      const offA = edgeDist(a.hw, a.hh, ux, uy) - BITE;
+                      const offB = edgeDist(b.hw, b.hh, ux, uy) - BITE;
                       // Adjacent nodes can sit closer than their two insets;
                       // drawing then would render a backwards line.
                       if (offA + offB >= len) continue;
