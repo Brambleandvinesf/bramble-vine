@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { sessionCache } from "../lib/session-cache";
+import { useDayState } from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { MessagesFab } from "../components/MessagesFab";
@@ -525,6 +526,11 @@ function LoadingPage() {
 
 
 function RouteFooter({ field }: { field: GetFieldResponse }) {
+  // Read directly rather than threading a prop: this footer is self-contained and
+  // already sits under DayStateProvider. Only a literal true suppresses anything,
+  // so a payload without the field - which is correct before a stop is active -
+  // behaves exactly as before.
+  const skipSameDayTexts = useDayState()?.skipSameDayTexts === true;
   const route = field.route ?? {};
   const state = route.state ?? "";
   const events = field.events ?? [];
@@ -632,7 +638,9 @@ function RouteFooter({ field }: { field: GetFieldResponse }) {
         >
           NAVIGATE
         </button>
-        {navFlag && (
+        {/* Genuinely standalone, unlike the Field screen's fused visit buttons,
+            so this one really can just go when the client is not to be texted. */}
+        {navFlag && !skipSameDayTexts && (
           <button
             type="button"
             onClick={onTextEta}
