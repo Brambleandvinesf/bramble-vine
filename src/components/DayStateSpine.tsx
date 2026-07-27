@@ -478,7 +478,25 @@ export function DayStateSpine() {
                 style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
               >
                 <defs>
-                  <filter id="bvLimeGlow" x="-50%" y="-50%" width="200%" height="200%">
+                  {/*
+                    filterUnits must be userSpaceOnUse, not the objectBoundingBox
+                    default. A perfectly horizontal line has a ZERO-HEIGHT bbox,
+                    so a region of "200% of the bbox" is still zero and the filter
+                    paints nothing - the element vanishes outright. Only completed
+                    connectors carry this glow, so only they disappeared, and only
+                    once the segments were made exactly horizontal: while they
+                    were still 4px out of true the non-zero bbox hid the problem.
+                    Measured in a browser: horizontal + objectBoundingBox renders
+                    0 in the green channel, userSpaceOnUse renders 255.
+                  */}
+                  <filter
+                    id="bvLimeGlow"
+                    filterUnits="userSpaceOnUse"
+                    x={0}
+                    y={0}
+                    width={geom.w}
+                    height={geom.h}
+                  >
                     <feGaussianBlur stdDeviation="1.2" result="blur" />
                     <feMerge>
                       <feMergeNode in="blur" />
