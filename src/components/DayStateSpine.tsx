@@ -357,18 +357,22 @@ export function DayStateSpine() {
   // Connectors are drawn edge-to-edge, so this gap is the only room they have.
   // At the old value of 10 they came out as 4px stubs once the overlap was fixed.
   const SUB_ROW_GAP = 18;
-  const subRowPos: { left: number; transform: string } = (() => {
+  //
+  // Resolved to a plain left edge, never centred with translateX(-50%). The
+  // connector maths reads offsetLeft, which is a layout value and ignores
+  // transforms, so a -50% here would place every line half a row to the right
+  // of the nodes it is meant to join. Subtracting half the width gives the same
+  // pixels while keeping layout and paint in agreement.
+  const subRowLeft: number = (() => {
     const cw = geom?.w ?? 0;
     const rw = geom?.subRowW ?? 0;
     // Before the first measurement, or when the row simply cannot fit, pin it to
     // the left edge rather than letting it hang off into the clipped region.
-    if (!cw || !rw || rw + SUB_ROW_PAD * 2 >= cw) {
-      return { left: SUB_ROW_PAD, transform: "none" };
-    }
+    if (!cw || !rw || rw + SUB_ROW_PAD * 2 >= cw) return SUB_ROW_PAD;
     const desired = ((activeIdx + 0.5) / N) * cw;
     const half = rw / 2;
-    const clamped = Math.min(Math.max(desired, half + SUB_ROW_PAD), cw - half - SUB_ROW_PAD);
-    return { left: clamped, transform: "translateX(-50%)" };
+    const centre = Math.min(Math.max(desired, half + SUB_ROW_PAD), cw - half - SUB_ROW_PAD);
+    return centre - half;
   })();
 
   return (
@@ -621,15 +625,14 @@ export function DayStateSpine() {
               </svg>
             )}
 
-            {/* Sub-row for active phase (centered above its anchor, clamped) */}
+            {/* Sub-row for active phase (centred over its anchor, clamped) */}
             {activeIdx >= 0 && activeSubs.length > 0 && (
               <div
                 ref={subRowRef}
                 style={{
                   position: "absolute",
                   top: 10,
-                  left: subRowPos.left,
-                  transform: subRowPos.transform,
+                  left: subRowLeft,
                   maxWidth: `calc(100% - ${SUB_ROW_PAD * 2}px)`,
                   display: "flex",
                   alignItems: "center",
