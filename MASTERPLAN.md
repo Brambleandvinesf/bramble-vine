@@ -63,7 +63,16 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 - User-facing term is "Daily Load" (never "Base Load").
 - Overhead QB Time jobcode is "Bramble & Vine" (exact, ampersand).
 - Google Voice permanently dead — never suggest it.
-- Images/files into repo via GitHub web upload ONLY (Lovable drops them).
+- Images/files: this used to say GitHub-web-upload ONLY, because Lovable drops
+  them. Under review as of 7/27 — five PWA icons were pushed by git on 7/26 and
+  are still on main. But NO Lovable commit has landed since 7/24, so they have
+  not actually faced a Lovable sync yet; the question is open, not settled.
+  The one historical asset deletion (public/logo.png, a6f7af7, 7/21) was a
+  Lovable REVERT to an earlier commit, which drops anything added after it —
+  ordinary git behaviour, not Lovable rejecting git-pushed files.
+  Either way an asset is never lost: every blob stays in history, so
+    git show <sha>^:public/icon-512.png > public/icon-512.png
+  restores it byte-exact. Verify the verdict after Lovable's next commit.
 - Lovable prompts must state: "Backend deploy required first: YES/NO."
 - Only crew vehicle is a black Prius (no truck references).
 - Script Properties hold all config; edits are live, no redeploy needed.
