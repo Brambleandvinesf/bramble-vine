@@ -1,6 +1,6 @@
 # BRAMBLE & VINE — MASTER PLAN
 *Canonical context for AI-assisted build sessions. Tell Claude: "read MASTERPLAN.md in the repo before we start."*
-*Last updated: 2026-07-24 (v7.3.0 / spine Pass 1 era; garage clock verified end-to-end)*
+*Last updated: 2026-07-27 (backend v7.4.1; clasp deploys from the Pi; clock bridge live)*
 
 ## 1. VISION
 One PWA runs the whole field operation: a guided linear day for field crew
@@ -13,7 +13,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## 2. STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (bramble-appscript-code v7.3.0),
+- Backend: Google Apps Script "chron order" (bramble-appscript-code v7.4.1),
   single web-app deployment — URL MUST NEVER CHANGE
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
   Billing Hours, Client Info, App TODO, Payroll Confirmations, ...)
@@ -42,12 +42,20 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   26775/12495/6375/31365/4335/14535/23205/17085/19125/21165.
   Pi (Edaphos, 192.168.4.106, user: info) has python3-websocket installed.
   Script: ~/clock/depart.py (manual/CLI trigger, working). ~/clock/ws604s.py
-  is a small key-code helper. clock_bridge.py was NEVER written to disk.
+  is a small key-code helper. clock_bridge.py IS now live as a systemd service
+  (clockbridge) — see §6.
 
 ## 3. IRON RULES (never violate)
 - Deploy ritual: paste FULL file → Ctrl+S → Deploy → pencil on EXISTING
   deployment → New version. NEVER create a new deployment.
-- Backend versions sequential (current: v7.3.0); full changelog in header.
+  Since 7/27 there is also clasp on the Pi:
+  /home/info/appsscript/bv-deploy.sh "v7.x.y — note" pushes then deploys to
+  the same pinned deployment id. Same rule: never a new deployment. See §12.
+  AFTER ANY DEPLOY: newly added actions return "unknown action" for up to
+  ~60 seconds while it propagates. Wait before testing a freshly deployed
+  action — testing immediately looks exactly like a failed deploy, and the
+  old code is still answering until it lands.
+- Backend versions sequential (current: v7.4.1); full changelog in header.
 - No yellow/orange/red/burgundy in UI (red = failure states only).
   Active/current state = lime #7cff00 SLOW BLINK (~3s, never fully off).
   Completed = steady lime glow. Upcoming = dim hollow outline.
@@ -234,3 +242,24 @@ Rendered on Admin screen (management only). Claude may edit via Chrome.
 4. PUBLISH after every confirmed-working Lovable change
 5. Claude updates this file when big decisions land; Brandon uploads via
    GitHub web → public folder is for assets; MASTERPLAN.md goes in repo root
+
+## 12. APPS SCRIPT VIA CLASP (7/27)
+Backend source is NOT in this repo. It is edited via clasp on the Pi.
+- Working dir: /home/info/appsscript on Edaphos (node 20, clasp 3.3.0)
+- Script ID: 1HKkYRGNqxTDwMQccKbgTlBb3jfIjjwLV2Ov5fO_nwYtF_rhyx1Wrz3OD
+- Credentials in ~/.clasprc.json — Brandon authorised via
+  `clasp login --no-localhost`; only he can renew that.
+- Push + deploy in one command, always to the pinned deployment:
+    /home/info/appsscript/bv-deploy.sh "v7.x.y — note"
+- The pinned deployment id lives in .deployment-id and is the one serving the
+  /exec URL. Two others exist (@HEAD, and an @1 "Write-back for claude
+  netlify") — never deploy to those.
+- BEFORE PUSHING: `node --check Code.js`, then `clasp pull` and diff against
+  your copy. clasp push would otherwise clobber edits made in the web editor
+  since you cloned. If nothing local changed, deploy-only is correct.
+- HEAD can sit well ahead of the live deployment. On 7/27 the source already
+  held unreleased v7.3.8 and v7.3.9 while the deployment sat at @130, so
+  autoClockIn threw ReferenceError and clearClockArmPending answered "unknown
+  action" although both were written. Deploying fixed it with no code change.
+  Check whether an action is merely undeployed before debugging it.
+- Backups kept in that dir: Code.js.pristine-backup and .bak-pre-<version>.
