@@ -224,7 +224,6 @@ export function DayStateSpine() {
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const subRefs = useRef<(HTMLDivElement | null)[]>([]);
   const subRowRef = useRef<HTMLDivElement | null>(null);
-  const anchorRowRef = useRef<HTMLDivElement | null>(null);
   const [geom, setGeom] = useState<{
     w: number;
     h: number;
@@ -256,37 +255,45 @@ export function DayStateSpine() {
       // disagreed by 4px and the connectors ran at a slight slant. A
       // ResizeObserver never fires for a transform, so nothing corrected it.
       //
-      // offsetLeft/offsetTop are pre-transform and relative to the nearest
-      // positioned ancestor: for a sub-node that is the sub-row, for an anchor
-      // circle it is the anchor row, and both rows are positioned inside the
-      // container - so adding the row's own offset gives container coordinates.
-      const centreIn = (row: HTMLElement | null, n: HTMLElement) => {
+      // offsetLeft/offsetTop are pre-transform, but they are relative to
+      // offsetParent - and offsetParent is NOT reliably the row. A CSS transform
+      // makes an element an offsetParent, so an anchor circle reports its own
+      // animated wrapper, not the anchor row. Measured in a browser: every
+      // anchor then returned offsetLeft 13, so all three centres collapsed onto
+      // the same x and the baseline segments had zero length and vanished.
+      // Walking the chain up to the container is the only reading that holds for
+      // both rows, whatever ends up positioned or transformed between them.
+      const centreOf = (n: HTMLElement) => {
         const hw = n.offsetWidth / 2;
         const hh = n.offsetHeight / 2;
-        const rowLeft = row ? row.offsetLeft : 0;
-        const rowTop = row ? row.offsetTop : 0;
-        return { cx: rowLeft + n.offsetLeft + hw, cy: rowTop + n.offsetTop + hh, hw, hh };
+        let x = 0;
+        let y = 0;
+        let node: HTMLElement | null = n;
+        while (node && node !== el) {
+          x += node.offsetLeft;
+          y += node.offsetTop;
+          node = node.offsetParent as HTMLElement | null;
+        }
+        return { cx: x + hw, cy: y + hh, hw, hh };
       };
 
-      const anchorRow = anchorRowRef.current;
       const anchors = phases.map((_, i) => {
         const n = anchorRefs.current[i];
         if (!n) return { cx: 0, cy: 0, top: 0 };
-        const { cx, cy, hh } = centreIn(anchorRow, n);
+        const { cx, cy, hh } = centreOf(n);
         return { cx, cy, top: cy - hh };
       });
       // Iterate the current sub-steps, not the ref array: that array never
       // shrinks, so after a phase with fewer sub-steps (unloading has 2 against
       // a visit's 5) its stale tail made subs.length disagree with
       // activeSubs.length, and the connector block silently drew nothing.
-      const subRow = subRowRef.current;
       const subs = activeSubs.map((_, i) => {
         const n = subRefs.current[i];
         if (!n) return { cx: 0, cy: 0, bottom: 0, hw: 0, hh: 0 };
         // Extents are layout-based for the same reason as the centres: the
         // capsule mounts under a scale(0.85) keyframe, so a visual-box read
         // would stay 15% short for the rest of the day.
-        const { cx, cy, hw, hh } = centreIn(subRow, n);
+        const { cx, cy, hw, hh } = centreOf(n);
         return { cx, cy, bottom: cy + hh, hw, hh };
       });
       // Layout width again, for the same reason as the sub extents above.
@@ -699,7 +706,6 @@ export function DayStateSpine() {
 
             {/* Anchor row (always show labels) */}
             <div
-              ref={anchorRowRef}
               style={{
                 position: "absolute",
                 left: 0,
