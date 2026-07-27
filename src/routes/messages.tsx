@@ -1380,19 +1380,12 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     const hit = searchHits.find((x) => x.id === id);
     setSearchQ("");
     if (!hit) return;
-    // getSearch results are lightweight and carry no participants/line, which
-    // getQuoThread needs. Prefer the fuller feed item when we already hold it,
-    // matching on id or threadId.
-    const fuller = items.find(
-      (x) => x.id === hit.id || (!!hit.threadId && x.threadId === hit.threadId),
-    );
-    const target = hit.source === "quo" && fuller ? fuller : hit;
-    if (target.source === "quo" && !(target.participants || []).length) {
-      flash("Can't open that text conversation from search yet.", true);
-      return;
-    }
-    void openViewer(target);
-  }, [searchHits, items, openViewer, flash]);
+    // Self-sufficient as of v7.3.5: Quo hits carry participants, line and
+    // conversationId, so they open directly with no enrichment from the feed.
+    // Quo results have no threadId, which is fine - every threadId path here is
+    // Gmail-only (draft lookup, staged attachments, getMessage).
+    void openViewer(hit);
+  }, [searchHits, openViewer]);
 
   /* ---- countdown text ---- */
   const countdownEl = useMemo(() => {
