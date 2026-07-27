@@ -284,6 +284,28 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                       {p.name} time entries still in progress
                     </div>
                   ))}
+                  {/* The 60s poll will clear this on its own; this is for the
+                      lead who can see the last person has just clocked out. */}
+                  <button
+                    onClick={() => void load()}
+                    disabled={loading || submitting}
+                    style={{
+                      alignSelf: "flex-start",
+                      marginTop: 6,
+                      minHeight: 32,
+                      padding: "0 12px",
+                      background: "transparent",
+                      color: loading ? MUTED : LIME,
+                      border: `1px solid ${loading ? LINE : LIME_DIM}`,
+                      borderRadius: 6,
+                      fontFamily: "inherit",
+                      fontSize: 12,
+                      letterSpacing: 1.5,
+                      cursor: loading || submitting ? "default" : "pointer",
+                    }}
+                  >
+                    {loading ? "REFRESHING…" : "REFRESH"}
+                  </button>
                 </div>
               )}
               <button
