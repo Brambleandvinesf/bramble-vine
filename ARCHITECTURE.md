@@ -336,6 +336,32 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
 - 8/1: plaintext passwords in the Tax Exempt Vendors sheet are being
   handled by Brandon directly — no further app-side action; the Vendors
   tab already excludes them.
+- 8/1: PRODUCT MASTER + QBO PRICE SYNC (v7.4.12 @143). Finding: the
+  legacy Vendor Prices WORKBOOK is populated entirely by hand — the
+  backend never touched it; receipts never updated prices. New design:
+  canonical product layer in Field Receipts 2.0 — 'Product Master' tab
+  (Product Key/Canonical Name/QBO Item ID/Current QBO Price/Last
+  Updated), app-managed 'Vendor Prices' TAB (per-vendor prices keyed to
+  products, fed by receipt confirmations; legacy workbook stays manual —
+  back-linking its rows is an optional later data pass), 'Price Change
+  Log' tab (timestamp, key, old/new price, trigger vendor/receipt, rule,
+  push status; failures also Pushover management). Flow mirrors C9:
+  matchProduct (Claude suggests existing key or NEW; suggestion only) →
+  crew confirms/edits/picks-existing on the Receipts screen →
+  assignProductKey creates-if-new, upserts the price row, recomputes
+  (tiered-MAX rubric, see CLAUDE.md), pushes the QBO item price
+  immediately. Push failure: logged + Pushover, Current QBO Price NOT
+  advanced (next event retries). No QBO Item ID: logged, not pushed —
+  fill IDs in Product Master to activate a product's sync. Price DROPS
+  recompute like any change (MAX may not move — confirmed fine 8/1).
+  Vendors tab gained a Multiplier column (reseeded, 34 rows).
+- 8/1: G7 amendment to feature F (parked with B/C): the tax-exempt
+  arrival reminder always fires for flagged vendors — with the ID when
+  known, else "Tax-exempt account on file — ID not yet recorded". Never
+  silent. Sheet-level fallbacks: EIN 84-3063715, resale permit 225-652864.
+- 8/1: clasp auth was expiring repeatedly (invalid_rapt); Brandon
+  re-authed with --creds client_secret.json and set Workspace session
+  control to never require reauthentication — should not recur.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

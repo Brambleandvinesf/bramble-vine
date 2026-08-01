@@ -579,6 +579,7 @@ function DesignateTab({
                         writer={writer}
                         setLines={setLines}
                       />
+                      <ProductKeyMatcher line={l} vendor={vendor} />
                       <div style={{ marginTop: 6 }}>
                         <DesignationPicker
                           value={picks[l.row] ?? ""}
@@ -1075,6 +1076,193 @@ function ItemPhotoNamer({
           >
             ×
           </button>
+        </div>
+      )}
+      {err && <div style={{ color: RED, fontSize: 11, marginTop: 4 }}>{err}</div>}
+    </div>
+  );
+}
+
+/* ---------------- PRODUCT MATCHER (line → Product Master key) ----------------
+ * Resolves a receipt line to a canonical product: Claude suggests an
+ * existing Product Master match or a new product; the crew confirms (or
+ * picks a different existing product). Confirming writes the price into
+ * the app Vendor Prices feed and triggers the tiered-MAX → QBO price sync.
+ * Never silently auto-assigned — same contract as Name-from-Photo. */
+
+type ProductRow = { "Product Key"?: string; "Canonical Name"?: string };
+
+function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
+  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sug, setSug] = useState<{ productKey: string | null; canonicalName: string; isNew: boolean } | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [products, setProducts] = useState<ProductRow[] | null>(null);
+  const [query, setQuery] = useState("");
+
+  const unitPrice = Number(String(line.unitPrice).replace(/[^0-9.]/g, ""));
+  const priceOk = isFinite(unitPrice) && unitPrice > 0;
+
+  const match = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const json = await postAction<{ productKey?: string | null; canonicalName?: string; isNew?: boolean }>({
+        action: "matchProduct",
+        itemName: line.description,
+        vendor,
+      });
+      setSug({
+        productKey: json.productKey ?? null,
+        canonicalName: String(json.canonicalName ?? line.description),
+        isNew: json.isNew !== false,
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Match failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = async (productKey: string | null, canonicalName: string) => {
+    if (saving) return;
+    if (!priceOk) {
+      setErr("No unit price on this line — can't feed pricing.");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const json = await postAction<{
+        productKey?: string;
+        sync?: { price?: number; pushed?: boolean; status?: string; unchanged?: boolean };
+      }>({
+        action: "assignProductKey",
+        productKey,
+        canonicalName,
+        vendor,
+        itemName: line.description,
+        unitPrice,
+        receiptId: line.receiptId,
+      });
+      const s = json.sync;
+      const outcome = s?.unchanged
+        ? "price unchanged"
+        : s?.pushed
+          ? `QBO price → $${s.price}`
+          : s?.status ?? "recorded";
+      setDone(`${canonicalName} · ${outcome}`);
+      setSug(null);
+      setPickOpen(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openPicker = async () => {
+    setPickOpen(true);
+    if (products === null) {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getProducts`);
+        const json = (await res.json()) as { products?: ProductRow[] };
+        setProducts(json.products ?? []);
+      } catch {
+        setProducts([]);
+      }
+    }
+  };
+
+  if (done) {
+    return (
+      <div style={{ marginTop: 6, fontSize: 11, color: LIME_DIM, letterSpacing: 1 }}>
+        🏷 {done}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      {sug === null ? (
+        <button
+          type="button"
+          onClick={() => void match()}
+          disabled={busy}
+          style={{ ...TINY_BTN, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? "MATCHING…" : "🏷 MATCH PRODUCT"}
+        </button>
+      ) : (
+        <div>
+          <div style={{ color: MUTED, fontSize: 10, letterSpacing: 1, marginBottom: 4 }}>
+            {sug.isNew ? "NEW PRODUCT" : "MATCHES EXISTING PRODUCT"}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              value={sug.canonicalName}
+              onChange={(e) => setSug({ ...sug, canonicalName: e.target.value })}
+              readOnly={!sug.isNew}
+              style={{ ...INPUT, flex: 1, minWidth: 180, opacity: sug.isNew ? 1 : 0.8 }}
+            />
+            <button
+              type="button"
+              onClick={() => void confirm(sug.productKey, sug.canonicalName)}
+              disabled={saving}
+              style={{ ...SOLID_BTN_SM, opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? "SAVING…" : "CONFIRM"}
+            </button>
+            <button
+              type="button"
+              aria-label="dismiss match"
+              onClick={() => { setSug(null); setPickOpen(false); }}
+              style={{ background: "transparent", border: "none", color: MUTED, fontFamily: "inherit", fontSize: 16, cursor: "pointer", padding: "0 4px" }}
+            >
+              ×
+            </button>
+          </div>
+          {!pickOpen && (
+            <button
+              type="button"
+              onClick={() => void openPicker()}
+              style={{ background: "transparent", border: "none", color: MUTED, fontFamily: "inherit", fontSize: 10, letterSpacing: 1, textDecoration: "underline", cursor: "pointer", marginTop: 4, padding: 0 }}
+            >
+              pick a different existing product…
+            </button>
+          )}
+          {pickOpen && (
+            <div style={{ marginTop: 6 }}>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Type to search products…"
+                style={{ ...INPUT, width: "100%" }}
+              />
+              <div style={{ marginTop: 4, display: "grid", gap: 2 }}>
+                {products === null && (
+                  <div style={{ color: MUTED, fontSize: 12 }}>Loading…</div>
+                )}
+                {(products ?? [])
+                  .filter((p) => String(p["Canonical Name"] ?? "").toLowerCase().includes(query.trim().toLowerCase()))
+                  .slice(0, 8)
+                  .map((p) => (
+                    <button
+                      key={String(p["Product Key"])}
+                      type="button"
+                      onClick={() => void confirm(String(p["Product Key"]), String(p["Canonical Name"] ?? ""))}
+                      style={{ textAlign: "left", background: "transparent", border: "1px solid #222", borderRadius: 4, color: TEXT, fontFamily: "inherit", fontSize: 13, padding: "8px 10px", cursor: "pointer" }}
+                    >
+                      {String(p["Canonical Name"] ?? "")}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
       {err && <div style={{ color: RED, fontSize: 11, marginTop: 4 }}>{err}</div>}
