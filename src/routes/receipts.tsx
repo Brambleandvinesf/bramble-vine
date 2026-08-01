@@ -573,6 +573,12 @@ function DesignateTab({
                   {g.lines.map((l) => (
                     <div key={l.row} style={LINE_ROW}>
                       <LineBody line={l} />
+                      <ItemPhotoNamer
+                        line={l}
+                        vendor={vendor}
+                        writer={writer}
+                        setLines={setLines}
+                      />
                       <div style={{ marginTop: 6 }}>
                         <DesignationPicker
                           value={picks[l.row] ?? ""}
@@ -953,6 +959,128 @@ function InvoiceTab({
 
 
 /* ---------- shared bits ---------- */
+
+/* ---------------- AI ITEM NAMER (photo → suggested name) ----------------
+ * Photographs the physical item; the backend sends photo + vendor + the
+ * cryptic receipt line to Claude (web search enabled) and returns a clean
+ * product name. Always a SUGGESTION — editable, applied only on accept. */
+
+function ItemPhotoNamer({
+  line,
+  vendor,
+  writer,
+  setLines,
+}: {
+  line: Line;
+  vendor: string;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onFile = async (f: File | null) => {
+    if (!f || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const { data, mime } = await downscaleToBase64(f, 1024, 0.8);
+      const json = await postAction<{ suggestion?: string }>({
+        action: "identifyItem",
+        imageBase64: data,
+        mimeType: mime,
+        vendor,
+        lineText: line.description,
+      });
+      const s = String(json.suggestion ?? "").trim();
+      setSuggestion(s || null);
+      if (!s) setErr("No name suggested — try a clearer photo.");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Identify failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const accept = () => {
+    const name = (suggestion ?? "").trim();
+    if (!name || name === line.description) {
+      setSuggestion(null);
+      return;
+    }
+    const prev = line.description;
+    setLines((cur) => cur.map((l) => (l.row === line.row ? { ...l, description: name } : l)));
+    setSuggestion(null);
+    writer.dispatch(
+      `rename-${line.row}`,
+      { action: "renameLine", row: line.row, name },
+      {
+        rollback: () =>
+          setLines((cur) =>
+            cur.map((l) => (l.row === line.row ? { ...l, description: prev } : l)),
+          ),
+        onSuccessMsg: "Item renamed",
+        onErrorMsg: (e) => `Couldn't rename — restored (${e.message})`,
+      },
+    );
+  };
+
+  return (
+    <div style={{ marginTop: 6 }}>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          void onFile(e.target.files?.[0] ?? null);
+          e.target.value = "";
+        }}
+      />
+      {suggestion === null ? (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          style={{ ...TINY_BTN, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? "IDENTIFYING…" : "📷 NAME FROM PHOTO"}
+        </button>
+      ) : (
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            value={suggestion}
+            onChange={(e) => setSuggestion(e.target.value)}
+            style={{ ...INPUT, flex: 1, minWidth: 180 }}
+          />
+          <button type="button" onClick={accept} style={SOLID_BTN_SM}>
+            USE THIS NAME
+          </button>
+          <button
+            type="button"
+            aria-label="dismiss suggestion"
+            onClick={() => setSuggestion(null)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: MUTED,
+              fontFamily: "inherit",
+              fontSize: 16,
+              cursor: "pointer",
+              padding: "0 4px",
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {err && <div style={{ color: RED, fontSize: 11, marginTop: 4 }}>{err}</div>}
+    </div>
+  );
+}
 
 /* ---------------- DESIGNATION PICKER (pills + client search) ---------------- */
 
