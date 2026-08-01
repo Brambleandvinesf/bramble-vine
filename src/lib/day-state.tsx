@@ -28,6 +28,8 @@ export type DayState = {
   lineState?: string;
   caption?: string;
   flags?: Record<string, boolean>;
+  /** Size of today's roster (EMPLOYEE_TEAMS); 1 = solo day. */
+  crewCount?: number | null;
   fieldPhone?: FieldPhone;
   phaseOrder: DayPhase[];
   subSteps: Record<DayPhase, string[]>;

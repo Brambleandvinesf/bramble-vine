@@ -12,6 +12,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { Check, SkipForward, Trash2 } from "lucide-react";
 import { confirmModal } from "../components/ConfirmModal";
+import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 
 const CK = "confirm:getConfirm";
 
@@ -1802,7 +1803,10 @@ const FOOTER: React.CSSProperties = {
   position: "fixed",
   left: 0,
   right: 0,
-  bottom: 56,
+  /* The spine is fixed at bottom:0 and paints over anything parked in its
+     reserve band — bottom:56 left this footer (and its confirm button)
+     entirely hidden behind it. */
+  bottom: SPINE_RESERVE_CSS,
   background: "#0a0a0a",
   borderTop: `1px solid ${LINE}`,
   padding: "10px 12px",

@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-01 (backend v7.4.12 @143; Product Master + automatic QBO price sync live)*
+*Last updated: 2026-08-01 (backend v7.4.13 @144; K fixes — inline daily reset, live calendar client derivation, solo-crew flow, spine-covered footers)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.12), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.13), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,10 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.12); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.13); full changelog in Code.js header.
+- Fixed footers must use bottom: SPINE_RESERVE_CSS (DayStateSpine export),
+  NEVER a raw pixel value — the spine paints over anything parked lower
+  (this exact bug hid the review confirm button twice).
 - PRICING RUBRIC (Brandon 8/1): each vendor's receipt price x that
   vendor's tier multiplier (Vendors tab Multiplier: 1.15 retail default,
   1.6 Devil Mountain, 3 wholesale/Flower Mart/Rudy's), THEN MAX across

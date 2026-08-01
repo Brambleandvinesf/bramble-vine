@@ -362,6 +362,24 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
 - 8/1: clasp auth was expiring repeatedly (invalid_rapt); Brandon
   re-authed with --creds client_secret.json and set Workspace session
   control to never require reauthentication — should not recur.
+- 8/1 (afternoon, K work order, v7.4.13 @144): three field-test bugs.
+  (1) Yesterday's project showed in today's confirm screen. Root cause:
+  the 8:30am dailyReset_ trigger left a 5:00–8:30 window (todayKey_ rolls
+  at 5am) where Current Clients still held yesterday. Fix: doGet now calls
+  ensureDailyReset_() — first read of a new crew day runs the reset inline
+  (DAILY_RESET_DAY property stamp keeps it and the trigger idempotent) —
+  AND getConfirm derives todaysClients live from the calendar
+  (dayEvents_ + matchClient_), tab only as fallback when the calendar
+  read throws. An empty calendar day returns empty, never the stale tab.
+  (2) Missing confirm button on Review Today's Projects — SECOND
+  occurrence of the spine-covers-footer bug: confirm.tsx / receipts.tsx
+  footers sat at bottom:56 (loading.tsx at 56px+inset) under the spine's
+  reserve band. All three now use SPINE_RESERVE_CSS; new iron rule in
+  CLAUDE.md — fixed footers must always use SPINE_RESERVE_CSS.
+  (3) Solo-crew days: getDayState now returns crewCount (EMPLOYEE_TEAMS
+  size); schedule.tsx auto-opens /confirm for management at
+  special_confirm when crewCount <= 1 (once per visit, so backing out
+  sticks).
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

@@ -5,6 +5,7 @@ import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
+import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 
 const CK = "receipts:getReceipts";
 
@@ -1540,7 +1541,9 @@ const FOOTER: React.CSSProperties = {
   position: "fixed",
   left: 0,
   right: 0,
-  bottom: 56,
+  /* bottom:56 parks the footer inside the spine's reserve band, where the
+     spine paints over it (same bug that hid the confirm button). */
+  bottom: SPINE_RESERVE_CSS,
   background: "#0a0a0a",
   borderTop: `1px solid ${LINE}`,
   padding: "10px 12px",

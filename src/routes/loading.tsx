@@ -11,6 +11,7 @@ import { useReviewableToday } from "../lib/reviewable-today";
 import { MessagesFab } from "../components/MessagesFab";
 import { appendTeamParam } from "../lib/team";
 import { confirmModal } from "../components/ConfirmModal";
+import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 
 
 const CK = "loading:getData";
@@ -1015,7 +1016,8 @@ const FOOTER_WRAP: React.CSSProperties = {
   position: "fixed",
   left: 0,
   right: 0,
-  bottom: "calc(56px + env(safe-area-inset-bottom, 0px))",
+  /* Must clear the spine's full reserve band or the spine paints over it. */
+  bottom: SPINE_RESERVE_CSS,
   zIndex: 90,
   padding: "8px 10px",
   background: "linear-gradient(to top, rgba(10,10,10,0.98) 60%, rgba(10,10,10,0))",

@@ -226,6 +226,19 @@ function SchedulePage() {
   // route server-side).
   const teamsOk = dayState?.flags?.teamsConfirmed === true;
   const specialOk = dayState?.flags?.specialConfirmed === true;
+  // Solo day (Brandon is the whole roster): the "Review Today's Projects"
+  // card is the only thing left to do at special_confirm, so open it
+  // directly instead of making him tap through a standby screen. Once per
+  // page visit — backing out on purpose must stick.
+  const soloAutoNavRef = useRef(false);
+  useEffect(() => {
+    if (soloAutoNavRef.current) return;
+    if (effectiveRole !== "management") return;
+    if (dayState?.subStep !== "special_confirm") return;
+    if ((dayState?.crewCount ?? 99) > 1) return;
+    soloAutoNavRef.current = true;
+    void navigate({ to: "/confirm" });
+  }, [effectiveRole, dayState?.subStep, dayState?.crewCount, navigate]);
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const confirmSeenRef = useRef(false);
   const [baseLoadDismissed, setBaseLoadDismissed] = useState(false);
