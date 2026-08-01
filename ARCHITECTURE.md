@@ -293,9 +293,9 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
 - 8/1: schedule gates fixed — cards render one at a time in day order
   (Daily Load Y/N waits for teamsConfirmed; project review is its own
   plain card after teams+daily, hidden on nothing-to-review days, which
-  now auto-close the vacuous special gate on YES). OPEN QUESTION: review
-  step still completes via the explicit confirm button in /confirm, not
-  by viewing — Brandon may want view-only unlock.
+  now auto-close the vacuous special gate on YES). RESOLVED 8/1: Brandon
+  keeps the explicit confirm — "Confirm Daily Load & Notify Crew" in
+  /confirm completes the review step; viewing alone never unlocks it.
 - 8/1: Vendors tab seeded (v7.4.11 @142) — 34 rows compiled from Tax
   Exempt Vendors + Vendor Prices sheets + receipt history, deduped with
   aliases (receipt vendor strings are inconsistent: Lowe's/Lowes etc.),
@@ -313,6 +313,29 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   moving them out; the Vendors tab deliberately excludes them. Only
   Home Depot + Lowe's have tax-exempt IDs on file; org EIN 84-3063715 and
   reseller permit 225-652864 are sheet-level fallbacks for reminder F.
+- 8/1: RECEIPT GATE DESIGN (Brandon, for feature C): a supply-run/vendor
+  stop is its own stop type; its Debrief carries a HARD GATE — crew must
+  pick "Receipt attached" or "No purchase made" before Navigate-to-next
+  unlocks. Replaces external purchase detection (bank notifications =
+  unreliable); the app-side gate works regardless of phone/card used.
+  A vendor stop billed to a client (feature C) carries the same gate.
+  Vendor stops NEVER auto-text anyone, regardless of billing.
+- 8/1: PURCHASE GATING VIA WALLET — Brandon wants purchases gated behind
+  app-side prompts (receipt gate, tax-exempt reminder, client-billing
+  choice) before payment. TRUE enforcement via Google Wallet is NOT
+  achievable — no third-party API can lock/mask/gate a card in Wallet at
+  any effort level; do not attempt it. Achievable substitute (feature H):
+  after a stop's prompts are acknowledged, show an "Open Google Wallet"
+  button (Chrome intent:// launch of com.google.android.apps.walletnfcrel
+  with Play-Store fallback) so acknowledging prompts is the natural last
+  step before paying. TRUE enforcement WOULD be achievable by switching
+  to a card platform with programmatic spend controls (Ramp, Brex, Divvy,
+  Extend — lock/unlock or conditional authorization), which means
+  replacing the current card entirely: a business decision with real
+  switching costs, PARKED for a separate conversation — not app scope.
+- 8/1: plaintext passwords in the Tax Exempt Vendors sheet are being
+  handled by Brandon directly — no further app-side action; the Vendors
+  tab already excludes them.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

@@ -122,6 +122,14 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
 - Backups in that dir: Code.js.pristine-backup and .bak-pre-<version>.
 - Full incident history and detail: ARCHITECTURE §12.
 
+## KEY DECISIONS (details in ARCHITECTURE §9)
+- Purchase gating: no third-party control over Google Wallet exists —
+  the app nudges via prompts + an "Open Google Wallet" button; true
+  enforcement = switching to a spend-control card platform (Ramp/Brex/
+  Divvy/Extend), parked as a business decision, not app scope.
+- Vendor/supply stops: own stop type; Debrief hard gate ("Receipt
+  attached" / "No purchase made") before next Navigate; never auto-text.
+
 ## OPEN ITEMS
 - Root-cause the WS604s preset wipe (bridge re-asserts as mitigation).
 - Verify git-pushed assets survive the next Lovable sync (icons on main).
