@@ -379,7 +379,7 @@ function HamburgerMenu() {
 
   if (!effectiveRole) return null;
 
-  // Team assignment is office/lead/management (MASTERPLAN §5 failsafe). The
+  // Team assignment is office/lead/management (ARCHITECTURE §5 failsafe). The
   // spine's "Assign Teams" node only exists during HQ_LOADING, so this is the
   // way in for the rest of the day.
   const canAssignTeams =

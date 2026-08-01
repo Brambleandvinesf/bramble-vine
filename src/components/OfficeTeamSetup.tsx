@@ -8,7 +8,7 @@ import { useSubStepOverride } from "../lib/day-state";
  * Office keeps the original behaviour: getTeamSetup is fetched on sign-in and
  * the overlay pops automatically until confirmTeams is posted (dismissible per
  * session with "×"). Lead and management can also assign teams — the failsafe
- * in MASTERPLAN §5 — but only on demand: they get no automatic pop-up, and the
+ * in ARCHITECTURE §5 — but only on demand: they get no automatic pop-up, and the
  * fetch is deferred until they actually tap "Assign Teams" in the spine.
  */
 
