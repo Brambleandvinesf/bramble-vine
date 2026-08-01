@@ -290,6 +290,25 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   and departure ("VISIT COMPLETE") buttons needed no rewiring — they
   resolve the current stop via ROUTE_STATE and were already gated
   client-side; the server-side guard now backs them.
+- 8/1: schedule gates fixed — cards render one at a time in day order
+  (Daily Load Y/N waits for teamsConfirmed; project review is its own
+  plain card after teams+daily, hidden on nothing-to-review days, which
+  now auto-close the vacuous special gate on YES). OPEN QUESTION: review
+  step still completes via the explicit confirm button in /confirm, not
+  by viewing — Brandon may want view-only unlock.
+- 8/1: Vendors tab seeded (v7.4.11 @142) — 25 vendors compiled from Tax
+  Exempt Vendors + Vendor Prices sheets + receipt history, deduped with
+  aliases (receipt vendor strings are inconsistent: Lowe's/Lowes etc.),
+  web-searched addresses (verified vs unverified flagged per row — 6
+  unverified need Brandon's confirmation: Home Depot Colma-vs-Daly-City,
+  Pini branch, PetSmart, Michaels, Rudy's, Bongards identity). Read via
+  getVendors; reseed via guarded seedVendors. NOTE: the two legacy
+  vendor sheets remain untouched; the old 2023 'Tax Exempt Vendors' file
+  is a stale duplicate (recommend archiving). SECURITY: the current Tax
+  Exempt Vendors sheet stores plaintext account passwords — recommended
+  moving them out; the Vendors tab deliberately excludes them. Only
+  Home Depot + Lowe's have tax-exempt IDs on file; org EIN 84-3063715 and
+  reseller permit 225-652864 are sheet-level fallbacks for reminder F.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-07-31 (backend v7.4.10 @141; client texting fixed + AF opt-out enforced)*
+*Last updated: 2026-08-01 (backend v7.4.11 @142; Vendors tab seeded — canonical vendor list live)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.10), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.11), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,11 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.10); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.11); full changelog in Code.js header.
+- 'Vendors' tab in Field Receipts 2.0 = canonical vendor list (name,
+  aliases, address, tax-exempt Y/N + ID, active). Read via
+  ?action=getVendors; reseed via seedVendors (guarded, admin-only).
+  Feeds vendor-stop detection / shopping list / tax-exempt reminders.
 - Client Info col AF ("Special Text ETA Arrival") = per-client auto-text
   opt-out ("no" suppresses ALL eta/arrived/done texts server-side; blank =
   send). Enforced in the textClient handler; getField.skipTextClients
