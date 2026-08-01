@@ -258,6 +258,24 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   advance — the skip that made solo testing "work" is gone by design.
 - 7/31: MASTERPLAN.md converted to CLAUDE.md (auto-loaded) + this file.
   .claude/settings.json added (acceptEdits + routine git/node allowlist).
+- 7/31: receipts redesign. Lead sees Designate only (the one-tab toggle is
+  gone). Per-line designation = three pills: CLIENT (type-to-search over
+  getReceipts.designations, already client-side), INVENTORY, JOB SUPPLIES —
+  the backend designate action accepts any non-empty string, so the two
+  internal buckets needed NO backend change. DESIGNATE ALL AS control on
+  multi-line receipts, per-line override intact. Inventory/Job Supplies are
+  excluded from Invoice Review (they surfaced as pseudo-clients queueable
+  to QBO). FUTURE: push Inventory lines into QuickBooks as inventory items.
+- 7/31: AI item naming (backend v7.4.9 @140). Per-line 📷 NAME FROM PHOTO →
+  photo downscaled client-side → identifyItem sends it to Claude
+  (claude-sonnet-5, web_search_20260209, effort low) with vendor + receipt
+  line as context → clean product name returned as an EDITABLE SUGGESTION.
+  USE THIS NAME posts renameLine: Item_Description updated, original
+  preserved in Notes ("was: ..."). Never auto-replaces. Needs the
+  ANTHROPIC_API_KEY Script Property (create in Console, paste in Apps
+  Script Project Settings → Script Properties; live without redeploy) —
+  until set, the button errors cleanly and everything else works. This is
+  the standing mechanism for keeping item names accurate going forward.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
