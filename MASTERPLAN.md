@@ -1,6 +1,6 @@
 # BRAMBLE & VINE — MASTER PLAN
 *Canonical context for AI-assisted build sessions. Tell Claude: "read MASTERPLAN.md in the repo before we start."*
-*Last updated: 2026-07-27 (backend v7.4.1; clasp deploys from the Pi; clock bridge live)*
+*Last updated: 2026-07-31 (backend v7.4.8 @139; day ordering enforced server-side; explicit shared departure)*
 
 ## 1. VISION
 One PWA runs the whole field operation: a guided linear day for field crew
@@ -13,7 +13,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## 2. STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (bramble-appscript-code v7.4.1),
+- Backend: Google Apps Script "chron order" (bramble-appscript-code v7.4.8),
   single web-app deployment — URL MUST NEVER CHANGE
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
   Billing Hours, Client Info, App TODO, Payroll Confirmations, ...)
@@ -55,7 +55,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   ~60 seconds while it propagates. Wait before testing a freshly deployed
   action — testing immediately looks exactly like a failed deploy, and the
   old code is still answering until it lands.
-- Backend versions sequential (current: v7.4.1); full changelog in header.
+- Backend versions sequential (current: v7.4.8); full changelog in header.
 - No yellow/orange/red/burgundy in UI (red = failure states only).
   Active/current state = lime #7cff00 SLOW BLINK (~3s, never fully off).
   Completed = steady lime glow. Upcoming = dim hollow outline.
@@ -273,6 +273,41 @@ payrollNightly_, autoSortOnChange, updateDepartureEta.
   a glow filter on a zero-height horizontal line has an empty filter region and
   renders nothing — use userSpaceOnUse. Build a DOM harness and measure; do not
   reason about layout from the source.
+- 7/31: live solo test surfaced 8 bugs; fixed as backend v7.4.8 (@139) + three
+  frontend commits. Root causes worth remembering:
+  (a) autoClockIn's already-in probe used 'user_ids[]=' — not a QBT param,
+  silently dropped, so ANYONE on the clock made every lead sign-in answer
+  alreadyIn:true. QBT v1 wants 'user_ids=' comma-separated, and the found
+  entry's user_id must be matched. Its POST also omitted 'start', which QBT
+  requires — assistant worked only because the retro path set one.
+  (b) ROUTE_STATE's fresh-day default was 'enroute', so the day read as
+  departed from the first poll — that was bug "app opens on En Route". Now
+  defaults to '' and departure is an explicit setRoute enroute; getDayState
+  holds subStep 'loading' while state is ''. setRoute now REJECTS visit
+  states until all four HQ gates are true (server enforces ordering).
+  (c) The Confirm-Special button posted confirmDay but the ladder reads
+  specialConfirmed, which NOTHING ever posted — the 90s subStep override
+  masked it then yanked every device back (the "~1-2 min reset"). Frontend
+  now posts confirmSpecial; loadingComplete sets loadingDone. Rule: a
+  button that claims to advance a step must write the flag the ladder
+  reads — the override is a 2s bridge, never the mechanism.
+  (d) Clock identity on /field came from fieldPhone with no role check, so
+  management (incl. view-as) got someone else's live CLOCK IN button. me is
+  now gated on the ACTUAL role. WhoAmI picker + loadMe/saveMe deleted.
+  (e) dailyReset_ now clears the tools tab's Loaded Status column —
+  recurring rows carried yesterday's ticks, opening the checklist
+  pre-completed. Lead landing + /field gates now derive from
+  getDayState via hqScreenFor() (day-state.tsx).
+- 7/31: departure flow: LOADING COMPLETE (any crew member; /loading for
+  lead-mgmt, AssistantLoadingGate on /field) → NAVIGATE AND TEXT ETA →
+  setRoute enroute stop 0 + textEta (server-idempotent) + maps; all devices
+  advance via the existing polls. First-visit button is
+  "START VISIT & SWITCH TO {CLIENT}" (switches presser's QBT clock);
+  others' clock panel offers "SWITCH TO {CLIENT}". DEPART NOW chip removed
+  from /loading (it was a non-interactive div styled like the primary CTA).
+- 7/31: consequence of the ordering enforcement: someone must confirm
+  Assign Teams (spine node → overlay → confirmTeams) before the day can
+  advance — the skip that made solo testing "work" is gone by design.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## 10. WORK QUEUE
