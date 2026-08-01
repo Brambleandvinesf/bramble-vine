@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
@@ -179,7 +178,6 @@ type WriteHandlers = {
 type Toast = { msg: string; err: boolean } | null;
 
 function ReceiptsPage() {
-  const { user } = useAuth();
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
 
@@ -318,11 +316,6 @@ function ReceiptsPage() {
             ? "Assign each line to a client"
             : "Queue reviewed lines for QuickBooks"}
         </div>
-        {user && (
-          <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
-            SIGNED IN AS {user.toUpperCase()}
-          </div>
-        )}
         <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
           {canDesignate && (
             <TabBtn active={tab === "designate"} onClick={() => setTab("designate")}>

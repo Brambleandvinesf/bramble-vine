@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { confirmModal } from "../components/ConfirmModal";
@@ -103,7 +102,6 @@ type CardState = {
 };
 
 function VisitsPage() {
-  const { user } = useAuth();
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "visits");
@@ -361,11 +359,6 @@ function VisitsPage() {
         <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
           VISIT CONFIRMATIONS
         </div>
-        {user && (
-          <div style={{ marginTop: 6, fontSize: 11, color: MUTED, letterSpacing: 1 }}>
-            SIGNED IN AS {user.toUpperCase()}
-          </div>
-        )}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           <button style={GHOST_BTN} onClick={() => setShowAdd((s) => !s)}>
             + NEW MESSAGE
