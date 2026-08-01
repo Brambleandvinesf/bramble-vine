@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-01 (backend v7.4.13 @144; K fixes — inline daily reset, live calendar client derivation, solo-crew flow, spine-covered footers)*
+*Last updated: 2026-08-02 (backend v7.4.14 @145; per-stop spine anchors, vendor stops + receipt gate, QBO item auto-create, human-gated plant pricing)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.13), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.14), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.13); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.14); full changelog in Code.js header.
 - Fixed footers must use bottom: SPINE_RESERVE_CSS (DayStateSpine export),
   NEVER a raw pixel value — the spine paints over anything parked lower
   (this exact bug hid the review confirm button twice).
@@ -59,6 +59,11 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   vendors sharing a Product Key → pushed to QBO automatically, no
   approval gate. Audit trail = Price Change Log tab; failed pushes also
   Pushover management. Never flatten to a single x1.15.
+  EXCEPTION (L3, 8/2): Product Master Category=Plant is the ONE human-
+  gated path — suggested price = MAX(size floor from Plants/Retail tab,
+  tiered rubric above, Claude web-search market check), shown with a
+  breakdown, pushed only via confirmPlantPrice. Missing QBO Item IDs are
+  auto-created (L1); backend never guesses a plant's size class.
 - 'Vendors' tab in Field Receipts 2.0 = canonical vendor list (name,
   aliases, address, tax-exempt Y/N + ID, active). Read via
   ?action=getVendors; reseed via seedVendors (guarded, admin-only).
@@ -136,8 +141,16 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   the app nudges via prompts + an "Open Google Wallet" button; true
   enforcement = switching to a spend-control card platform (Ramp/Brex/
   Divvy/Extend), parked as a business decision, not app scope.
-- Vendor/supply stops: own stop type; Debrief hard gate ("Receipt
-  attached" / "No purchase made") before next Navigate; never auto-text.
+- Vendor/supply stops (BUILT 8/2, v7.4.14): own stop type, detected by
+  matching event address/name against the Vendors tab (backend
+  vendorMatch_ = frontend matchVendor — keep in step). Debrief hard gate
+  ("Receipt attached" / "No purchase made") server-enforced on setRoute;
+  never texts; clock bills to the next client stop (overhead fallback);
+  tax-exempt banner + wallet button on arrival.
+- Spine (8/2): one anchor per real stop (getDayState.stops), HQ at both
+  ends. Transit (enroute/next) = the dashed animated line INTO the
+  current stop — never a sub-node pill; sub-row hides during transit.
+  The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## OPEN ITEMS
 - Root-cause the WS604s preset wipe (bridge re-asserts as mitigation).

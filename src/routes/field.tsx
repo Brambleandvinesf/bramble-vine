@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../lib/auth";
@@ -12,6 +12,7 @@ import { appendTeamParam, resolveTeam } from "../lib/team";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
+import { openGoogleWallet } from "../lib/wallet";
 
 const CK = "field:getField";
 
@@ -67,7 +68,16 @@ type DebriefStepKey = "billing" | "updates" | "items" | "new" | "office";
 type FieldSearch = { preview?: RouteState; step?: DebriefStepKey };
 type Employee = { id: string; name: string };
 type RosterMember = { id: string; name: string; in?: string | null; out?: string | null; tsId?: string | null; client?: string | null };
-type EventItem = { id: string; title: string; start?: string; end?: string; location?: string; color?: string };
+type EventItem = { id: string; title: string; start?: string; end?: string; location?: string; color?: string; description?: string };
+
+/** Canonical vendor (getField.vendors) — recognises supply stops as their own stop type. */
+type FieldVendor = {
+  vendor: string;
+  aliases?: string[];
+  address?: string;
+  taxExempt?: boolean;
+  taxExemptId?: string;
+};
 type ProjectRow = Record<string, unknown> & { row?: number };
 type ToolRowRaw = Record<string, unknown> & { row?: number };
 
@@ -105,6 +115,8 @@ type GetFieldResponse = {
   clients?: string[];
   /** Clients whose Client Info AF says "No" — never auto-text them. */
   skipTextClients?: string[];
+  /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
+  vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
   serverTime?: string;
 };
@@ -409,6 +421,29 @@ function hoursBetween(inIso?: string | null, outIso?: string | null): number {
   if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 0;
   const h = (b - a) / 3_600_000;
   return Math.max(0, Math.round(h / 0.25) * 0.25);
+}
+
+/* Does this event point at a vendor? Address first (it distinguishes
+   'Home Depot - Colma' from '- Daly City'), then base name and aliases,
+   minimum 4 chars so a short alias can't fire inside a client name.
+   Mirrors the backend's vendorMatch_ — keep the two in step. */
+function matchVendor(ev: EventItem | undefined, vendors: FieldVendor[]): FieldVendor | null {
+  if (!ev) return null;
+  const t = (ev.title || "").toLowerCase();
+  const loc = (ev.location || "").toLowerCase();
+  for (const v of vendors) {
+    const street = (v.address || "").split(",")[0].trim().toLowerCase();
+    if (street.length >= 6 && loc.includes(street)) return v;
+  }
+  for (const v of vendors) {
+    const base = v.vendor.split(" - ")[0].trim().toLowerCase();
+    if (base.length >= 4 && (t.includes(base) || loc.includes(base))) return v;
+    for (const al of v.aliases ?? []) {
+      const a = al.toLowerCase();
+      if (a.length >= 4 && (t.includes(a) || loc.includes(a))) return v;
+    }
+  }
+  return null;
 }
 
 /* ---------- identity ---------- */
@@ -733,6 +768,21 @@ function FieldBody({
   const stopIndex = route.stopIndex ?? 0;
   const currentEvent = events[stopIndex] ?? events[0];
   const clientMatch = currentEvent ? matchClient(currentEvent.title, clients) : null;
+  // Vendor stops are their own stop type (C, 8/2): tax banner, wallet button,
+  // receipt hard gate, never texts, clock billed to a client.
+  const vendors = data.vendors ?? [];
+  const vendorStop = currentEvent ? matchVendor(currentEvent, vendors) : null;
+  // A vendor run's clock time bills to the client the supplies are for — the
+  // next client stop on the route; overhead only when nothing follows.
+  const vendorBillTo = useMemo(() => {
+    if (!vendorStop) return null;
+    for (let i = stopIndex + 1; i < events.length; i++) {
+      if (matchVendor(events[i], vendors)) continue;
+      const m = matchClient(events[i].title, clients);
+      if (m) return m;
+    }
+    return OVERHEAD_CLIENT;
+  }, [vendorStop, stopIndex, events, vendors, clients]);
 
   const isLead = canSee(role, "route_debrief");
   const canDebrief = canSee(role, "route_debrief") || route.delegated === true;
@@ -756,6 +806,12 @@ function FieldBody({
   // This client has already had their text today. Only a literal true suppresses
   // anything, so a payload without the field behaves exactly as before.
   const skipSameDayTexts = dayState?.skipSameDayTexts === true;
+  // N (8/2): every button that would text must SAY so in its label — and say
+  // "(NO TEXT)" when the client's AF opt-out (or a vendor stop) suppresses it.
+  // Same AF source the send logic already uses; this is labeling, not a new
+  // suppression mechanism.
+  const afOptOut = !!clientMatch && (data.skipTextClients ?? []).includes(clientMatch);
+  const textsSuppressed = skipSameDayTexts || afOptOut || !!vendorStop;
   // Clock identity requires the ACTUAL signed-in role — never view-as. Before
   // this check, management browsing /field was handed the field phone holder's
   // QBT id and a live CLOCK IN button under someone else's timesheet.
@@ -929,7 +985,10 @@ function FieldBody({
 
   const anyClockedIn = roster.some((m) => !!m.in && !m.out);
   const nextEvent = events[stopIndex + 1];
-  const nextClientMatch = nextEvent ? matchClient(nextEvent.title, clients) : null;
+  const nextVendor = nextEvent ? matchVendor(nextEvent, vendors) : null;
+  const nextClientMatch = nextEvent
+    ? (nextVendor ? nextVendor.vendor : matchClient(nextEvent.title, clients))
+    : null;
   const isLastStop = stopIndex + 1 >= events.length;
 
   const handleBackToCrew = () => {
@@ -1009,6 +1068,7 @@ function FieldBody({
   ) : null;
 
   const handleVisitComplete = async () => {
+    if (vendorStop) return;   // vendor stops never text
     void textClient(send, "done", clientMatch, stopIndex, isPreview, skipSameDayTexts);
   };
 
@@ -1064,11 +1124,11 @@ function FieldBody({
             ) : (
               <StateArrived
                 skipSameDayTexts={skipSameDayTexts}
+                textsSuppressed={textsSuppressed}
                 roster={roster}
                 clientMatch={clientMatch}
                 stopIndex={stopIndex}
                 isLead={isLead}
-                delegated={!!route.delegated}
                 busy={busy}
                 clockSlot={personalClockSlot}
                 onBackToCrew={handleBackToCrew}
@@ -1078,14 +1138,16 @@ function FieldBody({
                 event={currentEvent}
                 send={send}
                 locationCheck={route.locationCheck ?? null}
-                onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
+                vendorStop={vendorStop}
+                vendorBillTo={vendorBillTo}
                 onStart={async () => {
+                  const routeClient = vendorStop ? vendorStop.vendor : clientMatch;
                   if (state === "enroute") {
-                    if (!currentEvent || !clientMatch) return;
+                    if (!currentEvent || !routeClient) return;
                     const r = await send({
                       action: "setRoute",
                       state: "arrived",
-                      client: clientMatch,
+                      client: routeClient,
                       eventId: currentEvent.id,
                       stopIndex,
                     });
@@ -1093,8 +1155,14 @@ function FieldBody({
                   }
                   const r = await send({ action: "setRoute", state: "visit" });
                   if (r.ok) {
-                    void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
-                    if (clientMatch) void switchMeTo(clientMatch);
+                    if (vendorStop) {
+                      // Supply run: never text; the clock bills to the client
+                      // the materials are for.
+                      if (vendorBillTo) void switchMeTo(vendorBillTo);
+                    } else {
+                      void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+                      if (clientMatch) void switchMeTo(clientMatch);
+                    }
                   }
                 }}
                 onNoShow={() => void confirmNoShow(send, setBanner)}
@@ -1107,13 +1175,17 @@ function FieldBody({
           {state === "visit" && (
             <StateVisit
               skipSameDayTexts={skipSameDayTexts}
+              textsSuppressed={textsSuppressed}
               event={currentEvent}
               clientMatch={clientMatch}
+              vendorStop={vendorStop}
               stopIndex={stopIndex}
               arrivedAt={route.arrivedAt}
               now={now}
               roster={roster}
               isLead={isLead}
+              delegated={!!route.delegated}
+              onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
               projects={data.projects ?? []}
               tools={data.tools ?? []}
               busy={busy}
@@ -1129,7 +1201,24 @@ function FieldBody({
 
 
 
-          {state === "debrief" && (
+          {/* Vendor stop debrief = the receipt HARD GATE (C, 8/2): nothing
+              advances to the next stop until an outcome is recorded. The
+              backend enforces the same gate on setRoute. */}
+          {state === "debrief" && vendorStop && (
+            <VendorDebrief
+              vendor={vendorStop}
+              busy={busy}
+              isPreview={isPreview}
+              onOutcome={async (outcome) => {
+                if (isPreview) return;
+                const r = await send({ action: "setRoute", vendorOutcome: outcome });
+                if (!r.ok) return;
+                await send({ action: "setRoute", state: "next" });
+              }}
+            />
+          )}
+
+          {state === "debrief" && !vendorStop && (
             <>
               {canDebrief || isPreview ? (
                 <StateDebrief
@@ -1188,21 +1277,22 @@ function FieldBody({
           {state === "next" && currentEvent && (
             <StateEnRoute
               event={currentEvent}
-              clientMatch={clientMatch}
+              clientMatch={vendorStop ? vendorStop.vendor : clientMatch}
               isLead={isLead}
               projects={data.projects ?? []}
               busy={busy}
               onHere={() => {
-                if (!currentEvent || !clientMatch) return;
+                const routeClient = vendorStop ? vendorStop.vendor : clientMatch;
+                if (!currentEvent || !routeClient) return;
                 void send({
                   action: "setRoute",
                   state: "arrived",
-                  client: clientMatch,
+                  client: routeClient,
                   eventId: currentEvent.id,
                   stopIndex,
                 });
               }}
-              headerNote="NEXT STOP"
+              headerNote={vendorStop ? "NEXT STOP — SUPPLY RUN" : "NEXT STOP"}
             />
           )}
 
@@ -1218,6 +1308,57 @@ function FieldBody({
         onClose={closePayroll}
         onProceed={closePayroll}
       />
+    </div>
+  );
+}
+
+/* Vendor-stop debrief (C, 8/2): a two-outcome hard gate replacing the full
+   client debrief. Either a receipt is on record (attach it on the Receipts
+   screen first) or the run explicitly bought nothing — the next Navigate
+   stays locked until one is chosen, and the backend rejects the advance
+   without it. Vendor stops never text and never invoice from here. */
+function VendorDebrief({
+  vendor,
+  busy,
+  isPreview,
+  onOutcome,
+}: {
+  vendor: FieldVendor;
+  busy: boolean;
+  isPreview: boolean;
+  onOutcome: (outcome: "receipt" | "none") => void;
+}) {
+  return (
+    <div style={{ padding: "10px 14px" }}>
+      <div style={PANEL_BOX}>
+        <div style={{ color: LIME, fontSize: 14, letterSpacing: 1 }}>
+          SUPPLY STOP — {vendor.vendor.toUpperCase()}
+        </div>
+        <div style={{ color: MUTED, marginTop: 8, fontSize: 13, lineHeight: 1.5 }}>
+          Before the next stop: was anything purchased here?
+        </div>
+      </div>
+      <div style={{ color: MUTED, fontSize: 11, letterSpacing: 0.5, marginTop: 12 }}>
+        Snap the receipt on the{" "}
+        <Link to="/receipts" style={{ color: LIME }}>Receipts screen</Link>
+        {" "}first, then confirm:
+      </div>
+      <button
+        type="button"
+        onClick={() => onOutcome("receipt")}
+        disabled={busy || isPreview}
+        style={{ ...PRIMARY_BTN, marginTop: 12, opacity: busy || isPreview ? 0.6 : 1 }}
+      >
+        RECEIPT ATTACHED ✓
+      </button>
+      <button
+        type="button"
+        onClick={() => onOutcome("none")}
+        disabled={busy || isPreview}
+        style={{ ...BIG_BTN, width: "100%", marginTop: 10, opacity: busy || isPreview ? 0.6 : 1 }}
+      >
+        NO PURCHASE MADE
+      </button>
     </div>
   );
 }
@@ -1616,6 +1757,16 @@ function StateEnRoute({
         </div>
       </div>
 
+      {/* M4 (8/2): the upcoming visit's plan, from its calendar event. */}
+      {event.description?.trim() && (
+        <div style={{ ...PANEL_BOX, marginTop: 12 }}>
+          <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>NEXT VISIT'S PLAN</div>
+          <div style={{ color: TEXT, fontSize: 13, marginTop: 6, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+            {event.description.trim()}
+          </div>
+        </div>
+      )}
+
       <button
         disabled={!address}
         onClick={() => {
@@ -1983,7 +2134,7 @@ function AssistantLoadingGate({
                 disabled={busy}
                 style={{ ...PRIMARY_BTN, marginTop: 10, opacity: busy ? 0.6 : 1 }}
               >
-                {skipText ? "NAVIGATE" : "NAVIGATE AND TEXT ETA"}
+                {skipText ? "NAVIGATE (NO TEXT)" : "NAVIGATE & SEND TEXT"}
               </button>
               {!skipText && (
                 <button
@@ -2032,11 +2183,11 @@ function AssistantLoadingGate({
 
 function StateArrived({
   skipSameDayTexts,
+  textsSuppressed,
   roster,
   clientMatch,
   stopIndex,
   isLead,
-  delegated,
   busy,
   clockSlot,
   onBackToCrew,
@@ -2046,16 +2197,17 @@ function StateArrived({
   event,
   send,
   locationCheck,
-  onDelegate,
+  vendorStop,
+  vendorBillTo,
   onStart,
   onNoShow,
 }: {
   skipSameDayTexts: boolean;
+  textsSuppressed: boolean;
   roster: RosterMember[];
   clientMatch: string | null;
   stopIndex: number;
   isLead: boolean;
-  delegated: boolean;
   busy: boolean;
   clockSlot?: React.ReactNode;
   onBackToCrew?: () => void;
@@ -2065,29 +2217,33 @@ function StateArrived({
   event?: EventItem;
   send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   locationCheck?: { near?: boolean; client?: string } | null;
-  onDelegate: (v: boolean) => void;
+  vendorStop?: FieldVendor | null;
+  vendorBillTo?: string | null;
   onStart: () => void;
   onNoShow: () => void;
 }) {
   const anyIn = roster.some((m) => !!m.in);
   const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
-
-  void role; // role no longer branches Navigate gate; both roles share flow
+  // M2 (8/2): the clock requirement only applies to crew who actually run a
+  // clock. Management never clocks in (iron rule since v7.4.8), so a solo
+  // management run left this button permanently darkened — the live-run bug.
+  const clockGate = role === "management" ? false : !anyIn;
   const [navigated, setNavigated] = useState(() => hasNavigated(stopIndex));
   useEffect(() => {
     setNavigated(hasNavigated(stopIndex));
   }, [stopIndex]);
 
-  const label = clientMatch ?? event?.title ?? "this client";
-  const address = event?.location ?? "";
+  const label = vendorStop?.vendor ?? clientMatch ?? event?.title ?? "this client";
+  const address = event?.location ?? vendorStop?.address ?? "";
   const mapsUrl = address
     ? "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(address)
     : "";
 
   const handleNavigate = async () => {
-    // Skip the ETA offer outright for a client already texted today - asking and
-    // then not sending would be worse than not asking.
-    const wantsText = skipSameDayTexts ? false : await confirmModal(`Text ${label} your ETA?`);
+    // Skip the ETA offer outright when texts are suppressed (already texted
+    // today, AF opt-out, or a vendor stop) - asking and then not sending
+    // would be worse than not asking.
+    const wantsText = textsSuppressed ? false : await confirmModal(`Text ${label} your ETA?`);
     if (wantsText) {
       const r = await send({ action: "textClient", kind: "eta" }, { silent: true });
       const raw = (r.raw ?? {}) as { ok?: boolean; to?: string; error?: string };
@@ -2152,8 +2308,29 @@ function StateArrived({
           )}
         </div>
       )}
-      {!clientMatch && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
+      {!clientMatch && !vendorStop && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
       {clockSlot}
+
+      {/* Tax-exempt reminder (F/G7): always fires for flagged vendors —
+          with the ID when known, never silently absent. */}
+      {vendorStop?.taxExempt && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "8px 10px",
+            border: `1px solid ${LIME_DIM}`,
+            borderRadius: 4,
+            color: LIME,
+            fontSize: 12,
+            letterSpacing: 0.5,
+            background: "rgba(124,255,0,0.06)",
+          }}
+        >
+          {vendorStop.taxExemptId
+            ? `TAX-EXEMPT ACCOUNT ON FILE — ID: ${vendorStop.taxExemptId}`
+            : "TAX-EXEMPT ACCOUNT ON FILE — ID not yet recorded"}
+        </div>
+      )}
 
       {!navigated && (
         <button
@@ -2162,25 +2339,41 @@ function StateArrived({
           disabled={busy || !address}
           style={{ ...NAVIGATE_BTN, opacity: address ? 1 : 0.45, marginTop: 14 }}
         >
-          NAVIGATE
+          {textsSuppressed ? "NAVIGATE (NO TEXT)" : "NAVIGATE & SEND TEXT"}
         </button>
       )}
 
 
       {showNormal && (
         <>
-          <div style={{ ...SECTION_HEAD, marginTop: 18 }}>DEBRIEF</div>
-          <button
-            onClick={() => onDelegate(!delegated)}
-            style={{
-              ...BIG_BTN,
-              background: delegated ? LIME : "transparent",
-              color: delegated ? BG : LIME,
-              borderColor: delegated ? LIME : LIME_DIM,
-            }}
-          >
-            {delegated ? "✓ DELEGATED (TAP TO REVOKE)" : "DELEGATE DEBRIEF (THIS VISIT)"}
-          </button>
+          {/* M4 (8/2): the next visit's plan, straight off the calendar
+              event — same summary the standby screen shows, scoped to
+              just this one stop. */}
+          {event?.description?.trim() && (
+            <div style={{ ...PANEL_BOX, marginTop: 14 }}>
+              <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>TODAY'S PLAN</div>
+              <div style={{ color: TEXT, fontSize: 13, marginTop: 6, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                {event.description.trim()}
+              </div>
+            </div>
+          )}
+
+          {vendorStop && (
+            <>
+              <button
+                type="button"
+                onClick={() => openGoogleWallet()}
+                style={{ ...BIG_BTN, marginTop: 14 }}
+              >
+                OPEN GOOGLE WALLET
+              </button>
+              {vendorBillTo && (
+                <div style={{ color: MUTED, fontSize: 11, letterSpacing: 0.5, marginTop: 8, textAlign: "center" }}>
+                  Clock time at this stop bills to {vendorBillTo}.
+                </div>
+              )}
+            </>
+          )}
 
           {nearBanner && (
             <div
@@ -2201,13 +2394,18 @@ function StateArrived({
 
           <button
             onClick={onStart}
-            disabled={!anyIn || busy || alreadyTexted || !!isPreview}
-            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (!anyIn || alreadyTexted) ? 0.45 : 1 }}
+            disabled={clockGate || busy || alreadyTexted || !!isPreview}
+            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (clockGate || alreadyTexted) ? 0.45 : 1 }}
           >
             {alreadyTexted
               ? skipSameDayTexts ? "VISIT STARTED" : "CLIENT TEXTED"
-              : `START VISIT & SWITCH TO ${label.toUpperCase()}`}
+              : `START VISIT & SWITCH TO ${label.toUpperCase()}${textsSuppressed ? " (NO TEXT)" : " & TEXT CLIENT"}`}
           </button>
+          {clockGate && !alreadyTexted && (
+            <div style={{ color: MUTED, fontSize: 11, letterSpacing: 0.5, marginTop: 6, textAlign: "center" }}>
+              Clock in first — the visit switches everyone's clock to this stop.
+            </div>
+          )}
         </>
       )}
 
@@ -2223,13 +2421,17 @@ function StateArrived({
 /* ============================================================ */
 function StateVisit({
   skipSameDayTexts,
+  textsSuppressed,
   event,
   clientMatch,
+  vendorStop,
   stopIndex,
   arrivedAt,
   now,
   roster,
   isLead,
+  delegated,
+  onDelegate,
   projects,
   tools,
   busy,
@@ -2242,13 +2444,17 @@ function StateVisit({
   onNoShow,
 }: {
   skipSameDayTexts: boolean;
+  textsSuppressed: boolean;
   event?: EventItem;
   clientMatch: string | null;
+  vendorStop?: FieldVendor | null;
   stopIndex: number;
   arrivedAt?: string | null;
   now: number;
   roster: RosterMember[];
   isLead: boolean;
+  delegated: boolean;
+  onDelegate: (v: boolean) => void;
   projects: ProjectRow[];
   tools: ToolRowRaw[];
   busy: boolean;
@@ -2296,12 +2502,28 @@ function StateVisit({
     <div style={{ padding: "10px 14px" }}>
       <div style={PANEL_BOX}>
         <div style={{ display: "flex", alignItems: "baseline" }}>
-          <div style={{ color: LIME, fontSize: 18, fontWeight: "bold" }}>{clientMatch ?? event?.title}</div>
+          <div style={{ color: LIME, fontSize: 18, fontWeight: "bold" }}>{vendorStop?.vendor ?? clientMatch ?? event?.title}</div>
           <div style={{ marginLeft: "auto", color: MUTED, fontSize: 12 }}>
             {arrivedAt ? `${elapsed(arrivedAt, now)} onsite` : "onsite"}
           </div>
         </div>
       </div>
+
+      {/* M3 (8/2): delegation lives IN Visit Mode — it appeared on the
+          en-route screen before, ahead of any visit to delegate. */}
+      <div style={{ ...SECTION_HEAD, marginTop: 12 }}>DEBRIEF</div>
+      <button
+        onClick={() => onDelegate(!delegated)}
+        disabled={isPreview}
+        style={{
+          ...BIG_BTN,
+          background: delegated ? LIME : "transparent",
+          color: delegated ? BG : LIME,
+          borderColor: delegated ? LIME : LIME_DIM,
+        }}
+      >
+        {delegated ? "✓ DELEGATED (TAP TO REVOKE)" : "DELEGATE DEBRIEF (THIS VISIT)"}
+      </button>
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <div style={{ flex: 1 }}>
           <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
@@ -2432,10 +2654,10 @@ function StateVisit({
           disabled={alreadyTextedDone || !!isPreview}
           style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (alreadyTextedDone || isPreview) ? 0.45 : 1 }}
         >
-          {skipSameDayTexts
+          {textsSuppressed || skipSameDayTexts
             ? alreadyTextedDone
               ? "VISIT ENDED"
-              : "END VISIT"
+              : "END VISIT (NO TEXT)"
             : alreadyTextedDone
               ? "CLIENT TEXTED"
               : "END VISIT & TEXT CLIENT"}

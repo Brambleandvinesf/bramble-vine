@@ -613,8 +613,8 @@ function LoadingPage() {
                   {departing
                     ? "DEPARTING…"
                     : firstStopSkipsText
-                      ? "NAVIGATE"
-                      : "NAVIGATE AND TEXT ETA"}
+                      ? "NAVIGATE (NO TEXT)"
+                      : "NAVIGATE & SEND TEXT"}
                 </button>
                 {!firstStopSkipsText && (
                   <button

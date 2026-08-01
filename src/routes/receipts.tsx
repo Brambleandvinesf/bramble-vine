@@ -1093,15 +1093,33 @@ function ItemPhotoNamer({
 
 type ProductRow = { "Product Key"?: string; "Canonical Name"?: string };
 
+type PlantBreakdownLine = { source: string; value?: number | null; note?: string };
+type PlantSuggestion = { suggested: number | null; breakdown: PlantBreakdownLine[]; sizeClass?: string };
+
 function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [sug, setSug] = useState<{ productKey: string | null; canonicalName: string; isNew: boolean } | null>(null);
+  const [sug, setSug] = useState<{
+    productKey: string | null;
+    canonicalName: string;
+    isNew: boolean;
+    category: string;
+    sizeClass: string;
+  } | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [pickOpen, setPickOpen] = useState(false);
   const [products, setProducts] = useState<ProductRow[] | null>(null);
   const [query, setQuery] = useState("");
+  // L3 (8/2): a confirmed PLANT comes back with a suggested price + breakdown
+  // instead of an auto-push — the one human-gated path in the pricing system.
+  const [plant, setPlant] = useState<{
+    productKey: string;
+    canonicalName: string;
+    suggestion: PlantSuggestion;
+    price: string;
+  } | null>(null);
+  const [pushing, setPushing] = useState(false);
 
   const unitPrice = Number(String(line.unitPrice).replace(/[^0-9.]/g, ""));
   const priceOk = isFinite(unitPrice) && unitPrice > 0;
@@ -1111,7 +1129,13 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
     setBusy(true);
     setErr(null);
     try {
-      const json = await postAction<{ productKey?: string | null; canonicalName?: string; isNew?: boolean }>({
+      const json = await postAction<{
+        productKey?: string | null;
+        canonicalName?: string;
+        isNew?: boolean;
+        category?: string;
+        sizeClass?: string;
+      }>({
         action: "matchProduct",
         itemName: line.description,
         vendor,
@@ -1120,6 +1144,8 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
         productKey: json.productKey ?? null,
         canonicalName: String(json.canonicalName ?? line.description),
         isNew: json.isNew !== false,
+        category: /^plant$/i.test(String(json.category ?? "")) ? "Plant" : "Material",
+        sizeClass: String(json.sizeClass ?? ""),
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Match failed");
@@ -1140,6 +1166,8 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
       const json = await postAction<{
         productKey?: string;
         sync?: { price?: number; pushed?: boolean; status?: string; unchanged?: boolean };
+        plantPending?: boolean;
+        suggestion?: PlantSuggestion;
       }>({
         action: "assignProductKey",
         productKey,
@@ -1148,7 +1176,21 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
         itemName: line.description,
         unitPrice,
         receiptId: line.receiptId,
+        category: sug?.category ?? "",
+        sizeClass: sug?.category === "Plant" ? sug?.sizeClass ?? "" : "",
       });
+      if (json.plantPending && json.productKey) {
+        const suggestion = json.suggestion ?? { suggested: null, breakdown: [] };
+        setPlant({
+          productKey: json.productKey,
+          canonicalName,
+          suggestion,
+          price: suggestion.suggested != null ? String(suggestion.suggested) : "",
+        });
+        setSug(null);
+        setPickOpen(false);
+        return;
+      }
       const s = json.sync;
       const outcome = s?.unchanged
         ? "price unchanged"
@@ -1162,6 +1204,33 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
       setErr(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const pushPlantPrice = async () => {
+    if (!plant || pushing) return;
+    const p = Number(plant.price);
+    if (!isFinite(p) || p <= 0) {
+      setErr("Enter a positive price.");
+      return;
+    }
+    setPushing(true);
+    setErr(null);
+    try {
+      const json = await postAction<{ pushed?: boolean; status?: string; price?: number }>({
+        action: "confirmPlantPrice",
+        productKey: plant.productKey,
+        price: p,
+        receiptId: line.receiptId,
+      });
+      setDone(
+        `${plant.canonicalName} · ${json.pushed ? `QBO price → $${json.price}` : json.status ?? "not pushed"}`,
+      );
+      setPlant(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Push failed");
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -1182,6 +1251,60 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
     return (
       <div style={{ marginTop: 6, fontSize: 11, color: LIME_DIM, letterSpacing: 1 }}>
         🏷 {done}
+      </div>
+    );
+  }
+
+  if (plant) {
+    const amb = /^ambiguous$/i.test(plant.suggestion.sizeClass ?? "");
+    return (
+      <div style={{ marginTop: 6, border: `1px solid ${LIME_DIM}`, borderRadius: 6, padding: "10px 12px" }}>
+        <div style={{ color: LIME, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>
+          🌱 PLANT PRICE — NEEDS YOUR CONFIRMATION
+        </div>
+        <div style={{ display: "grid", gap: 3, marginBottom: 8 }}>
+          {plant.suggestion.breakdown.map((b, i) => (
+            <div key={i} style={{ fontSize: 11, color: MUTED, display: "flex", gap: 8 }}>
+              <span style={{ flex: 1 }}>{b.source}</span>
+              <span style={{ color: b.value != null ? TEXT : MUTED }}>
+                {b.value != null ? `$${b.value}` : (b.note ?? "—")}
+              </span>
+            </div>
+          ))}
+          {amb && (
+            <div style={{ fontSize: 11, color: RED }}>
+              Size was ambiguous — re-match with the right size if the floor matters here.
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ color: MUTED, fontSize: 11 }}>Suggested (MAX of the above):</span>
+          <input
+            value={plant.price}
+            onChange={(e) => setPlant({ ...plant, price: e.target.value })}
+            inputMode="decimal"
+            style={{ ...INPUT, width: 90 }}
+          />
+          <button
+            type="button"
+            onClick={() => void pushPlantPrice()}
+            disabled={pushing}
+            style={{ ...SOLID_BTN_SM, opacity: pushing ? 0.6 : 1 }}
+          >
+            {pushing ? "PUSHING…" : "CONFIRM & PUSH TO QBO"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDone(`${plant.canonicalName} · recorded — QBO price left unchanged`);
+              setPlant(null);
+            }}
+            style={{ background: "transparent", border: "none", color: MUTED, fontFamily: "inherit", fontSize: 10, letterSpacing: 1, textDecoration: "underline", cursor: "pointer", padding: 0 }}
+          >
+            skip for now
+          </button>
+        </div>
+        {err && <div style={{ color: RED, fontSize: 11, marginTop: 4 }}>{err}</div>}
       </div>
     );
   }
@@ -1225,6 +1348,50 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
             >
               ×
             </button>
+          </div>
+          {/* L2 (8/2): category decides the pricing path — Plant goes through
+              the human-confirmed suggestion, Material auto-pushes (G5). Both
+              are editable here; the AI only proposed them. */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+            {(["Plant", "Material"] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setSug({ ...sug, category: c })}
+                style={{
+                  background: sug.category === c ? LIME : "transparent",
+                  color: sug.category === c ? "#0a0a0a" : LIME,
+                  border: `1px solid ${sug.category === c ? LIME : LIME_DIM}`,
+                  borderRadius: 6,
+                  padding: "4px 10px",
+                  fontFamily: "inherit",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  fontWeight: "bold",
+                  cursor: "pointer",
+                }}
+              >
+                {c.toUpperCase()}
+              </button>
+            ))}
+            {sug.category === "Plant" && (
+              <>
+                <span style={{ color: MUTED, fontSize: 10, letterSpacing: 1 }}>SIZE</span>
+                <input
+                  value={sug.sizeClass}
+                  onChange={(e) => setSug({ ...sug, sizeClass: e.target.value })}
+                  placeholder="e.g. 1 gal"
+                  style={{
+                    ...INPUT,
+                    width: 110,
+                    borderColor: /^ambiguous$/i.test(sug.sizeClass) ? RED : undefined,
+                  }}
+                />
+                {/^ambiguous$/i.test(sug.sizeClass) && (
+                  <span style={{ color: RED, fontSize: 10 }}>confirm the size</span>
+                )}
+              </>
+            )}
           </div>
           {!pickOpen && (
             <button

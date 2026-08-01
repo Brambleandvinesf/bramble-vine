@@ -54,6 +54,17 @@ function anchorLabel(phase: DayPhase, client: string | null | undefined): string
   return "HQ";
 }
 
+// Transit is drawn as the dashed line BETWEEN anchors, never as a sub-node —
+// the little "EN ROUTE" pill above the destination anchor duplicated the
+// line's state and is gone (M1, 8/2). These sub-steps therefore have no node.
+const TRANSIT_SUBS = new Set(["enroute", "next"]);
+
+// One anchor per real stop (B redesign, 8/2): HQ, then every calendar stop —
+// client or vendor — then HQ again for unloading. When the backend couldn't
+// read the calendar (stops null/empty) fall back to the old one-per-phase
+// anchors so the spine never goes blank.
+type AnchorDef = { label: string; phase: DayPhase; stopI?: number; vendor?: boolean };
+
 // Roles whose screen follows the spine's active node automatically. The guided
 // linear day belongs to the field crew; office runs from schedule + messages
 // and management moves around freely, so neither gets yanked between screens.
@@ -247,13 +258,52 @@ export function DayStateSpine() {
   }, [nudge]);
 
   const phases = state?.phaseOrder ?? [];
-  const activeIdx = state ? phases.indexOf(state.phase) : -1;
+
+  // Anchor list: HQ + one per real stop + HQ, falling back to the classic
+  // per-phase anchors when the backend has no stop list.
+  const anchors = useMemo<AnchorDef[]>(() => {
+    if (!state) return [];
+    const stops = state.stops ?? null;
+    if (!stops || stops.length === 0) {
+      return phases.map((p) => ({ label: anchorLabel(p, state.client), phase: p }));
+    }
+    return [
+      { label: "HQ", phase: "HQ_LOADING" as DayPhase },
+      ...stops.map((s2, i) => ({
+        label: s2.label,
+        phase: "FIELD_VISIT" as DayPhase,
+        stopI: i,
+        vendor: s2.type === "vendor",
+      })),
+      { label: "HQ", phase: "HQ_UNLOADING" as DayPhase },
+    ];
+  }, [state, phases]);
+  const stopAnchors = anchors.some((a) => a.stopI !== undefined);
+
+  const activeIdx = (() => {
+    if (!state) return -1;
+    if (!stopAnchors) return phases.indexOf(state.phase);
+    if (state.phase === "HQ_LOADING") return 0;
+    if (state.phase === "HQ_UNLOADING") return anchors.length - 1;
+    const stopCount = anchors.length - 2;
+    return 1 + Math.min(state.stopIndex ?? 0, Math.max(stopCount - 1, 0));
+  })();
 
   const activeSubs = useMemo(() => {
     if (!state) return [];
-    return state.subSteps[state.phase] || [];
+    const all = state.subSteps[state.phase] || [];
+    // M1: transit sub-steps have no node of their own — the dashed line
+    // between anchors is their whole representation.
+    if (state.phase !== "FIELD_VISIT") return all;
+    return all.filter((s2) => !TRANSIT_SUBS.has(s2));
   }, [state]);
   const currentSubIdx = state ? activeSubs.indexOf(state.subStep) : -1;
+  const inTransit =
+    !!state && state.phase === "FIELD_VISIT" && TRANSIT_SUBS.has(state.subStep);
+  // During transit the sub-row is hidden outright: showing the next stop's
+  // dot row over an anchor the crew hasn't reached would be the same
+  // duplicate-status noise the EN ROUTE pill was.
+  const showSubRow = activeSubs.length > 0 && !inTransit;
 
   // ---- measurement for connector routing ----
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -313,7 +363,7 @@ export function DayStateSpine() {
         return { cx: x + hw, cy: y + hh, hw, hh };
       };
 
-      const anchors = phases.map((_, i) => {
+      const anchorPts = anchors.map((_, i) => {
         const n = anchorRefs.current[i];
         if (!n) return { cx: 0, cy: 0, top: 0 };
         const { cx, cy, hh } = centreOf(n);
@@ -334,7 +384,7 @@ export function DayStateSpine() {
       });
       // Layout width again, for the same reason as the sub extents above.
       const subRowW = subRowRef.current ? subRowRef.current.offsetWidth : 0;
-      setGeom({ w: cw, h: ch, anchors, subs, subRowW });
+      setGeom({ w: cw, h: ch, anchors: anchorPts, subs, subRowW });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -351,9 +401,9 @@ export function DayStateSpine() {
     // collapsing cannot change any geometry. (A transform would not disturb the
     // measurements either - they are all relative to the container, which moves
     // with its children.)
-  }, [state, activeSubs, currentSubIdx, activeIdx, phases]);
+  }, [state, activeSubs, currentSubIdx, activeIdx, anchors]);
 
-  if (!state || phases.length === 0) {
+  if (!state || anchors.length === 0) {
     return (
       <div
         style={{
@@ -388,7 +438,7 @@ export function DayStateSpine() {
     if (target.to) void router.navigate({ to: target.to });
   };
 
-  const N = phases.length;
+  const N = anchors.length;
   const parentSize = 26;
   const subSize = 18;
 
@@ -551,11 +601,10 @@ export function DayStateSpine() {
                   const b = geom.anchors[i + 1];
                   const done = i < activeIdx;
                   const r = parentSize / 2;
-                  const isEnrouteSeg =
-                    state.phase === "FIELD_VISIT" &&
-                    state.subStep === "enroute" &&
-                    phases[i] === "HQ_LOADING" &&
-                    phases[i + 1] === "FIELD_VISIT";
+                  // Transit (enroute from HQ, or 'next' between stops) is the
+                  // segment INTO the current anchor. The drawing below is the
+                  // well-liked dashed line + label — unchanged (M5 guardrail).
+                  const isEnrouteSeg = inTransit && i === activeIdx - 1;
                   if (isEnrouteSeg) {
                     const midX = (a.cx + r + (b.cx - r)) / 2;
                     return (
@@ -615,7 +664,7 @@ export function DayStateSpine() {
 
                 {/* L-connector: active anchor → first sub-node */}
                 {activeIdx >= 0 &&
-                  activeSubs.length > 0 &&
+                  showSubRow &&
                   geom.anchors[activeIdx] &&
                   geom.subs[0] &&
                   (() => {
@@ -638,7 +687,8 @@ export function DayStateSpine() {
                   })()}
 
                 {/* horizontal sub-line: segments between adjacent sub-node edges */}
-                {activeSubs.length > 1 &&
+                {showSubRow &&
+                  activeSubs.length > 1 &&
                   geom.subs.length === activeSubs.length &&
                   (() => {
                     // Endpoints land ON each node's edge, so the segments visibly
@@ -697,7 +747,7 @@ export function DayStateSpine() {
             )}
 
             {/* Sub-row for active phase (centred over its anchor, clamped) */}
-            {activeIdx >= 0 && activeSubs.length > 0 && (
+            {activeIdx >= 0 && showSubRow && (
               <div
                 ref={subRowRef}
                 style={{
@@ -779,21 +829,24 @@ export function DayStateSpine() {
                 alignItems: "flex-end",
               }}
             >
-              {phases.map((phase, i) => {
-                const isActivePhase = i === activeIdx;
+              {anchors.map((anchor, i) => {
+                const isActiveAnchor = i === activeIdx;
                 const isDone = i < activeIdx;
-                // parent status: done once its sub-steps have begun; upcoming if not reached
-                const parentStatus: Status = isActivePhase
+                // Anchor status: done once its sub-steps have begun (i.e. the
+                // crew is actually AT it — a transit segment leaves the
+                // destination anchor hollow until arrival); done outright
+                // once the day has moved past it.
+                const parentStatus: Status = isActiveAnchor
                   ? currentSubIdx >= 0
                     ? "done"
                     : "upcoming"
                   : isDone
                     ? "done"
                     : "upcoming";
-                const label = anchorLabel(phase, state.client);
+                const label = anchor.label;
                 return (
                   <div
-                    key={`ph-${phase}-${i}`}
+                    key={`ph-${anchor.phase}-${i}`}
                     className="bv-spine-node"
                     style={{
                       flex: 1,

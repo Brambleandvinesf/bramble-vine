@@ -18,12 +18,16 @@ const POLL_MS = 30_000;
 
 export type DayPhase = "HQ_LOADING" | "FIELD_VISIT" | "HQ_UNLOADING";
 export type FieldPhone = { id: string; name: string } | null;
+/** One real calendar stop — the spine draws one anchor per entry (B, 8/2). */
+export type DayStop = { label: string; type: "client" | "vendor" };
 export type BreakItem = { time: string; label: string };
 export type DayState = {
   ok?: boolean;
   phase: DayPhase;
   subStep: string;
   stopIndex?: number;
+  /** Today's route, one entry per real stop; null when the calendar read failed. */
+  stops?: DayStop[] | null;
   client?: string | null;
   lineState?: string;
   caption?: string;

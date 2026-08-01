@@ -380,6 +380,53 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   size); schedule.tsx auto-opens /confirm for management at
   special_confirm when crewCount <= 1 (once per visit, so backing out
   sticks).
+- 8/2 (L work order, v7.4.14 @145): pricing pipeline completed.
+  L1: qboCreateItem_ auto-creates a missing QBO Item (NonInventory;
+  income account from QBO_ITEM_INCOME_ACCOUNT_ID property, else copied
+  from an existing item; same-name items adopted, not duplicated). Runs
+  in productPriceSync_, so pre-L1 ID-less rows backfill lazily on their
+  next match event. L2: Product Master + Category (Plant/Material) +
+  Size Class, AI-suggested in matchProduct (stored values outrank fresh
+  guesses for existing products), editable pills/input in the receipts
+  match UI. L3: plants are the ONE human-gated pricing path — suggested
+  price = MAX(size floor from the Plants/Retail tab of the Vendor Prices
+  workbook [VENDOR_PRICES_WORKBOOK_ID property, default hardcoded],
+  tiered G5 rubric, Claude web-search market check that must find a real
+  comparable listing or return null) with a per-input breakdown, pushed
+  only via confirmPlantPrice → Price Change Log 'Plant rule (human-
+  confirmed)'. Size class never guessed — 'AMBIGUOUS' is flagged red in
+  the UI. FLAG (Brandon, per work order): after a few real uses, judge
+  whether the web-search market check adds signal or just noise/cost
+  before treating it as permanent.
+- 8/2 (M live-run findings + B/C build, v7.4.14 @145):
+  M2: START VISIT & SWITCH was dead on a solo management run — it
+  required someone on the clock, but management never clocks in. Clock
+  gate now applies only to crew roles. M3: DELEGATE DEBRIEF moved from
+  the en-route screen into Visit Mode. M4: en-route screens (arrived +
+  next-stop) show the upcoming visit's calendar event description.
+  M1/B: spine redesigned to one anchor per real stop (getDayState.stops,
+  dayStops_ cached 60s; falls back to per-phase anchors if the calendar
+  read fails). The little EN ROUTE pill sub-node is gone — transit
+  (enroute AND next) is the dashed animated line INTO the current stop,
+  and the sub-row (now arrived/visit/debrief only) hides during transit.
+  GUARDRAIL honoured: the dashed line's JSX/keyframes untouched.
+  C: vendor stops built. Detection = Vendors tab address (street line)
+  first, then base name/aliases ≥4 chars (vendorMatch_ backend =
+  matchVendor frontend — KEEP IN STEP). Arrival: tax-exempt banner
+  (ID or 'not yet recorded'), OPEN GOOGLE WALLET button, no texts ever
+  (frontend suppresses; textClient also server-skips vendor stops).
+  Clock bills to the next client stop on the route (overhead fallback),
+  shown on-screen. Debrief = hard gate: RECEIPT ATTACHED / NO PURCHASE
+  MADE, recorded via setRoute vendorOutcome and server-enforced (state
+  'next' from a vendor debrief is rejected without an outcome;
+  fail-open if the calendar is unreadable so a hiccup can't strand the
+  crew).
+- 8/2 (N): labeling convention — ANY button that sends a client text
+  says so ("NAVIGATE & SEND TEXT", "END VISIT & TEXT CLIENT", "START
+  VISIT ... & TEXT CLIENT"); when the AF opt-out / same-day guard / a
+  vendor stop suppresses it, the label reads "(NO TEXT)". Reads the
+  existing AF plumbing (getField.skipTextClients, dayState.skip
+  SameDayTexts); not a new suppression mechanism.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
