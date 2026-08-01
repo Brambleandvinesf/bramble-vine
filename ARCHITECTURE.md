@@ -527,6 +527,28 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   the seed expires. Verified against the live deployment: baseline
   stops → addStop → the very next getDayState carried the new stop;
   test event then deleted and stops confirmed reverted.
+- 8/2 (AA, frontend-only — no backend deploy): the line tap navigated
+  correctly (/field) but the screen hid its content. TWO defects:
+  (1) StateArrived gated the stop summary and START VISIT / NO SHOW
+  behind a sessionStorage "this device tapped NAVIGATE" flag — empty
+  after any PWA restart or when departure happened from the Loading
+  screen, leaving nothing but a NAVIGATE button. The arrival actions
+  now render always; NAVIGATE remains until used, as an option.
+  (2) Past the last stop (state 'next' after the final debrief) the
+  spine clamped the transit target to the last STOP, drawing the
+  dashed line back into a completed stop; it now points at the final
+  HQ anchor (heading home), so the tap's destination content (ROUTE
+  COMPLETE) matches what the line promises.
+  VERIFIED BEHAVIORALLY on the live-data dev build (vite on the Pi,
+  signed in as management — email allowlist, no credentials involved):
+  pre-fix preview=enroute reproduced the empty screen exactly; post-fix
+  it shows TODAY'S PLAN (A&G's real calendar HTML, rendered — Q
+  confirmed live), START VISIT & SWITCH TO A&G SECT 6 (NO TEXT) (S's
+  label confirmed live), and NO SHOW; a dispatched tap at the line's
+  coordinates from /schedule hit the hit-line (Y1 holding) and landed
+  on /field; the transit segment measured as the LAST segment (into
+  HQ). T1's "Approve unlocks after the lead clocks out" note also
+  observed live on the ROUTE COMPLETE screen.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

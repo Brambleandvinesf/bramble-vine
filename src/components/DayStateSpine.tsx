@@ -298,8 +298,12 @@ export function DayStateSpine() {
     if (!stopAnchors) return phases.indexOf(state.phase);
     if (state.phase === "HQ_LOADING") return 0;
     if (state.phase === "HQ_UNLOADING") return anchors.length - 1;
-    const stopCount = anchors.length - 2;
-    return 1 + Math.min(state.stopIndex ?? 0, Math.max(stopCount - 1, 0));
+    /* AA (8/2): past the last stop (state 'next' after the final debrief)
+       the crew is heading HOME — the transit line points at the final HQ
+       anchor. Clamping to the last STOP here drew a dashed line back into
+       a stop that was already done, which is the line Brandon tapped and
+       then (rightly) didn't get an arrival screen for. */
+    return Math.min(1 + (state.stopIndex ?? 0), anchors.length - 1);
   })();
 
   const activeSubs = useMemo(() => {

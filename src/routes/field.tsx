@@ -2351,7 +2351,13 @@ function StateArrived({
     setNavigated(true);
   };
 
-  const showNormal = navigated;
+  /* AA (8/2): the stop summary and Start Visit / No Show used to hide until
+     THIS DEVICE had tapped NAVIGATE (a sessionStorage flag) — so landing
+     here from the en-route line after a PWA restart, or on a device that
+     departed from the Loading screen, showed nothing but a NAVIGATE button.
+     The arrival actions are the point of this screen; they render always.
+     NAVIGATE still shows until used on this device, as an option not a gate. */
+  const showNormal = true;
 
   // Request geolocation permission on first render of Navigate (fail silent).
   useEffect(() => {
