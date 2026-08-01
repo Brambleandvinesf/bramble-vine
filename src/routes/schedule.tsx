@@ -221,6 +221,11 @@ function SchedulePage() {
   const isFieldCrew = effectiveRole === "assistant" || effectiveRole === "lead";
   const isLeadOrMgmt = effectiveRole === "lead" || effectiveRole === "management";
   const reviewable = useReviewableToday();
+  // Day-order gates from the authoritative day state: cards only render for
+  // the step that is actually current (same ordering v7.4.8 enforces on the
+  // route server-side).
+  const teamsOk = dayState?.flags?.teamsConfirmed === true;
+  const specialOk = dayState?.flags?.specialConfirmed === true;
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
   const confirmSeenRef = useRef(false);
   const [baseLoadDismissed, setBaseLoadDismissed] = useState(false);
@@ -268,14 +273,28 @@ function SchedulePage() {
       if (!j.ok) throw new Error(j.error || "not ok");
       if (j.state?.confirmed) setConfirmed(true);
       setBaseLoadFlash("DAILY LOAD CONFIRMED — CREW NOTIFIED");
-      // Advance the spine on the ok, not on the next poll.
-      advanceSubStep("special_confirm");
+      if (reviewable === false) {
+        // Nothing to review today — the special gate is vacuous, and since
+        // v7.4.8 the route refuses to run until it's confirmed. Close it now
+        // or a daily-load-only day stalls at special_confirm forever.
+        try {
+          await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "confirmSpecial" }),
+          });
+        } catch { /* poll reconciliation will surface it */ }
+        advanceSubStep("loading");
+      } else {
+        // Advance the spine on the ok, not on the next poll.
+        advanceSubStep("special_confirm");
+      }
     } catch (e) {
       setBaseLoadFlash(`FAILED: ${e instanceof Error ? e.message : "unknown"}`);
     } finally {
       setBaseLoadSubmitting(false);
     }
-  }, [advanceSubStep]);
+  }, [advanceSubStep, reviewable]);
 
   const submitBaseLoadNo = useCallback(async () => {
     setBaseLoadSubmitting(true);
@@ -463,7 +482,9 @@ function SchedulePage() {
         )}
       </h1>
 
-      {isLeadOrMgmt && confirmed === false && !baseLoadDismissed && (
+      {/* Gates render one at a time, in day order — a card for a step that
+          isn't reachable yet (teams not confirmed) must not exist on screen. */}
+      {isLeadOrMgmt && teamsOk && confirmed === false && !baseLoadDismissed && (
         <div
           style={{
             background: PANEL,
@@ -533,32 +554,57 @@ function SchedulePage() {
               {baseLoadFlash}
             </div>
           )}
-          {reviewable === true && (
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${BORDER}` }}>
-              <Link
-                to="/confirm"
-                style={{
-                  display: "inline-block",
-                  textDecoration: "none",
-                  minHeight: 48,
-                  padding: "12px 20px",
-                  color: LIME,
-                  border: `1px solid ${LIME}`,
-                  borderRadius: 6,
-                  fontFamily: MONO,
-                  fontSize: 12,
-                  letterSpacing: 2,
-                  fontWeight: "bold",
-                }}
-              >
-                REVIEW TODAY'S PROJECTS →
-              </Link>
-            </div>
-          )}
         </div>
       )}
 
-      {effectiveRole === "assistant" && confirmed === false && (
+      {/* Project review is its own step, not part of the daily-load question.
+          It appears only once teams AND daily load are confirmed, and reads as
+          a review entry — there is no yes/no to answer here. */}
+      {isLeadOrMgmt && teamsOk && confirmed === true && !specialOk && reviewable !== false && (
+        <div
+          style={{
+            background: PANEL,
+            border: `1px solid ${LIME}`,
+            borderRadius: 12,
+            padding: "18px",
+            marginBottom: 16,
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              color: LIME,
+              fontSize: 13,
+              fontWeight: "bold",
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              marginBottom: 12,
+            }}
+          >
+            Today's Projects
+          </div>
+          <Link
+            to="/confirm"
+            style={{
+              display: "inline-block",
+              textDecoration: "none",
+              minHeight: 48,
+              padding: "12px 20px",
+              color: LIME,
+              border: `1px solid ${LIME}`,
+              borderRadius: 6,
+              fontFamily: MONO,
+              fontSize: 12,
+              letterSpacing: 2,
+              fontWeight: "bold",
+            }}
+          >
+            REVIEW TODAY'S PROJECTS →
+          </Link>
+        </div>
+      )}
+
+      {effectiveRole === "assistant" && teamsOk && confirmed === false && (
         <div
           style={{
             background: PANEL,
