@@ -900,7 +900,7 @@ function InvoiceTab({
         {queued.length > 0 && (
           <div style={{ ...CARD, marginBottom: 10, opacity: 0.75 }}>
             <button style={GROUP_HEAD_BTN} onClick={() => setQueuedOpen((v) => !v)}>
-              <span style={{ color: AMBER, fontWeight: "bold", letterSpacing: 1 }}>
+              <span style={{ color: MUTED, fontWeight: "bold", letterSpacing: 1 }}>
                 QUEUED
               </span>
               <span style={{ marginLeft: "auto", color: MUTED, fontSize: 11 }}>
@@ -966,7 +966,6 @@ function TabBtn({
 /* ---------- styles ---------- */
 const LIME = "#7cff00";
 const LIME_DIM = "rgba(124,255,0,.35)";
-const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
 const MUTED = "#8f8f8f";
 const LINE = "#2a2a2a";

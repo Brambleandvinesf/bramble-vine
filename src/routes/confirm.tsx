@@ -1070,7 +1070,7 @@ function ConfirmPage() {
                           missing-ID warning stays: it tells the user this card
                           cannot be saved, which they do need to see. */}
                       {!p.projectId && (
-                        <span style={{ fontSize: 14, color: AMBER, letterSpacing: 1 }}>
+                        <span style={{ fontSize: 14, color: RED, letterSpacing: 1 }}>
                           NO ID (won't save)
                         </span>
                       )}
@@ -1564,7 +1564,6 @@ function BigSegBtn({
 const LIME = "#7cff00";
 const LIME_BRIGHT = "#bfff3c";
 const LIME_DIM = "rgba(124,255,0,.35)";
-const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
 const MUTED = "#b8b8b8";
 const LINE = "#2a2a2a";

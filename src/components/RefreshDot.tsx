@@ -14,7 +14,7 @@ export function RefreshDot({
   style?: CSSProperties;
 }) {
   if (!refreshing && !offline) return null;
-  const color = offline ? "#ffb03f" : "#4a7a1e";
+  const color = offline ? "#ff3b30" : "#4a7a1e";
   return (
     <>
       <style>{`

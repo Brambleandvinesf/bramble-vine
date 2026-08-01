@@ -328,7 +328,8 @@ function ConfirmBanner({
 
 
   const icon = checking ? "•" : isConfirmed ? "✓" : "!";
-  const color = isConfirmed ? LIME : "#ffb03f";
+  const color = checking ? MUTED : LIME;
+  const blink = !checking && !isConfirmed;
   const text = checking
     ? "Checking today's confirmation…"
     : isConfirmed
@@ -337,6 +338,7 @@ function ConfirmBanner({
 
   const banner = (
     <div
+      data-bv-confirm-blink={blink ? "1" : undefined}
       style={{
         background: PANEL,
         border: `1px solid ${color}`,
@@ -346,8 +348,18 @@ function ConfirmBanner({
         display: "flex",
         alignItems: "center",
         gap: 10,
+        animation: blink ? "bvConfirmBlink 3s ease-in-out infinite" : undefined,
       }}
     >
+      <style>{`
+        @keyframes bvConfirmBlink {
+          0%, 100% { opacity: .45; }
+          50% { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          [data-bv-confirm-blink="1"] { animation: none !important; opacity: 1 !important; }
+        }
+      `}</style>
       <span style={{ fontSize: 16, color, width: 18, textAlign: "center" }}>
         {icon}
       </span>

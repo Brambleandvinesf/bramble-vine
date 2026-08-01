@@ -642,7 +642,7 @@ function ProjectView({
   onDelete: () => void;
 }) {
   const type = project.type.toUpperCase();
-  const typeColor = type === "SPECIAL" ? AMBER : LIME;
+  const typeColor = type === "SPECIAL" ? TEXT : LIME;
   return (
     <>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
@@ -1136,7 +1136,6 @@ function SegBtn({
 /* ---------- styles ---------- */
 const LIME = "#7cff00";
 const LIME_DIM = "rgba(124,255,0,.35)";
-const AMBER = "#ffb03f";
 const TEXT = "#e8e8e8";
 const MUTED = "#8f8f8f";
 const LINE = "#2a2a2a";
