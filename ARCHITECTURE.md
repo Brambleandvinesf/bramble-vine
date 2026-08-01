@@ -506,6 +506,27 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   animation untouched (M5 guardrail held).
   NOTE: routeTree.gen.ts was extended by hand for /shopping — Lovable's
   next build regenerates it identically once it sees the route file.
+- 8/2 (Y regressions on V/W, v7.4.18 @149) — both re-verified
+  BEHAVIORALLY per Brandon's instruction, not by code read:
+  Y1 (W tap dead): the anchor row is absolutely positioned OVER the
+  spine's SVG at exactly the connecting line's height, and its
+  full-width flex children swallowed every tap before the invisible
+  hit-line could see it. Confirmed with a hit-test harness replicating
+  the exact layering (elementFromPoint at the line's coordinates →
+  anchor-row DIV before the fix; → hit-line after). Fix: the anchor row
+  is pointerEvents:none (nothing in it is interactive). LESSON: a
+  pointer-events:stroke child inside a pointer-events:none SVG works,
+  but only if no LATER-PAINTED absolute sibling covers the same pixels.
+  Y2 (addStop anchor never appeared): CalendarApp is not
+  read-your-writes. addStop busted DAY_STOPS, the app's immediate
+  refresh recomputed stops from a calendar read that didn't include the
+  just-created event, and that STALE list got re-cached for 60s. Fix:
+  addStop now seeds DAY_STOPS with the authoritative spliced list
+  ({label,type} at insertAt, matched the same way dayStops_ would) and
+  returns it as result.stops; the live calendar read takes over when
+  the seed expires. Verified against the live deployment: baseline
+  stops → addStop → the very next getDayState carried the new stop;
+  test event then deleted and stops confirmed reverted.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

@@ -866,7 +866,14 @@ export function DayStateSpine() {
               </div>
             )}
 
-            {/* Anchor row (always show labels) */}
+            {/* Anchor row (always show labels).
+                pointerEvents none (Y1, 8/2): this row is absolutely
+                positioned OVER the SVG at exactly the connecting line's
+                height, and its full-width flex children were swallowing
+                every tap meant for W's hit-line — verified with a
+                hit-test harness (elementFromPoint resolved to this row
+                before the fix, to the hit-line after). Nothing in this
+                row is interactive, so nothing is lost. */}
             <div
               style={{
                 position: "absolute",
@@ -875,6 +882,7 @@ export function DayStateSpine() {
                 bottom: 6,
                 display: "flex",
                 alignItems: "flex-end",
+                pointerEvents: "none",
               }}
             >
               {anchors.map((anchor, i) => {
