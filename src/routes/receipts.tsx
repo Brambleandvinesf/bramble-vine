@@ -313,19 +313,21 @@ function ReceiptsPage() {
         </div>
         <div style={{ marginTop: 2, fontSize: 12, color: MUTED }}>
           {tab === "designate"
-            ? "Assign each line to a client"
+            ? "Designate each line — client, inventory, or job supplies"
             : "Queue reviewed lines for QuickBooks"}
         </div>
         <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
-          {canDesignate && (
-            <TabBtn active={tab === "designate"} onClick={() => setTab("designate")}>
-              DESIGNATE
-            </TabBtn>
-          )}
-          {canInvoice && (
-            <TabBtn active={tab === "invoice"} onClick={() => setTab("invoice")}>
-              INVOICE REVIEW
-            </TabBtn>
+          {/* The toggle only exists for roles that can use both tabs. A lead
+              gets Designate alone — a one-tab toggle is just clutter. */}
+          {canDesignate && canInvoice && (
+            <>
+              <TabBtn active={tab === "designate"} onClick={() => setTab("designate")}>
+                DESIGNATE
+              </TabBtn>
+              <TabBtn active={tab === "invoice"} onClick={() => setTab("invoice")}>
+                INVOICE REVIEW
+              </TabBtn>
+            </>
           )}
           <button
             style={{ ...GHOST_BTN_SM, marginLeft: "auto" }}
@@ -544,29 +546,46 @@ function DesignateTab({
 
               {isOpen && (
                 <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                  {g.lines.length > 1 && (
+                    <div style={{ padding: "8px 10px", border: `1px dashed ${LIME_DIM}`, borderRadius: 6 }}>
+                      <DesignationPicker
+                        label="DESIGNATE ALL AS"
+                        value={(() => {
+                          // Show as a group value only when every line agrees;
+                          // per-line overrides below break the agreement.
+                          const vals = g.lines.map((l) => picks[l.row] ?? "");
+                          return vals[0] && vals.every((v) => v === vals[0]) ? vals[0] : "";
+                        })()}
+                        clients={designations}
+                        onPick={(v) =>
+                          setPicks((prev) => {
+                            const next = { ...prev };
+                            for (const l of g.lines) {
+                              if (v) next[l.row] = v;
+                              else delete next[l.row];
+                            }
+                            return next;
+                          })
+                        }
+                      />
+                    </div>
+                  )}
                   {g.lines.map((l) => (
                     <div key={l.row} style={LINE_ROW}>
                       <LineBody line={l} />
                       <div style={{ marginTop: 6 }}>
-                        <select
+                        <DesignationPicker
                           value={picks[l.row] ?? ""}
-                          onChange={(e) =>
+                          clients={designations}
+                          onPick={(v) =>
                             setPicks((prev) => {
                               const next = { ...prev };
-                              if (e.target.value) next[l.row] = e.target.value;
+                              if (v) next[l.row] = v;
                               else delete next[l.row];
                               return next;
                             })
                           }
-                          style={SELECT}
-                        >
-                          <option value="">— assign client —</option>
-                          {designations.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </div>
                       <LineActions
                         line={l}
@@ -603,7 +622,7 @@ function DesignateTab({
                         >
                           {groupCount
                             ? `SAVE ${groupCount} DESIGNATION${groupCount === 1 ? "" : "S"}`
-                            : "ASSIGN A CLIENT TO SUBMIT"}
+                            : "DESIGNATE LINES TO SUBMIT"}
                         </button>
                       </>
                     );
@@ -647,7 +666,10 @@ function InvoiceTab({
   const ready = useMemo(
     () =>
       lines.filter(
-        (l) => l.finalDesignation && !l.invoiced,
+        // Inventory / Job Supplies are internal buckets, done once designated —
+        // they must never surface as pseudo-clients queueable to QBO.
+        // (Future: push Inventory lines into QuickBooks as inventory items.)
+        (l) => l.finalDesignation && !l.invoiced && !isTerminalDesignation(l.finalDesignation),
       ),
     [lines],
   );
@@ -932,6 +954,154 @@ function InvoiceTab({
 
 /* ---------- shared bits ---------- */
 
+/* ---------------- DESIGNATION PICKER (pills + client search) ---------------- */
+
+/** Written verbatim to Specific_Designation — the two non-client buckets. */
+const INVENTORY = "Inventory";
+const JOB_SUPPLIES = "Job Supplies";
+
+function isTerminalDesignation(v: string): boolean {
+  const k = v.trim().toLowerCase();
+  return k === INVENTORY.toLowerCase() || k === JOB_SUPPLIES.toLowerCase();
+}
+
+/**
+ * Three-way designation: Client / Inventory / Job Supplies. Client is the
+ * only pill that needs more input — tapping it opens a type-to-search filter
+ * over the client list (already client-side via getReceipts.designations).
+ * Inventory and Job Supplies are terminal; tapping the active one clears it.
+ */
+function DesignationPicker({
+  value,
+  clients,
+  onPick,
+  label,
+}: {
+  value: string;
+  clients: string[];
+  onPick: (v: string) => void;
+  /** Optional row label, e.g. "DESIGNATE ALL AS" on the receipt header. */
+  label?: string;
+}) {
+  const isClientPick = !!value && !isTerminalDesignation(value);
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q ? clients.filter((c) => c.toLowerCase().includes(q)) : clients;
+    return list.slice(0, 8);
+  }, [clients, query]);
+
+  const pillStyle = (active: boolean): React.CSSProperties => ({
+    background: active ? LIME : "transparent",
+    color: active ? "#0a0a0a" : LIME,
+    border: `1px solid ${active ? LIME : LIME_DIM}`,
+    borderRadius: 6,
+    padding: "0 10px",
+    minHeight: 34,
+    fontFamily: "inherit",
+    fontSize: 11,
+    letterSpacing: 1,
+    fontWeight: "bold",
+    cursor: "pointer",
+  });
+
+  const pickTerminal = (t: string) => {
+    setSearching(false);
+    setQuery("");
+    onPick(value === t ? "" : t);
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        {label && <span style={{ color: MUTED, fontSize: 10, letterSpacing: 1 }}>{label}</span>}
+        <button
+          type="button"
+          style={pillStyle(isClientPick || searching)}
+          onClick={() => {
+            setSearching((s) => !s);
+            setQuery("");
+          }}
+        >
+          {isClientPick ? value.toUpperCase() : "CLIENT"}
+        </button>
+        <button type="button" style={pillStyle(value === INVENTORY)} onClick={() => pickTerminal(INVENTORY)}>
+          INVENTORY
+        </button>
+        <button type="button" style={pillStyle(value === JOB_SUPPLIES)} onClick={() => pickTerminal(JOB_SUPPLIES)}>
+          JOB SUPPLIES
+        </button>
+        {value && (
+          <button
+            type="button"
+            aria-label="clear designation"
+            onClick={() => {
+              onPick("");
+              setSearching(false);
+              setQuery("");
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: MUTED,
+              fontFamily: "inherit",
+              fontSize: 16,
+              cursor: "pointer",
+              padding: "0 4px",
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+      {searching && (
+        <div style={{ marginTop: 6 }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Type to search clients…"
+            style={{ ...INPUT, width: "100%" }}
+          />
+          <div style={{ marginTop: 4, display: "grid", gap: 2 }}>
+            {matches.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  onPick(c);
+                  setSearching(false);
+                  setQuery("");
+                }}
+                style={{
+                  textAlign: "left",
+                  background: "transparent",
+                  border: "1px solid #222",
+                  borderRadius: 4,
+                  color: TEXT,
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                }}
+              >
+                {c}
+              </button>
+            ))}
+            {matches.length === 0 && (
+              <div style={{ color: MUTED, fontSize: 12, padding: "6px 2px" }}>
+                No client matches “{query}”
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabBtn({
   active,
   onClick,
@@ -1011,18 +1181,6 @@ const LINE_ROW: React.CSSProperties = {
   border: `1px solid ${LINE}`,
   borderRadius: 8,
   padding: 10,
-};
-const SELECT: React.CSSProperties = {
-  width: "100%",
-  background: "#0a0a0a",
-  color: TEXT,
-  border: `1px solid ${LINE}`,
-  borderRadius: 6,
-  padding: "10px 10px",
-  fontFamily: "inherit",
-  fontSize: 13,
-  boxSizing: "border-box",
-  minHeight: 40,
 };
 const SOLID_BTN: React.CSSProperties = {
   background: LIME,
