@@ -549,6 +549,35 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   on /field; the transit segment measured as the LAST segment (into
   HQ). T1's "Approve unlocks after the lead clocks out" note also
   observed live on the ROUTE COMPLETE screen.
+- 8/2 (BB, v7.4.19 @150): HQ end-of-day sequence replaces the passive
+  ROUTE COMPLETE screen. ARRIVED AT HQ → setRoute state 'done' (newly
+  VALID; server rejects it while any stop remains — dayStops_-gated,
+  fail-open) → UNLOADING screen with one FINISHED UNLOADING button
+  (ROUTE_STATE.unloaded; no checklist per Brandon) → CLOCK OUT stage
+  (T ordering) → lead's clock-out chains payroll review → approve
+  prompt (BB4; the standalone APPROVE button remains as fallback when
+  the gate is clear). getDayState HQ_UNLOADING sub now derives from
+  unloaded ('unload' → 'confirm_hours'), making the spine's final HQ
+  sub-nodes reachable in normal flow for the first time.
+  BEHAVIORAL VERIFICATION (live backend + live-data dev build):
+  BB1/2 — 'done' accepted at route end; getDayState flipped to
+  HQ_UNLOADING/unload; UNLOADING screen rendered; spine's final HQ
+  anchor carried the UNLOAD capsule. BB3 — unloaded:true advanced to
+  confirm_hours; CLOCK OUT stage rendered with the assistants-first
+  note + T's approve gate. BB5 — on the real no-clock day, /field
+  showed the passive screen + waiting note and NO ARRIVED AT HQ.
+  BB6 — roster fixture (lead + never-clocked assistant): the lead's
+  clock-out passed the assistant gate (failed only on 'no open
+  timesheet', fixture has none) — the gate reads CURRENT clock status,
+  not roster membership; roster restored to empty. BB7 — verified
+  against Brandon's own Rudy's Greenhouses stop (added between the last
+  visit and HQ via V): own anchor on the spine, own SUPPLY RUN screen,
+  and setRoute 'done' REJECTED while it remained ('stops remain on the
+  route'). Route state fully restored to its pre-test snapshot.
+  NOT behaviorally run: the actual lead clock-out → payroll → approve
+  prompt chain end-to-end (needs a real QBT timesheet; fabricating
+  payroll data was off-limits) — wiring code-verified only; first real
+  end-of-day will exercise it.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

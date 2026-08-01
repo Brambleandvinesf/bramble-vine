@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.18 @149; Y regressions fixed — line tap-back actually works, add-stop anchor appears instantly)*
+*Last updated: 2026-08-02 (backend v7.4.19 @150; HQ end-of-day sequence — Arrived at HQ → Finished Unloading → clock out → approve)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.18), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.19), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.18); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.19); full changelog in Code.js header.
 - CalendarApp is NOT read-your-writes: a getEvents right after createEvent
   can miss the new event. Anything that creates an event and then rebuilds
   a cached view must SEED the cache with the expected result, never just
@@ -86,6 +86,14 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   the clock; mid-route switches unaffected), and APPROVE TODAY'S HOURS
   appears only once everyone is out and the lead's own shift is closed
   (qbApprove also refuses while anyone is clocked in).
+- HQ end-of-day sequence (BB, 8/2, v7.4.19): ROUTE COMPLETE →
+  ARRIVED AT HQ (setRoute 'done', server-gated on every stop being
+  past) → FINISHED UNLOADING (single button, no checklist; ROUTE_STATE
+  .unloaded) → clock out (T ordering) → lead's clock-out chains into
+  the payroll review then an approve-hours prompt (one continuous
+  action). The sequence only exists on days someone actually clocked
+  in — a no-show day that never left HQ keeps the passive screen +
+  waiting note. /field?preview=done demos the stages read-only.
 - No yellow/orange/red/burgundy in UI (red = failure states only).
   Active = lime #7cff00 SLOW BLINK (~3s, never fully off).
   Completed = steady lime glow. Upcoming = dim hollow outline.

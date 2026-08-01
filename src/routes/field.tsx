@@ -19,7 +19,7 @@ const CK = "field:getField";
 export const Route = createFileRoute("/field")({
   head: () => ({ meta: [{ title: "Bramble & Vine — Field" }] }),
   validateSearch: (raw: Record<string, unknown>): FieldSearch => {
-    const states = ["enroute", "arrived", "visit", "debrief", "next"] as const;
+    const states = ["enroute", "arrived", "visit", "debrief", "next", "done"] as const;
     const steps = ["billing", "updates", "items", "new", "office"] as const;
     const p =
       typeof raw.preview === "string" &&
@@ -63,7 +63,7 @@ const RED = "#ff3b30";
 /* "" = at HQ, not yet departed (v7.4.8 backend default). The route only
    becomes "enroute" when the crew explicitly departs from the Load Vehicle
    screen. */
-type RouteState = "" | "enroute" | "arrived" | "visit" | "debrief" | "next";
+type RouteState = "" | "enroute" | "arrived" | "visit" | "debrief" | "next" | "done";
 type DebriefStepKey = "billing" | "updates" | "items" | "new" | "office";
 type FieldSearch = { preview?: RouteState; step?: DebriefStepKey };
 type Employee = { id: string; name: string };
@@ -90,6 +90,8 @@ type RouteDoc = {
   roster?: RosterMember[];
   delegated?: boolean;
   anchored?: boolean;
+  /** BB (8/2): FINISHED UNLOADING pressed — gates the clock-out leg. */
+  unloaded?: boolean;
   arrivedAt?: string | null;
   locationCheck?: { near?: boolean; client?: string } | null;
 };
@@ -951,6 +953,15 @@ function FieldBody({
   const [payrollOpen, setPayrollOpen] = useState(false);
   const openPayroll = useCallback(() => setPayrollOpen(true), []);
   const closePayroll = useCallback(() => setPayrollOpen(false), []);
+  /* BB4 (8/2): the lead's end-of-day clock-out flows straight into
+     approval — payroll review opens (as before), and when it closes the
+     approve prompt follows as one continuous action. qbApprove stays
+     server-gated on everyone being clocked out. */
+  const promptApprove = useCallback(async () => {
+    if (!(await confirmModal("Clocked out. Approve today's hours in QB Time now?"))) return;
+    const r = await send({ action: "qbApprove" });
+    if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
+  }, [send, setBanner]);
 
   const _state: RouteState = previewState ?? liveState;
   const locActive = !isPreview && (_state === "enroute" || _state === "arrived" || _state === "visit");
@@ -1076,7 +1087,9 @@ function FieldBody({
     }
   };
 
-  const routeComplete = !isPreview && stopIndex >= events.length;
+  // preview=done demos the HQ end-of-day stages read-only (BB, 8/2).
+  const routeComplete =
+    previewState === "done" || (!isPreview && stopIndex >= events.length);
 
 
 
@@ -1146,46 +1159,52 @@ function FieldBody({
       {me && (
         <ClockingAsHeader me={me} roster={roster} />
       )}
-      {/* ROUTE COMPLETE handled separately */}
+      {/* ROUTE COMPLETE → the HQ end-of-day sequence (BB, 8/2):
+          ARRIVED AT HQ → FINISHED UNLOADING → clock out (assistants
+          first) → approve. On a day where nobody ever clocked in, the
+          sequence never inserts itself — nobody left HQ (BB5). */}
       {routeComplete && (
-        <>
-          <RouteComplete
-            events={events}
-            roster={roster}
-            isLead={isLead}
-            /* T1/T3 (8/2): approving hours is the LAST act of the day —
-               locked until everyone is off the clock AND the lead's own
-               shift has actually been clocked out (a day where the lead
-               never clocked in has nothing to approve from here). */
-            approveNote={(() => {
-              const stillIn = roster.filter((m) => m.in && !m.out);
-              if (stillIn.length) {
-                return `Waiting for clock-outs: ${stillIn.map((m) => m.name).join(", ")}`;
-              }
-              const leadShiftDone = roster.some(
-                (m) => (m.role ?? "") === "lead" && m.in && m.out,
-              );
-              if (!leadShiftDone) return "Approve unlocks after the lead clocks out.";
-              return null;
-            })()}
-            onApprove={async () => {
-              const r = await send({ action: "qbApprove" });
-              if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
-            }}
-            busy={busy}
-          />
-          {personalClockSlot && (
-            <div style={{ padding: "0 14px 20px" }}>
-              <div style={{ ...SECTION_HEAD, marginTop: 8 }}>END SHIFT</div>
-              {personalClockSlot}
-            </div>
-          )}
-        </>
+        <RouteComplete
+          events={events}
+          roster={roster}
+          isLead={isLead}
+          anyoneWorked={roster.some((m) => !!m.in)}
+          atHq={state === "done"}
+          unloaded={!!route.unloaded}
+          isPreview={isPreview}
+          onArrivedHq={() => void send({ action: "setRoute", state: "done" })}
+          onFinishedUnloading={() => void send({ action: "setRoute", unloaded: true })}
+          clockSlot={personalClockSlot}
+          /* T1/T3 (8/2): approving hours is the LAST act of the day —
+             locked until everyone is off the clock AND the lead's own
+             shift has actually been clocked out (a day where the lead
+             never clocked in has nothing to approve from here). */
+          approveNote={(() => {
+            const stillIn = roster.filter((m) => m.in && !m.out);
+            if (stillIn.length) {
+              return `Waiting for clock-outs: ${stillIn.map((m) => m.name).join(", ")}`;
+            }
+            const leadShiftDone = roster.some(
+              (m) => (m.role ?? "") === "lead" && m.in && m.out,
+            );
+            if (!leadShiftDone) return "Approve unlocks after the lead clocks out.";
+            return null;
+          })()}
+          onApprove={async () => {
+            const r = await send({ action: "qbApprove" });
+            if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
+          }}
+          busy={busy}
+        />
       )}
       {!routeComplete && (
         <>
           {currentEvent && (
-            <ClientHeader event={currentEvent} clientMatch={clientMatch} state={state} />
+            <ClientHeader
+              event={currentEvent}
+              clientMatch={vendorStop ? vendorStop.vendor : clientMatch}
+              state={state}
+            />
           )}
 
           {(state === "" || state === "enroute" || state === "arrived") && (
@@ -1388,8 +1407,8 @@ function FieldBody({
         open={payrollOpen}
         scriptUrl={SCRIPT_URL}
         byName={me?.name ?? "lead"}
-        onClose={closePayroll}
-        onProceed={closePayroll}
+        onClose={() => { closePayroll(); void promptApprove(); }}
+        onProceed={() => { closePayroll(); void promptApprove(); }}
       />
     </div>
   );
@@ -4114,6 +4133,13 @@ function RouteComplete({
   events,
   roster,
   isLead,
+  anyoneWorked,
+  atHq,
+  unloaded,
+  isPreview,
+  onArrivedHq,
+  onFinishedUnloading,
+  clockSlot,
   approveNote,
   onApprove,
   busy,
@@ -4121,12 +4147,41 @@ function RouteComplete({
   events: EventItem[];
   roster: RosterMember[];
   isLead: boolean;
+  /** Someone actually clocked in today — the HQ sequence only exists then (BB5). */
+  anyoneWorked: boolean;
+  /** ARRIVED AT HQ pressed (route state 'done'). */
+  atHq: boolean;
+  /** FINISHED UNLOADING pressed. */
+  unloaded: boolean;
+  isPreview: boolean;
+  onArrivedHq: () => void;
+  onFinishedUnloading: () => void;
+  clockSlot?: React.ReactNode;
   /** Why approval isn't available yet; null = it is (T1/T3, 8/2). */
   approveNote: string | null;
   onApprove: () => void;
   busy: boolean;
 }) {
   const totalHours = roster.reduce((a, m) => a + hoursBetween(m.in, m.out), 0);
+  // Preview renders every stage's controls read-only; a real no-clock day
+  // skips the sequence — nobody left HQ, so there is no arrival to record.
+  const sequence = anyoneWorked || isPreview;
+  const note = (text: string) => (
+    <div
+      style={{
+        marginTop: 20,
+        padding: "10px 12px",
+        border: `1px solid ${LIME_DIM}`,
+        borderRadius: 8,
+        color: MUTED,
+        fontSize: 12,
+        letterSpacing: 0.5,
+        textAlign: "center",
+      }}
+    >
+      {text}
+    </div>
+  );
   return (
     <div style={{ padding: "20px 14px" }}>
       <div style={{ color: LIME, fontSize: 22, fontWeight: "bold", letterSpacing: 2, textAlign: "center" }}>
@@ -4142,26 +4197,50 @@ function RouteComplete({
           <span style={{ marginLeft: "auto", color: LIME, fontWeight: "bold" }}>{totalHours.toFixed(2)}</span>
         </div>
       </div>
-      {isLead && !approveNote && (
-        <button onClick={onApprove} disabled={busy} style={{ ...PRIMARY_BTN, marginTop: 20 }}>
-          APPROVE TODAY'S HOURS IN QB TIME
+
+      {!sequence && isLead && approveNote && note(approveNote)}
+
+      {sequence && !atHq && (
+        <button
+          onClick={onArrivedHq}
+          disabled={busy || isPreview}
+          style={{ ...PRIMARY_BTN, marginTop: 20, opacity: busy || isPreview ? 0.6 : 1 }}
+        >
+          ARRIVED AT HQ
         </button>
       )}
-      {isLead && approveNote && (
-        <div
-          style={{
-            marginTop: 20,
-            padding: "10px 12px",
-            border: `1px solid ${LIME_DIM}`,
-            borderRadius: 8,
-            color: MUTED,
-            fontSize: 12,
-            letterSpacing: 0.5,
-            textAlign: "center",
-          }}
-        >
-          {approveNote}
-        </div>
+
+      {sequence && atHq && !unloaded && (
+        <>
+          <div style={{ ...SECTION_HEAD, marginTop: 20 }}>UNLOADING</div>
+          <div style={{ color: MUTED, fontSize: 12, padding: "0 4px 6px" }}>
+            Vehicle back at HQ — unload, then confirm. One button, no checklist.
+          </div>
+          <button
+            onClick={onFinishedUnloading}
+            disabled={busy || isPreview}
+            style={{ ...PRIMARY_BTN, marginTop: 8, opacity: busy || isPreview ? 0.6 : 1 }}
+          >
+            FINISHED UNLOADING
+          </button>
+        </>
+      )}
+
+      {sequence && atHq && unloaded && (
+        <>
+          <div style={{ ...SECTION_HEAD, marginTop: 20 }}>CLOCK OUT</div>
+          <div style={{ color: MUTED, fontSize: 12, padding: "0 4px 6px" }}>
+            Assistants clock out first, then the lead — the lead's clock-out
+            rolls straight into approving today's hours.
+          </div>
+          {clockSlot}
+          {isLead && approveNote && note(approveNote)}
+          {isLead && !approveNote && (
+            <button onClick={onApprove} disabled={busy || isPreview} style={{ ...PRIMARY_BTN, marginTop: 14 }}>
+              APPROVE TODAY'S HOURS IN QB TIME
+            </button>
+          )}
+        </>
       )}
     </div>
   );
