@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth, type Role } from "../lib/auth";
+import { hqScreenFor, useDayState } from "../lib/day-state";
 import { useViewAs, VIEW_AS_ROLES } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
@@ -67,9 +68,13 @@ function HomePage() {
   );
   const [confirmLoading, setConfirmLoading] = useState(() => !sessionCache.has(CK_CONFIRM));
 
-  // Lead → Field. Assistant → Schedule (morning holding).
+  // Assistant/Office → Schedule (morning holding).
+  // Lead → wherever the day actually is: the old hard route to /field opened
+  // the day on "En Route" with no roster set and the daily load unanswered,
+  // because /field renders the route regardless of the HQ gates.
   // Management: Home is off-limits until the day is confirmed;
   // /schedule owns the base-load Yes/No gate.
+  const dayState = useDayState();
   useEffect(() => {
     if (role === "assistant") {
       void navigate({ to: "/schedule" });
@@ -81,13 +86,16 @@ function HomePage() {
     }
     if (role !== "lead" && role !== "management") return;
     if (role === "lead") {
-      void navigate({ to: "/field" });
+      if (!dayState) return; // wait for the first poll rather than guess
+      void navigate({
+        to: dayState.phase === "HQ_LOADING" ? hqScreenFor(dayState.subStep) : "/field",
+      });
       return;
     }
     if (confirmLoading) return;
     if (confirmState?.confirmed === true) return;
     void navigate({ to: "/schedule" });
-  }, [role, confirmLoading, confirmState, navigate]);
+  }, [role, dayState, confirmLoading, confirmState, navigate]);
 
 
 

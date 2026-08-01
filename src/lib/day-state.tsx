@@ -230,6 +230,17 @@ export function useDayState(): DayState | null {
   return useContext(DayStateCtx).state;
 }
 
+/**
+ * Screen that owns each HQ_LOADING sub-step. Role landings and the field
+ * screen's HQ gates use this so "where should I be right now" has exactly one
+ * answer, derived from the polled day state instead of a hard-coded route.
+ */
+export function hqScreenFor(subStep: string): "/schedule" | "/confirm" | "/loading" {
+  if (subStep === "special_confirm") return "/confirm";
+  if (subStep === "loading") return "/loading";
+  return "/schedule"; // team_assign, dailyload_confirm
+}
+
 export function useServerOffsetMs(): number {
   return useContext(DayStateCtx).serverOffsetMs;
 }

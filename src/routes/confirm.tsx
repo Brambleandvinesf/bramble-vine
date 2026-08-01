@@ -741,6 +741,19 @@ function ConfirmPage() {
         state?: ConfirmState;
       };
       if (!json.ok) throw new Error(json.error || "not ok");
+      // confirmDay only sets CONFIRM_STATE.confirmed. The backend's day-state
+      // ladder needs specialConfirmed too, and nothing else ever sent it — the
+      // server sat at special_confirm forever while the spine's 90s override
+      // pretended otherwise, then yanked everyone back here.
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "confirmSpecial" }),
+        });
+      } catch {
+        /* poll reconciliation will surface it if this didn't land */
+      }
       const reportSummary = summarizeReport(json.report);
       setSubmitFlash({
         msg: reportSummary ? `Confirmed. ${reportSummary}` : "Confirmed.",

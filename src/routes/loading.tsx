@@ -9,12 +9,12 @@ import { useDayState } from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { MessagesFab } from "../components/MessagesFab";
-import { CountdownChips } from "../components/CountdownChips";
 import { appendTeamParam } from "../lib/team";
 import { confirmModal } from "../components/ConfirmModal";
 
 
 const CK = "loading:getData";
+const CONFIRMED_CLIENTS_KEY = "bv.loading.confirmedClients";
 
 export const Route = createFileRoute("/loading")({
   head: () => ({
@@ -141,7 +141,7 @@ function normalize(d: GetDataResponse): ToolRow[] {
 }
 
 function LoadingPage() {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const { effectiveRole } = useViewAs();
   const canConfirm = canSee(role, "special_confirm");
   const reviewable = useReviewableToday();
@@ -165,8 +165,26 @@ function LoadingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [confirmedClients, setConfirmedClients] = useState<Record<string, boolean>>({});
+  // Survives the remounts that poll-driven navigation causes; without this a
+  // spine yank threw away every per-client confirmation tap.
+  const [confirmedClients, setConfirmedClients] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = window.sessionStorage.getItem(CONFIRMED_CLIENTS_KEY);
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { window.sessionStorage.setItem(CONFIRMED_CLIENTS_KEY, JSON.stringify(confirmedClients)); } catch { /* ignore */ }
+  }, [confirmedClients]);
   const [flashClient, setFlashClient] = useState<string | null>(null);
+  // Shared loading-done flag: loadingComplete sets CONFIRM_STATE.loadingDone
+  // on the backend and every device reads it off the day-state poll; localDone
+  // bridges the poll gap on the device that pressed the button.
+  const [localDone, setLocalDone] = useState(false);
+  const [departing, setDeparting] = useState(false);
+  const dayState = useDayState();
+  const loadingDone = localDone || dayState?.flags?.loadingDone === true;
 
 
 
@@ -265,6 +283,55 @@ function LoadingPage() {
     return { total, done };
   }, [items]);
 
+  // Departure is an explicit, shared act: flips the route to enroute stop 0
+  // (every device's poll advances to the first-visit screen), texts the ETA,
+  // and opens turn-by-turn on this device.
+  const departNow = async () => {
+    if (departing) return;
+    const events = field?.events ?? [];
+    const clientList = field?.clients ?? [];
+    const first = events[0];
+    if (!first) {
+      toast.error("No first stop on today's calendar");
+      return;
+    }
+    const firstClient = matchClient(first.title, clientList);
+    const address = first.location ?? "";
+    // Opened synchronously, before any await — popup blockers eat it otherwise.
+    if (address) {
+      window.open(
+        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+          encodeURIComponent(address),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+    setDeparting(true);
+    try {
+      const r = await postScript({
+        action: "setRoute",
+        state: "enroute",
+        stopIndex: 0,
+        client: firstClient,
+        eventId: first.id,
+      });
+      if (!r.ok) {
+        toast.error(r.error || "Couldn't start the route — retry");
+        return;
+      }
+      const t = await postScript({ action: "textEta" });
+      const raw = (t.raw ?? {}) as { ok?: boolean; to?: string; error?: string; alreadySent?: boolean; skipped?: boolean };
+      if (t.ok && raw.ok !== false) {
+        if (!raw.skipped) toast.success(raw.alreadySent ? "ETA already sent today" : `ETA sent to ${raw.to ?? "client"}`);
+      } else {
+        toast.error(raw.error || t.error || "ETA text failed");
+      }
+      void navigate({ to: "/field" });
+    } finally {
+      setDeparting(false);
+    }
+  };
+
   return (
     <div style={PAGE}>
       {loadErr && (
@@ -291,10 +358,6 @@ function LoadingPage() {
 
       {!loadErr && confirm?.confirmed && reviewable !== false && (
         <>
-          {/* The departure countdown lives here and nowhere earlier: this is the
-              last step of the HQ_LOADING group, so DEPART NOW is an instruction
-              the crew can actually act on. */}
-          <CountdownChips showDeparture />
           <header style={HEADER}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
@@ -320,11 +383,6 @@ function LoadingPage() {
                 }}
               />
             </div>
-            {user && (
-              <div style={{ marginTop: 6, fontSize: 14, color: MUTED, letterSpacing: 1 }}>
-                SIGNED IN AS {user.toUpperCase()}
-              </div>
-            )}
           </header>
 
           {writeErr && (
@@ -474,51 +532,77 @@ function LoadingPage() {
       )}
       {confirm?.confirmed && (() => {
         const clientList = Object.keys(grouped);
-        const allConfirmed = clientList.length > 0 && clientList.every((c) => confirmedClients[c]);
+        // An empty checklist is a completable day, not a locked one — the old
+        // length>0 guard stranded a dead "CONFIRM 0 MORE CLIENTS" button on
+        // daily-load-only days.
+        const allConfirmed = clientList.every((c) => confirmedClients[c]);
         const remaining = clientList.filter((c) => !confirmedClients[c]).length;
         return (
           <div style={LOADING_COMPLETE_WRAP}>
-            <button
-              type="button"
-              disabled={completing || !allConfirmed}
-              onClick={async () => {
-                if (!allConfirmed) return;
-                setCompleting(true);
-                try {
-                  const res = await fetch(SCRIPT_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "text/plain" },
-                    body: JSON.stringify({ action: "loadingComplete" }),
-                  });
-                  // Previously only a thrown error was caught, so an HTTP error
-                  // still reported success and advanced the crew.
-                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                  toast.success("Loading marked complete");
-                  // No sub-step override here: "loading" is the last step of
-                  // HQ_LOADING, so completing it moves the PHASE to FIELD_VISIT.
-                  // The override only rewrites sub-steps within the current
-                  // phase, on purpose - it must not invent a phase the payload
-                  // has not reported. This node still waits for the poll.
-                  navigate({ to: "/field" });
-                } catch {
-                  toast.error("Couldn't mark complete — retry");
-                } finally {
-                  setCompleting(false);
-                }
-              }}
-              style={{
-                ...LOADING_COMPLETE_BTN,
-                opacity: completing || !allConfirmed ? 0.4 : 1,
-                cursor: completing || !allConfirmed ? "not-allowed" : "pointer",
-                boxShadow: allConfirmed ? "0 0 22px rgba(124,255,0,.25)" : "none",
-              }}
-            >
-              {completing
-                ? "SAVING…"
-                : allConfirmed
-                  ? "CONFIRM DAILY LOAD"
-                  : `CONFIRM ${remaining} MORE CLIENT${remaining === 1 ? "" : "S"}`}
-            </button>
+            {!loadingDone ? (
+              <button
+                type="button"
+                disabled={completing || !allConfirmed}
+                onClick={async () => {
+                  if (!allConfirmed || completing) return;
+                  setCompleting(true);
+                  try {
+                    const res = await fetch(SCRIPT_URL, {
+                      method: "POST",
+                      headers: { "Content-Type": "text/plain" },
+                      body: JSON.stringify({ action: "loadingComplete" }),
+                    });
+                    // Previously only a thrown error was caught, so an HTTP
+                    // error still reported success and advanced the crew.
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    // Stays on this screen: departure is its own shared act
+                    // (NAVIGATE AND TEXT ETA below), not a side effect of
+                    // finishing the checklist.
+                    setLocalDone(true);
+                    toast.success("Loading marked complete");
+                  } catch {
+                    toast.error("Couldn't mark complete — retry");
+                  } finally {
+                    setCompleting(false);
+                  }
+                }}
+                style={{
+                  ...LOADING_COMPLETE_BTN,
+                  opacity: completing || !allConfirmed ? 0.4 : 1,
+                  cursor: completing || !allConfirmed ? "not-allowed" : "pointer",
+                  boxShadow: allConfirmed ? "0 0 22px rgba(124,255,0,.25)" : "none",
+                }}
+              >
+                {completing
+                  ? "SAVING…"
+                  : allConfirmed
+                    ? "LOADING COMPLETE"
+                    : `CONFIRM ${remaining} MORE CLIENT${remaining === 1 ? "" : "S"}`}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled
+                  style={{ ...LOADING_COMPLETE_BTN, opacity: 0.35, cursor: "default" }}
+                >
+                  LOADING COMPLETE ✓
+                </button>
+                <button
+                  type="button"
+                  disabled={departing}
+                  onClick={() => void departNow()}
+                  style={{
+                    ...LOADING_COMPLETE_BTN,
+                    marginTop: 10,
+                    opacity: departing ? 0.6 : 1,
+                    boxShadow: "0 0 22px rgba(124,255,0,.25)",
+                  }}
+                >
+                  {departing ? "DEPARTING…" : "NAVIGATE AND TEXT ETA"}
+                </button>
+              </>
+            )}
           </div>
         );
       })()}

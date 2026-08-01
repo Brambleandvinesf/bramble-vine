@@ -11,7 +11,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
-import { useDayState } from "../lib/day-state";
+import { hqScreenFor, useDayState } from "../lib/day-state";
 
 const CK = "field:getField";
 
@@ -59,7 +59,10 @@ const LINE = "#2a2a2a";
 const RED = "#ff3b30";
 
 /* ---------- types ---------- */
-type RouteState = "enroute" | "arrived" | "visit" | "debrief" | "next";
+/* "" = at HQ, not yet departed (v7.4.8 backend default). The route only
+   becomes "enroute" when the crew explicitly departs from the Load Vehicle
+   screen. */
+type RouteState = "" | "enroute" | "arrived" | "visit" | "debrief" | "next";
 type DebriefStepKey = "billing" | "updates" | "items" | "new" | "office";
 type FieldSearch = { preview?: RouteState; step?: DebriefStepKey };
 type Employee = { id: string; name: string };
@@ -406,45 +409,9 @@ function hoursBetween(inIso?: string | null, outIso?: string | null): number {
   return Math.max(0, Math.round(h / 0.25) * 0.25);
 }
 
-/* ---------- identity (LA-date sticky) ---------- */
+/* ---------- identity ---------- */
 const OVERHEAD_CLIENT = "Bramble & Vine";
-const ME_KEY = "field.me";
 type Me = { id: string; name: string; role?: "lead" | "assistant" };
-type MeStored = Me & { date: string };
-function laDateKey(): string {
-  try {
-    return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
-  } catch {
-    return new Date().toISOString().slice(0, 10);
-  }
-}
-function loadMe(): Me | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(ME_KEY);
-    if (!raw) return null;
-    const m = JSON.parse(raw) as MeStored;
-    if (!m || !m.id || !m.name) return null;
-    if (m.date !== laDateKey()) {
-      window.sessionStorage.removeItem(ME_KEY);
-      return null;
-    }
-    const role = m.role === "lead" || m.role === "assistant" ? m.role : undefined;
-    return { id: m.id, name: m.name, role };
-  } catch {
-    return null;
-  }
-}
-function saveMe(m: Me) {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(ME_KEY, JSON.stringify({ ...m, date: laDateKey() }));
-  } catch { /* ignore */ }
-}
-function clearMe() {
-  if (typeof window === "undefined") return;
-  try { window.sessionStorage.removeItem(ME_KEY); } catch { /* ignore */ }
-}
 function isOverheadClient(c?: string | null): boolean {
   return (c ?? "").trim().toLowerCase() === OVERHEAD_CLIENT.toLowerCase();
 }
@@ -752,7 +719,10 @@ function FieldBody({
   isPreview: boolean;
 }) {
   const route = data.route ?? {};
-  const liveState: RouteState = route.state ?? "enroute";
+  // An absent state (old backend) still reads as enroute; the new backend
+  // sends "" until the crew departs, and "" must NOT be coerced to enroute —
+  // that coercion is exactly what opened the day on "En route to first stop".
+  const liveState: RouteState = (route.state ?? "enroute") as RouteState;
   const state: RouteState = previewState ?? liveState;
   const events = data.events ?? [];
   const employees = data.employees ?? [];
@@ -784,19 +754,19 @@ function FieldBody({
   // This client has already had their text today. Only a literal true suppresses
   // anything, so a payload without the field behaves exactly as before.
   const skipSameDayTexts = dayState?.skipSameDayTexts === true;
-  const derivedMeRole: "lead" | "assistant" = role === "assistant" ? "assistant" : "lead";
+  // Clock identity requires the ACTUAL signed-in role — never view-as. Before
+  // this check, management browsing /field was handed the field phone holder's
+  // QBT id and a live CLOCK IN button under someone else's timesheet.
+  const { role: actualRole } = useAuth();
+  const isCrew = actualRole === "lead" || actualRole === "assistant";
+  const derivedMeRole: "lead" | "assistant" = actualRole === "assistant" ? "assistant" : "lead";
   const me: Me | null = useMemo(
     () =>
-      fieldPhone
+      isCrew && fieldPhone
         ? { id: fieldPhone.id, name: fieldPhone.name, role: derivedMeRole }
         : null,
-    [fieldPhone, derivedMeRole],
+    [isCrew, fieldPhone, derivedMeRole],
   );
-  // Persist for legacy readers of loadMe().
-  useEffect(() => {
-    if (me) saveMe(me);
-    else clearMe();
-  }, [me?.id, me?.name, me?.role]);
   const [breakFrom, setBreakFromState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     try { return window.sessionStorage.getItem("field:breakFrom") || null; } catch { return null; }
@@ -816,12 +786,46 @@ function FieldBody({
     !isPreview &&
     !!me &&
     me.role === "assistant" &&
-    (route.state ?? "enroute") === "enroute" &&
+    (liveState === "" || liveState === "enroute") &&
     stopIndex === 0;
   const loadingSnap = useLoadingSnapshot(assistantGateEnabled);
+  // Pre-departure ("" state) the gate stays open even fully loaded: departing
+  // is an explicit shared act (LOADING COMPLETE → NAVIGATE AND TEXT ETA), not
+  // a side effect of ticking the last item.
   const assistantGateOpen =
     assistantGateEnabled &&
-    (!loadingSnap.ready || loadingSnap.confirmed !== true || !loadingSnap.allLoaded);
+    (liveState === "" ||
+      !loadingSnap.ready || loadingSnap.confirmed !== true || !loadingSnap.allLoaded);
+  const [localLoadDone, setLocalLoadDone] = useState(false);
+  const sharedLoadingDone = localLoadDone || dayState?.flags?.loadingDone === true;
+  const assistantComplete = async () => {
+    const r = await send({ action: "loadingComplete" });
+    if (r.ok) setLocalLoadDone(true);
+    else setBanner({ kind: "err", text: "Couldn't mark complete — retry." });
+  };
+  const assistantDepart = async () => {
+    const first = events[0];
+    if (!first) {
+      setBanner({ kind: "err", text: "No first stop on today's calendar." });
+      return;
+    }
+    const firstClient = matchClient(first.title, clients);
+    const address = first.location ?? "";
+    // Opened synchronously, before any await — popup blockers eat it otherwise.
+    if (address) {
+      window.open(
+        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+          encodeURIComponent(address),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+    const r = await send({
+      action: "setRoute", state: "enroute", stopIndex: 0,
+      client: firstClient, eventId: first.id,
+    });
+    if (r.ok) void send({ action: "textEta" }, { silent: true });
+  };
 
   /* --- hooks that must run every render (moved above early returns) --- */
   // Payroll confirm is the last step of the day, not a gate in front of the
@@ -896,6 +900,22 @@ function FieldBody({
     }
   }, [role, dayState, fieldPhone, isPreview, bodyRouter]);
 
+  /* --- lead HQ gate: /field is for a departed route. While the day is still
+     in HQ_LOADING, send the lead to the screen that owns the current step —
+     before this the lead was hard-landed here and ran the whole route with
+     no roster set and the daily load unanswered. --- */
+  useEffect(() => {
+    if (isPreview) return;
+    if (role !== "lead") return;
+    if (!dayState) return;
+    if (dayState.phase !== "HQ_LOADING") return;
+    // Depart-eligible: loading is done and the phase flip to FIELD_VISIT is a
+    // poll away. Bouncing here would yank the lead straight back off the
+    // screen they just departed to.
+    if (dayState.subStep === "loading" && dayState.flags?.loadingDone) return;
+    void bodyRouter.navigate({ to: hqScreenFor(dayState.subStep) });
+  }, [role, dayState, isPreview, bodyRouter]);
+
   if (role === "assistant" && !me && !isPreview) {
     // Gate effect above will redirect; render nothing meanwhile.
     return null;
@@ -943,6 +963,17 @@ function FieldBody({
 
   const meRow = me ? roster.find((r) => r.id === me.id) : undefined;
   const meOnClock = !!(meRow?.in && !meRow?.out);
+  // "Start Visit & Switch": move this device's crew member onto the client's
+  // clock. Everyone else does the same via their own SWITCH TO button, which
+  // is what makes the shared state read correctly on every device.
+  const switchMeTo = async (toClient: string) => {
+    if (!me || !meOnClock || isPreview) return;
+    const from = meRow?.client ?? OVERHEAD_CLIENT;
+    if (from.trim().toLowerCase() === toClient.trim().toLowerCase()) return;
+    const outR = await send({ action: "qbClock", userId: me.id, dir: "out", client: from }, { silent: true });
+    if (!outR.ok) return;
+    await send({ action: "qbClock", userId: me.id, dir: "in", client: toClient }, { silent: true });
+  };
   const startBreakFromCurrent = me && meOnClock
     ? async () => {
         if (isPreview) return;
@@ -1008,7 +1039,7 @@ function FieldBody({
             <ClientHeader event={currentEvent} clientMatch={clientMatch} state={state} />
           )}
 
-          {(state === "enroute" || state === "arrived") && (
+          {(state === "" || state === "enroute" || state === "arrived") && (
             assistantGateOpen ? (
               <AssistantLoadingGate
                 clockSlot={personalClockSlot}
@@ -1016,6 +1047,12 @@ function FieldBody({
                 items={loadingSnap.items}
                 ready={loadingSnap.ready}
                 onToggle={loadingSnap.toggle}
+                allLoaded={loadingSnap.allLoaded}
+                loadingDone={sharedLoadingDone}
+                departed={liveState !== ""}
+                busy={busy}
+                onComplete={() => void assistantComplete()}
+                onDepart={() => void assistantDepart()}
               />
             ) : (
               <StateArrived
@@ -1048,7 +1085,10 @@ function FieldBody({
                     if (!r.ok) return;
                   }
                   const r = await send({ action: "setRoute", state: "visit" });
-                  if (r.ok) void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+                  if (r.ok) {
+                    void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+                    if (clientMatch) void switchMeTo(clientMatch);
+                  }
                 }}
                 onNoShow={() => void confirmNoShow(send, setBanner)}
               />
@@ -1261,174 +1301,6 @@ function RosterPicker({
 
 
 /* ============================================================
- * WHO'S ON THIS PHONE — sticky per-phone identity picker
- * ============================================================ */
-function WhoAmI({
-  employees,
-  isLead,
-  onManageCrew,
-  send,
-  onIdentified,
-  onLoading,
-}: {
-  employees: Employee[];
-  isLead: boolean;
-  onManageCrew?: () => void;
-  send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
-  onIdentified: (m: Me) => void;
-  onLoading: () => void;
-}) {
-  const [pick, setPick] = useState<Employee | null>(null);
-  const [role, setRole] = useState<"lead" | "assistant">("assistant");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [clockPending, setClockPending] = useState<Me | null>(null);
-
-  const defaultRoleFor = (name: string) =>
-    name.trim().toLowerCase() === "angel garcia" ? "lead" : "assistant";
-
-  const clockAndGo = async (m: Me) => {
-    setBusy(true);
-    setErr(null);
-    const r = await send(
-      { action: "qbClock", userId: m.id, dir: "in", client: OVERHEAD_CLIENT },
-      { silent: true },
-    );
-    setBusy(false);
-    if (r.ok) {
-      setClockPending(null);
-      onLoading();
-    } else {
-      setClockPending(m);
-      setErr("Couldn't clock in — you're on the roster, tap RETRY.");
-    }
-  };
-
-  const submit = async () => {
-    if (!pick) return;
-    setBusy(true);
-    setErr(null);
-    const j = await send({ action: "joinRoster", id: pick.id, name: pick.name, role }, { silent: true });
-    if (!j.ok) {
-      setBusy(false);
-      setErr("Couldn't join roster — try again.");
-      return;
-    }
-    const me = { id: pick.id, name: pick.name, role };
-    saveMe(me);
-    void resolveTeam(me.id);
-    onIdentified(me);
-    setBusy(false);
-    await clockAndGo(me);
-  };
-
-  return (
-    <div style={{ padding: "20px 14px" }}>
-      <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2, textAlign: "center" }}>
-        WHO'S ON THIS PHONE?
-      </div>
-      <div style={{ color: MUTED, textAlign: "center", marginTop: 6, fontSize: 12 }}>
-        Tap your name. This phone stays yours for the day.
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginTop: 16 }}>
-        {employees.map((e) => {
-          const on = pick?.id === e.id;
-          return (
-            <button
-              key={e.id}
-              onClick={() => { setPick(e); setRole(defaultRoleFor(e.name)); setErr(null); setClockPending(null); }}
-              disabled={busy}
-              style={{
-                ...BIG_BTN,
-                background: on ? LIME : "transparent",
-                color: on ? BG : LIME,
-                borderColor: on ? LIME : LIME_DIM,
-              }}
-            >
-              {on ? "● " : ""}{e.name.toUpperCase()}
-            </button>
-          );
-        })}
-        {employees.length === 0 && <div style={STATE}>No employees returned by backend.</div>}
-      </div>
-
-      <div style={{ marginTop: 18 }}>
-        <div style={{ color: LIME_DIM, fontSize: 12, letterSpacing: 1, textAlign: "center" }}>
-          WHAT'S YOUR ROLE TODAY?
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-          {(["lead", "assistant"] as const).map((r) => {
-            const on = role === r;
-            return (
-              <button
-                key={r}
-                disabled={busy}
-                onClick={() => setRole(r)}
-                style={{
-                  flex: 1,
-                  ...BIG_BTN,
-                  background: on ? LIME : "transparent",
-                  color: on ? BG : LIME,
-                  borderColor: on ? LIME : LIME_DIM,
-                  minHeight: 48,
-                  fontSize: 16,
-                }}
-              >
-                {on ? "● " : ""}{r.toUpperCase()}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {clockPending ? (
-        <button
-          disabled={busy}
-          onClick={() => void clockAndGo(clockPending)}
-          style={{ ...PRIMARY_BTN, marginTop: 20, opacity: busy ? 0.6 : 1 }}
-        >
-          {busy ? "RETRYING…" : "RETRY CLOCK IN"}
-        </button>
-      ) : (
-        <button
-          disabled={busy || !pick}
-          onClick={() => void submit()}
-          style={{ ...PRIMARY_BTN, marginTop: 20, opacity: !pick || busy ? 0.45 : 1 }}
-        >
-          {busy ? "…" : "CLOCK IN & START LOADING"}
-        </button>
-      )}
-
-      {err && (
-        <div style={{ color: RED, fontSize: 12, marginTop: 10, textAlign: "center" }}>{err}</div>
-      )}
-
-      {isLead && onManageCrew && (
-        <button
-          onClick={onManageCrew}
-          style={{
-            background: "transparent",
-            border: "none",
-            color: DIM_GREEN,
-            fontFamily: "inherit",
-            fontSize: 11,
-            letterSpacing: 1,
-            textDecoration: "underline",
-            marginTop: 18,
-            width: "100%",
-            cursor: "pointer",
-            padding: 8,
-          }}
-        >
-          manage full crew
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ============================================================
  * CLOCKING AS — sticky identity header
  * ============================================================ */
 function ClockingAsHeader({
@@ -1565,7 +1437,7 @@ function PersonalClockPanel({
     };
   } else if (onOverhead && clientMatch) {
     primary = {
-      label: "SWITCH TO CLIENT CLOCK",
+      label: `SWITCH TO ${clientMatch.toUpperCase()}`,
       onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
       enabled: true,
     };
@@ -1921,12 +1793,24 @@ function AssistantLoadingGate({
   items,
   ready,
   onToggle,
+  allLoaded,
+  loadingDone,
+  departed,
+  busy,
+  onComplete,
+  onDepart,
 }: {
   clockSlot?: React.ReactNode;
   confirmed: boolean;
   items: LoadingItem[];
   ready: boolean;
   onToggle: (row: number) => void;
+  allLoaded: boolean;
+  loadingDone: boolean;
+  departed: boolean;
+  busy: boolean;
+  onComplete: () => void;
+  onDepart: () => void;
 }) {
   const grouped = useMemo(() => {
     const by = new Map<string, LoadingItem[]>();
@@ -1977,7 +1861,7 @@ function AssistantLoadingGate({
           )}
           {ready && total === 0 && (
             <div style={{ color: DIM_GREEN, fontSize: 13, marginTop: 8, lineHeight: 1.4 }}>
-              No special loading items today. Preparing to navigate…
+              No special loading items today.
             </div>
           )}
           {grouped.map(([client, rows]) => {
@@ -2069,18 +1953,47 @@ function AssistantLoadingGate({
         </>
       )}
 
-      <div
-        style={{
-          marginTop: 18,
-          color: DIM_GREEN,
-          fontSize: 11,
-          letterSpacing: 1,
-          textAlign: "center",
-          textTransform: "uppercase",
-        }}
-      >
-        Navigate unlocks once the day is confirmed and everything's loaded.
-      </div>
+      {confirmed && ready && allLoaded && !departed && (
+        <div style={{ marginTop: 18 }}>
+          {!loadingDone ? (
+            <button
+              onClick={onComplete}
+              disabled={busy}
+              style={{ ...PRIMARY_BTN, opacity: busy ? 0.6 : 1 }}
+            >
+              LOADING COMPLETE
+            </button>
+          ) : (
+            <>
+              <button disabled style={{ ...PRIMARY_BTN, opacity: 0.35 }}>
+                LOADING COMPLETE ✓
+              </button>
+              <button
+                onClick={onDepart}
+                disabled={busy}
+                style={{ ...PRIMARY_BTN, marginTop: 10, opacity: busy ? 0.6 : 1 }}
+              >
+                NAVIGATE AND TEXT ETA
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {!(confirmed && ready && allLoaded) && (
+        <div
+          style={{
+            marginTop: 18,
+            color: DIM_GREEN,
+            fontSize: 11,
+            letterSpacing: 1,
+            textAlign: "center",
+            textTransform: "uppercase",
+          }}
+        >
+          Navigate unlocks once the day is confirmed and everything's loaded.
+        </div>
+      )}
     </div>
   );
 }
@@ -2261,13 +2174,9 @@ function StateArrived({
             disabled={!anyIn || busy || alreadyTexted || !!isPreview}
             style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (!anyIn || alreadyTexted) ? 0.45 : 1 }}
           >
-            {skipSameDayTexts
-              ? alreadyTexted
-                ? "VISIT STARTED"
-                : "START VISIT"
-              : alreadyTexted
-                ? "CLIENT TEXTED"
-                : "START VISIT & TEXT CLIENT"}
+            {alreadyTexted
+              ? skipSameDayTexts ? "VISIT STARTED" : "CLIENT TEXTED"
+              : `START VISIT & SWITCH TO ${label.toUpperCase()}`}
           </button>
         </>
       )}
