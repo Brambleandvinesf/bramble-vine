@@ -97,6 +97,9 @@ export function useAutoClockIn(opts: {
   // device is shared, so two people can legitimately clock in under one account
   // on the same day and each needs their own attempt.
   const attemptedRef = useRef<Set<string>>(new Set());
+  // One visible warning per page load: silence was the old behaviour, and it
+  // made a broken lead clock-in indistinguishable from a working one.
+  const warnedRef = useRef(false);
 
   useEffect(() => {
     if (!ready || !email) return;
@@ -127,6 +130,35 @@ export function useAutoClockIn(opts: {
         userId = String(fieldPhone.id).trim();
         personName = fieldPhone.name || personName;
         viaFieldPhone = true;
+      }
+
+      // A lead with no match gets one server-side cache bust before giving up:
+      // the 6h employee cache is the usual reason an email fixed in QB Time
+      // still misses here. Still nothing → say so, out loud. The lead has no
+      // fieldPhone fallback, so silence here meant lost hours.
+      if (!userId && role === "lead" && !warnedRef.current) {
+        try {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "refreshEmployees" }),
+          });
+          const fresh = JSON.parse(await res.text()) as { employees?: EmployeeRow[] };
+          const m2 = (fresh.employees ?? []).find(
+            (e) => String(e.email ?? "").trim().toLowerCase() === who,
+          );
+          if (m2?.id) {
+            userId = String(m2.id).trim();
+            personName = name || m2.name || personName;
+          }
+        } catch {
+          /* fall through to the visible failure */
+        }
+        if (cancelled) return;
+        if (!userId) {
+          warnedRef.current = true;
+          toast.error("Auto clock-in couldn't match your email in QB Time — clock in manually.");
+        }
       }
 
       // No identity yet. Deliberately not recorded as an attempt: fieldPhone
