@@ -427,7 +427,26 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   vendor stop suppresses it, the label reads "(NO TEXT)". Reads the
   existing AF plumbing (getField.skipTextClients, dayState.skip
   SameDayTexts); not a new suppression mechanism.
-- Custom wake words: OS-blocked; badge button > voice.
+- 8/2 (P work order, v7.4.15 @146): vendor calendar events self-populate.
+  vendorEventFill_ scans '1. Client Visits' (today + VENDOR_FILL_DAYS
+  property, default 7), matches titles/locations with vendorMatch_, then
+  fills an EMPTY Location from the Vendors tab (manual Locations are
+  never overwritten) and appends the tax-exempt note to the description
+  exactly once (idempotent on the fixed 'Tax-exempt account on file'
+  prefix, so a later-recorded ID never duplicates it). Address fills
+  bust the DAY_STOPS cache so stop detection updates within a poll.
+  Trigger decision (P.1): NO new time trigger and no new OAuth scopes —
+  piggybacked on the existing every-5-min visitTimerTick +
+  updateDepartureEta triggers (call inserted at the top, ahead of their
+  early returns), on dailyReset_, and as a doGet fallback; a shared
+  5-minute cache gate (VENDOR_FILL_AT) makes all callers cheap and
+  means polls only pay the scan when no trigger ran it first. Built in
+  Apps Script rather than Make to spare Make operation credits and keep
+  vendor-stop logic in one codebase. This also closes M's short-name
+  detection gap: detection matches most reliably by address, and the
+  fill is what puts the address on the event. Verified end-to-end with
+  a live test event (title-only 'Devil Mt run' → address + tax note
+  appeared, then re-scan confirmed no duplicate append).
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
 Backend source is NOT in this repo. It is edited via clasp on the Pi.

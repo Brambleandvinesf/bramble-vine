@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.14 @145; per-stop spine anchors, vendor stops + receipt gate, QBO item auto-create, human-gated plant pricing)*
+*Last updated: 2026-08-02 (backend v7.4.15 @146; + vendor calendar events auto-fill address/tax-exempt note from the Vendors tab)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.14), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.15), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.14); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.15); full changelog in Code.js header.
 - Fixed footers must use bottom: SPINE_RESERVE_CSS (DayStateSpine export),
   NEVER a raw pixel value — the spine paints over anything parked lower
   (this exact bug hid the review confirm button twice).
@@ -147,6 +147,12 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   ("Receipt attached" / "No purchase made") server-enforced on setRoute;
   never texts; clock bills to the next client stop (overhead fallback);
   tax-exempt banner + wallet button on arrival.
+- Vendor event auto-fill (P, 8/2, v7.4.15): typing just a vendor name as
+  a '1. Client Visits' event title is enough — vendorEventFill_ (every
+  ~5 min via existing triggers + throttled doGet fallback; window today
+  + VENDOR_FILL_DAYS, default 7) fills an EMPTY Location with the
+  vendor's address and appends the tax-exempt note to the description
+  once. Never overwrites a manual Location; built in-script, not Make.
 - Spine (8/2): one anchor per real stop (getDayState.stops), HQ at both
   ends. Transit (enroute/next) = the dashed animated line INTO the
   current stop — never a sub-node pill; sub-row hides during transit.
