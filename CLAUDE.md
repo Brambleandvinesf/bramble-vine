@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.15 @146; + vendor calendar events auto-fill address/tax-exempt note from the Vendors tab)*
+*Last updated: 2026-08-02 (backend v7.4.16 @147; AF opt-out lookup fixed for real + send-time failsafe, end-of-day clock-out ordering, spine compact mode, HTML plan panels)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.15), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.16), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.15); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.16); full changelog in Code.js header.
 - Fixed footers must use bottom: SPINE_RESERVE_CSS (DayStateSpine export),
   NEVER a raw pixel value — the spine paints over anything parked lower
   (this exact bug hid the review confirm button twice).
@@ -71,7 +71,17 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 - Client Info col AF ("Special Text ETA Arrival") = per-client auto-text
   opt-out ("no" suppresses ALL eta/arrived/done texts server-side; blank =
   send). Enforced in the textClient handler; getField.skipTextClients
-  labels pre-departure buttons.
+  labels pre-departure buttons. LESSON (8/2): the column is resolved by
+  its real header text WITH a positional fallback to AF — it was broken
+  from v7.3.8→v7.4.15 because the lookup searched for a header literally
+  named "AF" (matched nothing; no client was ever suppressed). The
+  send-time recheck in textClient is the failsafe of record: normalized
+  name match, runs at the moment of send, regardless of any label.
+- End-of-day ordering (T, 8/2): at route complete, assistants clock out
+  BEFORE the lead (server rejects a lead's out while an assistant is on
+  the clock; mid-route switches unaffected), and APPROVE TODAY'S HOURS
+  appears only once everyone is out and the lead's own shift is closed
+  (qbApprove also refuses while anyone is clocked in).
 - No yellow/orange/red/burgundy in UI (red = failure states only).
   Active = lime #7cff00 SLOW BLINK (~3s, never fully off).
   Completed = steady lime glow. Upcoming = dim hollow outline.

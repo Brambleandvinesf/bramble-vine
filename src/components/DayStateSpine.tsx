@@ -10,9 +10,13 @@ const LIME_DIM = "#2f5f10";
 const DIM_TEXT = "#4a7a1e";
 const BG = "#0a0a0a";
 
-// Height of the spine body. The body is always rendered at this height, in both
-// states, so collapsing can be a pure translate with no reflow.
+// Height of the spine body WITH a sub-node row. The body renders at a fixed
+// height per mode, so collapsing can be a pure translate with no reflow.
 const SPINE_BODY_H = 128;
+// R (8/2): with no active sub-nodes (transit, or a phase with none) there is
+// nothing above the anchors — the body shrinks to just the anchor row instead
+// of reserving the full sub-row space.
+const SPINE_COMPACT_H = 64;
 // How much of the body stays on screen when collapsed. The sub-node row sits at
 // top:10 and the active capsule is 30 tall, so it occupies 10-40: 46 keeps the
 // whole capsule with a little breathing room and hides the anchors below it.
@@ -27,8 +31,13 @@ const COLLAPSED_SHIFT =
 // the safe-area inset below it. Pages must reserve all of that, not just the
 // body: reserving 128 left the tab and the inset overlapping the bottom of
 // every screen, which is what hid the Confirm Special Loading button.
+//
+// R (8/2): the reserve is now a CSS variable the spine keeps up to date, so
+// pages automatically reserve less when the body is in its compact
+// (no-sub-row) mode. The fallback is the full-size value — anything rendering
+// before the spine mounts reserves the safe maximum.
 export const SPINE_RESERVE_CSS =
-  `calc(${SPINE_BODY_H + 14 + 6}px + env(safe-area-inset-bottom, 0px))`;
+  `var(--bv-spine-reserve, calc(${SPINE_BODY_H + 14 + 6}px + env(safe-area-inset-bottom, 0px)))`;
 
 // How long the spine stays up before folding itself away. Long enough to read
 // the state that just changed, short enough not to sit on a button.
@@ -305,6 +314,23 @@ export function DayStateSpine() {
   // duplicate-status noise the EN ROUTE pill was.
   const showSubRow = activeSubs.length > 0 && !inTransit;
 
+  // R (8/2): no sub-row → compact body, and no collapse affordance at all.
+  // Collapsing exists to get the sub-row out of the way of page content;
+  // with only anchors showing, the old tab hid the anchors themselves —
+  // the one thing the spine must never do.
+  const bodyH = showSubRow ? SPINE_BODY_H : SPINE_COMPACT_H;
+  const collapsible = showSubRow;
+  const effectiveCollapsed = collapsed && collapsible;
+  // Keep every page's bottom reserve in step with the actual body height
+  // (tab only exists when collapsible; 6px + inset always).
+  useLayoutEffect(() => {
+    const reserve =
+      `calc(${bodyH + (collapsible ? 14 : 0) + 6}px + env(safe-area-inset-bottom, 0px))`;
+    try {
+      document.documentElement.style.setProperty("--bv-spine-reserve", reserve);
+    } catch { /* SSR */ }
+  }, [bodyH, collapsible]);
+
   // ---- measurement for connector routing ----
   const containerRef = useRef<HTMLDivElement | null>(null);
   const anchorRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -513,14 +539,17 @@ export function DayStateSpine() {
           fontFamily: "'Courier New', Courier, monospace",
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
           // Collapsing slides the whole bar down and nothing else. The spine
-          // always renders at full size, so no node changes position, size or
-          // style between states - only this transform does.
-          transform: collapsed ? `translateY(${COLLAPSED_SHIFT})` : "translateY(0)",
+          // always renders at full size for its mode, so no node changes
+          // position, size or style between states - only this transform does.
+          transform: effectiveCollapsed ? `translateY(${COLLAPSED_SHIFT})` : "translateY(0)",
           transition: "transform 300ms ease-in-out",
           willChange: "transform",
         }}
       >
-        {/* toggle handle */}
+        {/* toggle handle — only when there IS a sub-row to fold away (R):
+            in compact mode collapsing could only hide the anchors, which is
+            the one thing the spine must never do. */}
+        {collapsible && (
         <button
           type="button"
           onClick={() => {
@@ -528,7 +557,7 @@ export function DayStateSpine() {
             if (autoRef.current) window.clearTimeout(autoRef.current);
             setCollapsed((c) => !c);
           }}
-          aria-label={collapsed ? "Expand day spine" : "Collapse day spine"}
+          aria-label={effectiveCollapsed ? "Expand day spine" : "Collapse day spine"}
           style={{
             position: "absolute",
             top: -14,
@@ -548,16 +577,18 @@ export function DayStateSpine() {
             padding: 0,
           }}
         >
-          {collapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {effectiveCollapsed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
+        )}
 
         <div
           ref={containerRef}
           style={{
             position: "relative",
-            height: SPINE_BODY_H,
+            height: bodyH,
             width: "100%",
             overflow: "hidden",
+            transition: "height 250ms ease-in-out",
           }}
         >
             {/* SVG connector layer */}

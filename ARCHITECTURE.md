@@ -447,6 +447,41 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   fill is what puts the address on the event. Verified end-to-end with
   a live test event (title-only 'Devil Mt run' → address + tax note
   appeared, then re-scan confirmed no duplicate append).
+- 8/2 (Q/R/S/T live-run findings round 2, v7.4.16 @147):
+  S — THE BIG ONE: the AF text-opt-out NEVER worked. Since v7.3.8,
+  clientDirectory_ looked the column up by header NAME with the literal
+  string 'AF'; the real header is 'Special Text ETA Arrival', so indexOf
+  returned -1 and no client ever read as opted out — wrong "& TEXT
+  CLIENT" labels AND a dead server-side suppression (flagged clients
+  would have been texted). Verified against the live sheet before
+  fixing (A&G row holds 'No' at column AF / index 31). Fix: real header
+  text + positional fallback to column AF via colLetterIdx_, value
+  match /^no\b/i, and (S2, permanent failsafe) the textClient send-time
+  recheck + dayState lookup + frontend list checks all match names
+  normalized (trim/case). The send-time server recheck is the failsafe
+  of record — no flagged client can be texted whatever a label said.
+  Post-deploy verify: skipTextClients went from [] to 17 clients (all
+  nine A&G accounts + 8 others), dayState skipSameDayTexts true at the
+  live A&G stop.
+  T — end-of-day ordering: qbApprove refuses while anyone is on the
+  clock; at ROUTE COMPLETE a lead's qbClock-out is rejected while an
+  assistant is still in (assistants first), and the UI disables the out
+  actions with the reason shown. Deliberately scoped to route-complete:
+  mid-route a lead 'out' is half of a client switch (Start Visit),
+  which must keep working. APPROVE TODAY'S HOURS renders only when
+  everyone is out AND a lead shift was actually closed — a day where
+  the lead never clocked in (the no-show test) never shows it.
+  Q — plan panels (M4) render calendar-description HTML via an
+  allowlist DOMParser sanitizer (b/i/u/s/br/p/div/span/a/ul/ol/li; only
+  http(s) hrefs, target+rel pinned, all else unwrapped to its text).
+  Frontend-only; descriptions pass through the backend unchanged.
+  R — spine: with no sub-row (transit) the body renders compact (64px
+  vs 128px) and the collapse tab is GONE — collapsing a bar that shows
+  only anchors could only hide the anchors (the live-run bug).
+  SPINE_RESERVE_CSS is now a CSS variable (--bv-spine-reserve) the
+  spine keeps current (full-size fallback pre-mount); every existing
+  consumer inherits the right reserve automatically.
+- Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
 Backend source is NOT in this repo. It is edited via clasp on the Pi.

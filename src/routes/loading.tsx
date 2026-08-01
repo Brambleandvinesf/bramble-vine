@@ -292,7 +292,10 @@ function LoadingPage() {
   const firstStop = (field?.events ?? [])[0];
   const firstStopClient = firstStop ? matchClient(firstStop.title, field?.clients ?? []) : null;
   const firstStopSkipsText =
-    !!firstStopClient && (field?.skipTextClients ?? []).includes(firstStopClient);
+    !!firstStopClient &&
+    (field?.skipTextClients ?? []).some(
+      (c) => c.trim().toLowerCase() === firstStopClient.trim().toLowerCase(),
+    );
 
   // Departure is an explicit, shared act: flips the route to enroute stop 0
   // (every device's poll advances to the first-visit screen), texts the ETA

@@ -67,7 +67,7 @@ type RouteState = "" | "enroute" | "arrived" | "visit" | "debrief" | "next";
 type DebriefStepKey = "billing" | "updates" | "items" | "new" | "office";
 type FieldSearch = { preview?: RouteState; step?: DebriefStepKey };
 type Employee = { id: string; name: string };
-type RosterMember = { id: string; name: string; in?: string | null; out?: string | null; tsId?: string | null; client?: string | null };
+type RosterMember = { id: string; name: string; role?: string | null; in?: string | null; out?: string | null; tsId?: string | null; client?: string | null };
 type EventItem = { id: string; title: string; start?: string; end?: string; location?: string; color?: string; description?: string };
 
 /** Canonical vendor (getField.vendors) — recognises supply stops as their own stop type. */
@@ -446,6 +446,57 @@ function matchVendor(ev: EventItem | undefined, vendors: FieldVendor[]): FieldVe
   return null;
 }
 
+/* ---------- Q (8/2): calendar-description HTML ---------- */
+/* Google Calendar descriptions arrive as HTML (<b>, <br>, <a href>…) and
+   were being shown as escaped text. Render them through an allowlist
+   sanitizer instead: DOMParser walk that keeps basic formatting, unwraps
+   everything else to its text, and only lets http(s) links through with
+   target/rel pinned. The content is authored by Brandon/Angel in Google
+   Calendar, but the walk means a pasted payload still can't execute. */
+const PLAN_ALLOWED_TAGS = new Set(["B", "STRONG", "I", "EM", "U", "S", "BR", "P", "DIV", "SPAN", "A", "UL", "OL", "LI"]);
+
+function escapePlanText(s2: string): string {
+  return s2.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function sanitizeEventHtml(html: string): string {
+  if (typeof DOMParser === "undefined") return escapePlanText(html);
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return escapePlanText(node.textContent ?? "");
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const el = node as Element;
+    const inner = Array.from(el.childNodes).map(walk).join("");
+    const tag = el.tagName;
+    if (!PLAN_ALLOWED_TAGS.has(tag)) return inner;      // unwrap, keep the text
+    if (tag === "BR") return "<br>";
+    if (tag === "A") {
+      const href = el.getAttribute("href") ?? "";
+      if (!/^https?:\/\//i.test(href)) return inner;    // javascript:/data: etc. → text only
+      const safeHref = escapePlanText(href).replace(/"/g, "&quot;");
+      return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" style="color:${LIME};text-decoration:underline">${inner}</a>`;
+    }
+    const t = tag.toLowerCase();
+    return `<${t}>${inner}</${t}>`;
+  };
+  return Array.from(doc.body.childNodes).map(walk).join("");
+}
+
+/** Body of a plan panel: renders HTML descriptions properly, keeps plain text as-is. */
+function EventPlanBody({ text }: { text: string }) {
+  const base: React.CSSProperties = {
+    color: TEXT,
+    fontSize: 13,
+    marginTop: 6,
+    lineHeight: 1.5,
+    wordBreak: "break-word",
+  };
+  if (!/<[a-z][^>]*>/i.test(text)) {
+    return <div style={{ ...base, whiteSpace: "pre-wrap" }}>{text}</div>;
+  }
+  return <div style={base} dangerouslySetInnerHTML={{ __html: sanitizeEventHtml(text) }} />;
+}
+
 /* ---------- identity ---------- */
 const OVERHEAD_CLIENT = "Bramble & Vine";
 type Me = { id: string; name: string; role?: "lead" | "assistant" };
@@ -810,7 +861,11 @@ function FieldBody({
   // "(NO TEXT)" when the client's AF opt-out (or a vendor stop) suppresses it.
   // Same AF source the send logic already uses; this is labeling, not a new
   // suppression mechanism.
-  const afOptOut = !!clientMatch && (data.skipTextClients ?? []).includes(clientMatch);
+  const afOptOut =
+    !!clientMatch &&
+    (data.skipTextClients ?? []).some(
+      (c) => c.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
+    );
   const textsSuppressed = skipSameDayTexts || afOptOut || !!vendorStop;
   // Clock identity requires the ACTUAL signed-in role — never view-as. Before
   // this check, management browsing /field was handed the field phone holder's
@@ -1052,6 +1107,18 @@ function FieldBody({
 
   const leadEndOfDay = !!(me && me.role === "lead" && routeComplete);
 
+  // T2 (8/2): assistants clock out first at end of day. Mirrors the server
+  // gate (which rejects a lead's route-complete clock-out while an
+  // assistant is on the clock) so the button explains itself instead of
+  // erroring.
+  const assistantsStillIn = roster.filter(
+    (m) => (m.role ?? "") === "assistant" && m.in && !m.out,
+  );
+  const leadOutBlocked =
+    leadEndOfDay && assistantsStillIn.length > 0
+      ? `${assistantsStillIn.map((m) => m.name).join(", ")} — assistants clock out before the lead.`
+      : null;
+
   const personalClockSlot = me ? (
     <PersonalClockPanel
       me={me}
@@ -1064,6 +1131,7 @@ function FieldBody({
       breakFrom={breakFrom}
       setBreakFrom={setBreakFrom}
       afterClockOut={leadEndOfDay ? openPayroll : undefined}
+      outBlockedReason={leadOutBlocked}
     />
   ) : null;
 
@@ -1085,6 +1153,21 @@ function FieldBody({
             events={events}
             roster={roster}
             isLead={isLead}
+            /* T1/T3 (8/2): approving hours is the LAST act of the day —
+               locked until everyone is off the clock AND the lead's own
+               shift has actually been clocked out (a day where the lead
+               never clocked in has nothing to approve from here). */
+            approveNote={(() => {
+              const stillIn = roster.filter((m) => m.in && !m.out);
+              if (stillIn.length) {
+                return `Waiting for clock-outs: ${stillIn.map((m) => m.name).join(", ")}`;
+              }
+              const leadShiftDone = roster.some(
+                (m) => (m.role ?? "") === "lead" && m.in && m.out,
+              );
+              if (!leadShiftDone) return "Approve unlocks after the lead clocks out.";
+              return null;
+            })()}
             onApprove={async () => {
               const r = await send({ action: "qbApprove" });
               if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
@@ -1488,6 +1571,7 @@ function PersonalClockPanel({
   breakFrom,
   setBreakFrom,
   afterClockOut,
+  outBlockedReason,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -1500,6 +1584,8 @@ function PersonalClockPanel({
   setBreakFrom: (v: string | null) => void;
   /** Lead's end of day: run after the clock-out actually registers. */
   afterClockOut?: () => void;
+  /** T2 (8/2): non-null blocks every OUT action, with this reason shown. */
+  outBlockedReason?: string | null;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
@@ -1566,7 +1652,11 @@ function PersonalClockPanel({
     ? `Since ${fmtTime(row.in)} · ${elapsed(row.in, now)}`
     : null;
 
-  const disabled = busy || isPreview;
+  // While on the clock, every available action here starts with a clock-out
+  // (break, switch, end shift) — so an out-block disables the whole panel.
+  // Off the clock the actions are INs, which are never blocked.
+  const outGated = open && !!outBlockedReason;
+  const disabled = busy || isPreview || outGated;
 
   let primary: { label: string; onClick: () => void; enabled: boolean } | null = null;
   let secondary: { label: string; onClick: () => void } | null = null;
@@ -1643,6 +1733,11 @@ function PersonalClockPanel({
         >
           {secondary.label}
         </button>
+      )}
+      {outGated && (
+        <div style={{ color: MUTED, fontSize: 11, marginTop: 8, textAlign: "center", letterSpacing: 0.5 }}>
+          ⏳ {outBlockedReason}
+        </div>
       )}
       {since && (
         <div style={{ color: MUTED, fontSize: 11, marginTop: 8, textAlign: "center" }}>{since}</div>
@@ -1761,9 +1856,7 @@ function StateEnRoute({
       {event.description?.trim() && (
         <div style={{ ...PANEL_BOX, marginTop: 12 }}>
           <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>NEXT VISIT'S PLAN</div>
-          <div style={{ color: TEXT, fontSize: 13, marginTop: 6, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {event.description.trim()}
-          </div>
+          <EventPlanBody text={event.description.trim()} />
         </div>
       )}
 
@@ -2352,9 +2445,7 @@ function StateArrived({
           {event?.description?.trim() && (
             <div style={{ ...PANEL_BOX, marginTop: 14 }}>
               <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>TODAY'S PLAN</div>
-              <div style={{ color: TEXT, fontSize: 13, marginTop: 6, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                {event.description.trim()}
-              </div>
+              <EventPlanBody text={event.description.trim()} />
             </div>
           )}
 
@@ -4017,12 +4108,15 @@ function RouteComplete({
   events,
   roster,
   isLead,
+  approveNote,
   onApprove,
   busy,
 }: {
   events: EventItem[];
   roster: RosterMember[];
   isLead: boolean;
+  /** Why approval isn't available yet; null = it is (T1/T3, 8/2). */
+  approveNote: string | null;
   onApprove: () => void;
   busy: boolean;
 }) {
@@ -4042,10 +4136,26 @@ function RouteComplete({
           <span style={{ marginLeft: "auto", color: LIME, fontWeight: "bold" }}>{totalHours.toFixed(2)}</span>
         </div>
       </div>
-      {isLead && (
+      {isLead && !approveNote && (
         <button onClick={onApprove} disabled={busy} style={{ ...PRIMARY_BTN, marginTop: 20 }}>
           APPROVE TODAY'S HOURS IN QB TIME
         </button>
+      )}
+      {isLead && approveNote && (
+        <div
+          style={{
+            marginTop: 20,
+            padding: "10px 12px",
+            border: `1px solid ${LIME_DIM}`,
+            borderRadius: 8,
+            color: MUTED,
+            fontSize: 12,
+            letterSpacing: 0.5,
+            textAlign: "center",
+          }}
+        >
+          {approveNote}
+        </div>
       )}
     </div>
   );
