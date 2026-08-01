@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VisitsRouteImport } from './routes/visits'
+import { Route as ShoppingRouteImport } from './routes/shopping'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as ReceiptsRouteImport } from './routes/receipts'
 import { Route as ProjectsRouteImport } from './routes/projects'
@@ -25,6 +26,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const VisitsRoute = VisitsRouteImport.update({
   id: '/visits',
   path: '/visits',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShoppingRoute = ShoppingRouteImport.update({
+  id: '/shopping',
+  path: '/shopping',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduleRoute = ScheduleRouteImport.update({
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
   '/schedule': typeof ScheduleRoute
+  '/shopping': typeof ShoppingRoute
   '/visits': typeof VisitsRoute
 }
 export interface FileRoutesByTo {
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
   '/schedule': typeof ScheduleRoute
+  '/shopping': typeof ShoppingRoute
   '/visits': typeof VisitsRoute
 }
 export interface FileRoutesById {
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/projects': typeof ProjectsRoute
   '/receipts': typeof ReceiptsRoute
   '/schedule': typeof ScheduleRoute
+  '/shopping': typeof ShoppingRoute
   '/visits': typeof VisitsRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/receipts'
     | '/schedule'
+    | '/shopping'
     | '/visits'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/receipts'
     | '/schedule'
+    | '/shopping'
     | '/visits'
   id:
     | '__root__'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/receipts'
     | '/schedule'
+    | '/shopping'
     | '/visits'
   fileRoutesById: FileRoutesById
 }
@@ -183,11 +195,19 @@ export interface RootRouteChildren {
   ProjectsRoute: typeof ProjectsRoute
   ReceiptsRoute: typeof ReceiptsRoute
   ScheduleRoute: typeof ScheduleRoute
+  ShoppingRoute: typeof ShoppingRoute
   VisitsRoute: typeof VisitsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/shopping': {
+      id: '/shopping'
+      path: '/shopping'
+      fullPath: '/shopping'
+      preLoaderRoute: typeof ShoppingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visits': {
       id: '/visits'
       path: '/visits'
@@ -287,6 +307,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsRoute: ProjectsRoute,
   ReceiptsRoute: ReceiptsRoute,
   ScheduleRoute: ScheduleRoute,
+  ShoppingRoute: ShoppingRoute,
   VisitsRoute: VisitsRoute,
 }
 export const routeTree = rootRouteImport

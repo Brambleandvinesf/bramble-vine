@@ -247,6 +247,11 @@ export function hqScreenFor(subStep: string): "/schedule" | "/confirm" | "/loadi
   return "/schedule"; // team_assign, dailyload_confirm
 }
 
+/** Ask the provider for a fresh getDayState immediately (e.g. after addStop). */
+export function useDayStateRefresh(): () => void {
+  return useContext(DayStateCtx).refresh;
+}
+
 export function useServerOffsetMs(): number {
   return useContext(DayStateCtx).serverOffsetMs;
 }

@@ -481,6 +481,31 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   SPINE_RESERVE_CSS is now a CSS variable (--bv-spine-reserve) the
   spine keeps current (full-size fallback pre-mount); every existing
   consumer inherits the right reserve automatically.
+- 8/2 (U+V+W, v7.4.17 @148):
+  U (fulfils parked E) — shared Shopping List: 'Shopping List' tab,
+  /shopping route in the 3-dot menu for EVERY role (no gating).
+  Adding reuses the exact Projects ADD ITEM flow (ItemPicker: Product
+  Master search, "+ Custom" free text, qty/size/notes). Toggle-done =
+  tap circle (strikethrough), × removes; done rows stay until removed.
+  Vendor suggestions: when the route's current stop is a vendor,
+  getShopping?vendor= returns one-tap chips — canonical Product Master
+  names whose Vendor Prices rows trace to that vendor, newest first,
+  minus what's already listed.
+  V — "+" on every spine connecting line (stops-mode only) opens Add
+  Stop: destination autocomplete from Vendors tab + FREQUENT_DESTS
+  Script Property (pills; "Add to Frequented Destinations" checkbox at
+  confirm). addStop creates the calendar event with start = midpoint of
+  its neighbours' starts (time order IS stop order), busts DAY_STOPS,
+  and keeps ROUTE_STATE honest: insert AT the current index during
+  transit retargets the route at the new stop (client+eventId); insert
+  before a reached stop bumps stopIndex. ADD_STOP_MIN property = event
+  duration (default 30).
+  W — the dashed en-route line is now a tap target (invisible 28px hit
+  line over it) navigating to /field, restoring the path back to Start
+  Visit / No Show that M1's sub-node removal lost. Line visuals and
+  animation untouched (M5 guardrail held).
+  NOTE: routeTree.gen.ts was extended by hand for /shopping — Lovable's
+  next build regenerates it identically once it sees the route file.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

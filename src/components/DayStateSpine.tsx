@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import { useDayState, type DayPhase } from "../lib/day-state";
+import { useDayState, useDayStateRefresh, type DayPhase } from "../lib/day-state";
 import { useAuth, type Role } from "../lib/auth";
 import { canSee } from "../lib/permissions";
+import { SCRIPT_URL } from "../routes/confirm";
 
 const LIME = "#7cff00";
 const LIME_DIM = "#2f5f10";
@@ -185,11 +186,14 @@ function circleStyle(size: number, status: Status, interactive: boolean): React.
 
 export function DayStateSpine() {
   const state = useDayState();
+  const refreshDayState = useDayStateRefresh();
   const router = useRouter();
   const { role } = useAuth();
   const canAssignTeams = role === "office" || role === "lead" || role === "management";
 
   const [collapsed, setCollapsed] = useState(false);
+  // V (8/2): which segment's "+" was tapped — event index the new stop takes.
+  const [addStopAt, setAddStopAt] = useState<number | null>(null);
   const [nudge, setNudge] = useState(0);
   const [nudging, setNudging] = useState(false);
   const lastKeyRef = useRef<string>("");
@@ -659,6 +663,19 @@ export function DayStateSpine() {
                           strokeWidth={2}
                           filter="url(#bvLimeGlow)"
                         />
+                        {/* W (8/2): invisible tap target restoring the lost
+                            path back to Start Visit / No Show — visuals and
+                            animation above are untouched (M5 guardrail). */}
+                        <line
+                          x1={a.cx + r}
+                          x2={b.cx - r}
+                          y1={a.cy}
+                          y2={b.cy}
+                          stroke="transparent"
+                          strokeWidth={28}
+                          style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                          onClick={() => void router.navigate({ to: "/field" })}
+                        />
                         <text
                           x={midX}
                           y={a.cy - 6}
@@ -914,8 +931,318 @@ export function DayStateSpine() {
                 );
               })}
           </div>
+
+            {/* V (8/2): "+" on every connecting line — insert a stop between
+                these two anchors. Only in stops-mode (real per-stop anchors)
+                and only for signed-in roles that run the day. */}
+            {stopAnchors &&
+              geom &&
+              geom.anchors.slice(0, -1).map((a, i) => {
+                const b = geom.anchors[i + 1];
+                if (!a.cx || !b.cx) return null;
+                const midX = (a.cx + b.cx) / 2;
+                return (
+                  <button
+                    key={`add-${i}`}
+                    type="button"
+                    aria-label="Add stop here"
+                    onClick={() => setAddStopAt(i)}
+                    style={{
+                      position: "absolute",
+                      left: midX - 11,
+                      top: a.cy + 8,
+                      width: 22,
+                      height: 22,
+                      borderRadius: 999,
+                      background: BG,
+                      border: `1px solid ${LIME_DIM}`,
+                      color: LIME,
+                      fontSize: 14,
+                      lineHeight: "20px",
+                      textAlign: "center",
+                      padding: 0,
+                      cursor: "pointer",
+                      zIndex: 3,
+                    }}
+                  >
+                    +
+                  </button>
+                );
+              })}
         </div>
       </div>
+
+      {addStopAt !== null && (
+        <AddStopSheet
+          insertAt={addStopAt}
+          onClose={() => setAddStopAt(null)}
+          onAdded={() => {
+            setAddStopAt(null);
+            refreshDayState();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/* ---------- V (8/2): Add Stop flow ---------- */
+
+type DestSuggest = { label: string; address: string };
+
+function AddStopSheet({
+  insertAt,
+  onClose,
+  onAdded,
+}: {
+  insertAt: number;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [vendors, setVendors] = useState<DestSuggest[]>([]);
+  const [frequent, setFrequent] = useState<DestSuggest[]>([]);
+  const [picked, setPicked] = useState<DestSuggest | null>(null);
+  const [saveFrequent, setSaveFrequent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getStopSuggest`);
+        const json = (await res.json()) as { vendors?: DestSuggest[]; frequent?: DestSuggest[] };
+        if (cancelled) return;
+        setVendors(json.vendors ?? []);
+        setFrequent(json.frequent ?? []);
+      } catch { /* suggestions are optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? [...frequent, ...vendors].filter(
+        (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
+      ).slice(0, 8)
+    : [];
+
+  const confirm = async () => {
+    const title = (picked?.label ?? query).trim();
+    if (!title || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "addStop",
+          title,
+          address: picked?.address ?? "",
+          insertAt,
+          saveFrequent,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        setErr(json.error ?? "Add stop failed — retry.");
+        return;
+      }
+      onAdded();
+    } catch {
+      setErr("Add stop failed — retry.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chip: React.CSSProperties = {
+    background: "transparent",
+    color: LIME,
+    border: `1px solid ${LIME_DIM}`,
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontFamily: "inherit",
+    fontSize: 12,
+    cursor: "pointer",
+    maxWidth: "100%",
+    textAlign: "left",
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.8)",
+        zIndex: 300,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: BG,
+          borderTop: "1px solid #2a2a2a",
+          borderRadius: "12px 12px 0 0",
+          width: "100%",
+          maxWidth: 560,
+          padding: "16px 14px calc(20px + env(safe-area-inset-bottom, 0px))",
+          fontFamily: "'Courier New', Courier, monospace",
+          color: "#e8e8e8",
+        }}
+      >
+        <div style={{ color: LIME, fontSize: 13, letterSpacing: 2, fontWeight: "bold" }}>
+          ADD STOP
+        </div>
+        <div style={{ color: DIM_TEXT, fontSize: 11, marginTop: 4 }}>
+          Inserted into today's route right where you tapped.
+        </div>
+
+        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 4px" }}>
+          DESTINATION
+        </div>
+        <input
+          autoFocus
+          value={picked ? picked.label : query}
+          onChange={(e) => {
+            setPicked(null);
+            setQuery(e.target.value);
+          }}
+          placeholder="Vendor, client, or place…"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: BG,
+            color: "#e8e8e8",
+            border: `1px solid ${picked ? LIME : "#2a2a2a"}`,
+            borderRadius: 6,
+            padding: "10px 10px",
+            fontFamily: "inherit",
+            fontSize: 14,
+          }}
+        />
+
+        {!picked && matches.length > 0 && (
+          <div style={{ marginTop: 6, border: "1px solid #2a2a2a", borderRadius: 6, overflow: "hidden" }}>
+            {matches.map((d, i) => (
+              <button
+                key={`${d.label}-${i}`}
+                type="button"
+                onClick={() => setPicked(d)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "10px 12px",
+                  background: "transparent",
+                  color: "#e8e8e8",
+                  border: "none",
+                  borderBottom: "1px solid #1d1d1d",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                {d.label}
+                {d.address && (
+                  <span style={{ display: "block", color: "#8f8f8f", fontSize: 11, marginTop: 2 }}>
+                    {d.address}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!picked && !q && frequent.length > 0 && (
+          <>
+            <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "12px 0 6px" }}>
+              FREQUENTED
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {frequent.slice(0, 8).map((d, i) => (
+                <button key={`f-${i}`} type="button" style={chip} onClick={() => setPicked(d)}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {picked?.address && (
+          <div style={{ color: "#8f8f8f", fontSize: 11, marginTop: 8 }}>{picked.address}</div>
+        )}
+
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 14,
+            color: "#8f8f8f",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={saveFrequent}
+            onChange={(e) => setSaveFrequent(e.target.checked)}
+          />
+          Add to Frequented Destinations
+        </label>
+
+        {err && <div style={{ color: "#ff5555", fontSize: 12, marginTop: 8 }}>{err}</div>}
+
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          <button
+            type="button"
+            onClick={() => void confirm()}
+            disabled={busy || !(picked?.label ?? query).trim()}
+            style={{
+              flex: 1,
+              minHeight: 48,
+              background: LIME,
+              color: BG,
+              border: "none",
+              borderRadius: 6,
+              fontFamily: "inherit",
+              fontSize: 13,
+              letterSpacing: 2,
+              fontWeight: "bold",
+              cursor: "pointer",
+              opacity: busy || !(picked?.label ?? query).trim() ? 0.5 : 1,
+            }}
+          >
+            {busy ? "ADDING…" : "CONFIRM ADD STOP"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              minHeight: 48,
+              background: "transparent",
+              color: LIME,
+              border: `1px solid ${LIME_DIM}`,
+              borderRadius: 6,
+              padding: "0 14px",
+              fontFamily: "inherit",
+              fontSize: 13,
+              letterSpacing: 2,
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
+          >
+            CANCEL
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

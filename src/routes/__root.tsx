@@ -21,6 +21,7 @@ import {
   Folder,
   Receipt,
   Shield,
+  ShoppingCart,
   MoreVertical,
   Maximize2,
   Minimize2,
@@ -351,6 +352,7 @@ const TABS: Record<string, TabDef> = {
   messages: { to: "/messages", label: "MESSAGES",      icon: MessageSquare },
   projects: { to: "/projects", label: "PROJECTS",      icon: Folder },
   receipts: { to: "/receipts", label: "RECEIPTS",      icon: Receipt },
+  shopping: { to: "/shopping", label: "SHOPPING LIST", icon: ShoppingCart },
   admin:    { to: "/admin",    label: "ADMIN",         icon: Shield },
 };
 
@@ -359,11 +361,12 @@ import type { Role } from "../lib/auth";
 // Per-role bottom-bar layouts. `row` = icon-only tabs. `more` = items shown
 // inside the ⋯ popover (rendered as second-to-last slot when non-empty).
 // Messages is always last.
+// Shopping List is visible to EVERY role (U, 8/2) — a shared list, no gating.
 const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
-  lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts"] },
-  assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts"] },
-  office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts"] },
-  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","admin"] },
+  lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts","shopping"] },
+  assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts","shopping"] },
+  office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts","shopping"] },
+  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","shopping","admin"] },
 };
 
 const LIME_TAB = "#7cff00";
