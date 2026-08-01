@@ -296,13 +296,17 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   now auto-close the vacuous special gate on YES). OPEN QUESTION: review
   step still completes via the explicit confirm button in /confirm, not
   by viewing — Brandon may want view-only unlock.
-- 8/1: Vendors tab seeded (v7.4.11 @142) — 25 vendors compiled from Tax
+- 8/1: Vendors tab seeded (v7.4.11 @142) — 34 rows compiled from Tax
   Exempt Vendors + Vendor Prices sheets + receipt history, deduped with
   aliases (receipt vendor strings are inconsistent: Lowe's/Lowes etc.),
-  web-searched addresses (verified vs unverified flagged per row — 6
-  unverified need Brandon's confirmation: Home Depot Colma-vs-Daly-City,
-  Pini branch, PetSmart, Michaels, Rudy's, Bongards identity). Read via
-  getVendors; reseed via guarded seedVendors. NOTE: the two legacy
+  web-searched addresses. RULE (Brandon 8/1): a vendor with multiple
+  local addresses gets ONE ROW PER ADDRESS, named "Vendor - Locality"
+  (e.g. "The Home Depot - Colma"); aliases are duplicated across the
+  rows so receipt-name matching hits any of them. Split this way: Devil
+  Mountain (4), Sloat (3), Heritage (3), Home Depot (2), Pini (2).
+  Still unverified, need Brandon: PetSmart + Michaels assumed store,
+  Rudy's + Bongards identity. Read via getVendors; reseed via guarded
+  seedVendors. NOTE: the two legacy
   vendor sheets remain untouched; the old 2023 'Tax Exempt Vendors' file
   is a stale duplicate (recommend archiving). SECURITY: the current Tax
   Exempt Vendors sheet stores plaintext account passwords — recommended
