@@ -276,6 +276,20 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   Script Project Settings → Script Properties; live without redeploy) —
   until set, the button errors cleanly and everything else works. This is
   the standing mechanism for keeping item names accurate going forward.
+- 7/31 (evening): CRITICAL FIND — textClient/textEta had sent NOTHING since
+  v7.3.8 (7/27): the AF check landed as a mis-chained else-if matching every
+  valid kind, making the send block unreachable while the API answered
+  ok:true. Proven live: a nonexistent client returned bare ok:true instead
+  of "client not found". Fixed in v7.4.10 (@141): AF is now a proper guard;
+  sends are live again with the existing per-day TEXT_SENT dedupe. AF="No"
+  suppresses ALL kinds (eta/arrived/done) server-side; blank = send.
+  getField gains skipTextClients so /loading and the assistant gate label
+  the depart button "NAVIGATE" (vs "NAVIGATE AND TEXT ETA") for opted-out
+  first stops; an inconspicuous "navigate without texting" link departs
+  without the ETA text for anyone else. Arrival ("START VISIT & SWITCH")
+  and departure ("VISIT COMPLETE") buttons needed no rewiring — they
+  resolve the current stop via ROUTE_STATE and were already gated
+  client-side; the server-side guard now backs them.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

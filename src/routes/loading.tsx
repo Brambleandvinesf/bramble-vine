@@ -75,6 +75,8 @@ type GetFieldResponse = {
   route?: FieldRoute;
   events?: FieldEvent[];
   clients?: string[];
+  /** Clients whose Client Info AF says "No" — never auto-text them. */
+  skipTextClients?: string[];
 };
 
 const FIELD_CK = "loading:getField";
@@ -283,19 +285,25 @@ function LoadingPage() {
     return { total, done };
   }, [items]);
 
+  // The first stop's client and whether Client Info AF opts them out of
+  // auto-texts. Drives the depart button's label — dayState's
+  // skipSameDayTexts can't, because the route has no current client yet.
+  const firstStop = (field?.events ?? [])[0];
+  const firstStopClient = firstStop ? matchClient(firstStop.title, field?.clients ?? []) : null;
+  const firstStopSkipsText =
+    !!firstStopClient && (field?.skipTextClients ?? []).includes(firstStopClient);
+
   // Departure is an explicit, shared act: flips the route to enroute stop 0
-  // (every device's poll advances to the first-visit screen), texts the ETA,
-  // and opens turn-by-turn on this device.
-  const departNow = async () => {
+  // (every device's poll advances to the first-visit screen), texts the ETA
+  // (unless the client opted out via AF, or the quiet button was used), and
+  // opens turn-by-turn on this device.
+  const departNow = async (withText: boolean) => {
     if (departing) return;
-    const events = field?.events ?? [];
-    const clientList = field?.clients ?? [];
-    const first = events[0];
+    const first = firstStop;
     if (!first) {
       toast.error("No first stop on today's calendar");
       return;
     }
-    const firstClient = matchClient(first.title, clientList);
     const address = first.location ?? "";
     // Opened synchronously, before any await — popup blockers eat it otherwise.
     if (address) {
@@ -312,19 +320,21 @@ function LoadingPage() {
         action: "setRoute",
         state: "enroute",
         stopIndex: 0,
-        client: firstClient,
+        client: firstStopClient,
         eventId: first.id,
       });
       if (!r.ok) {
         toast.error(r.error || "Couldn't start the route — retry");
         return;
       }
-      const t = await postScript({ action: "textEta" });
-      const raw = (t.raw ?? {}) as { ok?: boolean; to?: string; error?: string; alreadySent?: boolean; skipped?: boolean };
-      if (t.ok && raw.ok !== false) {
-        if (!raw.skipped) toast.success(raw.alreadySent ? "ETA already sent today" : `ETA sent to ${raw.to ?? "client"}`);
-      } else {
-        toast.error(raw.error || t.error || "ETA text failed");
+      if (withText) {
+        const t = await postScript({ action: "textEta" });
+        const raw = (t.raw ?? {}) as { ok?: boolean; to?: string; error?: string; alreadySent?: boolean; skipped?: boolean };
+        if (t.ok && raw.ok !== false) {
+          if (!raw.skipped) toast.success(raw.alreadySent ? "ETA already sent today" : `ETA sent to ${raw.to ?? "client"}`);
+        } else {
+          toast.error(raw.error || t.error || "ETA text failed");
+        }
       }
       void navigate({ to: "/field" });
     } finally {
@@ -591,7 +601,7 @@ function LoadingPage() {
                 <button
                   type="button"
                   disabled={departing}
-                  onClick={() => void departNow()}
+                  onClick={() => void departNow(!firstStopSkipsText)}
                   style={{
                     ...LOADING_COMPLETE_BTN,
                     marginTop: 10,
@@ -599,8 +609,33 @@ function LoadingPage() {
                     boxShadow: "0 0 22px rgba(124,255,0,.25)",
                   }}
                 >
-                  {departing ? "DEPARTING…" : "NAVIGATE AND TEXT ETA"}
+                  {departing
+                    ? "DEPARTING…"
+                    : firstStopSkipsText
+                      ? "NAVIGATE"
+                      : "NAVIGATE AND TEXT ETA"}
                 </button>
+                {!firstStopSkipsText && (
+                  <button
+                    type="button"
+                    disabled={departing}
+                    onClick={() => void departNow(false)}
+                    style={{
+                      display: "block",
+                      margin: "8px auto 0",
+                      background: "transparent",
+                      border: "none",
+                      color: MUTED,
+                      fontFamily: "inherit",
+                      fontSize: 11,
+                      letterSpacing: 1,
+                      textDecoration: "underline",
+                      cursor: "pointer",
+                    }}
+                  >
+                    navigate without texting
+                  </button>
+                )}
               </>
             )}
           </div>

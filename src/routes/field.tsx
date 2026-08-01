@@ -103,6 +103,8 @@ type GetFieldResponse = {
   projects?: ProjectRow[];
   tools?: ToolRowRaw[];
   clients?: string[];
+  /** Clients whose Client Info AF says "No" — never auto-text them. */
+  skipTextClients?: string[];
   visitNotes?: VisitNote[];
   serverTime?: string;
 };
@@ -803,13 +805,17 @@ function FieldBody({
     if (r.ok) setLocalLoadDone(true);
     else setBanner({ kind: "err", text: "Couldn't mark complete — retry." });
   };
-  const assistantDepart = async () => {
+  // First stop's AF preference — the depart label needs it before the route
+  // has a current client (dayState.skipSameDayTexts can't cover this yet).
+  const firstStopClient = events[0] ? matchClient(events[0].title, clients) : null;
+  const firstStopSkipsText =
+    !!firstStopClient && (data.skipTextClients ?? []).includes(firstStopClient);
+  const assistantDepart = async (withText: boolean) => {
     const first = events[0];
     if (!first) {
       setBanner({ kind: "err", text: "No first stop on today's calendar." });
       return;
     }
-    const firstClient = matchClient(first.title, clients);
     const address = first.location ?? "";
     // Opened synchronously, before any await — popup blockers eat it otherwise.
     if (address) {
@@ -822,9 +828,9 @@ function FieldBody({
     }
     const r = await send({
       action: "setRoute", state: "enroute", stopIndex: 0,
-      client: firstClient, eventId: first.id,
+      client: firstStopClient, eventId: first.id,
     });
-    if (r.ok) void send({ action: "textEta" }, { silent: true });
+    if (r.ok && withText) void send({ action: "textEta" }, { silent: true });
   };
 
   /* --- hooks that must run every render (moved above early returns) --- */
@@ -1051,8 +1057,9 @@ function FieldBody({
                 loadingDone={sharedLoadingDone}
                 departed={liveState !== ""}
                 busy={busy}
+                skipText={firstStopSkipsText}
                 onComplete={() => void assistantComplete()}
-                onDepart={() => void assistantDepart()}
+                onDepart={(withText) => void assistantDepart(withText)}
               />
             ) : (
               <StateArrived
@@ -1797,6 +1804,7 @@ function AssistantLoadingGate({
   loadingDone,
   departed,
   busy,
+  skipText,
   onComplete,
   onDepart,
 }: {
@@ -1809,8 +1817,10 @@ function AssistantLoadingGate({
   loadingDone: boolean;
   departed: boolean;
   busy: boolean;
+  /** First stop's client has AF="No" — depart without any auto-text. */
+  skipText: boolean;
   onComplete: () => void;
-  onDepart: () => void;
+  onDepart: (withText: boolean) => void;
 }) {
   const grouped = useMemo(() => {
     const by = new Map<string, LoadingItem[]>();
@@ -1969,12 +1979,32 @@ function AssistantLoadingGate({
                 LOADING COMPLETE ✓
               </button>
               <button
-                onClick={onDepart}
+                onClick={() => onDepart(!skipText)}
                 disabled={busy}
                 style={{ ...PRIMARY_BTN, marginTop: 10, opacity: busy ? 0.6 : 1 }}
               >
-                NAVIGATE AND TEXT ETA
+                {skipText ? "NAVIGATE" : "NAVIGATE AND TEXT ETA"}
               </button>
+              {!skipText && (
+                <button
+                  onClick={() => onDepart(false)}
+                  disabled={busy}
+                  style={{
+                    display: "block",
+                    margin: "8px auto 0",
+                    background: "transparent",
+                    border: "none",
+                    color: MUTED,
+                    fontFamily: "inherit",
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                  }}
+                >
+                  navigate without texting
+                </button>
+              )}
             </>
           )}
         </div>
