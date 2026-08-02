@@ -65,6 +65,23 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   can miss the new event. Anything that creates an event and then rebuilds
   a cached view must SEED the cache with the expected result, never just
   bust it (Y2 lesson, 8/2 — the busted cache got refilled stale for 60s).
+- OPTIMISTIC-WRITE RULE (VV, 8/2 — same weight as SPINE_RESERVE_CSS).
+  Every interactive element that updates the UI before the server has
+  confirmed MUST ship with one of these, DECIDED WHEN IT IS BUILT, never
+  discovered later when a poll silently reverts it:
+    (a) seed the poll's cache with the expected post-write result
+        (addStop/DAY_STOPS does this), OR
+    (b) suppress/skip the next poll cycle for a beat after the write, OR
+    (c) merge poll results NON-DESTRUCTIVELY — pin the local value until
+        the server echoes it, with a TTL (loading.tsx applyPending, and
+        lib/optimistic.ts useOptimistic, do this).
+  A blind `setState(fromServer)` in a polling loop is the bug. This class
+  has now bitten three times: Y2 (add-stop anchor), the special-confirm
+  90s override, and VV (loading checkboxes). Check it EVERY time a new
+  toggle/checkbox/confirm is added — do not wait for a live-test report.
+  Corollary from VV: also confirm the write is actually SENT. VV's real
+  cause was an early `return` that skipped the POST entirely, so no
+  amount of poll-merging would have saved it.
 - Fixed footers must use bottom: SPINE_RESERVE_CSS (DayStateSpine export),
   NEVER a raw pixel value — the spine paints over anything parked lower
   (this exact bug hid the review confirm button twice).
@@ -221,6 +238,13 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## OPEN ITEMS
+- TODO (UU, 8/2): the permission allowlist in ~/.claude/settings.json was
+  deliberately widened to Bash(*) plus browser-pane and Calendar MCP
+  writes, so build progress doesn't stall waiting for Brandon to click a
+  prompt. Tighten this back down once the rebuild is done and the app is
+  in steady daily use. Does NOT affect two habits that continue
+  regardless: behavioral verification before reporting done, and pausing
+  in chat for Brandon's go-ahead before any deploy.
 - Root-cause the WS604s preset wipe (bridge re-asserts as mitigation).
 - Verify git-pushed assets survive the next Lovable sync (icons on main).
 - MacroDroid webhook URLs pending; Zello downgrade to free planned.

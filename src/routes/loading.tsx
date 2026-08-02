@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
@@ -155,6 +155,30 @@ function normalize(d: GetDataResponse): ToolRow[] {
     );
 }
 
+/** VV (8/2): how long a locally-toggled row stays pinned over poll data
+ *  before we assume the write is lost and let the server win again. */
+const PENDING_TTL_MS = 25_000;
+type PendingLoad = Map<number, { value: boolean; at: number }>;
+
+/**
+ * Lay un-acknowledged local toggles over a fresh server read instead of
+ * letting the read blind-overwrite them (VV). An entry retires as soon as
+ * the server reports the same value — or after the TTL, so a write that
+ * never landed can't pin a wrong tick on screen forever.
+ */
+function applyPending(rows: ToolRow[], pending: PendingLoad): ToolRow[] {
+  if (pending.size === 0) return rows;
+  const now = Date.now();
+  const out = rows.map((it) => {
+    const p = pending.get(it.row);
+    if (!p) return it;
+    if (it.loaded === p.value) { pending.delete(it.row); return it; }   // server caught up
+    if (now - p.at > PENDING_TTL_MS) { pending.delete(it.row); return it; }
+    return { ...it, loaded: p.value };
+  });
+  return out;
+}
+
 function LoadingPage() {
   const { role } = useAuth();
   const { effectiveRole } = useViewAs();
@@ -182,6 +206,8 @@ function LoadingPage() {
   const [completing, setCompleting] = useState(false);
   // Survives the remounts that poll-driven navigation causes; without this a
   // spine yank threw away every per-client confirmation tap.
+  // VV (8/2): rows toggled locally and not yet echoed back by the server.
+  const pendingRef = useRef<PendingLoad>(new Map());
   // RR2 (8/2): rows whose client/project context the user tapped open.
   const [expandedItems, setExpandedItems] = useState<Set<number>>(() => new Set());
   const [confirmedClients, setConfirmedClients] = useState<Record<string, boolean>>(() => {
@@ -202,6 +228,9 @@ function LoadingPage() {
   const [departing, setDeparting] = useState(false);
   const dayState = useDayState();
   const loadingDone = localDone || dayState?.flags?.loadingDone === true;
+  // TT.3: read inside the stable `toggle` callback without re-creating it.
+  const loadingDoneRef = useRef(loadingDone);
+  loadingDoneRef.current = loadingDone;
 
 
 
@@ -217,7 +246,7 @@ function LoadingPage() {
         if (cancelled) return;
         sessionCache.set(CK, json);
         setConfirm(json.confirm ?? null);
-        setItems(normalize(json));
+        setItems(applyPending(normalize(json), pendingRef.current));
         setLoadErr(null);
         setOffline(false);
       } catch (e) {
@@ -257,6 +286,9 @@ function LoadingPage() {
   }, []);
 
   const toggle = useCallback(async (row: number) => {
+    /* TT.3 (8/2): once LOADING COMPLETE is pressed the checklist is
+       frozen on every device — the day has moved on to departing. */
+    if (loadingDoneRef.current) return;
     let prev = false;
     let materialId = "";
     setItems((cur) => {
@@ -268,15 +300,25 @@ function LoadingPage() {
         return { ...it, loaded: !it.loaded };
       });
     });
-    if (!materialId) return;
+    const next = !prev;
+    /* VV (8/2): pin this row until the SERVER agrees. Without it the 10s
+       poll blind-overwrites the tick with whatever the sheet last said. */
+    pendingRef.current.set(row, { value: next, at: Date.now() });
+    /* VV: there used to be an `if (!materialId) return;` here — a row with
+       no Material ID updated locally and NEVER POSTED, so the poll wiped
+       it seconds later. That is the whole reported bug. setLoaded has
+       always accepted a row fallback, so send the write either way. */
     try {
-      await fetch(SCRIPT_URL, {
+      const res = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "setLoaded", materialId, row, loaded: !prev }),
+        body: JSON.stringify({ action: "setLoaded", materialId, row, loaded: next }),
       });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) throw new Error(json.error || "save failed");
       setWriteErr(null);
     } catch (e) {
+      pendingRef.current.delete(row);          // the write didn't land
       setItems((cur) =>
         cur ? cur.map((it) => (it.row === row ? { ...it, loaded: prev } : it)) : cur,
       );
@@ -564,17 +606,10 @@ function LoadingPage() {
                     </div>
                   );
                 })()}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFlashClient(client);
-                    window.setTimeout(() => setFlashClient(null), 320);
-                    setConfirmedClients((s) => ({ ...s, [client]: true }));
-                  }}
-                  style={CONFIRM_CLIENT_BTN}
-                >
-                  CONFIRM {client.toUpperCase()}
-                </button>
+                {/* TT.1 (8/2): the per-client "CONFIRM {client}" button was a
+                    leak from the /confirm screen — Load Vehicle is a
+                    checklist with exactly ONE button (LOADING COMPLETE),
+                    so it is gone rather than hidden. */}
               </section>
             );
           })}
@@ -584,20 +619,17 @@ function LoadingPage() {
         </>
       )}
       {confirm?.confirmed && (() => {
-        const clientList = Object.keys(grouped);
-        // An empty checklist is a completable day, not a locked one — the old
-        // length>0 guard stranded a dead "CONFIRM 0 MORE CLIENTS" button on
-        // daily-load-only days.
-        const allConfirmed = clientList.every((c) => confirmedClients[c]);
-        const remaining = clientList.filter((c) => !confirmedClients[c]).length;
+        /* TT.2 (8/2): one button for the whole checklist, pressable by any
+           crew member — no per-client gate. loadingComplete is shared
+           state, so every device sees it and the button goes dark. */
         return (
           <div style={LOADING_COMPLETE_WRAP}>
             {!loadingDone ? (
               <button
                 type="button"
-                disabled={completing || !allConfirmed}
+                disabled={completing}
                 onClick={async () => {
-                  if (!allConfirmed || completing) return;
+                  if (completing) return;
                   setCompleting(true);
                   try {
                     const res = await fetch(SCRIPT_URL, {
@@ -621,16 +653,12 @@ function LoadingPage() {
                 }}
                 style={{
                   ...LOADING_COMPLETE_BTN,
-                  opacity: completing || !allConfirmed ? 0.4 : 1,
-                  cursor: completing || !allConfirmed ? "not-allowed" : "pointer",
-                  boxShadow: allConfirmed ? "0 0 22px rgba(124,255,0,.25)" : "none",
+                  opacity: completing ? 0.4 : 1,
+                  cursor: completing ? "not-allowed" : "pointer",
+                  boxShadow: "0 0 22px rgba(124,255,0,.25)",
                 }}
               >
-                {completing
-                  ? "SAVING…"
-                  : allConfirmed
-                    ? "LOADING COMPLETE"
-                    : `CONFIRM ${remaining} MORE CLIENT${remaining === 1 ? "" : "S"}`}
+                {completing ? "SAVING…" : "LOADING COMPLETE"}
               </button>
             ) : (
               <>
@@ -655,30 +683,32 @@ function LoadingPage() {
                   {departing
                     ? "DEPARTING…"
                     : firstStopSkipsText
-                      ? "NAVIGATE (NO TEXT)"
-                      : "NAVIGATE & SEND TEXT"}
+                      ? `NAVIGATE TO ${(firstStopClient ?? "NEXT STOP").toUpperCase()} (NO TEXT)`
+                      : `NAVIGATE TO ${(firstStopClient ?? "NEXT STOP").toUpperCase()} AND SEND ETA`}
                 </button>
-                {!firstStopSkipsText && (
-                  <button
-                    type="button"
-                    disabled={departing}
-                    onClick={() => void departNow(false)}
-                    style={{
-                      display: "block",
-                      margin: "8px auto 0",
-                      background: "transparent",
-                      border: "none",
-                      color: MUTED,
-                      fontFamily: "inherit",
-                      fontSize: 11,
-                      letterSpacing: 1,
-                      textDecoration: "underline",
-                      cursor: "pointer",
-                    }}
-                  >
-                    navigate without texting
-                  </button>
-                )}
+                {/* TT.3 (8/2): ALWAYS offered, whatever N's automatic AF
+                    check concluded. Deliberate manual override — the S bug
+                    hid 17 clients' opt-outs for months, so the crew keeps a
+                    way to force no-text even if detection is wrong. */}
+                <button
+                  type="button"
+                  disabled={departing}
+                  onClick={() => void departNow(false)}
+                  style={{
+                    display: "block",
+                    margin: "8px auto 0",
+                    background: "transparent",
+                    border: "none",
+                    color: MUTED,
+                    fontFamily: "inherit",
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                  }}
+                >
+                  navigate without texting
+                </button>
               </>
             )}
           </div>
