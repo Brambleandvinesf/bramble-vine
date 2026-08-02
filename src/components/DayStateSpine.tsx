@@ -193,7 +193,9 @@ export function DayStateSpine() {
 
   const [collapsed, setCollapsed] = useState(false);
   // V (8/2): which segment's "+" was tapped — event index the new stop takes.
-  const [addStopAt, setAddStopAt] = useState<number | null>(null);
+  // CC (8/2): activeLine marks a tap on the segment the crew is DRIVING right
+  // now; only that case offers "ADD STOP AND CHANGE COURSE" (explicit retarget).
+  const [addStopAt, setAddStopAt] = useState<{ insertAt: number; activeLine: boolean } | null>(null);
   const [nudge, setNudge] = useState(0);
   const [nudging, setNudging] = useState(false);
   const lastKeyRef = useRef<string>("");
@@ -958,7 +960,9 @@ export function DayStateSpine() {
                     key={`add-${i}`}
                     type="button"
                     aria-label="Add stop here"
-                    onClick={() => setAddStopAt(i)}
+                    onClick={() =>
+                      setAddStopAt({ insertAt: i, activeLine: inTransit && i === activeIdx - 1 })
+                    }
                     style={{
                       position: "absolute",
                       left: midX - 11,
@@ -986,7 +990,8 @@ export function DayStateSpine() {
 
       {addStopAt !== null && (
         <AddStopSheet
-          insertAt={addStopAt}
+          insertAt={addStopAt.insertAt}
+          activeLine={addStopAt.activeLine}
           onClose={() => setAddStopAt(null)}
           onAdded={() => {
             setAddStopAt(null);
@@ -1004,10 +1009,13 @@ type DestSuggest = { label: string; address: string };
 
 function AddStopSheet({
   insertAt,
+  activeLine,
   onClose,
   onAdded,
 }: {
   insertAt: number;
+  /** CC (8/2): "+" was pressed on the line the crew is driving right now. */
+  activeLine: boolean;
   onClose: () => void;
   onAdded: () => void;
 }) {
@@ -1055,6 +1063,9 @@ function AddStopSheet({
           address: picked?.address ?? "",
           insertAt,
           saveFrequent,
+          /* CC (8/2): retargeting the destination is explicit — only the
+             CHANGE COURSE button (active line) ever sends this. */
+          changeCourse: activeLine,
         }),
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -1110,10 +1121,12 @@ function AddStopSheet({
         }}
       >
         <div style={{ color: LIME, fontSize: 13, letterSpacing: 2, fontWeight: "bold" }}>
-          ADD STOP
+          {activeLine ? "ADD STOP — CHANGE COURSE" : "ADD STOP"}
         </div>
         <div style={{ color: DIM_TEXT, fontSize: 11, marginTop: 4 }}>
-          Inserted into today's route right where you tapped.
+          {activeLine
+            ? "You're driving this leg right now — the new stop becomes your next destination."
+            : "Inserted into today's route right where you tapped."}
         </div>
 
         <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 4px" }}>
@@ -1232,7 +1245,7 @@ function AddStopSheet({
               opacity: busy || !(picked?.label ?? query).trim() ? 0.5 : 1,
             }}
           >
-            {busy ? "ADDING…" : "CONFIRM ADD STOP"}
+            {busy ? "ADDING…" : activeLine ? "ADD STOP AND CHANGE COURSE" : "CONFIRM ADD STOP"}
           </button>
           <button
             type="button"

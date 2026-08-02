@@ -1168,7 +1168,10 @@ function FieldBody({
           events={events}
           roster={roster}
           isLead={isLead}
-          anyoneWorked={roster.some((m) => !!m.in)}
+          /* DD (8/2): the sequence gates on the ROUTE having departed, not on
+             clock-ins — "nobody left HQ" is a route fact. A crew that drove
+             the day with no clock entries still arrives and unloads. */
+          departed={(route.state ?? "") !== ""}
           atHq={state === "done"}
           unloaded={!!route.unloaded}
           isPreview={isPreview}
@@ -4133,7 +4136,7 @@ function RouteComplete({
   events,
   roster,
   isLead,
-  anyoneWorked,
+  departed,
   atHq,
   unloaded,
   isPreview,
@@ -4147,8 +4150,8 @@ function RouteComplete({
   events: EventItem[];
   roster: RosterMember[];
   isLead: boolean;
-  /** Someone actually clocked in today — the HQ sequence only exists then (BB5). */
-  anyoneWorked: boolean;
+  /** The route actually left HQ today — the sequence only exists then (BB5/DD). */
+  departed: boolean;
   /** ARRIVED AT HQ pressed (route state 'done'). */
   atHq: boolean;
   /** FINISHED UNLOADING pressed. */
@@ -4163,9 +4166,11 @@ function RouteComplete({
   busy: boolean;
 }) {
   const totalHours = roster.reduce((a, m) => a + hoursBetween(m.in, m.out), 0);
-  // Preview renders every stage's controls read-only; a real no-clock day
-  // skips the sequence — nobody left HQ, so there is no arrival to record.
-  const sequence = anyoneWorked || isPreview;
+  // Preview renders every stage's controls read-only; a day where the route
+  // never departed skips the sequence — nobody left, nothing arrives (BB5).
+  // DD (8/2): this was gated on clock-ins, which wrongly hid ARRIVED AT HQ
+  // on a driven day with an empty clock — departure is the real signal.
+  const sequence = departed || isPreview;
   const note = (text: string) => (
     <div
       style={{

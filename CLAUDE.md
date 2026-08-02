@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.19 @150; HQ end-of-day sequence — Arrived at HQ → Finished Unloading → clock out → approve)*
+*Last updated: 2026-08-02 (backend v7.4.20 @151; explicit Add Stop AND CHANGE COURSE retarget; Arrived at HQ now renders on real days)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.19), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.20), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.19); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.20); full changelog in Code.js header.
 - CalendarApp is NOT read-your-writes: a getEvents right after createEvent
   can miss the new event. Anything that creates an event and then rebuilds
   a cached view must SEED the cache with the expected result, never just
@@ -86,6 +86,12 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   the clock; mid-route switches unaffected), and APPROVE TODAY'S HOURS
   appears only once everyone is out and the lead's own shift is closed
   (qbApprove also refuses while anyone is clocked in).
+- Add Stop retarget (CC, 8/2): changing the current destination is an
+  EXPLICIT act. "+" on the line being driven right now opens the sheet
+  headed ADD STOP — CHANGE COURSE with an ADD STOP AND CHANGE COURSE
+  button (sends changeCourse:true → backend SETS stopIndex to the new
+  stop). Any other segment keeps the plain Add Stop flow and never
+  moves the destination.
 - HQ end-of-day sequence (BB, 8/2, v7.4.19): ROUTE COMPLETE →
   ARRIVED AT HQ (setRoute 'done', server-gated on every stop being
   past) → FINISHED UNLOADING (single button, no checklist; ROUTE_STATE

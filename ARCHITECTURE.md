@@ -578,6 +578,38 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   prompt chain end-to-end (needs a real QBT timesheet; fabricating
   payroll data was off-limits) — wiring code-verified only; first real
   end-of-day will exercise it.
+- 8/2 (CC + DD, v7.4.20 @151):
+  CC — adding a stop on the ACTIVE line left the wrong segment lit. The
+  v7.4.17 retarget only fired when insertAt === stopIndex, but when the
+  crew is heading home the pointer sits PAST the last stop (stopIndex 4
+  of 2 stops), so the insert fell into the `insertAt <= cur` branch and
+  merely BUMPED the pointer — leaving the segment AFTER the new stop
+  active, as if it had been visited and left. Fix + Brandon's item 3:
+  retargeting is now explicit — "+" on the currently-driven line opens
+  the sheet as ADD STOP — CHANGE COURSE with an ADD STOP AND CHANGE
+  COURSE button, which alone sends changeCourse:true; the backend then
+  SETS stopIndex to the new stop's index (pointer comes back from past
+  the end). Non-active segments keep the plain flow and never move the
+  destination (CC4).
+  DD — ARRIVED AT HQ was gated on `roster.some(m => m.in)`, i.e. on
+  somebody having CLOCKED IN. Brandon's live day had an empty clock, so
+  the button never rendered on a real day while ?preview=done (which
+  bypasses the gate) looked fine — exactly the preview-vs-real split
+  the report predicted. The gate is now the ROUTE having departed
+  (state !== ''), which is what "nobody left HQ" actually means; BB5's
+  no-show case still skips the sequence because such a day never
+  departs.
+  VERIFIED LIVE (real data, non-preview, management sign-in): ARRIVED
+  AT HQ rendered on the real day and was CLICKED → UNLOADING screen +
+  spine UNLOAD capsule; FINISHED UNLOADING clicked → CLOCK OUT stage +
+  CONFIRM HOURS capsule + T's approve gate note. CC: "+" on a
+  non-active segment showed plain ADD STOP; "+" on the active line
+  showed ADD STOP — CHANGE COURSE; typing "Devil" autocompleted all
+  four Devil Mountain locations; confirming inserted the stop, and the
+  dashed active segment measured as index 1 of 3 (Rudy's → the NEW
+  stop) with the field screen showing it as NEXT and Rudy's under
+  ROUTE SO FAR ✓. Test event deleted, route restored to its snapshot
+  (Brandon's own Rudy's stop left untouched).
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
