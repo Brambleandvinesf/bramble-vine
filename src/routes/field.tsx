@@ -463,7 +463,14 @@ function escapePlanText(s2: string): string {
 
 function sanitizeEventHtml(html: string): string {
   if (typeof DOMParser === "undefined") return escapePlanText(html);
-  const doc = new DOMParser().parseFromString(html, "text/html");
+  /* AB.2 (8/2): real calendar descriptions mix a few inline tags (<a>,
+     <b>) with NEWLINES doing the structural work. HTML collapses those,
+     which is why the plan rendered as one flowing blob. When the source
+     has no block-level markup of its own, promote its newlines to <br>
+     first so the author's line structure survives. */
+  const hasBlockMarkup = /<\s*(br|p|div|ul|ol|li)\b/i.test(html);
+  const src = hasBlockMarkup ? html : html.replace(/\r?\n/g, "<br>");
+  const doc = new DOMParser().parseFromString(src, "text/html");
   const walk = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return escapePlanText(node.textContent ?? "");
     if (node.nodeType !== Node.ELEMENT_NODE) return "";
@@ -494,9 +501,27 @@ function EventPlanBody({ text }: { text: string }) {
     wordBreak: "break-word",
   };
   if (!/<[a-z][^>]*>/i.test(text)) {
+    /* AB.2: plain-text plans still carry structure as leading "•", "◦" or
+       "-" — preserve it with pre-wrap so the indentation survives. */
     return <div style={{ ...base, whiteSpace: "pre-wrap" }}>{text}</div>;
   }
-  return <div style={base} dangerouslySetInnerHTML={{ __html: sanitizeEventHtml(text) }} />;
+  /* AB.2 (8/2): the sanitizer's allowlist already passes UL/OL/LI, but the
+     app's CSS reset strips list markers and padding, so a real <ul> came
+     out looking like flowing text. Scope the list styling back in here. */
+  return (
+    <>
+      <style>{`
+        .bv-plan ul, .bv-plan ol { margin: 6px 0; padding-left: 20px; }
+        .bv-plan ul { list-style: disc outside; }
+        .bv-plan ul ul { list-style: circle outside; margin: 2px 0; }
+        .bv-plan ol { list-style: decimal outside; }
+        .bv-plan li { margin: 3px 0; }
+        .bv-plan p { margin: 6px 0; }
+        .bv-plan b, .bv-plan strong { color: ${LIME}; }
+      `}</style>
+      <div className="bv-plan" style={base} dangerouslySetInnerHTML={{ __html: sanitizeEventHtml(text) }} />
+    </>
+  );
 }
 
 /** Mirrors the backend's isBreakEvent_ — a scheduled break, not a visit. */
@@ -1145,6 +1170,43 @@ function FieldBody({
     />
   ) : null;
 
+  /* AB (8/2): the one combined client-arrival action. Marks arrival (only
+     the first presser — the shared route state makes it first-tap-wins),
+     puts THIS person on the client's clock, and sends the arrival text.
+     Later tappers just move their own clock: state is already 'visit', so
+     no second arrival and no second text. `withText:false` is the manual
+     override (AB.5); N's AF logic still suppresses on top of it. */
+  const arriveAndSwitch = useCallback(async (withText: boolean) => {
+    if (isPreview) return;
+    const firstPresser = state !== "visit";
+    if (firstPresser) {
+      if (!currentEvent || !clientMatch) return;
+      const a = await send({
+        action: "setRoute", state: "arrived",
+        client: clientMatch, eventId: currentEvent.id, stopIndex,
+      });
+      if (!a.ok) return;
+      const v = await send({ action: "setRoute", state: "visit" });
+      if (!v.ok) return;
+      if (withText) {
+        void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+      } else {
+        markTexted(clientMatch, "arrived", stopIndex);   // settle the stop, send nothing
+      }
+    }
+    if (!clientMatch) return;
+    /* AB.4: this button replaced the generic clock-in panel, so it has to
+       handle someone who isn't on the clock at all yet, not just switch. */
+    if (me && !meOnClock) {
+      if (!roster.some((r) => r.id === me.id)) {
+        await send({ action: "joinRoster", id: me.id, name: me.name, role: me.role || "assistant" }, { silent: true });
+      }
+      await send({ action: "qbClock", userId: me.id, dir: "in", client: clientMatch }, { silent: true });
+    } else {
+      void switchMeTo(clientMatch);
+    }
+  }, [isPreview, state, currentEvent, clientMatch, stopIndex, send, skipSameDayTexts, me, meOnClock, roster, switchMeTo]);
+
   const handleVisitComplete = async () => {
     if (vendorStop) return;   // vendor stops never text
     void textClient(send, "done", clientMatch, stopIndex, isPreview, skipSameDayTexts);
@@ -1266,13 +1328,8 @@ function FieldBody({
                     if (v.ok && vendorStop) void switchMeTo(OVERHEAD_CLIENT);
                   }
                 }}
-                onStart={async () => {
-                  const r = await send({ action: "setRoute", state: "visit" });
-                  if (r.ok) {
-                    void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
-                    if (clientMatch) void switchMeTo(clientMatch);
-                  }
-                }}
+                onArriveAndSwitch={() => void arriveAndSwitch(true)}
+                onArriveAndSwitchNoText={() => void arriveAndSwitch(false)}
                 onNoShow={() => void confirmNoShow(send, setBanner)}
               />
             )
@@ -2538,7 +2595,8 @@ function StateArrived({
   isBreak,
   hasArrived,
   onArrived,
-  onStart,
+  onArriveAndSwitch,
+  onArriveAndSwitchNoText,
   onNoShow,
 }: {
   skipSameDayTexts: boolean;
@@ -2562,7 +2620,10 @@ function StateArrived({
   /** GG: the explicit ARRIVED action has been taken for this stop. */
   hasArrived: boolean;
   onArrived: () => void;
-  onStart: () => void;
+  /** AB: arrive + clock onto this client + send the arrival text. */
+  onArriveAndSwitch: () => void;
+  /** AB.5: same, with the text forced off. */
+  onArriveAndSwitchNoText: () => void;
   onNoShow: () => void;
 }) {
   // Only true client appointments carry No Show, texting copy and the
@@ -2661,7 +2722,10 @@ function StateArrived({
         </div>
       )}
       {!clientMatch && !vendorStop && <div style={{ color: RED, fontSize: 12, marginBottom: 8 }}>no client match — tell Brandon</div>}
-      {clockSlot}
+      {/* AB.4 (8/2): the generic "CLOCK IN — B&V" panel is gone from the
+          CLIENT arrival screen — the one combined button below does the
+          clocking. Vendor stops and breaks keep it. */}
+      {!clientStop && clockSlot}
 
       {/* Tax-exempt reminder (F/G7): always fires for flagged vendors —
           with the ID when known, never silently absent. */}
@@ -2684,25 +2748,27 @@ function StateArrived({
         </div>
       )}
 
-      {!navigated && (
+      {/* AB.1 (8/2): the plan comes FIRST and dominates the screen — the
+          crew is here to read it, not to hunt for buttons. */}
+      {event?.description?.trim() && (
+        <div style={{ ...PANEL_BOX, marginTop: 14 }}>
+          <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>TODAY'S PLAN</div>
+          <EventPlanBody text={event.description.trim()} />
+        </div>
+      )}
+
+      {/* AB.3: no NAVIGATE on the CLIENT arrival screen — you cannot reach
+          it without having already travelled, so the button was redundant.
+          Vendor stops and breaks keep it. */}
+      {!clientStop && !navigated && (
         <button
           type="button"
           onClick={handleNavigate}
           disabled={busy || !address}
           style={{ ...NAVIGATE_BTN, opacity: address ? 1 : 0.45, marginTop: 14 }}
         >
-          {/* HH.4/5: no texting language at all on vendor stops or breaks. */}
-          {!clientStop ? "NAVIGATE" : textsSuppressed ? "NAVIGATE (NO TEXT)" : "NAVIGATE & SEND TEXT"}
+          NAVIGATE
         </button>
-      )}
-
-      {/* M4 (8/2): this stop's plan, straight off the calendar event.
-          Shown while travelling AND after arrival. */}
-      {event?.description?.trim() && (
-        <div style={{ ...PANEL_BOX, marginTop: 14 }}>
-          <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>TODAY'S PLAN</div>
-          <EventPlanBody text={event.description.trim()} />
-        </div>
       )}
 
       {nearBanner && (
@@ -2722,10 +2788,9 @@ function StateArrived({
         </div>
       )}
 
-      {/* GG (8/2): arriving is now its own explicit act. Until ARRIVED is
-          pressed the crew is travelling — the Arrived spine node stays
-          dark and the Start Visit screen doesn't exist yet. */}
-      {!hasArrived && (
+      {/* GG (8/2): for VENDOR stops and breaks, arriving is still its own
+          explicit act and goes straight into visit mode (HH.1). */}
+      {!clientStop && !hasArrived && (
         <button
           onClick={onArrived}
           disabled={busy || !!isPreview}
@@ -2735,24 +2800,46 @@ function StateArrived({
         </button>
       )}
 
-      {/* GG.3: the Start Visit & Switch screen belongs to CLIENT stops
-          after arrival. Vendor stops and breaks go straight into visit
-          mode from ARRIVED (HH.1), so this block never renders for them. */}
-      {hasArrived && clientStop && (
+      {/* AB.4-7 (8/2): CLIENT stops collapse GG's two steps into ONE act —
+          mark arrival, clock the presser onto this client, send the arrival
+          text. First tap wins: only the first presser carries the
+          "ARRIVED —" prefix and triggers the text; anyone tapping in later
+          is just moving their own clock (AB.7). */}
+      {clientStop && (
         <>
           <button
-            onClick={onStart}
-            disabled={clockGate || busy || alreadyTexted || !!isPreview}
-            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (clockGate || alreadyTexted) ? 0.45 : 1 }}
+            onClick={onArriveAndSwitch}
+            disabled={busy || !!isPreview}
+            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: busy || isPreview ? 0.6 : 1 }}
           >
-            {alreadyTexted
-              ? skipSameDayTexts ? "VISIT STARTED" : "CLIENT TEXTED"
-              : `START VISIT & SWITCH TO ${label.toUpperCase()}${textsSuppressed ? " (NO TEXT)" : " & TEXT CLIENT"}`}
+            {hasArrived
+              ? `SWITCH TO ${label.toUpperCase()}`
+              : textsSuppressed
+                ? `ARRIVED — SWITCH TO ${label.toUpperCase()} (NO TEXT)`
+                : `ARRIVED — SWITCH TO AND TEXT ${label.toUpperCase()}`}
           </button>
-          {clockGate && !alreadyTexted && (
-            <div style={{ color: MUTED, fontSize: 11, letterSpacing: 0.5, marginTop: 6, textAlign: "center" }}>
-              Clock in first — the visit switches everyone's clock to this stop.
-            </div>
+          {/* AB.5: same manual override as TT.3's navigate escape hatch —
+              force no-text even if the automatic AF check is wrong. */}
+          {!hasArrived && (
+            <button
+              type="button"
+              onClick={onArriveAndSwitchNoText}
+              disabled={busy || !!isPreview}
+              style={{
+                display: "block",
+                margin: "8px auto 0",
+                background: "transparent",
+                border: "none",
+                color: MUTED,
+                fontFamily: "inherit",
+                fontSize: 11,
+                letterSpacing: 1,
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
+            >
+              switch without texting
+            </button>
           )}
         </>
       )}

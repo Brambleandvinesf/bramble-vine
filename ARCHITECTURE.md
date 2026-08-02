@@ -740,6 +740,61 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   the counter to "1 of 5 loaded" — the action that was impossible
   before. Immediately un-ticked; getData re-read confirms all five back
   to Loaded=False, net zero change to the crew's day.
+- 8/2 (ZZ) AI TEXT IN LIVE CALENDAR EVENTS — investigation, NOT fixed
+  (Brandon to decide restoration). Confirmed on the events themselves:
+  raw LLM replies ("I don't see any Garden or Category data… Could you
+  share the full dataset…") are sitting where the tasks section belongs.
+  NOT isolated: found on Louise Ireland (8/2 live, plus 9/3, 10/1,
+  10/29, 11/26, 12/24 instances), A&G Sec. 1 (6/25 and 7/14), and Mada
+  (many instances). Update stamps run 7/06 → 8/01, i.e. CONTINUING
+  after the 7/19 migration.
+  ATTRIBUTION — not our Apps Script, three independent tells:
+  (1) rebuildClientEvent_ writes a bare "Text:" line; every contaminated
+      event has a VALUE there ("Text: Text Louise unless otherwise
+      noted") or a raw column NAME ("Text: Special Text ETA Arrival"),
+      which our code cannot produce;
+  (2) our buildTasks_ is deterministic and calls no LLM — Code.js
+      documents it as "replaces Make 5610874 + its Sonnet call —
+      decision 7/19: grouping is deterministic, NO AI";
+  (3) the Mada events show the classic LLM-preamble-then-output shape,
+      and their headers contain unmapped placeholders (href="NOTES",
+      "Max Time: Max Time") — a field-mapping failure of the same
+      external scenario.
+  CONCLUSION: legacy Make scenario 5610874 (or a descendant) was never
+  retired after 7/19 and is still writing event descriptions. Its Sonnet
+  module is now refusing, because the Garden/Category columns it asks
+  for are genuinely empty in Client Projects (independently confirmed —
+  Louise's projects carry blank Garden/Category).
+- 8/2 (AC) MIGRATION AUDIT: the migration is ALREADY BUILT and live —
+  rebuildClientEvent_ + buildTasks_ do exactly the intended job
+  (deterministic grouping SPECIAL→RECURRING → Garden → Category, •
+  project / ◦ tool, links + Text/Max Time/Max Materials/Garbage header,
+  SKIP omitted) from the same sheets Apps Script already reads. No new
+  data access needed. So the work is not "migrate" but "RETIRE the Make
+  scenario and backfill the events it corrupted". Proposal in the
+  session report; nothing built pending Brandon's go-ahead.
+- 8/2 (AB, frontend): client arrival screen consolidated. Plan panel
+  moved to the TOP; standalone NAVIGATE and the generic CLOCK IN — B&V
+  panel removed from CLIENT stops (vendor/break keep both); GG's two
+  steps collapsed into ONE button "ARRIVED — SWITCH TO AND TEXT
+  {CLIENT}" that marks arrival, clocks the presser onto the client
+  (clocking IN if they weren't on the clock at all) and sends the
+  arrival text, with a "switch without texting" override (AB.5) and
+  NO SHOW alongside. First-tap-wins: later tappers see plain "SWITCH TO
+  {CLIENT}" and trigger no second arrival or text.
+  AB.2 real fix: the sanitizer's allowlist already passed UL/OL/LI, but
+  (a) the app's CSS reset stripped list markers/indentation — now
+  restored under a scoped .bv-plan stylesheet — and (b) more
+  importantly, real descriptions structure themselves with NEWLINES
+  plus a few inline tags, which HTML collapses; sanitizeEventHtml now
+  promotes newlines to <br> when the source has no block markup. That
+  was the actual cause of "flowing paragraph text".
+  VERIFIED LIVE: plan renders with 10 preserved line breaks and intact
+  NOTES/DEBRIEF/PHOTOS links; buttons read "ARRIVED — SWITCH TO AND
+  TEXT LOUISE IRELAND" + "switch without texting" + "NO SHOW" before
+  arrival, and "SWITCH TO LOUISE IRELAND" after. No live event
+  currently contains true <ul>/<li>, so list rendering is styled but
+  unproven against real data.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
