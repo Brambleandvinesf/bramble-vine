@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.20 @151; explicit Add Stop AND CHANGE COURSE retarget; Arrived at HQ now renders on real days)*
+*Last updated: 2026-08-02 (backend v7.4.21 @152; explicit ARRIVED gate, vendor/break stops stripped of client mechanics, Lunch Break clock pause, spine label collapsing)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.20), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.21), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,12 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.20); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.21); full changelog in Code.js header.
+- Calendars feeding the route: '1. Client Visits' (all stops) + 'Other
+  Field Visits' by ALLOWLIST — only 'Lunch Break' becomes an anchor, 'HQ
+  Loading' is excluded (the app owns that sequence), anything else is
+  ignored and reported in getDayState.otherCalUnknown for Brandon to rule
+  on. NEVER guess a new type onto the spine.
 - CalendarApp is NOT read-your-writes: a getEvents right after createEvent
   can miss the new event. Anything that creates an event and then rebuilds
   a cached view must SEED the cache with the expected result, never just
@@ -176,6 +181,14 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   the app nudges via prompts + an "Open Google Wallet" button; true
   enforcement = switching to a spend-control card platform (Ramp/Brex/
   Divvy/Extend), parked as a business decision, not app scope.
+- STOP TYPES (8/2): client | vendor | break. Only CLIENT stops have No
+  Show, a debrief, and texting language. Vendor stops end on the receipt
+  gate (Receipt attached / No purchase made) and bill to B&V OVERHEAD by
+  default — billing a client is an explicit in-visit choice, never
+  automatic. Breaks pause the clock and have none of the three.
+  Arriving is always an explicit ARRIVED press (the Arrived node stays
+  dark until then); client stops then show Start Visit & Switch, vendor
+  and break stops go straight into visit mode.
 - Vendor/supply stops (BUILT 8/2, v7.4.14): own stop type, detected by
   matching event address/name against the Vendors tab (backend
   vendorMatch_ = frontend matchVendor — keep in step). Debrief hard gate

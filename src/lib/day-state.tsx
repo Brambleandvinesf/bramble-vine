@@ -19,7 +19,7 @@ const POLL_MS = 30_000;
 export type DayPhase = "HQ_LOADING" | "FIELD_VISIT" | "HQ_UNLOADING";
 export type FieldPhone = { id: string; name: string } | null;
 /** One real calendar stop — the spine draws one anchor per entry (B, 8/2). */
-export type DayStop = { label: string; type: "client" | "vendor" };
+export type DayStop = { label: string; type: "client" | "vendor" | "break" };
 export type BreakItem = { time: string; label: string };
 export type DayState = {
   ok?: boolean;

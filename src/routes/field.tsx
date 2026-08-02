@@ -499,6 +499,11 @@ function EventPlanBody({ text }: { text: string }) {
   return <div style={base} dangerouslySetInnerHTML={{ __html: sanitizeEventHtml(text) }} />;
 }
 
+/** Mirrors the backend's isBreakEvent_ — a scheduled break, not a visit. */
+function isBreakTitle(title?: string | null): boolean {
+  return /\b(lunch|break)\b/i.test(title ?? "");
+}
+
 /* ---------- identity ---------- */
 const OVERHEAD_CLIENT = "Bramble & Vine";
 type Me = { id: string; name: string; role?: "lead" | "assistant" };
@@ -825,17 +830,9 @@ function FieldBody({
   // receipt hard gate, never texts, clock billed to a client.
   const vendors = data.vendors ?? [];
   const vendorStop = currentEvent ? matchVendor(currentEvent, vendors) : null;
-  // A vendor run's clock time bills to the client the supplies are for — the
-  // next client stop on the route; overhead only when nothing follows.
-  const vendorBillTo = useMemo(() => {
-    if (!vendorStop) return null;
-    for (let i = stopIndex + 1; i < events.length; i++) {
-      if (matchVendor(events[i], vendors)) continue;
-      const m = matchClient(events[i].title, clients);
-      if (m) return m;
-    }
-    return OVERHEAD_CLIENT;
-  }, [vendorStop, stopIndex, events, vendors, clients]);
+  // JJ/HH: a scheduled Lunch Break is its own stop type — no No Show, no
+  // debrief, no texting; the backend pauses the clock for it.
+  const isBreakStop = isBreakTitle(currentEvent?.title);
 
   const isLead = canSee(role, "route_debrief");
   const canDebrief = canSee(role, "route_debrief") || route.delegated === true;
@@ -1244,30 +1241,36 @@ function FieldBody({
                 send={send}
                 locationCheck={route.locationCheck ?? null}
                 vendorStop={vendorStop}
-                vendorBillTo={vendorBillTo}
-                onStart={async () => {
-                  const routeClient = vendorStop ? vendorStop.vendor : clientMatch;
-                  if (state === "enroute") {
-                    if (!currentEvent || !routeClient) return;
-                    const r = await send({
-                      action: "setRoute",
-                      state: "arrived",
-                      client: routeClient,
-                      eventId: currentEvent.id,
-                      stopIndex,
-                    });
-                    if (!r.ok) return;
+                isBreak={isBreakStop}
+                hasArrived={state === "arrived"}
+                /* GG (8/2): ARRIVED is the transition out of travelling.
+                   Client stops stop here (the Start Visit screen comes
+                   next); vendor stops and breaks go straight into visit
+                   mode with no in-between screen (HH.1). */
+                onArrived={async () => {
+                  const routeClient = vendorStop ? vendorStop.vendor : (clientMatch ?? currentEvent?.title ?? "");
+                  if (!currentEvent) return;
+                  const r = await send({
+                    action: "setRoute",
+                    state: "arrived",
+                    client: routeClient,
+                    eventId: currentEvent.id,
+                    stopIndex,
+                  });
+                  if (!r.ok) return;
+                  if (vendorStop || isBreakStop) {
+                    const v = await send({ action: "setRoute", state: "visit" });
+                    /* II (8/2): a supply run bills to general overhead by
+                       default — billing a client is an explicit choice made
+                       inside the visit (LL.2.b), never automatic. */
+                    if (v.ok && vendorStop) void switchMeTo(OVERHEAD_CLIENT);
                   }
+                }}
+                onStart={async () => {
                   const r = await send({ action: "setRoute", state: "visit" });
                   if (r.ok) {
-                    if (vendorStop) {
-                      // Supply run: never text; the clock bills to the client
-                      // the materials are for.
-                      if (vendorBillTo) void switchMeTo(vendorBillTo);
-                    } else {
-                      void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
-                      if (clientMatch) void switchMeTo(clientMatch);
-                    }
+                    void textClient(send, "arrived", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+                    if (clientMatch) void switchMeTo(clientMatch);
                   }
                 }}
                 onNoShow={() => void confirmNoShow(send, setBanner)}
@@ -1277,7 +1280,33 @@ function FieldBody({
 
 
 
-          {state === "visit" && (
+          {/* LL (8/2): a supply run has its own visit sequence — chips,
+              checkout, receipt gate, navigate. No debrief, no No Show. */}
+          {state === "visit" && vendorStop && (
+            <VendorVisit
+              vendor={vendorStop}
+              clients={clients}
+              nextLabel={nextClientMatch ?? (isLastStop ? null : nextEvent?.title ?? null)}
+              nextAddress={nextEvent?.location ?? ""}
+              billTo={meRow?.client ?? OVERHEAD_CLIENT}
+              busy={busy}
+              isPreview={isPreview}
+              onSwitchClient={(c) => void switchMeTo(c)}
+              onOutcome={(outcome) => void send({ action: "setRoute", vendorOutcome: outcome })}
+              onNavigateNext={() => void send({ action: "setRoute", state: "next" })}
+            />
+          )}
+
+          {state === "visit" && !vendorStop && isBreakStop && (
+            <BreakVisit
+              title={currentEvent?.title ?? "Lunch Break"}
+              busy={busy}
+              isPreview={isPreview}
+              onEndBreak={() => void send({ action: "setRoute", state: "next" })}
+            />
+          )}
+
+          {state === "visit" && !vendorStop && !isBreakStop && (
             <StateVisit
               skipSameDayTexts={skipSameDayTexts}
               textsSuppressed={textsSuppressed}
@@ -1298,6 +1327,7 @@ function FieldBody({
               notes={stopNotes}
               clockSlot={personalClockSlot}
               onBreak={startBreakFromCurrent}
+              onEndVisit={() => void send({ action: "setRoute", state: "debrief" })}
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
               onVisitComplete={handleVisitComplete}
               onNoShow={() => void confirmNoShow(send, setBanner)}
@@ -1413,6 +1443,197 @@ function FieldBody({
         onClose={() => { closePayroll(); void promptApprove(); }}
         onProceed={() => { closePayroll(); void promptApprove(); }}
       />
+    </div>
+  );
+}
+
+/* LL (8/2): the whole vendor visit, in order — shopping chips for this
+   vendor → READY TO CHECKOUT (opens Wallet + arms the receipt gate) →
+   receipt outcome → NAVIGATE TO NEXT STOP. No debrief (HH.3), no No Show
+   (HH.2), no texting language anywhere (HH.4). Billing defaults to
+   overhead; "Switch to client" here is the one explicit opt-in (II). */
+function VendorVisit({
+  vendor,
+  clients,
+  nextLabel,
+  nextAddress,
+  billTo,
+  busy,
+  isPreview,
+  onSwitchClient,
+  onOutcome,
+  onNavigateNext,
+}: {
+  vendor: FieldVendor;
+  clients: string[];
+  nextLabel: string | null;
+  nextAddress: string;
+  billTo: string | null;
+  busy: boolean;
+  isPreview: boolean;
+  onSwitchClient: (client: string) => void;
+  onOutcome: (outcome: "receipt" | "none") => void;
+  onNavigateNext: () => void;
+}) {
+  const [sugs, setSugs] = useState<string[]>([]);
+  const [checkout, setCheckout] = useState(false);
+  const [receiptDone, setReceiptDone] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  // U's vendor-suggestion mechanic, reused verbatim (LL.2.c).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${SCRIPT_URL}?action=getShopping&vendor=${encodeURIComponent(vendor.vendor)}`,
+        );
+        const j = (await res.json()) as { items?: { item: string; done: boolean }[]; suggestions?: string[] };
+        if (cancelled) return;
+        const open = (j.items ?? []).filter((i) => !i.done).map((i) => i.item);
+        setSugs([...open, ...(j.suggestions ?? [])].slice(0, 12));
+      } catch { /* chips are optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, [vendor.vendor]);
+
+  const matches = query.trim()
+    ? clients.filter((c) => c.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6)
+    : [];
+
+  return (
+    <div style={{ padding: "10px 14px" }}>
+      <div style={PANEL_BOX}>
+        <div style={{ color: LIME, fontSize: 18, fontWeight: "bold" }}>{vendor.vendor}</div>
+        <div style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>Supply run in progress</div>
+      </div>
+
+      {vendor.taxExempt && (
+        <div style={{ marginTop: 12, padding: "8px 10px", border: `1px solid ${LIME_DIM}`, borderRadius: 4, color: LIME, fontSize: 12, background: "rgba(124,255,0,0.06)" }}>
+          {vendor.taxExemptId
+            ? `TAX-EXEMPT ACCOUNT ON FILE — ID: ${vendor.taxExemptId}`
+            : "TAX-EXEMPT ACCOUNT ON FILE — ID not yet recorded"}
+        </div>
+      )}
+
+      {/* II/LL.2.b: overhead unless someone explicitly bills a client. */}
+      <div style={{ ...SECTION_HEAD, marginTop: 16 }}>BILLING</div>
+      <div style={{ color: MUTED, fontSize: 12, padding: "0 4px 6px" }}>
+        {billTo && billTo !== OVERHEAD_CLIENT
+          ? `Billing to ${billTo}.`
+          : "Billing to B&V overhead — switch to a client only if this run is for one."}
+      </div>
+      {!pickOpen ? (
+        <button type="button" onClick={() => setPickOpen(true)} disabled={isPreview}
+          style={{ ...BIG_BTN, width: "100%", minHeight: 44, fontSize: 12 }}>
+          SWITCH TO CLIENT?
+        </button>
+      ) : (
+        <div>
+          <input
+            autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search clients…"
+            style={{ width: "100%", boxSizing: "border-box", background: BG, color: TEXT, border: `1px solid ${LINE}`, borderRadius: 6, padding: "10px", fontFamily: "inherit", fontSize: 14 }}
+          />
+          <div style={{ display: "grid", gap: 2, marginTop: 4 }}>
+            {matches.map((c) => (
+              <button key={c} type="button"
+                onClick={() => { onSwitchClient(c); setPickOpen(false); setQuery(""); }}
+                style={{ textAlign: "left", background: "transparent", border: `1px solid ${LINE}`, borderRadius: 4, color: TEXT, fontFamily: "inherit", fontSize: 13, padding: "8px 10px", cursor: "pointer" }}>
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sugs.length > 0 && (
+        <>
+          <div style={{ ...SECTION_HEAD, marginTop: 16 }}>SHOPPING LIST — {vendor.vendor.toUpperCase()}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {sugs.map((s) => (
+              <span key={s} style={{ border: `1px solid ${LIME_DIM}`, color: LIME, borderRadius: 999, padding: "6px 10px", fontSize: 12 }}>
+                {s}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!checkout && (
+        <button type="button" disabled={busy || isPreview}
+          onClick={() => { openGoogleWallet(); setCheckout(true); }}
+          style={{ ...PRIMARY_BTN, marginTop: 18, opacity: busy || isPreview ? 0.6 : 1 }}>
+          READY TO CHECKOUT
+        </button>
+      )}
+
+      {checkout && !receiptDone && (
+        <>
+          <div style={{ ...SECTION_HEAD, marginTop: 18 }}>RECEIPT</div>
+          <div style={{ color: MUTED, fontSize: 12, padding: "0 4px 6px" }}>
+            Snap the receipt on the{" "}
+            <Link to="/receipts" style={{ color: LIME }}>Receipts screen</Link>, then confirm:
+          </div>
+          <button type="button" disabled={busy || isPreview}
+            onClick={() => { onOutcome("receipt"); setReceiptDone(true); }}
+            style={{ ...PRIMARY_BTN, marginTop: 8, opacity: busy || isPreview ? 0.6 : 1 }}>
+            RECEIPT ATTACHED ✓
+          </button>
+          <button type="button" disabled={busy || isPreview}
+            onClick={() => { onOutcome("none"); setReceiptDone(true); }}
+            style={{ ...BIG_BTN, width: "100%", marginTop: 10, opacity: busy || isPreview ? 0.6 : 1 }}>
+            NO PURCHASE MADE
+          </button>
+        </>
+      )}
+
+      {receiptDone && (
+        <>
+          {/* LL.2.f: only if a client was actually chosen does anyone need
+              to move their own clock; otherwise Navigate shows directly. */}
+          {billTo && billTo !== OVERHEAD_CLIENT && (
+            <div style={{ ...SECTION_HEAD, marginTop: 18 }}>YOUR CLOCK</div>
+          )}
+          <button type="button" disabled={busy || isPreview}
+            onClick={() => {
+              if (nextAddress) {
+                window.open(
+                  "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+                    encodeURIComponent(nextAddress),
+                  "_blank", "noopener,noreferrer",
+                );
+              }
+              onNavigateNext();
+            }}
+            style={{ ...PRIMARY_BTN, marginTop: 14, opacity: busy || isPreview ? 0.6 : 1 }}>
+            {nextLabel ? `NAVIGATE TO ${nextLabel.toUpperCase()}` : "NAVIGATE — BACK TO HQ"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* JJ/HH: a scheduled break. The backend clocks everyone out at the start
+   of the window and back in at the end — this screen just says so. */
+function BreakVisit({
+  title, busy, isPreview, onEndBreak,
+}: { title: string; busy: boolean; isPreview: boolean; onEndBreak: () => void }) {
+  return (
+    <div style={{ padding: "10px 14px" }}>
+      <div style={PANEL_BOX}>
+        <div style={{ color: LIME, fontSize: 18, fontWeight: "bold" }}>{title}</div>
+        <div style={{ color: MUTED, fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+          Clocks pause automatically for the break and resume on the same
+          jobcode when it ends. Nothing to confirm.
+        </div>
+      </div>
+      <button type="button" disabled={busy || isPreview} onClick={onEndBreak}
+        style={{ ...PRIMARY_BTN, marginTop: 16, opacity: busy || isPreview ? 0.6 : 1 }}>
+        BREAK OVER — CONTINUE
+      </button>
     </div>
   );
 }
@@ -1929,7 +2150,9 @@ function StateEnRoute({
             onClick={onHere}
             style={{ ...PRIMARY_BTN, marginTop: 14, opacity: !clientMatch ? 0.45 : 1 }}
           >
-            START VISIT
+            {/* GG (8/2): this always set 'arrived' — now it says so. The
+                Start Visit step lives on the arrived screen. */}
+            ARRIVED
           </button>
           {onSkip && (
             <button
@@ -2313,7 +2536,9 @@ function StateArrived({
   send,
   locationCheck,
   vendorStop,
-  vendorBillTo,
+  isBreak,
+  hasArrived,
+  onArrived,
   onStart,
   onNoShow,
 }: {
@@ -2333,10 +2558,17 @@ function StateArrived({
   send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   locationCheck?: { near?: boolean; client?: string } | null;
   vendorStop?: FieldVendor | null;
-  vendorBillTo?: string | null;
+  /** Scheduled Lunch Break stop (JJ/HH) — not a client visit. */
+  isBreak?: boolean;
+  /** GG: the explicit ARRIVED action has been taken for this stop. */
+  hasArrived: boolean;
+  onArrived: () => void;
   onStart: () => void;
   onNoShow: () => void;
 }) {
+  // Only true client appointments carry No Show, texting copy and the
+  // Start Visit & Switch step (HH.6 — clients are unaffected).
+  const clientStop = !vendorStop && !isBreak;
   const anyIn = roster.some((m) => !!m.in);
   const alreadyTexted = hasTexted(clientMatch, "arrived", stopIndex);
   // M2 (8/2): the clock requirement only applies to crew who actually run a
@@ -2460,57 +2692,55 @@ function StateArrived({
           disabled={busy || !address}
           style={{ ...NAVIGATE_BTN, opacity: address ? 1 : 0.45, marginTop: 14 }}
         >
-          {textsSuppressed ? "NAVIGATE (NO TEXT)" : "NAVIGATE & SEND TEXT"}
+          {/* HH.4/5: no texting language at all on vendor stops or breaks. */}
+          {!clientStop ? "NAVIGATE" : textsSuppressed ? "NAVIGATE (NO TEXT)" : "NAVIGATE & SEND TEXT"}
         </button>
       )}
 
+      {/* M4 (8/2): this stop's plan, straight off the calendar event.
+          Shown while travelling AND after arrival. */}
+      {event?.description?.trim() && (
+        <div style={{ ...PANEL_BOX, marginTop: 14 }}>
+          <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>TODAY'S PLAN</div>
+          <EventPlanBody text={event.description.trim()} />
+        </div>
+      )}
 
-      {showNormal && (
+      {nearBanner && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "8px 10px",
+            border: `1px solid ${LIME_DIM}`,
+            borderRadius: 4,
+            color: LIME,
+            fontSize: 12,
+            letterSpacing: 0.5,
+            background: "rgba(124,255,0,0.06)",
+          }}
+        >
+          {nearBanner}
+        </div>
+      )}
+
+      {/* GG (8/2): arriving is now its own explicit act. Until ARRIVED is
+          pressed the crew is travelling — the Arrived spine node stays
+          dark and the Start Visit screen doesn't exist yet. */}
+      {!hasArrived && (
+        <button
+          onClick={onArrived}
+          disabled={busy || !!isPreview}
+          style={{ ...PRIMARY_BTN, marginTop: 14, opacity: busy || isPreview ? 0.6 : 1 }}
+        >
+          ARRIVED
+        </button>
+      )}
+
+      {/* GG.3: the Start Visit & Switch screen belongs to CLIENT stops
+          after arrival. Vendor stops and breaks go straight into visit
+          mode from ARRIVED (HH.1), so this block never renders for them. */}
+      {hasArrived && clientStop && (
         <>
-          {/* M4 (8/2): the next visit's plan, straight off the calendar
-              event — same summary the standby screen shows, scoped to
-              just this one stop. */}
-          {event?.description?.trim() && (
-            <div style={{ ...PANEL_BOX, marginTop: 14 }}>
-              <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>TODAY'S PLAN</div>
-              <EventPlanBody text={event.description.trim()} />
-            </div>
-          )}
-
-          {vendorStop && (
-            <>
-              <button
-                type="button"
-                onClick={() => openGoogleWallet()}
-                style={{ ...BIG_BTN, marginTop: 14 }}
-              >
-                OPEN GOOGLE WALLET
-              </button>
-              {vendorBillTo && (
-                <div style={{ color: MUTED, fontSize: 11, letterSpacing: 0.5, marginTop: 8, textAlign: "center" }}>
-                  Clock time at this stop bills to {vendorBillTo}.
-                </div>
-              )}
-            </>
-          )}
-
-          {nearBanner && (
-            <div
-              style={{
-                marginTop: 14,
-                padding: "8px 10px",
-                border: `1px solid ${LIME_DIM}`,
-                borderRadius: 4,
-                color: LIME,
-                fontSize: 12,
-                letterSpacing: 0.5,
-                background: "rgba(124,255,0,0.06)",
-              }}
-            >
-              {nearBanner}
-            </div>
-          )}
-
           <button
             onClick={onStart}
             disabled={clockGate || busy || alreadyTexted || !!isPreview}
@@ -2528,7 +2758,9 @@ function StateArrived({
         </>
       )}
 
-      {showNormal && (
+      {/* HH.2/5: a supply run or a break can't be "no-showed" — the option
+          exists for client appointments only, at every stage (GG.4). */}
+      {clientStop && (
         <button onClick={onNoShow} style={{ ...DANGER_BTN, marginTop: 14 }} disabled={busy}>
           NO SHOW
         </button>
@@ -2558,6 +2790,7 @@ function StateVisit({
   notes,
   clockSlot,
   onBreak,
+  onEndVisit,
   onToggleTool,
   onVisitComplete,
   onNoShow,
@@ -2581,6 +2814,8 @@ function StateVisit({
   notes: VisitNote[];
   clockSlot?: React.ReactNode;
   onBreak?: () => void;
+  /** LL.1: advance the route out of the visit (was silently missing). */
+  onEndVisit: () => void;
   onToggleTool: (t: NormTool) => void;
   onVisitComplete?: () => void;
   onNoShow: () => void;
@@ -2767,18 +3002,22 @@ function StateVisit({
       {isLead && !showOut && (
         <button
           onClick={() => {
+            /* LL.1 (8/2): this button used to only reveal the clock-out
+               panel and hope the LAST clock-out would flip the route to
+               debrief server-side — so on any day nobody was clocked in
+               (or for management) it did nothing at all. It now advances
+               the route itself. */
             onVisitComplete?.();
             setShowOut(true);
+            onEndVisit();
           }}
-          disabled={alreadyTextedDone || !!isPreview}
-          style={{ ...PRIMARY_BTN, marginTop: 14, opacity: (alreadyTextedDone || isPreview) ? 0.45 : 1 }}
+          disabled={!!isPreview}
+          style={{ ...PRIMARY_BTN, marginTop: 14, opacity: isPreview ? 0.45 : 1 }}
         >
           {textsSuppressed || skipSameDayTexts
-            ? alreadyTextedDone
-              ? "VISIT ENDED"
-              : "END VISIT (NO TEXT)"
+            ? "END VISIT"
             : alreadyTextedDone
-              ? "CLIENT TEXTED"
+              ? "END VISIT (CLIENT TEXTED)"
               : "END VISIT & TEXT CLIENT"}
         </button>
       )}
@@ -2788,7 +3027,10 @@ function StateVisit({
           <div style={{ ...SECTION_HEAD, marginTop: 16 }}>CLOCK OUT</div>
           {clockSlot}
           <div style={{ color: MUTED, fontSize: 11, textAlign: "center", marginTop: 10 }}>
-            Debrief opens automatically once everyone is out.
+            {/* KK.1 (8/2): debrief does NOT open itself — the T-5 warning
+                prompts the crew to start it. Claiming otherwise was the
+                bug; the debrief step is already open below. */}
+            Clock out when you're done — the debrief is ready when you are.
           </div>
         </>
       )}

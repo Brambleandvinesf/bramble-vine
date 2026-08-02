@@ -75,6 +75,22 @@ const TRANSIT_SUBS = new Set(["enroute", "next"]);
 // anchors so the spine never goes blank.
 type AnchorDef = { label: string; phase: DayPhase; stopI?: number; vendor?: boolean };
 
+// MM (8/2): with clients, vendors and breaks all on the spine, full labels
+// under every anchor collide. Only the CURRENT and IMMEDIATE NEXT anchors
+// keep their full label; the rest shrink to a short tag, tappable for the
+// full name. Each anchor also claims a minimum width, so a busy day scrolls
+// sideways rather than crushing the labels together.
+const ANCHOR_MIN_W = 84;
+function shortTag(label: string): string {
+  const l = label.trim();
+  if (l.length <= 8) return l;
+  // "Devil Mountain Wholesale Nursery - Colma" -> "Colma"; else first word.
+  const tail = l.split(" - ").pop()!.trim();
+  const base = tail.length && tail.length < l.length ? tail : l;
+  const first = base.split(/\s+/)[0];
+  return (first.length > 8 ? first.slice(0, 8) : first).replace(/[.,]$/, "");
+}
+
 // Roles whose screen follows the spine's active node automatically. The guided
 // linear day belongs to the field crew; office runs from schedule + messages
 // and management moves around freely, so neither gets yanked between screens.
@@ -192,6 +208,8 @@ export function DayStateSpine() {
   const canAssignTeams = role === "office" || role === "lead" || role === "management";
 
   const [collapsed, setCollapsed] = useState(false);
+  // MM (8/2): anchors whose short tag the user tapped open.
+  const [expandedAnchors, setExpandedAnchors] = useState<Set<number>>(() => new Set());
   // V (8/2): which segment's "+" was tapped — event index the new stop takes.
   // CC (8/2): activeLine marks a tap on the segment the crew is DRIVING right
   // now; only that case offers "ADD STOP AND CHANGE COURSE" (explicit retarget).
@@ -591,13 +609,17 @@ export function DayStateSpine() {
         </button>
         )}
 
+        {/* MM: a busy day scrolls sideways rather than cramming anchors —
+            the inner track claims ANCHOR_MIN_W per anchor. */}
         <div
           ref={containerRef}
           style={{
             position: "relative",
             height: bodyH,
             width: "100%",
-            overflow: "hidden",
+            minWidth: anchors.length * ANCHOR_MIN_W,
+            overflowY: "hidden",
+            overflowX: "auto",
             transition: "height 250ms ease-in-out",
           }}
         >
@@ -906,12 +928,19 @@ export function DayStateSpine() {
                     ? "done"
                     : "upcoming";
                 const label = anchor.label;
+                // MM: full label for where we are and where we're going
+                // next; everything else collapses to a short tag until
+                // tapped. Expanded picks are remembered per anchor.
+                const showFull =
+                  i === activeIdx || i === activeIdx + 1 || expandedAnchors.has(i);
+                const shown = showFull ? label : shortTag(label);
                 return (
                   <div
                     key={`ph-${anchor.phase}-${i}`}
                     className="bv-spine-node"
                     style={{
                       flex: 1,
+                      minWidth: ANCHOR_MIN_W,
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
@@ -926,6 +955,13 @@ export function DayStateSpine() {
                       style={circleStyle(parentSize, parentStatus, false)}
                     />
                     <div
+                      role={showFull ? undefined : "button"}
+                      title={label}
+                      onClick={
+                        showFull
+                          ? undefined
+                          : () => setExpandedAnchors((s2) => new Set(s2).add(i))
+                      }
                       style={{
                         color: parentStatus === "done" ? LIME : DIM_TEXT,
                         fontSize: 9,
@@ -937,9 +973,14 @@ export function DayStateSpine() {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         textAlign: "center",
+                        // The row is pointerEvents:none for W's tap-line, so
+                        // re-enable it just for these expandable tags.
+                        pointerEvents: showFull ? "none" : "auto",
+                        cursor: showFull ? "default" : "pointer",
+                        opacity: showFull ? 1 : 0.75,
                       }}
                     >
-                      {label}
+                      {shown}
                     </div>
                   </div>
                 );
@@ -1073,6 +1114,16 @@ function AddStopSheet({
         setErr(json.error ?? "Add stop failed — retry.");
         return;
       }
+      /* EE (8/2): confirming also launches navigation, the same way every
+         other navigate action in the app does — adding a stop you're
+         driving to and then having to find Maps yourself made no sense. */
+      const dest = (picked?.address ?? "").trim() || title;
+      window.open(
+        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+          encodeURIComponent(dest),
+        "_blank",
+        "noopener,noreferrer",
+      );
       onAdded();
     } catch {
       setErr("Add stop failed — retry.");
@@ -1245,7 +1296,7 @@ function AddStopSheet({
               opacity: busy || !(picked?.label ?? query).trim() ? 0.5 : 1,
             }}
           >
-            {busy ? "ADDING…" : activeLine ? "ADD STOP AND CHANGE COURSE" : "CONFIRM ADD STOP"}
+            {busy ? "ADDING…" : "CONFIRM ADD STOP & NAVIGATE"}
           </button>
           <button
             type="button"

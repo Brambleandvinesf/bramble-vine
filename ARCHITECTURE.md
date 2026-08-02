@@ -610,6 +610,53 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   stop) with the field screen showing it as NEXT and Rudy's under
   ROUTE SO FAR ✓. Test event deleted, route restored to its snapshot
   (Brandon's own Rudy's stop left untouched).
+- 8/2 (EE–MM batch, v7.4.21 @152):
+  EE: Add Stop's confirm is now "CONFIRM ADD STOP & NAVIGATE" and opens
+  Maps to the new stop (address, else title) on success.
+  FF: stops added from the app are auto-confirmed → Blueberry.
+  GG: ARRIVED is an explicit press. The travelling screen shows plan +
+  NAVIGATE + ARRIVED (+ No Show for clients); only after ARRIVED do
+  client stops show Start Visit & Switch. StateEnRoute's old START
+  VISIT button (which already set 'arrived') is renamed ARRIVED.
+  HH/II: vendor stops and breaks lose No Show, debrief and ALL texting
+  language; vendor time bills to B&V OVERHEAD by default (reversing
+  C/M's auto-bill-to-next-client), with an explicit in-visit switch.
+  LL: VendorVisit component = tax banner → BILLING (overhead default +
+  SWITCH TO CLIENT? search) → vendor shopping chips → READY TO CHECKOUT
+  (opens Wallet, arms receipt gate) → RECEIPT ATTACHED / NO PURCHASE
+  MADE → NAVIGATE TO {NEXT STOP}. Backend: the receipt gate now guards
+  leaving a vendor VISIT (vendor stops have no debrief) and the stop
+  pointer advances on that transition.
+  LL.1 (dead End Visit) ROOT CAUSE — affected BOTH client and vendor:
+  the button only revealed the clock-out panel and relied on the LAST
+  clock-out flipping the route to debrief server-side, so on any day
+  nobody was clocked in (or for management) it did nothing. It now
+  advances the route itself.
+  JJ: 'Other Field Visits' joins the route by ALLOWLIST (see CLAUDE.md
+  iron rule). Breaks merge into dayEvents_ so stops[] stays index-
+  aligned with events[]; shiftFrom_ skips breaks so a sliding day never
+  drags lunch. lunchClockTick_ does the real pause/resume, guarded by a
+  55s cache throttle + script lock + per-day ledger (event id + crew
+  day); dry run at ?action=lunchPlan.
+  KK: the false "Debrief opens automatically once everyone is out" copy
+  is gone (debrief is crew-started). KK.2 CHECKED AGAINST LIVE CODE, no
+  change needed — the T-5 warning already reads "Start loading the
+  vehicle. Complete the debrief. Final pass — nothing left behind."
+  MM: only the current and immediate-next anchors keep full labels;
+  others collapse to a short tag, tap to expand. Each anchor claims
+  ANCHOR_MIN_W (84px) and the track scrolls horizontally rather than
+  cramming. PROVISIONAL — Brandon to eyeball once live.
+  VERIFIED LIVE: JJ.5 — 'Lughnasadh' (a real 9am-7pm event on that
+  calendar) is flagged in otherCalUnknown and is NOT a stop; a test
+  Lunch Break appeared as type 'break' and lunchPlan reported the
+  window inWindow:true with an empty pause list (nobody on the clock =
+  correct no-op); test event deleted. Vendor screens confirmed in the
+  browser: en-route shows NAVIGATE/plan/ARRIVED with no No Show and no
+  texting copy; visit shows overhead billing + SWITCH TO CLIENT? +
+  READY TO CHECKOUT; spine showed a collapsed "RUDY'S" tag beside the
+  full current label.
+  NOT verified (needs a real clocked-in crew, payroll data not to be
+  fabricated): the QBT write half of the lunch pause/resume.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
