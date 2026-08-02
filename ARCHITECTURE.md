@@ -657,6 +657,32 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   full current label.
   NOT verified (needs a real clocked-in crew, payroll data not to be
   fabricated): the QBT write half of the lunch pause/resume.
+- 8/2 (OO, v7.4.22 @153): in-app "!" crew reports. Button top-right on
+  every signed-in screen → free-text note → submit files everything.
+  Capture is DEPENDENCY-FREE (src/lib/capture.ts, SVG foreignObject) on
+  purpose: no new npm dep to break the Lovable build, and no third-party
+  CDN script inside an app rendering client PII. This app is inline-
+  styled, which is exactly what foreignObject reproduces well; swapping
+  in html2canvas later is a one-line change behind the same contract
+  (returns base64 PNG or null, never throws). The sheet closes ~180ms
+  before capture so the shot shows the screen being reported.
+  Backend reportIssue: Drive upload ('Crew Reports' folder or
+  REPORT_FOLDER_ID, shared DOMAIN_WITH_LINK exactly like receipts) then
+  a GitHub issue via ghFetch_ (GITHUB_PAT + GITHUB_REPO properties). The
+  'crew-report' label is created first — GitHub rejects issues carrying
+  an unknown label. Fails soft: a screenshot that won't upload still
+  files the report; with no PAT nothing posts at all.
+  SECURITY FINDING (8/2): the default repo is PUBLIC. Screenshots are
+  safe (Drive, domain-restricted) but the issue BODY carries screen,
+  signed-in user email and current client. Feature is inert until
+  Brandon sets GITHUB_PAT, so this cannot fire before he decides
+  private-repo vs public.
+  VERIFIED LIVE: empty note rejected; note without PAT returns the setup
+  error and posts nothing; a note WITH an image uploaded to Drive and
+  returned a link (folder auto-created) while still refusing to post.
+  Test artifact to delete: 'Crew report 2026-08-02 …png' (1x1 pixel) in
+  the new Crew Reports folder. NOT verified: the GitHub call itself —
+  needs the PAT.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

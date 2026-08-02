@@ -42,6 +42,7 @@ import { useAutoClockIn } from "../lib/auto-clock-in";
 import { ConfirmModalHost } from "../components/ConfirmModal";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
 import { DayStateSpine, SPINE_RESERVE_CSS } from "../components/DayStateSpine";
+import { ReportButton } from "../components/ReportButton";
 import { DayStateProvider } from "../lib/day-state";
 
 function NotFoundComponent() {
@@ -329,6 +330,8 @@ function AppFrame() {
         </div>
       ) : null}
       {ready && user && !onLogin ? <DayStateSpine /> : null}
+      {/* OO (8/2): the "!" report button, on every signed-in screen. */}
+      {ready && user && !onLogin ? <ReportButton /> : null}
       <Toaster position="top-center" richColors />
       <ConfirmModalHost />
       <OfficeTeamSetup />

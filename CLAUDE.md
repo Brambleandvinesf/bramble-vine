@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.21 @152; explicit ARRIVED gate, vendor/break stops stripped of client mechanics, Lunch Break clock pause, spine label collapsing)*
+*Last updated: 2026-08-02 (backend v7.4.22 @153; in-app "!" crew reports → Drive screenshot + GitHub issue)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.21), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.22), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,13 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.21); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.22); full changelog in Code.js header.
+- THE REPO IS PUBLIC (github.com/Brambleandvinesf/bramble-vine — verified
+  8/2 via unauthenticated API). Anything written to it, including crew
+  report ISSUE BODIES (screen, signed-in user, current client), is
+  world-readable and indexable. Screenshots themselves are safe — they
+  live in Drive shared DOMAIN_WITH_LINK. Point GITHUB_REPO at a private
+  repo, or make this one private, before crew reports carry client data.
 - Calendars feeding the route: '1. Client Visits' (all stops) + 'Other
   Field Visits' by ALLOWLIST — only 'Lunch Break' becomes an anchor, 'HQ
   Loading' is excluded (the app owns that sequence), anything else is
