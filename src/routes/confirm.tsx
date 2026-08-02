@@ -312,6 +312,10 @@ function ConfirmPage() {
     () => new Set(stagedRef.current?.confirmedClients ?? []),
   );
   const [flashClient, setFlashClient] = useState<string | null>(null);
+  /* PP1 (8/2): lifted out of the footer's IIFE — the footer's very
+     EXISTENCE now depends on this, not just the button's enabled state. */
+  const allClientsConfirmed =
+    todaysClients.length > 0 && todaysClients.every((c) => confirmedClients.has(c));
   const toggleClientConfirmed = useCallback((client: string) => {
     setConfirmedClients((prev) => {
       const next = new Set(prev);
@@ -690,6 +694,13 @@ function ConfirmPage() {
       }
       if (e.status === "Confirmed" || e.status === "SKIP") {
         statuses.push({ projectId: p.projectId, client: p.client, status: e.status });
+      } else if (confirmedClients.has(p.client)) {
+        /* PP2 (8/2) ROOT CAUSE: confirming a CLIENT card never wrote the
+           per-project Status, and Load Vehicle only lists items whose
+           project Status is exactly "Confirmed" — so a fully confirmed
+           day handed Load Vehicle nothing. Confirming the client now
+           confirms its projects; an explicit SKIP above still wins. */
+        statuses.push({ projectId: p.projectId, client: p.client, status: "Confirmed" });
       }
       const diff: Record<string, string> = {};
       if (e.action !== p.action) diff.action = e.action;
@@ -1320,8 +1331,33 @@ function ConfirmPage() {
           );
         })}
 
-      <div style={{ height: 140 }} />
+      {/* PP1 (8/2): until every client card is confirmed there is NO
+          footer at all — not a disabled one. The footer is a fixed bar
+          pinned across the bottom, so rendering it early parked a dead
+          overlay over the last card. An inline hint (in normal flow,
+          not fixed) says what's outstanding instead. */}
+      {!allClientsConfirmed && (
+        <div
+          style={{
+            margin: "8px 12px 24px",
+            padding: "10px 12px",
+            border: `1px solid ${LINE}`,
+            borderRadius: 8,
+            color: MUTED,
+            fontSize: 12,
+            letterSpacing: 0.5,
+            textAlign: "center",
+          }}
+        >
+          {todaysClients.length === 0
+            ? "No clients scheduled today."
+            : `Confirm each client to continue — ${confirmedClients.size} of ${todaysClients.length} done.`}
+        </div>
+      )}
 
+      {(allClientsConfirmed || submitFlash) && <div style={{ height: 140 }} />}
+
+      {(allClientsConfirmed || submitFlash) && (
       <div style={FOOTER}>
         {submitFlash && (
           <div
@@ -1334,10 +1370,7 @@ function ConfirmPage() {
             {submitFlash.msg}
           </div>
         )}
-        {(() => {
-          const allClientsConfirmed =
-            todaysClients.length > 0 &&
-            todaysClients.every((c) => confirmedClients.has(c));
+        {allClientsConfirmed && (() => {
           return (
             <>
               <label
@@ -1386,6 +1419,7 @@ function ConfirmPage() {
         })()}
 
       </div>
+      )}
       {pickerFor && (
         <ItemPicker
           onCancel={() => setPickerFor(null)}

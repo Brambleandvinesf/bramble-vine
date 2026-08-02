@@ -115,11 +115,23 @@ function normalize(d: GetDataResponse): ToolRow[] {
     (d.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
   );
 
+  /* PP2 (8/2) ROOT CAUSE of "confirmed items never reach Load Vehicle":
+     this map was keyed by BARE Project ID, but Project IDs are only
+     unique PER CLIENT ("proj-1" exists for nearly every client). getData
+     returns every client's projects, so whichever client came last in
+     the array overwrote the key — Louise Ireland's Confirmed proj-5/6/7
+     were clobbered to "" by some later client's blank proj-5/6/7 and
+     every one of her items was filtered out. Measured against live data
+     8/2: 0 items with the bare key, 5 (correct) with the composite one.
+     Code.js hit exactly this in v6.6.1 and fixed it there with
+     Client Name + Project ID; this reader never got the same treatment. */
+  const statusKey = (client: unknown, project: unknown) =>
+    `${String(client ?? "").trim()}||${String(project ?? "").trim()}`;
   const projectStatus: Record<string, string> = {};
   (d.projects ?? []).forEach((p) => {
     const id = String(p["Project ID"] ?? "").trim();
     if (id) {
-      projectStatus[id] = String(p["Status"] ?? "").trim();
+      projectStatus[statusKey(p["Client Name"], id)] = String(p["Status"] ?? "").trim();
     }
   });
 
@@ -139,7 +151,7 @@ function normalize(d: GetDataResponse): ToolRow[] {
       (it) =>
         it.item &&
         clients.has(it.client) &&
-        projectStatus[it.project] === "Confirmed",
+        projectStatus[statusKey(it.client, it.project)] === "Confirmed",
     );
 }
 

@@ -683,6 +683,36 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   Test artifact to delete: 'Crew report 2026-08-02 …png' (1x1 pixel) in
   the new Crew Reports folder. NOT verified: the GitHub call itself —
   needs the PAT.
+- 8/2 (PP — frontend only, no backend deploy despite the ticket saying
+  otherwise). NOTE: an item "NN" was referenced as a prior fix attempt;
+  no NN work order ever reached this session, so this was a first pass.
+  PP1: the Confirm screen's footer is a FIXED bar and was always
+  rendered, with the button merely disabled — so it sat as a dead
+  overlay across the bottom before the screen was usable. The footer
+  (and its 140px spacer) now render only once every client card is
+  confirmed; an inline, in-flow hint reports progress instead.
+  PP2 ROOT CAUSE — two independent defects, both required:
+   (a) loading.tsx normalize() keyed projectStatus by BARE Project ID,
+       but Project IDs are unique only PER CLIENT ("proj-1" exists for
+       almost every client) and getData returns EVERY client's projects.
+       The last client in the array clobbered the key, so Louise
+       Ireland's Confirmed proj-5/6/7 read back as "" and all her items
+       were filtered out. Now keyed Client Name + Project ID — the same
+       composite fix Code.js already made server-side in v6.6.1.
+   (b) confirming a CLIENT card never wrote per-project Status, so
+       projects the crew didn't individually tap stayed blank. submit()
+       now sends Status "Confirmed" for a confirmed client's projects;
+       an explicit SKIP still wins.
+  VERIFIED LIVE against the real in-progress 8/2 day, WITHOUT writing to
+  it: replaying normalize() over the live getData payload gave 0 items
+  with the old key and exactly Louise Ireland's 5 real items with the
+  fix; the dev build then showed Load Vehicle with "0 of 5 loaded"
+  (Turf broom, Rainpoint App, 8 AA batteries, Fish emulsion, Watering
+  can). PP1 checked in-browser: with 0/1 clients confirmed there is NO
+  submit button in the DOM and no bottom fixed bar but the spine; after
+  the client card is confirmed, CONFIRM SPECIAL LOADING appears enabled
+  and the hint disappears. No confirm was submitted — the crew was
+  mid-day.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)
