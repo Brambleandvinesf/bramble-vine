@@ -168,6 +168,14 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
    assistant re-displays the full combined prompt after each fold.
    Human/chat-side workflow only — it changes nothing about how any
    individual prompt should be processed.
+8. STANDING: before finishing ANY session, report — unprompted — every
+   command or action that needed permission approval more than once
+   that session (recurring types, not one-offs), so they can be
+   reviewed for .claude/settings.json. Judgment already set: safe,
+   routine, read-only things are fine to pre-approve; anything touching
+   deploys, credentials, external services, payroll, client
+   communications, or destructive operations keeps prompting no matter
+   how often it recurs. Brandon should not have to ask for this list.
 
 ## CLASP (backend editing — hazards)
 - /home/info/appsscript on Edaphos; bv-deploy.sh deploys to the pinned id

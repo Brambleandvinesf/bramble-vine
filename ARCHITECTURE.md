@@ -713,6 +713,33 @@ restores it byte-exact. Verify the verdict after Lovable's next commit.
   the client card is confirmed, CONFIRM SPECIAL LOADING appears enabled
   and the hint disappears. No confirm was submitted — the crew was
   mid-day.
+- 8/2 (QQ/RR — frontend + docs only, no backend deploy).
+  QQ: standing rule added to CLAUDE.md §HOW TO RUN A SESSION item 8 —
+  report recurring permission prompts unprompted at session end.
+  RR FINDING: Load Vehicle was ALREADY a checkbox checklist on main —
+  loading.tsx contains no dropdowns, no editable fields, no timer and
+  no confirm/skip/delete (grepped and confirmed in-browser). The rich
+  per-project editor Brandon described is the /confirm screen; the most
+  likely explanation for seeing it under a "LOAD VEHICLE" heading is
+  the published Lovable build lagging main, since the spine's capsule
+  reads LOAD VEHICLE while standing on /confirm once the day is
+  confirmed. Reported rather than rewritten.
+  REAL DEFECT found on that screen instead: every item lacking a
+  Material ID rendered a red NO ID tag AND was made un-tappable
+  (cursor:default, onClick suppressed). Today every one of Louise
+  Ireland's 5 items lacks an ID, so NOTHING on the checklist could be
+  ticked. setLoaded has always accepted a `row` fallback, so the
+  lockout was purely frontend — removed.
+  RR2: items are now one flat list per client; the per-project headers
+  are gone and each row carries a ▸ caret revealing "Client · project"
+  on tap, collapsed by default. LOADING COMPLETE / NAVIGATE AND TEXT
+  ETA flow untouched (RR4), data source unchanged from PP2 (RR3).
+  VERIFIED LIVE against the real day: checklist renders flat (Turf
+  broom, Rainpoint App, 8 AA batteries, Fish emulsion, Watering can),
+  caret expands to "Louise Ireland · proj-5", and ticking an item moved
+  the counter to "1 of 5 loaded" — the action that was impossible
+  before. Immediately un-ticked; getData re-read confirms all five back
+  to Loaded=False, net zero change to the crew's day.
 - Custom wake words: OS-blocked; badge button > voice.
 
 ## §12. APPS SCRIPT VIA CLASP (7/27, full detail)

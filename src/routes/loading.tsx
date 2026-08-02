@@ -182,6 +182,8 @@ function LoadingPage() {
   const [completing, setCompleting] = useState(false);
   // Survives the remounts that poll-driven navigation causes; without this a
   // spine yank threw away every per-client confirmation tap.
+  // RR2 (8/2): rows whose client/project context the user tapped open.
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(() => new Set());
   const [confirmedClients, setConfirmedClients] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
     try {
@@ -470,73 +472,98 @@ function LoadingPage() {
                     {client}
                   </span>
                 </div>
-                {Object.keys(projects).map((project) => {
-                  const rows = projects[project];
-                  const done = rows.filter((r) => r.loaded).length;
+                {/* RR (8/2): one flat checklist per client — checkboxes and
+                    nothing else. The per-project headers are gone; which
+                    project an item belongs to is context, not the point of
+                    this screen, so it hides behind a tap (RR2). */}
+                {(() => {
+                  const flat = Object.keys(projects).flatMap((project) =>
+                    projects[project].map((it) => ({ it, project })),
+                  );
                   return (
-                    <div key={project} style={{ marginBottom: 12 }}>
-                      <div style={PROJECT_HEAD}>
-                        <span style={{ color: DIM_GREEN, fontSize: 14, letterSpacing: 1 }}>
-                          {project}
-                        </span>
-                        <span style={{ fontSize: 14, color: MUTED, marginLeft: "auto" }}>
-                          {done} of {rows.length} loaded
-                        </span>
-                      </div>
-                      <div style={ROWS}>
-                        {rows.map((it, i) => {
-                          const onsite = /-\s*onsite/i.test(it.item);
-                          const name = it.item.replace(/\s*-\s*onsite\s*$/i, "");
-                          const meta = [it.qty, it.size].filter(Boolean).join(" · ");
-                          const noId = !it.materialId;
-                          return (
+                    <div style={ROWS}>
+                      {flat.map(({ it, project }, i) => {
+                        const onsite = /-\s*onsite/i.test(it.item);
+                        const name = it.item.replace(/\s*-\s*onsite\s*$/i, "");
+                        const meta = [it.qty, it.size].filter(Boolean).join(" · ");
+                        const open = expandedItems.has(it.row);
+                        return (
+                          <div
+                            key={`${it.row}-${i}`}
+                            style={{
+                              ...ITEM,
+                              borderBottom: i === flat.length - 1 ? "none" : `1px solid ${LINE}`,
+                              cursor: "pointer",
+                              alignItems: "flex-start",
+                            }}
+                          >
+                            {/* RR (8/2): items with no Material ID used to be
+                                un-tappable, which on a day where every row
+                                lacked one meant NOTHING could be checked off.
+                                setLoaded has always accepted a row fallback,
+                                so the lockout was pure frontend. */}
                             <div
-                              key={`${it.row}-${i}`}
-                              onClick={() => !noId && toggle(it.row)}
+                              onClick={() => toggle(it.row)}
                               style={{
-                                ...ITEM,
-                                borderBottom: i === rows.length - 1 ? "none" : `1px solid ${LINE}`,
-                                cursor: noId ? "default" : "pointer",
-                                opacity: noId ? 0.6 : 1,
+                                ...BOX,
+                                background: it.loaded ? LIME : "transparent",
+                                borderColor: it.loaded ? LIME : LIME_DIM,
                               }}
                             >
+                              {it.loaded ? "✓" : ""}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }} onClick={() => toggle(it.row)}>
                               <div
                                 style={{
-                                  ...BOX,
-                                  background: it.loaded ? LIME : "transparent",
-                                  borderColor: it.loaded ? LIME : LIME_DIM,
+                                  fontSize: 15,
+                                  lineHeight: 1.35,
+                                  wordWrap: "break-word",
+                                  color: it.loaded ? MUTED : TEXT,
+                                  textDecoration: it.loaded ? "line-through" : "none",
                                 }}
                               >
-                                {it.loaded ? "✓" : ""}
+                                {name}
+                                {onsite && <span style={TAG}>ONSITE</span>}
                               </div>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div
-                                  style={{
-                                    fontSize: 15,
-                                    lineHeight: 1.35,
-                                    wordWrap: "break-word",
-                                    color: it.loaded ? MUTED : TEXT,
-                                    textDecoration: it.loaded ? "line-through" : "none",
-                                  }}
-                                >
-                                  {name}
-                                  {onsite && <span style={TAG}>ONSITE</span>}
-                                  {noId && (
-                                    <span style={{ ...TAG, background: RED, color: "#0a0a0a" }}>
-                                      NO ID
-                                    </span>
-                                  )}
+                              {meta && <div style={META}>{meta}</div>}
+                              {it.notes && <div style={NOTES}>{it.notes}</div>}
+                              {open && (
+                                <div style={{ ...META, color: DIM_GREEN }}>
+                                  {client} · {project}
                                 </div>
-                                {meta && <div style={META}>{meta}</div>}
-                                {it.notes && <div style={NOTES}>{it.notes}</div>}
-                              </div>
+                              )}
                             </div>
-                          );
-                        })}
-                      </div>
+                            <button
+                              type="button"
+                              aria-label={open ? "Hide details" : "Show details"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedItems((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(it.row)) next.delete(it.row);
+                                  else next.add(it.row);
+                                  return next;
+                                });
+                              }}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: MUTED,
+                                fontFamily: "inherit",
+                                fontSize: 13,
+                                cursor: "pointer",
+                                padding: "0 2px",
+                                flex: "0 0 auto",
+                              }}
+                            >
+                              {open ? "▾" : "▸"}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
-                })}
+                })()}
                 <button
                   type="button"
                   onClick={() => {
