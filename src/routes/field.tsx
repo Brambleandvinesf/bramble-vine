@@ -1505,8 +1505,7 @@ function VendorVisit({
   return (
     <div style={{ padding: "10px 14px" }}>
       <div style={PANEL_BOX}>
-        <div style={{ color: LIME, fontSize: 18, fontWeight: "bold" }}>{vendor.vendor}</div>
-        <div style={{ color: MUTED, fontSize: 12, marginTop: 4 }}>Supply run in progress</div>
+        <div style={{ color: MUTED, fontSize: 12 }}>Supply run in progress</div>
       </div>
 
       {vendor.taxExempt && (
