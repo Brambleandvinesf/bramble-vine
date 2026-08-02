@@ -560,7 +560,13 @@ function LoadingPage() {
                                   fontSize: 15,
                                   lineHeight: 1.35,
                                   wordWrap: "break-word",
-                                  color: it.loaded ? MUTED : TEXT,
+                                  /* WW (8/2): the item name is the whole
+                                     point of this screen — bright lime,
+                                     full priority. Once loaded it steps
+                                     back to muted + struck through, so
+                                     what's LEFT is what stands out. */
+                                  color: it.loaded ? MUTED : LIME,
+                                  fontWeight: it.loaded ? "normal" : "bold",
                                   textDecoration: it.loaded ? "line-through" : "none",
                                 }}
                               >
@@ -621,10 +627,19 @@ function LoadingPage() {
       {confirm?.confirmed && (() => {
         /* TT.2 (8/2): one button for the whole checklist, pressable by any
            crew member — no per-client gate. loadingComplete is shared
-           state, so every device sees it and the button goes dark. */
+           state, so every device sees it and the button goes dark.
+           XX (8/2): it stays hidden until every item is ticked. An empty
+           checklist counts as complete — a daily-load-only day must not be
+           stranded with no way to finish. */
+        const everythingLoaded = (items ?? []).every((i) => i.loaded);
+        const remaining = (items ?? []).filter((i) => !i.loaded).length;
         return (
           <div style={LOADING_COMPLETE_WRAP}>
-            {!loadingDone ? (
+            {!loadingDone && !everythingLoaded ? (
+              <div style={{ color: MUTED, fontSize: 12, letterSpacing: 0.5, textAlign: "center" }}>
+                {remaining} item{remaining === 1 ? "" : "s"} still to load.
+              </div>
+            ) : !loadingDone ? (
               <button
                 type="button"
                 disabled={completing}
@@ -920,7 +935,7 @@ const SUBROW: React.CSSProperties = {
   justifyContent: "space-between",
   alignItems: "baseline",
   fontSize: 13,
-  color: MUTED,
+  color: LIME,          // WW (8/2): the loaded/unloaded count is functional
   marginTop: 4,
 };
 const METER: React.CSSProperties = {
@@ -1066,7 +1081,10 @@ const BOX: React.CSSProperties = {
   color: "#0a0a0a",
   transition: "all .12s ease",
 };
-const META: React.CSSProperties = { fontSize: 12, color: MUTED, marginTop: 3 };
+/* WW (8/2): quantity and size decide what actually goes in the vehicle —
+   functional, so lime. Notes and the tap-to-expand client/project context
+   stay muted: useful, but not needed to work the checklist. */
+const META: React.CSSProperties = { fontSize: 12, color: LIME, marginTop: 3 };
 const NOTES: React.CSSProperties = {
   fontSize: 12,
   color: "rgba(124,255,0,.55)",
