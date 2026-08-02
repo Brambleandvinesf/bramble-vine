@@ -826,3 +826,42 @@ Backend source is NOT in this repo. It is edited via clasp on the Pi.
   action" although both were written. Deploying fixed it with no code change.
   Check whether an action is merely undeployed before debugging it.
 - Backups kept in that dir: Code.js.pristine-backup and .bak-pre-<version>.
+
+- 8/2 (AD + AF, v7.4.23b @156). AD: the Visit In Progress screen now
+  leads with project cards and collects every action at the bottom —
+  DEBRIEF (the old END VISIT, renamed and promoted; AD.5's missing
+  direct action), NO SHOW (moved off the arrival screen per AD.1/2,
+  since the crew often clocks in while waiting on site for access),
+  CAMERA, + NOTE, then delegate-debrief as fine print. AD.7: item pills
+  were inheriting Loading's `loaded` treatment (filled + struck
+  through), reading as already-done on a screen where that means
+  something else — ItemPill takes an `ignoreLoaded` flag and the visit
+  screen always renders items normal. AD.8: tapping a card anywhere
+  outside a button toggles crossed-out, pinned locally until the server
+  echoes it (the VV optimistic rule).
+  AF: skipping a project on Confirm Special Loading now asks SKIP ONCE
+  vs ASSIGN TO SEASON(S); an assignment filters the project out of
+  getConfirm outside its seasons, so "Heavy prune" stops being skipped
+  every pass. Eight Wheel-of-the-Year labels; the four solstices/
+  equinoxes are computed astronomically per year (Meeus ch.27), the
+  four cross-quarters are fixed. Claude + web search pre-checks a
+  suggestion for SF's microclimate — suggestion only, fully editable.
+  VERIFIED LIVE: 2026 solstice/equinox values match published
+  astronomical times to within a minute; getConfirm reported season
+  "Late Summer" on 8/2 (correct — day after Lughnasadh); suggestSeasons
+  returned Late Winter for "Heavy prune of established roses" with SF
+  dormancy reasoning; crossProject round-tripped to
+  Crossed='DAY 2026-08-02' / crossedActive=true with Status untouched,
+  then reverted clean.
+  THREE BUGS CAUGHT IN LIVE TESTING, all fixed before reporting:
+  (1) crossedActive was computed inside getField's cache-MISS branch, so
+      a cache hit dropped it entirely — it is date-dependent and now
+      computed on every response;
+  (2) writing a bare 'yyyy-MM-dd' made Sheets COERCE the cell to a Date,
+      so a freshly crossed project read back as not-crossed — values now
+      carry a 'DAY '/'DONE ' text prefix and crossDayKey_ still parses
+      the coerced legacy form;
+  (3) the AI reasons in months while the labels are Wheel-of-the-Year
+      quarters, so its prose ("pruned hard in January") can sit just
+      outside the label it picks — harmless because the pick is
+      suggestion-only and editable, but worth knowing.

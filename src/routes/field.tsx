@@ -1385,6 +1385,9 @@ function FieldBody({
               clockSlot={personalClockSlot}
               onBreak={startBreakFromCurrent}
               onEndVisit={() => void send({ action: "setRoute", state: "debrief" })}
+              onCrossProject={(projectId, crossed) =>
+                void send({ action: "crossProject", projectId, client: clientMatch, crossed }, { silent: true })
+              }
               onToggleTool={(t) => void send({ action: "setLoaded", materialId: t.materialId, row: t.row, loaded: !t.loaded }, { silent: true })}
               onVisitComplete={handleVisitComplete}
               onNoShow={() => void confirmNoShow(send, setBanner)}
@@ -2242,10 +2245,13 @@ function ItemPill({
   t,
   disabled,
   onClick,
+  ignoreLoaded,
 }: {
   t: NormTool;
   disabled?: boolean;
   onClick?: () => void;
+  /** AD.7: render normal regardless of Loading's `loaded` flag. */
+  ignoreLoaded?: boolean;
 }) {
   const label = [t.qty, t.item, t.size].filter(Boolean).join(" ");
   const clickable = !disabled && !!onClick && !!t.materialId;
@@ -2260,8 +2266,10 @@ function ItemPill({
         alignItems: "center",
         gap: 6,
         maxWidth: "100%",
-        background: t.loaded ? BRIGHT_LIME : BG,
-        color: t.loaded ? BG : BRIGHT_LIME,
+        /* AD.7: `loaded` means "in the vehicle" — a Loading-screen fact.
+           On the visit screen it must not read as "already done". */
+        background: !ignoreLoaded && t.loaded ? BRIGHT_LIME : BG,
+        color: !ignoreLoaded && t.loaded ? BG : BRIGHT_LIME,
         border: `1px solid ${BRIGHT_LIME}`,
         borderRadius: 999,
         padding: "4px 10px",
@@ -2270,8 +2278,8 @@ function ItemPill({
         lineHeight: 1.3,
         cursor: clickable ? "pointer" : "default",
         textAlign: "left",
-        textDecoration: t.loaded ? "line-through" : "none",
-        opacity: !t.materialId ? 0.55 : 1,
+        textDecoration: !ignoreLoaded && t.loaded ? "line-through" : "none",
+        opacity: !ignoreLoaded && !t.materialId ? 0.55 : 1,
       }}
     >
       <span style={{ whiteSpace: "normal", wordBreak: "break-word" }}>{label}</span>
@@ -2284,17 +2292,41 @@ function ProjectCard({
   items,
   busy,
   onToggleTool,
+  crossed,
+  onToggleCrossed,
 }: {
   p: ProjectRow;
   items: NormTool[];
   busy?: boolean;
   onToggleTool?: (t: NormTool) => void;
+  /** AD.8: this project is struck through — done today (recurring) or
+   *  permanently (special). */
+  crossed?: boolean;
+  onToggleCrossed?: () => void;
 }) {
   const action = s(p["Project Action"]) || s(p["Action"]) || "—";
   const type = s(p["Type"]);
   const notes = s(p["Notes"]);
   return (
-    <div style={{ ...PANEL_BOX, marginTop: 8 }}>
+    <div
+      style={{
+        ...PANEL_BOX,
+        marginTop: 8,
+        opacity: crossed ? 0.5 : 1,
+        cursor: onToggleCrossed ? "pointer" : "default",
+      }}
+      /* AD.8: tapping the CARD toggles it, but never when the tap landed
+         on a button (item pills and any future controls keep their own
+         behaviour). */
+      onClick={
+        onToggleCrossed
+          ? (e) => {
+              if ((e.target as HTMLElement).closest("button")) return;
+              onToggleCrossed();
+            }
+          : undefined
+      }
+    >
       <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
         <div
           style={{
@@ -2303,6 +2335,7 @@ function ProjectCard({
             fontWeight: "bold",
             flex: 1,
             lineHeight: 1.35,
+            textDecoration: crossed ? "line-through" : "none",
           }}
         >
           {action}
@@ -2323,6 +2356,11 @@ function ProjectCard({
             <ItemPill
               key={`${t.row}-${i}`}
               t={t}
+              /* AD.7: "loaded" is a LOADING-screen concept. On the visit
+                 screen those same rows were rendering in the filled/
+                 checked-off treatment, reading as already done. Items
+                 here always render normal. */
+              ignoreLoaded
               disabled={busy}
               onClick={onToggleTool ? () => onToggleTool(t) : undefined}
             />
@@ -2844,13 +2882,11 @@ function StateArrived({
         </>
       )}
 
-      {/* HH.2/5: a supply run or a break can't be "no-showed" — the option
-          exists for client appointments only, at every stage (GG.4). */}
-      {clientStop && (
-        <button onClick={onNoShow} style={{ ...DANGER_BTN, marginTop: 14 }} disabled={busy}>
-          NO SHOW
-        </button>
-      )}
+      {/* AD.1 (8/2): NO SHOW no longer lives on the arrival screen — the
+          crew frequently clocks in while waiting on site for access,
+          before anyone knows whether the visit is happening. It moved to
+          Visit In Progress. This screen now has exactly one main action
+          plus its escape hatch. */}
     </div>
   );
 }
@@ -2877,6 +2913,7 @@ function StateVisit({
   clockSlot,
   onBreak,
   onEndVisit,
+  onCrossProject,
   onToggleTool,
   onVisitComplete,
   onNoShow,
@@ -2902,6 +2939,8 @@ function StateVisit({
   onBreak?: () => void;
   /** LL.1: advance the route out of the visit (was silently missing). */
   onEndVisit: () => void;
+  /** AD.8: persist a project's crossed-out state. */
+  onCrossProject: (projectId: string, crossed: boolean) => void;
   onToggleTool: (t: NormTool) => void;
   onVisitComplete?: () => void;
   onNoShow: () => void;
@@ -2938,6 +2977,52 @@ function StateVisit({
   const [showOut, setShowOut] = useState(false);
   const [noteComposerOpen, setNoteComposerOpen] = useState(false);
 
+  /* AD.8 (8/2): which cards are struck through. Seeded from the server's
+     computed crossedActive (recurring stamps expire on their own, so the
+     backend decides, not the client) and held locally between polls —
+     the VV optimistic-write rule: pin the local value, let the server
+     confirm it. */
+  const serverCrossed = useMemo(
+    () =>
+      new Set(
+        clientProjects
+          .filter((p) => p.crossedActive === true)
+          .map((p) => s(p["Project ID"]).trim())
+          .filter(Boolean),
+      ),
+    [clientProjects],
+  );
+  const [pendingCross, setPendingCross] = useState<Record<string, boolean>>({});
+  const crossedIds = useMemo(() => {
+    const out = new Set(serverCrossed);
+    for (const [pid, want] of Object.entries(pendingCross)) {
+      if (want) out.add(pid);
+      else out.delete(pid);
+    }
+    return out;
+  }, [serverCrossed, pendingCross]);
+  // Drop a pending flag once the server agrees (VV pattern).
+  useEffect(() => {
+    setPendingCross((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const [pid, want] of Object.entries(prev)) {
+        if (serverCrossed.has(pid) === want) { delete next[pid]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [serverCrossed]);
+
+  const onToggleCrossed = useCallback(
+    (pid: string) => {
+      if (!pid || !clientMatch) return;
+      const want = !crossedIds.has(pid);
+      setPendingCross((prev) => ({ ...prev, [pid]: want }));
+      void onCrossProject(pid, want);
+    },
+    [crossedIds, clientMatch, onCrossProject],
+  );
+
   return (
     <div style={{ padding: "10px 14px" }}>
       <div style={PANEL_BOX}>
@@ -2949,40 +3034,9 @@ function StateVisit({
         </div>
       </div>
 
-      {/* M3 (8/2): delegation lives IN Visit Mode — it appeared on the
-          en-route screen before, ahead of any visit to delegate. */}
-      <div style={{ ...SECTION_HEAD, marginTop: 12 }}>DEBRIEF</div>
-      <button
-        onClick={() => onDelegate(!delegated)}
-        disabled={isPreview}
-        style={{
-          ...BIG_BTN,
-          background: delegated ? LIME : "transparent",
-          color: delegated ? BG : LIME,
-          borderColor: delegated ? LIME : LIME_DIM,
-        }}
-      >
-        {delegated ? "✓ DELEGATED (TAP TO REVOKE)" : "DELEGATE DEBRIEF (THIS VISIT)"}
-      </button>
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-        <div style={{ flex: 1 }}>
-          <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
-        </div>
-        <button
-          type="button"
-          onClick={() => setNoteComposerOpen(true)}
-          disabled={isPreview}
-          style={{
-            ...PRIMARY_BTN,
-            width: 120,
-            flex: "0 0 auto",
-            opacity: isPreview ? 0.4 : 1,
-            marginTop: 12,
-          }}
-        >
-          + NOTE
-        </button>
-      </div>
+      {/* AD.3/4 (8/2): Camera, + NOTE and Delegate Debrief all moved to
+          the bottom of the screen with the other actions — the project
+          cards own the space above them now. */}
       {noteComposerOpen && (
         <NoteComposer
           onClose={() => setNoteComposerOpen(false)}
@@ -3032,6 +3086,10 @@ function StateVisit({
               items={items}
               busy={busy}
               onToggleTool={onToggleTool}
+              crossed={crossedIds.has(s(p["Project ID"]).trim())}
+              onToggleCrossed={
+                isPreview ? undefined : () => onToggleCrossed(s(p["Project ID"]).trim())
+              }
             />
           );
         })
@@ -3079,34 +3137,79 @@ function StateVisit({
       })()}
 
 
-      {isLead && (
-        <button onClick={onNoShow} style={{ ...DANGER_BTN, marginTop: 14 }} disabled={busy}>
-          NO SHOW
-        </button>
-      )}
+      {/* AD.6 (8/2): every action lives here at the bottom, in order —
+          DEBRIEF (primary), NO SHOW, CAMERA, + NOTE, then Delegate as
+          fine print. Order is Brandon's proposal, open to adjustment. */}
+      <div style={{ ...SECTION_HEAD, marginTop: 20 }}>ACTIONS</div>
 
+      {/* AD.5: the person actually on the visit needs their OWN debrief
+          action — previously only "delegate" existed, which was an
+          oversight. */}
       {isLead && !showOut && (
         <button
           onClick={() => {
-            /* LL.1 (8/2): this button used to only reveal the clock-out
-               panel and hope the LAST clock-out would flip the route to
-               debrief server-side — so on any day nobody was clocked in
-               (or for management) it did nothing at all. It now advances
-               the route itself. */
             onVisitComplete?.();
             setShowOut(true);
             onEndVisit();
           }}
           disabled={!!isPreview}
-          style={{ ...PRIMARY_BTN, marginTop: 14, opacity: isPreview ? 0.45 : 1 }}
+          style={{ ...PRIMARY_BTN, marginTop: 8, opacity: isPreview ? 0.45 : 1 }}
         >
-          {textsSuppressed || skipSameDayTexts
-            ? "END VISIT"
-            : alreadyTextedDone
-              ? "END VISIT (CLIENT TEXTED)"
-              : "END VISIT & TEXT CLIENT"}
+          DEBRIEF
         </button>
       )}
+
+      {/* AD.2: No Show moved here from the Arrived screen — the crew
+          often clocks in while waiting on site for access, before the
+          visit is confirmed to be happening at all. */}
+      {isLead && (
+        <button onClick={onNoShow} style={{ ...DANGER_BTN, marginTop: 10 }} disabled={busy}>
+          NO SHOW
+        </button>
+      )}
+
+      {/* AD.3: camera + note, relocated from the top of the screen. */}
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
+        </div>
+        <button
+          type="button"
+          onClick={() => setNoteComposerOpen(true)}
+          disabled={isPreview}
+          style={{ ...PRIMARY_BTN, width: 120, flex: "0 0 auto", opacity: isPreview ? 0.4 : 1 }}
+        >
+          + NOTE
+        </button>
+      </div>
+
+      {/* AD.4: delegation is a rare exception, not a headline action —
+          fine print, least prominent thing on the screen. */}
+      <button
+        type="button"
+        onClick={() => onDelegate(!delegated)}
+        disabled={isPreview}
+        style={{
+          display: "block",
+          margin: "14px auto 0",
+          background: "transparent",
+          border: "none",
+          color: delegated ? LIME : MUTED,
+          fontFamily: "inherit",
+          fontSize: 11,
+          letterSpacing: 1,
+          textDecoration: "underline",
+          cursor: "pointer",
+        }}
+      >
+        {delegated ? "✓ delegated — tap to revoke" : "delegate debrief (this visit)"}
+      </button>
+
+      {/* AD.5/6 (8/2): the old END VISIT button IS the DEBRIEF button now
+          — same action (text the client, advance the route out of the
+          visit, open the clock-out), moved up into the bottom action
+          block under its real name. LL.1's route-advance fix is
+          preserved there. */}
 
       {showOut && (
         <>

@@ -312,6 +312,11 @@ function ConfirmPage() {
     () => new Set(stagedRef.current?.confirmedClients ?? []),
   );
   const [flashClient, setFlashClient] = useState<string | null>(null);
+  /* AF (8/2): the project whose skip is being resolved — one-off, or a
+     standing season assignment. */
+  const [seasonFor, setSeasonFor] = useState<
+    { uid: string; projectId: string; client: string; action: string } | null
+  >(null);
   /* PP1 (8/2): lifted out of the footer's IIFE — the footer's very
      EXISTENCE now depends on this, not just the button's enabled state. */
   const allClientsConfirmed =
@@ -1131,8 +1136,18 @@ function ConfirmPage() {
                         aria-label="Skip"
                         title="Skip"
                         style={ICON_ACTION_BTN}
+                        /* AF.1 (8/2): skipping now asks whether this is a
+                           one-off or a seasonal task, so "Heavy prune" can
+                           be assigned once instead of skipped every pass. */
                         onClick={() =>
-                          beginAnim(key, "skip", () => setEdit(key, { status: "SKIP" }))
+                          p.projectId
+                            ? setSeasonFor({
+                                uid: key,
+                                projectId: p.projectId,
+                                client: p.client,
+                                action: p.action,
+                              })
+                            : beginAnim(key, "skip", () => setEdit(key, { status: "SKIP" }))
                         }
                       >
                         <SkipForward size={20} />
@@ -1419,6 +1434,36 @@ function ConfirmPage() {
         })()}
 
       </div>
+      )}
+      {seasonFor && (
+        <SeasonSheet
+          projectAction={seasonFor.action}
+          onClose={() => setSeasonFor(null)}
+          onSkipOnce={() => {
+            const k = seasonFor.uid;
+            setSeasonFor(null);
+            beginAnim(k, "skip", () => setEdit(k, { status: "SKIP" }));
+          }}
+          onAssign={async (seasons) => {
+            const target = seasonFor;
+            setSeasonFor(null);
+            try {
+              await fetch(SCRIPT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({
+                  action: "assignSeasons",
+                  projectId: target.projectId,
+                  client: target.client,
+                  seasons,
+                }),
+              });
+            } catch { /* the skip below still stands for today */ }
+            // Assignment is a standing rule, not a confirmation — today's
+            // pass still treats it as skipped (AF.6).
+            beginAnim(target.uid, "skip", () => setEdit(target.uid, { status: "SKIP" }));
+          }}
+        />
       )}
       {pickerFor && (
         <ItemPicker
@@ -1846,3 +1891,166 @@ const FOOTER: React.CSSProperties = {
   padding: "10px 12px",
   zIndex: 90,
 };
+
+/* ============================================================
+ * AF (8/2): resolving a skip. A task like "Heavy prune" is not really
+ * being skipped — it is out of season. Offer that choice explicitly:
+ * skip once (today's behaviour) or assign standing season(s), after
+ * which getConfirm stops surfacing it outside them.
+ *
+ * The eight labels and their boundaries live on the backend (Wheel of
+ * the Year; astronomical solstices/equinoxes, fixed cross-quarters).
+ * Claude pre-checks a suggestion for SF's microclimate — suggestion
+ * only, fully editable, nothing saved until CONFIRM.
+ * ============================================================ */
+const SEASONS = [
+  "Early Spring", "Late Spring", "Early Summer", "Late Summer",
+  "Early Fall", "Late Fall", "Early Winter", "Late Winter",
+] as const;
+
+function SeasonSheet({
+  projectAction,
+  onClose,
+  onSkipOnce,
+  onAssign,
+}: {
+  projectAction: string;
+  onClose: () => void;
+  onSkipOnce: () => void;
+  onAssign: (seasons: string[]) => void;
+}) {
+  const [mode, setMode] = useState<"choose" | "assign">("choose");
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [why, setWhy] = useState<string | null>(null);
+  const [thinking, setThinking] = useState(false);
+
+  const openAssign = async () => {
+    setMode("assign");
+    setThinking(true);
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "suggestSeasons", action_text: projectAction }),
+      });
+      const j = (await res.json()) as { ok?: boolean; seasons?: string[]; why?: string };
+      if (j.ok !== false && Array.isArray(j.seasons)) {
+        setPicked(new Set(j.seasons));
+        setWhy(j.why || null);
+      }
+    } catch {
+      /* suggestion is optional — the crew can just tick boxes */
+    } finally {
+      setThinking(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 320,
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#0a0a0a", borderTop: `1px solid ${LINE}`, borderRadius: "12px 12px 0 0",
+          width: "100%", maxWidth: 560,
+          padding: "16px 14px calc(20px + env(safe-area-inset-bottom, 0px))",
+          fontFamily: "'Courier New', Courier, monospace", color: TEXT,
+        }}
+      >
+        <div style={{ color: LIME, fontSize: 13, letterSpacing: 2, fontWeight: "bold" }}>
+          {mode === "choose" ? "SKIP THIS TASK" : "ASSIGN TO SEASON(S)"}
+        </div>
+        <div style={{ color: MUTED, fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
+          {projectAction}
+        </div>
+
+        {mode === "choose" ? (
+          <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+            <button type="button" onClick={onSkipOnce} style={{ ...SOLID_BTN, width: "100%" }}>
+              SKIP ONCE
+            </button>
+            <button
+              type="button"
+              onClick={() => void openAssign()}
+              style={{
+                width: "100%", minHeight: 48, background: "transparent", color: LIME,
+                border: `1px solid ${LIME_DIM}`, borderRadius: 6, fontFamily: "inherit",
+                fontSize: 13, letterSpacing: 2, fontWeight: "bold", cursor: "pointer",
+              }}
+            >
+              ASSIGN TO SEASON(S)
+            </button>
+            <div style={{ color: MUTED, fontSize: 11, textAlign: "center" }}>
+              Assigned tasks stop appearing here outside their season.
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ color: MUTED, fontSize: 11, marginTop: 12 }}>
+              {thinking
+                ? "Checking what's right for San Francisco…"
+                : why
+                  ? `Suggested: ${why} — edit freely.`
+                  : "Tick every season this task belongs in."}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {SEASONS.map((s2) => {
+                const on = picked.has(s2);
+                return (
+                  <button
+                    key={s2}
+                    type="button"
+                    onClick={() =>
+                      setPicked((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(s2)) next.delete(s2);
+                        else next.add(s2);
+                        return next;
+                      })
+                    }
+                    style={{
+                      background: on ? LIME : "transparent",
+                      color: on ? "#0a0a0a" : LIME,
+                      border: `1px solid ${on ? LIME : LIME_DIM}`,
+                      borderRadius: 999, padding: "8px 12px", fontFamily: "inherit",
+                      fontSize: 12, fontWeight: "bold", cursor: "pointer",
+                    }}
+                  >
+                    {s2.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                disabled={picked.size === 0}
+                onClick={() => onAssign(Array.from(picked))}
+                style={{ ...SOLID_BTN, flex: 1, opacity: picked.size === 0 ? 0.5 : 1 }}
+              >
+                CONFIRM SEASONS
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("choose")}
+                style={{
+                  minHeight: 48, background: "transparent", color: LIME,
+                  border: `1px solid ${LIME_DIM}`, borderRadius: 6, padding: "0 14px",
+                  fontFamily: "inherit", fontSize: 13, letterSpacing: 2,
+                  fontWeight: "bold", cursor: "pointer",
+                }}
+              >
+                BACK
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
