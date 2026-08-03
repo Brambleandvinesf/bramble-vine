@@ -333,7 +333,7 @@ function SchedulePage() {
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [openId, setOpenId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const reqIdRef = useRef(0);
@@ -399,13 +399,9 @@ function SchedulePage() {
   const goNext = () => setAnchor((a) => addDaysKey(a, view === "day" ? 1 : 7));
   const goToday = () => setAnchor(laDateKey(new Date()));
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+  // Only one detail overlay shows at a time, so a single id replaces the Set.
+  const toggle = (id: string) => setOpenId((prev) => (prev === id ? null : id));
+  const expanded = useMemo(() => new Set(openId ? [openId] : []), [openId]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, EventItem[]>();
