@@ -731,12 +731,14 @@ function FieldPage() {
   );
 }
 
+/* Hours is LAST: it can only be right once people have clocked out of this
+   client, so it closes the debrief rather than opening it. */
 const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
-  { key: "billing", label: "Hours" },
   { key: "updates", label: "Projects Completed" },
   { key: "items", label: "Items Used" },
   { key: "new", label: "Future Projects" },
   { key: "office", label: "Messages" },
+  { key: "billing", label: "Hours" },
 ];
 
 function PreviewBadge({
