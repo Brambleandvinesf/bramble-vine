@@ -1391,6 +1391,8 @@ function FieldBody({
             <StateVisit
               skipSameDayTexts={skipSameDayTexts}
               textsSuppressed={textsSuppressed}
+              departureTextsSuppressed={departureTextsSuppressed}
+              departureToContact={departureToContact}
               event={currentEvent}
               clientMatch={clientMatch}
               vendorStop={vendorStop}
