@@ -13,6 +13,7 @@ import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
+import { ClientRefPanel } from "../components/ClientRefPanel";
 
 const CK = "field:getField";
 
@@ -124,6 +125,10 @@ type GetFieldResponse = {
   /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
   vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
+  /** Client name -> items already on site (operational reference, all roles). */
+  inventory?: Record<string, string[]>;
+  /** Full inventory vocabulary for the picker. */
+  knownInventory?: string[];
   serverTime?: string;
 };
 
@@ -877,6 +882,18 @@ function FieldBody({
     [allNotes, clientMatch],
   );
 
+  // Items already on site for this client. Keyed by client name, matched
+  // case-insensitively because the sheet's casing isn't guaranteed.
+  const clientInventory = useMemo(() => {
+    const map = data.inventory ?? {};
+    if (!clientMatch) return [] as string[];
+    const want = clientMatch.trim().toLowerCase();
+    const hit = Object.keys(map).find((k) => k.trim().toLowerCase() === want);
+    return hit ? (map[hit] ?? []) : [];
+  }, [data.inventory, clientMatch]);
+
+
+
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
   // Identity now comes from day-state's fieldPhone; there's no per-phone picker.
@@ -1289,7 +1306,13 @@ function FieldBody({
               event={currentEvent}
               clientMatch={vendorStop ? vendorStop.vendor : clientMatch}
               state={state}
+              inventory={clientInventory}
+              knownInventory={data.knownInventory ?? []}
+              send={send}
+              /* Vendor/break stops aren't clients — no inventory reference. */
+              panelDisabled={!!vendorStop || isBreakStop || isPreview}
             />
+
           )}
 
           {(state === "" || state === "enroute" || state === "arrived") && (
@@ -2080,17 +2103,51 @@ function ClientHeader({
   event,
   clientMatch,
   state,
+  inventory = [],
+  knownInventory = [],
+  send,
+  panelDisabled = false,
 }: {
   event: EventItem;
   clientMatch: string | null;
   state: RouteState;
+  inventory?: string[];
+  knownInventory?: string[];
+  send?: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  panelDisabled?: boolean;
 }) {
+  // Tapping the client name opens the reference panel (operational only —
+  // never gate codes or WiFi; those have their own lead-gated action).
+  const [panelOpen, setPanelOpen] = useState(false);
+  const label = clientMatch ?? event.title;
+  const canOpen = !!clientMatch && !!send && !panelDisabled;
   return (
     <div style={{ padding: "14px 14px 0" }}>
       <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>{state.toUpperCase()}</div>
-      <div style={{ color: LIME, fontSize: 22, fontWeight: "bold", marginTop: 2 }}>
-        {clientMatch ?? event.title}
-      </div>
+      {canOpen ? (
+        <button
+          onClick={() => setPanelOpen(true)}
+          style={{
+            display: "block",
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            marginTop: 2,
+            color: LIME,
+            fontFamily: "inherit",
+            fontSize: 22,
+            fontWeight: "bold",
+            textAlign: "left",
+            cursor: "pointer",
+            borderBottom: `1px dashed ${LIME_DIM}`,
+          }}
+          aria-label={`Open ${label} reference`}
+        >
+          {label}
+        </button>
+      ) : (
+        <div style={{ color: LIME, fontSize: 22, fontWeight: "bold", marginTop: 2 }}>{label}</div>
+      )}
       <div style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>
         {fmtTime(event.start)}{event.end ? ` – ${fmtTime(event.end)}` : ""}
       </div>
@@ -2098,6 +2155,15 @@ function ClientHeader({
         <div style={{ color: RED, fontSize: 12, marginTop: 6 }}>
           no client match — tell Brandon
         </div>
+      )}
+      {panelOpen && clientMatch && send && (
+        <ClientRefPanel
+          client={clientMatch}
+          inventory={inventory}
+          knownInventory={knownInventory}
+          send={send}
+          onClose={() => setPanelOpen(false)}
+        />
       )}
     </div>
   );
@@ -3846,7 +3912,12 @@ type DebriefBilling = { name: string; hours: number };
 type DebriefUpdate = { projectId: string; status?: string; notes?: string };
 type NewProjectItem = { name: string; qty?: string; size?: string; notes?: string };
 type NewProject = { action: string; type?: string; notes?: string; items?: NewProjectItem[] };
-type ItemUsed = { name: string; qty?: string };
+/**
+ * `partial` = "Partially Used — Left Onsite". A plain Used marking makes the
+ * backend drop the item from the client's Inventory; partial keeps/adds it.
+ * That consequence is server-side — never reimplemented here.
+ */
+type ItemUsed = { name: string; qty?: string; partial?: boolean };
 
 function StateDebrief({
   clientMatch,
@@ -4494,25 +4565,57 @@ function ItemsUsedPicker({
   return (
     <div>
       {items.map((i, idx) => (
-        <div key={idx} style={{ ...ROW_LINE, borderBottom: `1px solid ${LINE}`, gap: 6 }}>
-          <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
-            {i.name}
+
+        <div
+          key={idx}
+          style={{ borderBottom: `1px solid ${LINE}`, padding: "2px 0 8px" }}
+        >
+          <div style={{ ...ROW_LINE, borderBottom: "none", gap: 6 }}>
+            <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
+              {i.name}
+            </div>
+            <input
+              placeholder="Qty"
+              value={i.qty ?? ""}
+              onChange={(e) =>
+                onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
+              }
+              disabled={disabled}
+              style={{ ...INPUT, width: 72, marginTop: 0 }}
+            />
+            <button
+              onClick={() => onChange(items.filter((_, j) => j !== idx))}
+              disabled={disabled}
+              style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
+            >
+              ✕
+            </button>
           </div>
-          <input
-            placeholder="Qty"
-            value={i.qty ?? ""}
-            onChange={(e) =>
-              onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
+          {/* Rare case, so deliberately quiet: small text toggle, not a button. */}
+          <button
+            onClick={() =>
+              onChange(
+                items.map((x, j) =>
+                  // Off means absent, so the payload only ever carries partial: true.
+                  j === idx ? { ...x, partial: x.partial ? undefined : true } : x,
+                ),
+              )
             }
             disabled={disabled}
-            style={{ ...INPUT, width: 72, marginTop: 0 }}
-          />
-          <button
-            onClick={() => onChange(items.filter((_, j) => j !== idx))}
-            disabled={disabled}
-            style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: "2px 0 0",
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 0.5,
+              color: i.partial ? LIME : MUTED,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+            aria-pressed={!!i.partial}
           >
-            ✕
+            {i.partial ? "☑" : "☐"} partially used — left onsite
           </button>
         </div>
       ))}
@@ -4522,6 +4625,7 @@ function ItemsUsedPicker({
         style={{ ...SMALL_BTN, marginTop: 8, opacity: disabled ? 0.4 : 1 }}
       >
         + ADD ITEM
+
       </button>
       {pickerOpen && (
         <ItemPicker
