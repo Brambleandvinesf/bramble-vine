@@ -1312,6 +1312,7 @@ function FieldBody({
               <StateArrived
                 skipSameDayTexts={skipSameDayTexts}
                 textsSuppressed={textsSuppressed}
+                arrivalToContact={arrivalToContact}
                 roster={roster}
                 clientMatch={clientMatch}
                 stopIndex={stopIndex}
