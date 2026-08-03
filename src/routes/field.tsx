@@ -115,8 +115,12 @@ type GetFieldResponse = {
   projects?: ProjectRow[];
   tools?: ToolRowRaw[];
   clients?: string[];
-  /** Clients whose Client Info AF says "No" — never auto-text them. */
+  /** Clients whose Client Info AF says "No" — never auto-text arrival/ETA. */
   skipTextClients?: string[];
+  /** Clients whose Client Info AG says "No" — never auto-text departure. */
+  skipDepartureClients?: string[];
+  /** Clients whose text is routed to someone other than themselves. */
+  specialTextClients?: Array<{ client: string; arrival: boolean; departure: boolean }>;
   /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
   vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
@@ -890,7 +894,25 @@ function FieldBody({
     (data.skipTextClients ?? []).some(
       (c) => c.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
     );
+  // AG ("Departure Text") is a SEPARATE column from AF — departure must never
+  // be gated on the arrival flag (that mix-up is the bug this fixes).
+  const agOptOut =
+    !!clientMatch &&
+    (data.skipDepartureClients ?? []).some(
+      (c) => c.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
+    );
+  const skipDepartureTexts = agOptOut;
   const textsSuppressed = skipSameDayTexts || afOptOut || !!vendorStop;
+  const departureTextsSuppressed = skipDepartureTexts || !!vendorStop;
+  // Clients whose text goes to someone else (housekeeper, neighbour…). Labels
+  // only — the backend decides the actual recipient.
+  const special = clientMatch
+    ? (data.specialTextClients ?? []).find(
+        (s0) => s0.client.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
+      )
+    : undefined;
+  const arrivalToContact = special?.arrival === true;
+  const departureToContact = special?.departure === true;
   // Clock identity requires the ACTUAL signed-in role — never view-as. Before
   // this check, management browsing /field was handed the field phone holder's
   // QBT id and a live CLOCK IN button under someone else's timesheet.
@@ -1209,7 +1231,8 @@ function FieldBody({
 
   const handleVisitComplete = async () => {
     if (vendorStop) return;   // vendor stops never text
-    void textClient(send, "done", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+    // AG, not AF: departure has its own opt-out column.
+    void textClient(send, "done", clientMatch, stopIndex, isPreview, skipDepartureTexts);
   };
 
 
@@ -1289,6 +1312,7 @@ function FieldBody({
               <StateArrived
                 skipSameDayTexts={skipSameDayTexts}
                 textsSuppressed={textsSuppressed}
+                arrivalToContact={arrivalToContact}
                 roster={roster}
                 clientMatch={clientMatch}
                 stopIndex={stopIndex}
@@ -1367,6 +1391,8 @@ function FieldBody({
             <StateVisit
               skipSameDayTexts={skipSameDayTexts}
               textsSuppressed={textsSuppressed}
+              departureTextsSuppressed={departureTextsSuppressed}
+              departureToContact={departureToContact}
               event={currentEvent}
               clientMatch={clientMatch}
               vendorStop={vendorStop}
@@ -2616,6 +2642,7 @@ function AssistantLoadingGate({
 function StateArrived({
   skipSameDayTexts,
   textsSuppressed,
+  arrivalToContact,
   roster,
   clientMatch,
   stopIndex,
@@ -2639,6 +2666,8 @@ function StateArrived({
 }: {
   skipSameDayTexts: boolean;
   textsSuppressed: boolean;
+  /** Arrival text is routed to a contact, not the client (specialTextClients). */
+  arrivalToContact?: boolean;
   roster: RosterMember[];
   clientMatch: string | null;
   stopIndex: number;
@@ -2854,7 +2883,9 @@ function StateArrived({
               ? `SWITCH TO ${label.toUpperCase()}`
               : textsSuppressed
                 ? `ARRIVED — SWITCH TO ${label.toUpperCase()} (NO TEXT)`
-                : `ARRIVED — SWITCH TO AND TEXT ${label.toUpperCase()}`}
+                : `ARRIVED — SWITCH TO ${label.toUpperCase()} & TEXT ${
+                    arrivalToContact ? "CONTACT" : "CLIENT"
+                  }`}
           </button>
           {/* AB.5: same manual override as TT.3's navigate escape hatch —
               force no-text even if the automatic AF check is wrong. */}
@@ -2895,6 +2926,8 @@ function StateArrived({
 function StateVisit({
   skipSameDayTexts,
   textsSuppressed,
+  departureTextsSuppressed,
+  departureToContact,
   event,
   clientMatch,
   vendorStop,
@@ -2920,6 +2953,10 @@ function StateVisit({
 }: {
   skipSameDayTexts: boolean;
   textsSuppressed: boolean;
+  /** AG-derived: departure text suppressed (or vendor stop). */
+  departureTextsSuppressed?: boolean;
+  /** Departure text is routed to a contact, not the client. */
+  departureToContact?: boolean;
   event?: EventItem;
   clientMatch: string | null;
   vendorStop?: FieldVendor | null;
@@ -3155,7 +3192,11 @@ function StateVisit({
           disabled={!!isPreview}
           style={{ ...PRIMARY_BTN, marginTop: 8, opacity: isPreview ? 0.45 : 1 }}
         >
-          DEBRIEF
+          {/* Departure is governed by AG, not AF — the label states exactly
+              what the tap will do; the backend re-checks at send time. */}
+          {departureTextsSuppressed
+            ? "DEBRIEF (NO TEXT)"
+            : `DEBRIEF & TEXT ${departureToContact ? "CONTACT" : "CLIENT"}`}
         </button>
       )}
 
