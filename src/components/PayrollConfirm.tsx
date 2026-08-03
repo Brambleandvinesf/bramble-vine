@@ -17,14 +17,25 @@ type Entry = {
   end: string | null; // ISO or null (still on clock)
   onClock: boolean;
   seconds: number;
+  jobcodeId?: string;
+  jobcode?: string;
 };
 type Person = { userId: string; name: string; entries: Entry[] };
-type PayrollDayResponse = { ok?: boolean; day?: string; people?: Person[] };
+type PayrollDayResponse = { ok?: boolean; day?: string; client?: string; people?: Person[] };
+
+type PlanStep = { id: string; start?: string; end?: string; note?: string; label?: string };
+type Plan = {
+  ok?: boolean;
+  refusal?: string;
+  warnings?: string[];
+  steps?: PlanStep[];
+};
 
 type Props = {
   open: boolean;
   scriptUrl: string;
   byName: string;
+  client?: string;
   onClose: () => void;
   onProceed: () => void; // called after payrollConfirm succeeds — the day is over at that point
 };
@@ -52,37 +63,89 @@ function hmm(secs: number): string {
   const m = Math.round((secs % 3600) / 60);
   return `${h}h ${m.toString().padStart(2, "0")}m`;
 }
+/* Billing figure is always a clean quarter-hour — that's what goes on an invoice. */
+function toQuarter(hours: number): number {
+  return Math.max(0, Math.round(hours * 4) / 4);
+}
+function fmtHours(h: number): string {
+  return h.toFixed(2);
+}
+function entryEndMs(e: Entry): number {
+  if (e.end) return new Date(e.end).getTime();
+  if (e.onClock) return Date.now();
+  return new Date(e.start).getTime() + (e.seconds || 0) * 1000;
+}
+function todayISODate(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+/* A person's client for billing purposes = the jobcode of their latest segment,
+   unless the caller told us which client this card is about. */
+function personClient(p: Person, fallback?: string): string {
+  const sorted = [...p.entries].sort((a, b) => entryEndMs(b) - entryEndMs(a));
+  return (fallback || sorted[0]?.jobcode || "").trim();
+}
 
-export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: Props) {
+export function PayrollConfirm({ open, scriptUrl, byName, client, onClose, onProceed }: Props) {
   const [loading, setLoading] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [day, setDay] = useState<string>("");
   const [err, setErr] = useState<string | null>(null);
-  const [editing, setEditing] = useState<{
-    entryId: string;
-    field: "start" | "end";
-    value: string;
-  } | null>(null);
   const [saving, setSaving] = useState(false);
   const [showDecline, setShowDecline] = useState(false);
   const [declineNote, setDeclineNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  /* (A) BILLING adjustments — Billing Hours tab only, never QuickBooks Time. */
+  const [billing, setBilling] = useState<Record<string, number>>({});
+  const [billingNote, setBillingNote] = useState<string | null>(null);
+  const [billingBusy, setBillingBusy] = useState<string | null>(null);
+
+  /* (B) PAYROLL edit — planner-gated. */
+  const [editing, setEditing] = useState<{
+    person: Person;
+    entryId: string;
+    field: "start" | "end";
+    value: string;
+  } | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [override, setOverride] = useState<{
+    allowBreakToPaid?: boolean;
+    allowCrossClient?: boolean;
+  }>({});
+  const [stepLog, setStepLog] = useState<string[]>([]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
-      const r = await fetch(`${scriptUrl}?action=payrollDay`, { method: "GET" });
+      const q = client ? `&client=${encodeURIComponent(client)}` : "";
+      const r = await fetch(`${scriptUrl}?action=payrollDay${q}`, { method: "GET" });
       const j = (await r.json().catch(() => ({}))) as PayrollDayResponse;
       if (!j || j.ok === false) throw new Error("payrollDay failed");
-      setPeople(Array.isArray(j.people) ? j.people : []);
+      const list = Array.isArray(j.people) ? j.people : [];
+      setPeople(list);
       setDay(j.day ?? "");
+      // Re-seed the billing figure from the (possibly corrected) clock time.
+      setBilling((cur) => {
+        const next = { ...cur };
+        for (const p of list) {
+          const secs = p.entries.reduce(
+            (a, e) => a + (e.onClock ? (Date.now() - new Date(e.start).getTime()) / 1000 : e.seconds || 0),
+            0,
+          );
+          next[p.name] = toQuarter(secs / 3600);
+        }
+        return next;
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : "load failed");
     } finally {
       setLoading(false);
     }
-  }, [scriptUrl]);
+  }, [scriptUrl, client]);
 
   useEffect(() => {
     if (open) void load();
@@ -112,7 +175,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
       for (const e of p.entries) {
         const s = new Date(e.start).getTime();
         if (!isNaN(s)) min = Math.min(min, s);
-        const end = e.end ? new Date(e.end).getTime() : (e.onClock ? Date.now() : NaN);
+        const end = entryEndMs(e);
         if (!isNaN(end)) max = Math.max(max, end);
       }
     }
@@ -128,28 +191,119 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
     return { min: min - 10 * 60_000, max: max + 10 * 60_000 };
   }, [people]);
 
-  const saveEdit = useCallback(async () => {
-    if (!editing) return;
+  /* (A) ±15 min. Billing Hours tab upsert on date+client+person — pressing "+"
+     three times leaves ONE row, so we always send the absolute figure. */
+  const adjustBilling = useCallback(
+    async (person: Person, deltaHours: number) => {
+      const cur = billing[person.name] ?? 0;
+      const next = toQuarter(cur + deltaHours);
+      const prev = cur;
+      setBilling((b) => ({ ...b, [person.name]: next })); // optimistic
+      setBillingBusy(person.name);
+      setErr(null);
+      try {
+        const r = await fetch(scriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "setBillingHours",
+            confirm: "BILLING",
+            date: day || todayISODate(),
+            client: personClient(person, client),
+            rows: [{ person: person.name, hours: next }],
+          }),
+        });
+        const j = (await r.json().catch(() => ({}))) as { ok?: boolean; billingOnly?: string };
+        if (j.ok === false) throw new Error("billing update failed");
+        if (j.billingOnly) setBillingNote(j.billingOnly);
+      } catch (e) {
+        setBilling((b) => ({ ...b, [person.name]: prev })); // roll back
+        setErr(e instanceof Error ? e.message : "billing update failed");
+      } finally {
+        setBillingBusy(null);
+      }
+    },
+    [billing, scriptUrl, day, client],
+  );
+
+  /* (B) Ask the planner first. Never write straight to payrollEdit. */
+  const probe = useCallback(
+    async (flags: { allowBreakToPaid?: boolean; allowCrossClient?: boolean }) => {
+      if (!editing) return;
+      setProbing(true);
+      setPlan(null);
+      setStepLog([]);
+      setErr(null);
+      try {
+        const iso = fromLocalInputValue(editing.value);
+        const body: Record<string, unknown> = {
+          action: "neighborProbe",
+          segments: editing.person.entries,
+          targetId: editing.entryId,
+        };
+        if (editing.field === "start") body.newStart = iso;
+        else body.newEnd = iso;
+        if (flags.allowBreakToPaid) body.allowBreakToPaid = true;
+        if (flags.allowCrossClient) body.allowCrossClient = true;
+        const r = await fetch(scriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(body),
+        });
+        const j = (await r.json().catch(() => ({}))) as { ok?: boolean; plan?: Plan };
+        if (!j.plan) throw new Error("neighborProbe returned no plan");
+        setPlan(j.plan);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "probe failed");
+      } finally {
+        setProbing(false);
+      }
+    },
+    [editing, scriptUrl],
+  );
+
+  /* Steps run IN THE ORDER GIVEN — the neighbour moves out of the way before
+     the target moves in. QB Time answers an overlapping write with HTTP 200 and
+     hides the per-item failure, so we stop on the first failure. */
+  const runPlan = useCallback(async () => {
+    if (!plan?.steps?.length || !editing) return;
     setSaving(true);
+    setErr(null);
+    const log: string[] = [];
     try {
-      const iso = fromLocalInputValue(editing.value);
-      const body: Record<string, string> = { action: "payrollEdit", id: editing.entryId };
-      body[editing.field] = iso;
-      const r = await fetch(scriptUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify(body),
-      });
-      const j = (await r.json().catch(() => ({}))) as { ok?: boolean };
-      if (!j.ok) throw new Error("save failed");
+      for (let i = 0; i < plan.steps.length; i++) {
+        const step = plan.steps[i];
+        const body: Record<string, unknown> = { action: "payrollEdit", id: step.id };
+        if (step.start) body.start = step.start;
+        if (step.end) body.end = step.end;
+        const r = await fetch(scriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify(body),
+        });
+        const j = (await r.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!j.ok) {
+          log.push(`step ${i + 1} FAILED: ${j.error || "payrollEdit rejected"}`);
+          setStepLog([...log]);
+          throw new Error(
+            i === 0
+              ? `neighbour did not move — target left untouched (${j.error || "payrollEdit rejected"})`
+              : j.error || "payrollEdit failed",
+          );
+        }
+        log.push(`step ${i + 1} ok${step.label ? ` — ${step.label}` : ""}`);
+        setStepLog([...log]);
+      }
       setEditing(null);
-      await load();
+      setPlan(null);
+      setOverride({});
+      await load(); // re-seeds the billing figure from the corrected time
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "save failed");
+      setErr(e instanceof Error ? e.message : "edit failed");
     } finally {
       setSaving(false);
     }
-  }, [editing, scriptUrl, load]);
+  }, [plan, editing, scriptUrl, load]);
 
   const submitConfirm = useCallback(
     async (ok: boolean, note?: string) => {
@@ -175,6 +329,12 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
   );
 
   if (!open) return null;
+
+  const refusalOverridable =
+    plan?.ok === false &&
+    !!plan.refusal &&
+    /different client|another client|unpaid break|paid time/i.test(plan.refusal);
+  const crossClientRefusal = !!plan?.refusal && /client/i.test(plan.refusal);
 
   return (
     <div
@@ -208,10 +368,11 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
           <div style={{ color: LIME, fontSize: 18, fontWeight: "bold", letterSpacing: 2 }}>
             PAYROLL — CONFIRM DAY
           </div>
-          <div style={{ marginLeft: "auto", color: MUTED, fontSize: 12 }}>{day}</div>
+          <div style={{ marginLeft: "auto", color: MUTED, fontSize: 14 }}>{day}</div>
         </div>
         <div style={{ color: MUTED, fontSize: 14, marginTop: 8, lineHeight: 1.4 }}>
-          Review each person's hours. Tap a start/end time to edit. Confirm to complete your clock out.
+          Review each person's hours. Use − / + to adjust the BILLING figure by 15 minutes. The
+          pencil on a start/stop range is a PAYROLL edit and moves real time entries.
         </div>
 
         {loading && (
@@ -227,7 +388,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
               border: `1px solid ${LIME_DIM}`,
               color: LIME,
               borderRadius: 6,
-              fontSize: 13,
+              fontSize: 14,
             }}
           >
             {err}
@@ -248,8 +409,12 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                 person={p}
                 min={range.min}
                 max={range.max}
+                billingHours={billing[p.name] ?? 0}
+                billingBusy={billingBusy === p.name}
+                billingNote={billingNote}
+                onAdjust={(delta) => void adjustBilling(p, delta)}
                 onEdit={(entryId, field, current) =>
-                  setEditing({ entryId, field, value: toLocalInputValue(current) })
+                  setEditing({ person: p, entryId, field, value: toLocalInputValue(current) })
                 }
               />
             ))}
@@ -280,7 +445,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                   }}
                 >
                   {stillOnClock.map((p) => (
-                    <div key={p.userId} style={{ color: MUTED, fontSize: 13 }}>
+                    <div key={p.userId} style={{ color: MUTED, fontSize: 14 }}>
                       {p.name} time entries still in progress
                     </div>
                   ))}
@@ -337,7 +502,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                   border: `1px solid ${waitingForClockOuts ? LINE : LIME_DIM}`,
                   borderRadius: 8,
                   fontFamily: "inherit",
-                  fontSize: 13,
+                  fontSize: 14,
                   letterSpacing: 1.5,
                   cursor: waitingForClockOuts ? "not-allowed" : "pointer",
                 }}
@@ -373,7 +538,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                 borderRadius: 8,
               }}
             >
-              <div style={{ color: LIME, fontSize: 13, letterSpacing: 1 }}>
+              <div style={{ color: LIME, fontSize: 14, letterSpacing: 1 }}>
                 WHY CAN'T YOU CONFIRM?
               </div>
               <textarea
@@ -406,7 +571,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                     border: `1px solid ${LIME_DIM}`,
                     borderRadius: 6,
                     fontFamily: "inherit",
-                    fontSize: 13,
+                    fontSize: 14,
                     letterSpacing: 1,
                     cursor: "pointer",
                   }}
@@ -424,7 +589,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                     border: `2px solid ${LIME}`,
                     borderRadius: 6,
                     fontFamily: "inherit",
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: "bold",
                     letterSpacing: 1.5,
                     cursor: "pointer",
@@ -438,41 +603,56 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
           )}
         </div>
 
-        {/* Edit modal (nested) */}
+        {/* PAYROLL EDIT (nested) — probe, review, then execute steps in order. */}
         {editing && (
           <div
             style={{
               position: "fixed",
               inset: 0,
               zIndex: 600,
-              background: "rgba(0,0,0,.85)",
+              background: "rgba(0,0,0,.9)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               padding: 16,
+              overflow: "auto",
             }}
-            onClick={() => !saving && setEditing(null)}
+            onClick={() => {
+              if (saving || probing) return;
+              setEditing(null);
+              setPlan(null);
+              setOverride({});
+              setStepLog([]);
+            }}
           >
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
                 width: "100%",
-                maxWidth: 360,
+                maxWidth: 420,
                 background: BG,
-                border: `1px solid ${LIME_DIM}`,
+                border: `2px solid ${LIME}`,
                 borderRadius: 10,
                 padding: 16,
               }}
             >
-              <div style={{ color: LIME, fontSize: 14, letterSpacing: 1.5 }}>
-                EDIT {editing.field.toUpperCase()}
+              <div style={{ color: LIME, fontSize: 15, letterSpacing: 1.5, fontWeight: "bold" }}>
+                PAYROLL EDIT — {editing.field.toUpperCase()}
+              </div>
+              <div style={{ color: MUTED, fontSize: 14, marginTop: 6, lineHeight: 1.4 }}>
+                {editing.person.name} · this changes the real time entry in QuickBooks Time and may
+                move a neighbouring segment.
               </div>
               <input
                 type="datetime-local"
                 value={editing.value}
-                onChange={(e) =>
-                  setEditing((cur) => (cur ? { ...cur, value: e.target.value } : cur))
-                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditing((cur) => (cur ? { ...cur, value: v } : cur));
+                  setPlan(null);
+                  setOverride({});
+                  setStepLog([]);
+                }}
                 style={{
                   marginTop: 12,
                   width: "100%",
@@ -482,14 +662,118 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                   borderRadius: 6,
                   padding: "10px 12px",
                   fontFamily: "inherit",
-                  fontSize: 14,
+                  fontSize: 15,
                   boxSizing: "border-box",
                 }}
               />
+
+              {/* Refusal — shown VERBATIM. The wording is the useful part. */}
+              {plan?.ok === false && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: "10px 12px",
+                    background: PANEL,
+                    border: `1px solid ${LIME}`,
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ color: LIME, fontSize: 12, letterSpacing: 1.5 }}>REFUSED</div>
+                  <div style={{ color: TEXT, fontSize: 14, marginTop: 6, lineHeight: 1.45 }}>
+                    {plan.refusal || "refused with no reason given"}
+                  </div>
+                  {refusalOverridable && (
+                    <button
+                      onClick={() => {
+                        const flags = crossClientRefusal
+                          ? { ...override, allowCrossClient: true }
+                          : { ...override, allowBreakToPaid: true };
+                        setOverride(flags);
+                        void probe(flags);
+                      }}
+                      disabled={probing}
+                      style={{
+                        marginTop: 10,
+                        minHeight: 44,
+                        width: "100%",
+                        background: "transparent",
+                        color: LIME,
+                        border: `1px solid ${LIME}`,
+                        borderRadius: 6,
+                        fontFamily: "inherit",
+                        fontSize: 13,
+                        letterSpacing: 1,
+                        cursor: probing ? "default" : "pointer",
+                      }}
+                    >
+                      {crossClientRefusal
+                        ? "YES — MOVE THE OTHER CLIENT'S BILLED BOUNDARY"
+                        : "YES — CONVERT UNPAID BREAK TIME INTO PAID TIME"}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Warnings — every entry shown before committing. */}
+              {plan?.ok === true && (plan.warnings?.length ?? 0) > 0 && (
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: "10px 12px",
+                    background: PANEL,
+                    border: `1px solid ${LIME_DIM}`,
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ color: LIME, fontSize: 12, letterSpacing: 1.5 }}>
+                    BEFORE YOU COMMIT
+                  </div>
+                  {plan.warnings!.map((w, i) => (
+                    <div
+                      key={i}
+                      style={{ color: TEXT, fontSize: 14, marginTop: 6, lineHeight: 1.45 }}
+                    >
+                      · {w}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Steps preview, in execution order. */}
+              {plan?.ok === true && (plan.steps?.length ?? 0) > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ color: MUTED, fontSize: 12, letterSpacing: 1.5 }}>
+                    {plan.steps!.length} STEP{plan.steps!.length > 1 ? "S" : ""}, IN ORDER
+                  </div>
+                  {plan.steps!.map((s, i) => (
+                    <div key={`${s.id}-${i}`} style={{ color: MUTED, fontSize: 14, marginTop: 4 }}>
+                      {i + 1}. {s.label || s.note || `entry ${s.id}`}
+                      {s.start ? ` · start ${fmtHM(s.start)}` : ""}
+                      {s.end ? ` · end ${fmtHM(s.end)}` : ""}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {stepLog.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  {stepLog.map((l, i) => (
+                    <div key={i} style={{ color: LIME, fontSize: 13, marginTop: 2 }}>
+                      {l}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                 <button
-                  onClick={() => setEditing(null)}
-                  disabled={saving}
+                  onClick={() => {
+                    setEditing(null);
+                    setPlan(null);
+                    setOverride({});
+                    setStepLog([]);
+                  }}
+                  disabled={saving || probing}
                   style={{
                     flex: 1,
                     minHeight: 44,
@@ -498,33 +782,56 @@ export function PayrollConfirm({ open, scriptUrl, byName, onClose, onProceed }: 
                     border: `1px solid ${LIME_DIM}`,
                     borderRadius: 6,
                     fontFamily: "inherit",
-                    fontSize: 13,
+                    fontSize: 14,
                     letterSpacing: 1,
                     cursor: "pointer",
                   }}
                 >
                   CANCEL
                 </button>
-                <button
-                  onClick={() => void saveEdit()}
-                  disabled={saving || !editing.value}
-                  style={{
-                    flex: 1,
-                    minHeight: 44,
-                    background: LIME,
-                    color: BG,
-                    border: `2px solid ${LIME}`,
-                    borderRadius: 6,
-                    fontFamily: "inherit",
-                    fontSize: 13,
-                    fontWeight: "bold",
-                    letterSpacing: 1,
-                    cursor: "pointer",
-                    opacity: saving || !editing.value ? 0.5 : 1,
-                  }}
-                >
-                  {saving ? "SAVING…" : "SAVE"}
-                </button>
+                {plan?.ok === true ? (
+                  <button
+                    onClick={() => void runPlan()}
+                    disabled={saving}
+                    style={{
+                      flex: 1,
+                      minHeight: 44,
+                      background: LIME,
+                      color: BG,
+                      border: `2px solid ${LIME}`,
+                      borderRadius: 6,
+                      fontFamily: "inherit",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      letterSpacing: 1,
+                      cursor: "pointer",
+                      opacity: saving ? 0.5 : 1,
+                    }}
+                  >
+                    {saving ? "APPLYING…" : "APPLY EDIT"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void probe(override)}
+                    disabled={probing || !editing.value}
+                    style={{
+                      flex: 1,
+                      minHeight: 44,
+                      background: LIME,
+                      color: BG,
+                      border: `2px solid ${LIME}`,
+                      borderRadius: 6,
+                      fontFamily: "inherit",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      letterSpacing: 1,
+                      cursor: probing ? "default" : "pointer",
+                      opacity: probing || !editing.value ? 0.5 : 1,
+                    }}
+                  >
+                    {probing ? "CHECKING…" : "CHECK EDIT"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -538,11 +845,19 @@ function PersonRow({
   person,
   min,
   max,
+  billingHours,
+  billingBusy,
+  billingNote,
+  onAdjust,
   onEdit,
 }: {
   person: Person;
   min: number;
   max: number;
+  billingHours: number;
+  billingBusy: boolean;
+  billingNote: string | null;
+  onAdjust: (deltaHours: number) => void;
   onEdit: (entryId: string, field: "start" | "end", current: string | null) => void;
 }) {
   const span = Math.max(1, max - min);
@@ -556,9 +871,7 @@ function PersonRow({
   // Build gap markers between entries
   const gaps: Array<{ leftPct: number; widthPct: number; secs: number }> = [];
   for (let i = 0; i < sorted.length - 1; i++) {
-    const aEnd = sorted[i].end
-      ? new Date(sorted[i].end!).getTime()
-      : (sorted[i].onClock ? Date.now() : new Date(sorted[i].start).getTime() + (sorted[i].seconds || 0) * 1000);
+    const aEnd = entryEndMs(sorted[i]);
     const bStart = new Date(sorted[i + 1].start).getTime();
     if (bStart > aEnd) {
       gaps.push({
@@ -582,8 +895,43 @@ function PersonRow({
         <div style={{ color: LIME, fontSize: 15, fontWeight: "bold", letterSpacing: 1 }}>
           {person.name}
         </div>
-        <div style={{ marginLeft: "auto", color: LIME, fontSize: 14, fontWeight: "bold" }}>
-          {hmm(totalSec)}
+        <div style={{ marginLeft: "auto", color: MUTED, fontSize: 14 }}>
+          clock {hmm(totalSec)}
+        </div>
+      </div>
+
+      {/* (A) BILLING headline + quarter-hour adjustment. Deliberately styled as a
+          soft/dashed control so it never reads like the payroll pencil. */}
+      <div
+        style={{
+          marginTop: 10,
+          padding: "10px 12px",
+          background: PANEL_2,
+          border: `1px dashed ${LIME_DIM}`,
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ color: MUTED, fontSize: 14, letterSpacing: 1 }}>BILLING</div>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            <QuarterButton label="−" onClick={() => onAdjust(-0.25)} disabled={billingBusy} />
+            <div
+              style={{
+                color: LIME,
+                fontSize: 20,
+                fontWeight: "bold",
+                minWidth: 78,
+                textAlign: "center",
+                opacity: billingBusy ? 0.55 : 1,
+              }}
+            >
+              {fmtHours(billingHours)} h
+            </div>
+            <QuarterButton label="+" onClick={() => onAdjust(0.25)} disabled={billingBusy} />
+          </div>
+        </div>
+        <div style={{ color: MUTED, fontSize: 14, marginTop: 6, lineHeight: 1.35 }}>
+          {billingNote || "Billing Hours tab only — QuickBooks Time untouched"}
         </div>
       </div>
 
@@ -616,7 +964,7 @@ function PersonRow({
         ))}
         {sorted.map((e) => {
           const s = new Date(e.start).getTime();
-          const end = e.end ? new Date(e.end).getTime() : (e.onClock ? Date.now() : s + (e.seconds || 0) * 1000);
+          const end = entryEndMs(e);
           const leftPct = ((s - min) / span) * 100;
           const widthPct = Math.max(0.5, ((end - s) / span) * 100);
           return (
@@ -642,11 +990,7 @@ function PersonRow({
       <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 4 }}>
         {sorted.map((e, i) => {
           const prev = i > 0 ? sorted[i - 1] : null;
-          const prevEnd = prev
-            ? prev.end
-              ? new Date(prev.end).getTime()
-              : (prev.onClock ? Date.now() : new Date(prev.start).getTime() + (prev.seconds || 0) * 1000)
-            : null;
+          const prevEnd = prev ? entryEndMs(prev) : null;
           const gapSec =
             prevEnd != null ? Math.max(0, (new Date(e.start).getTime() - prevEnd) / 1000) : 0;
           return (
@@ -654,7 +998,7 @@ function PersonRow({
               {gapSec > 30 && (
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: 14,
                     color: DIM_GREEN,
                     padding: "2px 4px",
                     letterSpacing: 1,
@@ -672,25 +1016,20 @@ function PersonRow({
                   padding: "4px 0",
                 }}
               >
-                <TimeChip label={fmtHM(e.start)} onClick={() => onEdit(e.id, "start", e.start)} />
-                <span style={{ color: MUTED }}>–</span>
-                {e.end ? (
-                  <TimeChip label={fmtHM(e.end)} onClick={() => onEdit(e.id, "end", e.end)} />
-                ) : (
-                  <span
-                    style={{
-                      color: LIME,
-                      fontSize: 12,
-                      letterSpacing: 1,
-                      border: `1px solid ${LIME_DIM}`,
-                      padding: "4px 8px",
-                      borderRadius: 4,
-                    }}
-                  >
-                    ON CLOCK
-                  </span>
+                <span style={{ color: TEXT, fontSize: 15 }}>
+                  {fmtHM(e.start)} <span style={{ color: MUTED }}>–</span>{" "}
+                  {e.end ? fmtHM(e.end) : "on clock"}
+                </span>
+                {/* (B) PAYROLL edit — solid-bordered pencil, visually distinct
+                    from the dashed billing control above. */}
+                <PencilButton
+                  title="Edit payroll times"
+                  onClick={() => onEdit(e.id, e.end ? "end" : "start", e.end ?? e.start)}
+                />
+                {e.jobcode && (
+                  <span style={{ color: DIM_GREEN, fontSize: 13 }}>{e.jobcode}</span>
                 )}
-                <span style={{ marginLeft: "auto", color: MUTED, fontSize: 13 }}>
+                <span style={{ marginLeft: "auto", color: MUTED, fontSize: 14 }}>
                   {hmm(e.seconds || 0)}
                 </span>
               </div>
@@ -702,23 +1041,63 @@ function PersonRow({
   );
 }
 
-function TimeChip({ label, onClick }: { label: string; onClick: () => void }) {
+function QuarterButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
+      aria-label={label === "+" ? "add 15 minutes to billing" : "remove 15 minutes from billing"}
       style={{
-        minHeight: 32,
-        padding: "4px 10px",
+        width: 44,
+        height: 44,
         background: "transparent",
         color: LIME,
-        border: `1px solid ${LIME_DIM}`,
-        borderRadius: 4,
+        border: `1px dashed ${LIME}`,
+        borderRadius: 8,
         fontFamily: "inherit",
-        fontSize: 14,
-        cursor: "pointer",
+        fontSize: 20,
+        lineHeight: 1,
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       {label}
+    </button>
+  );
+}
+
+function PencilButton({ onClick, title }: { onClick: () => void; title?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label="edit payroll times"
+      style={{
+        width: 36,
+        height: 36,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        color: LIME,
+        border: `1px solid ${LIME}`,
+        borderRadius: 6,
+        fontFamily: "inherit",
+        cursor: "pointer",
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      </svg>
     </button>
   );
 }
