@@ -115,8 +115,12 @@ type GetFieldResponse = {
   projects?: ProjectRow[];
   tools?: ToolRowRaw[];
   clients?: string[];
-  /** Clients whose Client Info AF says "No" — never auto-text them. */
+  /** Clients whose Client Info AF says "No" — never auto-text arrival/ETA. */
   skipTextClients?: string[];
+  /** Clients whose Client Info AG says "No" — never auto-text departure. */
+  skipDepartureClients?: string[];
+  /** Clients whose text is routed to someone other than themselves. */
+  specialTextClients?: Array<{ client: string; arrival: boolean; departure: boolean }>;
   /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
   vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
