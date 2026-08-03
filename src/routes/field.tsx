@@ -13,6 +13,7 @@ import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
+import { ClientRefPanel } from "../components/ClientRefPanel";
 
 const CK = "field:getField";
 
