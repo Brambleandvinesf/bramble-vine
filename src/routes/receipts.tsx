@@ -58,14 +58,25 @@ function s(v: unknown): string {
   return String(v ?? "").trim();
 }
 
+function pick(r: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = s(r[k]);
+    if (v) return v;
+  }
+  return "";
+}
+
+// The Receipts tab headers carry REAL trailing spaces on "Date " and "Vendor "
+// (Make scenarios write those columns and cannot be renamed), so read by
+// fallback list, first non-empty wins.
 function normReceipt(r: Record<string, unknown>): Receipt {
   return {
     row: Number(r.row ?? 0),
     receiptId: s(r["Receipt_ID"]),
-    date: s(r["Date"]),
-    vendor: s(r["Vendor"]),
-    total: s(r["Total_Amount"]),
-    photo: s(r["Photo_Link"]) || s(r["Receipt_Image"]),
+    date: pick(r, ["Date", "Date "]),
+    vendor: pick(r, ["Vendor", "Vendor "]),
+    total: pick(r, ["Total", "Total_Amount"]),
+    photo: pick(r, ["Receipt_URL", "Photos", "Photo_Link", "Receipt_Image"]),
   };
 }
 
@@ -882,6 +893,8 @@ function InvoiceTab({
                                 onError={onError}
                                 writer={writer}
                                 setLines={setLines}
+                                allowMarkInvoiced
+
                               />
                             </div>
                           ))}
@@ -2104,15 +2117,18 @@ function LineActions({
   onError,
   writer,
   setLines,
+  allowMarkInvoiced,
 }: {
   line: Line;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
   writer: Writer;
   setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  allowMarkInvoiced?: boolean;
 }) {
   void _onSaved;
   const [mode, setMode] = useState<null | "edit" | "delete">(null);
+  const [armInvoiced, setArmInvoiced] = useState(false);
   const [description, setDescription] = useState(line.description);
   const [qty, setQty] = useState(line.quantity);
   const [unitPrice, setUnitPrice] = useState(line.unitPrice);
@@ -2151,9 +2167,44 @@ function LineActions({
 
   void onError;
 
+  // Already invoiced by hand in QuickBooks. Never offered for QUEUED rows —
+  // the invoice scenario already owns those and flipping one would race it.
+  const canMarkInvoiced = !!allowMarkInvoiced && !line.invoiced;
+
+  const markInvoiced = () => {
+    const prevInvoiced = line.invoiced;
+    setArmInvoiced(false);
+    setLines((prev) => prev.map((l) => (l.row === line.row ? { ...l, invoiced: "INVOICED" } : l)));
+    writer.dispatch(
+      `invoiced-${line.row}`,
+      { action: "markInvoiced", rows: [line.row], confirm: "INVOICED", dryRun: false },
+      {
+        rollback: () =>
+          setLines((prev) =>
+            prev.map((l) => (l.row === line.row ? { ...l, invoiced: prevInvoiced } : l)),
+          ),
+        onSuccessMsg: "Marked already invoiced",
+        onErrorMsg: (e) => `Couldn't mark — restored (${e.message})`,
+      },
+    );
+  };
+
   return (
     <>
       <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+        {canMarkInvoiced && (
+          <button
+            style={{
+              ...TINY_BTN,
+              borderColor: LIME_DIM,
+              color: armInvoiced ? LIME : MUTED,
+            }}
+            onClick={() => (armInvoiced ? markInvoiced() : setArmInvoiced(true))}
+            onBlur={() => setArmInvoiced(false)}
+          >
+            {armInvoiced ? "TAP AGAIN TO CONFIRM" : "ALREADY INVOICED"}
+          </button>
+        )}
         <button style={TINY_BTN} onClick={() => setMode("edit")}>
           {isSyncing ? "…" : "EDIT"}
         </button>
@@ -2161,6 +2212,7 @@ function LineActions({
           DELETE
         </button>
       </div>
+
 
       {mode === "edit" && (
         <div
