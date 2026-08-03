@@ -1294,7 +1294,13 @@ function FieldBody({
               event={currentEvent}
               clientMatch={vendorStop ? vendorStop.vendor : clientMatch}
               state={state}
+              inventory={clientInventory}
+              knownInventory={data.knownInventory ?? []}
+              send={send}
+              /* Vendor/break stops aren't clients — no inventory reference. */
+              panelDisabled={!!vendorStop || isBreakStop || isPreview}
             />
+
           )}
 
           {(state === "" || state === "enroute" || state === "arrived") && (
