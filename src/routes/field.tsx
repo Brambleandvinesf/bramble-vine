@@ -125,6 +125,10 @@ type GetFieldResponse = {
   /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
   vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
+  /** Client name -> items already on site (operational reference, all roles). */
+  inventory?: Record<string, string[]>;
+  /** Full inventory vocabulary for the picker. */
+  knownInventory?: string[];
   serverTime?: string;
 };
 
