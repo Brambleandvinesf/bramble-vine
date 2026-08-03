@@ -2883,7 +2883,9 @@ function StateArrived({
               ? `SWITCH TO ${label.toUpperCase()}`
               : textsSuppressed
                 ? `ARRIVED — SWITCH TO ${label.toUpperCase()} (NO TEXT)`
-                : `ARRIVED — SWITCH TO AND TEXT ${label.toUpperCase()}`}
+                : `ARRIVED — SWITCH TO ${label.toUpperCase()} & TEXT ${
+                    arrivalToContact ? "CONTACT" : "CLIENT"
+                  }`}
           </button>
           {/* AB.5: same manual override as TT.3's navigate escape hatch —
               force no-text even if the automatic AF check is wrong. */}
