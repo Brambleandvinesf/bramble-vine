@@ -3922,6 +3922,279 @@ type NewProject = { action: string; type?: string; notes?: string; items?: NewPr
  */
 type ItemUsed = { name: string; qty?: string; partial?: boolean };
 
+/* ============================================================
+ * DEBRIEF — HOURS
+ *
+ * The figure has to TICK, and it has to come from the backend. The roster
+ * only ever carries a person's CURRENT segment (overwritten on every client
+ * switch), so it cannot total a day. payrollDay?client=… returns every
+ * segment for this client:
+ *
+ *   live total = Σ seconds of closed entries + (now − start) of any open one
+ *
+ * A row becomes confirmable the moment THAT person clocks out — never gated
+ * on the whole crew being done.
+ * ============================================================ */
+type PayrollDayEntry = {
+  id: string;
+  start: string;
+  end: string | null;
+  onClock: boolean;
+  seconds: number;
+  jobcode?: string;
+};
+type PayrollDayPerson = { userId: string; name: string; entries: PayrollDayEntry[] };
+
+function liveSeconds(p: PayrollDayPerson, now: number): number {
+  let total = 0;
+  for (const e of p.entries) {
+    if (e.onClock) {
+      const st = new Date(e.start).getTime();
+      if (!isNaN(st)) total += Math.max(0, (now - st) / 1000);
+    } else {
+      total += Number(e.seconds) || 0;
+    }
+  }
+  return total;
+}
+function hoursOf(secs: number): number {
+  return +(secs / 3600).toFixed(2);
+}
+function hmOf(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function DebriefHours({
+  client,
+  meId,
+  meName,
+  meOnClock,
+  billing,
+  onConfirm,
+  onAdjust,
+  onClockOutMe,
+  disabled,
+  isPreview,
+}: {
+  client: string | null;
+  meId: string | null;
+  meName: string | null;
+  meOnClock: boolean;
+  billing: DebriefBilling[];
+  onConfirm: (name: string, hours: number) => void;
+  onAdjust: (name: string, delta: number) => void;
+  onClockOutMe?: () => Promise<boolean>;
+  disabled: boolean;
+  isPreview: boolean;
+}) {
+  const [people, setPeople] = useState<PayrollDayPerson[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const [clockingOut, setClockingOut] = useState(false);
+
+  const load = useCallback(async () => {
+    if (isPreview) return;
+    setLoading(true);
+    try {
+      const url =
+        `${SCRIPT_URL}?action=payrollDay` +
+        (client ? `&client=${encodeURIComponent(client)}` : "");
+      const r = await fetch(url, { method: "GET" });
+      const j = (await r.json().catch(() => ({}))) as {
+        ok?: boolean;
+        people?: PayrollDayPerson[];
+      };
+      if (!j || j.ok === false) throw new Error("payrollDay failed");
+      setPeople(Array.isArray(j.people) ? j.people : []);
+      setErr(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "load failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [client, isPreview]);
+
+  // Fresh data on mount, then a slow re-poll so a clock-out elsewhere lands.
+  useEffect(() => {
+    void load();
+    const id = window.setInterval(() => void load(), 20_000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  // The tick. Recomputes from fetched entries — nothing is captured at mount.
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const confirmedFor = (name: string) =>
+    billing.find((b) => b.name.toLowerCase() === name.toLowerCase());
+
+  const rows = people.length
+    ? people
+    : meName
+      ? [{ userId: meId ?? "me", name: meName, entries: [] as PayrollDayEntry[] }]
+      : [];
+
+  const handleClockOutMe = async (person: PayrollDayPerson) => {
+    if (!onClockOutMe || clockingOut) return;
+    setClockingOut(true);
+    try {
+      const ok = await onClockOutMe();
+      if (!ok) return;
+      // Freeze at the total as of the clock-out, then refresh from the server.
+      onConfirm(person.name, hoursOf(liveSeconds(person, Date.now())));
+      await load();
+    } finally {
+      setClockingOut(false);
+    }
+  };
+
+  return (
+    <div>
+      {err && (
+        <div style={{ color: MUTED, fontSize: 12, marginBottom: 8 }}>
+          Couldn't read today's hours ({err}).{" "}
+          <button
+            onClick={() => void load()}
+            style={{ ...SMALL_BTN, padding: "2px 8px", marginLeft: 6 }}
+          >
+            RETRY
+          </button>
+        </div>
+      )}
+      {!rows.length && (
+        <div style={{ color: MUTED, fontSize: 13 }}>
+          {loading ? "Reading today's hours…" : "No hours recorded for this client yet."}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {rows.map((p) => {
+          const secs = liveSeconds(p, now);
+          const stillOn = p.entries.some((e) => e.onClock);
+          const isMe = !!meId && p.userId === meId;
+          const done = confirmedFor(p.name);
+          const jobcodes = Array.from(
+            new Set(p.entries.map((e) => (e.jobcode ?? "").trim()).filter(Boolean)),
+          );
+          return (
+            <div key={p.userId || p.name} style={{ ...PANEL_BOX, textAlign: "center" }}>
+              <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 6 }}>
+                {p.name.toUpperCase()}
+              </div>
+              <div
+                style={{
+                  color: LIME,
+                  fontSize: 38,
+                  fontWeight: "bold",
+                  fontVariantNumeric: "tabular-nums",
+                  animation: stillOn ? "bvSpineBlink 3s ease-in-out infinite" : undefined,
+                }}
+              >
+                {done ? done.hours.toFixed(2) : hmOf(secs)}
+              </div>
+              <div style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>
+                {done
+                  ? "hours confirmed"
+                  : stillOn
+                    ? `on the clock — ${hoursOf(secs).toFixed(2)} h`
+                    : `${hoursOf(secs).toFixed(2)} h — clocked out`}
+              </div>
+              {jobcodes.length > 0 && (
+                <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 4 }}>
+                  {jobcodes.join(" · ")}
+                </div>
+              )}
+
+              {done ? (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginTop: 10,
+                  }}
+                >
+                  <button
+                    onClick={() => onAdjust(p.name, -0.25)}
+                    aria-label="Decrease hours"
+                    style={{ ...SMALL_BTN, width: 48, minHeight: 44, fontSize: 20 }}
+                  >
+                    −
+                  </button>
+                  <div style={{ color: LIME, fontSize: 13, letterSpacing: 1 }}>✓ CONFIRMED</div>
+                  <button
+                    onClick={() => onAdjust(p.name, 0.25)}
+                    aria-label="Increase hours"
+                    style={{ ...SMALL_BTN, width: 48, minHeight: 44, fontSize: 20 }}
+                  >
+                    +
+                  </button>
+                </div>
+              ) : stillOn && isMe ? (
+                <button
+                  onClick={() => void handleClockOutMe(p)}
+                  disabled={disabled || isPreview || clockingOut || !onClockOutMe}
+                  style={{ ...PRIMARY_BTN, marginTop: 12, minHeight: 56 }}
+                >
+                  {clockingOut ? "CLOCKING OUT…" : "CLOCK OUT AND CONFIRM YOUR HOURS"}
+                </button>
+              ) : stillOn ? (
+                <div style={{ color: MUTED, fontSize: 12, marginTop: 10 }}>
+                  Confirmable once {p.name.split(" ")[0]} clocks out.
+                </div>
+              ) : (
+                <button
+                  onClick={() => onConfirm(p.name, hoursOf(secs))}
+                  disabled={disabled || isPreview}
+                  style={{ ...PRIMARY_BTN, marginTop: 12, minHeight: 56 }}
+                >
+                  CONFIRM {hoursOf(secs).toFixed(2)} HOURS
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Manually added people (no QB Time entry for this client) */}
+      {billing
+        .filter((b) => !rows.some((p) => p.name.toLowerCase() === b.name.toLowerCase()))
+        .map((b) => (
+          <div key={`manual-${b.name}`} style={{ ...PANEL_BOX, marginTop: 10, textAlign: "center" }}>
+            <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1 }}>{b.name.toUpperCase()}</div>
+            <div style={{ display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginTop: 8 }}>
+              <button
+                onClick={() => onAdjust(b.name, -0.25)}
+                aria-label="Decrease hours"
+                style={{ ...SMALL_BTN, width: 52, minHeight: 48, fontSize: 22 }}
+              >
+                −
+              </button>
+              <div style={{ color: LIME, fontSize: 32, fontWeight: "bold", minWidth: 96 }}>
+                {b.hours.toFixed(2)}
+              </div>
+              <button
+                onClick={() => onAdjust(b.name, 0.25)}
+                aria-label="Increase hours"
+                style={{ ...SMALL_BTN, width: 52, minHeight: 48, fontSize: 22 }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
+
 function StateDebrief({
   clientMatch,
   event,
