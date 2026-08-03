@@ -308,6 +308,16 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
 - Full incident history and detail: ARCHITECTURE §12.
 
 ## KEY DECISIONS (details in ARCHITECTURE §9)
+- HOURLY LEADS AND SELF-APPROVAL — FUTURE CONSTRAINT, NOT A PROBLEM NOW (BO,
+  8/3). The hours-approval gate deliberately exempts Lead: the current Lead is
+  ownership/management, not an hourly employee, so there is nothing to approve
+  and no conflict in Lead approving the crew's hours. That stops being true the
+  day Lead becomes an hourly employee role — an hourly Lead approving their own
+  timesheet is a conflict of interest, and the exemption that is correct today
+  becomes the hole. Revisit when the first employee (non-owner, hourly) Lead is
+  hired: likely an approver who is not the person being approved, i.e. Lead's
+  own hours route to management. Recorded so it is not rediscovered from
+  scratch. Do NOT build for it now — current Leads are not hourly.
 - Purchase gating: no third-party control over Google Wallet exists —
   the app nudges via prompts + an "Open Google Wallet" button; true
   enforcement = switching to a spend-control card platform (Ramp/Brex/
