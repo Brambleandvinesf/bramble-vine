@@ -4046,19 +4046,38 @@ function StateDebrief({
 
   const total = billing.reduce((a, b) => a + b.hours, 0);
 
+  /* After SUBMIT DEBRIEF the screen walks two separate texts, in order:
+     "depart"   = the DEPARTURE text to the client just finished with
+     "navigate" = the ETA text for the NEXT client
+     Routing for both lives in the backend (AG / AF); this is labels only. */
+  const [phase, setPhase] = useState<"form" | "depart" | "navigate">("form");
+  const [submitting, setSubmitting] = useState(false);
+
   const handleFinish = async () => {
     const office = [
       ...clientUpdates.filter(Boolean).map((t) => `Client update: ${t}`),
       ...officeTasks.filter(Boolean),
     ];
-    await onFinish({
-      billing,
-      updates,
-      newProjects,
-      itemsUsed,
-      officeTasks: office,
-    });
+    setSubmitting(true);
+    try {
+      await onFinish({
+        billing,
+        updates,
+        newProjects,
+        itemsUsed,
+        officeTasks: office,
+      });
+      setPhase("depart");
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const answerDeparture = async (yes: boolean) => {
+    setPhase("navigate");
+    if (yes) await onDeparture?.(true);
+  };
+
 
   const isPreview = !!previewStep;
   const previewIndex = previewStep
