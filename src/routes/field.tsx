@@ -3932,6 +3932,14 @@ function StateDebrief({
   previewStep,
   employees = [],
   notes = [],
+  meId = null,
+  meName = null,
+  meOnClock = false,
+  onClockOutMe,
+  departureLabel,
+  onDeparture,
+  navigateLabel,
+  onNavigateNext,
 }: {
   clientMatch: string | null;
   event?: EventItem;
@@ -3949,14 +3957,25 @@ function StateDebrief({
   previewStep?: DebriefStepKey | null;
   employees?: Employee[];
   notes?: VisitNote[];
+  /** This phone's crew member — the only person it can clock out. */
+  meId?: string | null;
+  meName?: string | null;
+  meOnClock?: boolean;
+  onClockOutMe?: () => Promise<boolean>;
+  /** Who the departure text will actually reach ("client" / "contact" / null = nobody). */
+  departureLabel?: string | null;
+  onDeparture?: (yes: boolean) => Promise<void> | void;
+  /** Full label for the next-stop button, incl. "& TEXT ETA" / "(NO TEXT)". */
+  navigateLabel?: string | null;
+  onNavigateNext?: () => Promise<void> | void;
 }) {
-  const clocked = roster.filter((m) => m.in);
   const { effectiveRole } = useViewAs();
-  const nowIso = useMemo(() => new Date().toISOString(), []);
-  const [billing, setBilling] = useState<DebriefBilling[]>(
-    () => clocked.map((m) => ({ name: m.name, hours: hoursBetween(m.in, m.out ?? nowIso) })),
-  );
+  // Hours are NOT seeded from the roster: it only holds each person's current
+  // segment and is overwritten on every switch. They come from payrollDay,
+  // confirmed per person as each one clocks out (see DebriefHours).
+  const [billing, setBilling] = useState<DebriefBilling[]>([]);
   const [showAddPerson, setShowAddPerson] = useState(false);
+
 
   const specialProjects = useMemo(
     () =>
