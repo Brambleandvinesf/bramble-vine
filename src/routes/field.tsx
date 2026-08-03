@@ -1120,6 +1120,21 @@ function FieldBody({
     ? (nextVendor ? nextVendor.vendor : matchClient(nextEvent.title, clients))
     : null;
   const isLastStop = stopIndex + 1 >= events.length;
+  // NEXT stop's ARRIVAL preference (AF) — same convention the arrival button
+  // uses. Vendor stops never text.
+  const nextSkipsText =
+    !nextClientMatch ||
+    !!nextVendor ||
+    (data.skipTextClients ?? []).some(
+      (c) => c.trim().toLowerCase() === nextClientMatch.trim().toLowerCase(),
+    );
+  const nextArrivalToContact =
+    !!nextClientMatch &&
+    (data.specialTextClients ?? []).some(
+      (s0) =>
+        s0.client.trim().toLowerCase() === nextClientMatch.trim().toLowerCase() &&
+        s0.arrival === true,
+    );
 
   const handleBackToCrew = () => {
     if (isPreview) return;
