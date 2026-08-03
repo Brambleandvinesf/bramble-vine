@@ -18,6 +18,7 @@ import {
   MessageSquare,
   CheckSquare,
   ClipboardList,
+  ClipboardCheck,
   Folder,
   Receipt,
   Shield,
@@ -356,6 +357,7 @@ const TABS: Record<string, TabDef> = {
   projects: { to: "/projects", label: "PROJECTS",      icon: Folder },
   receipts: { to: "/receipts", label: "RECEIPTS",      icon: Receipt },
   shopping: { to: "/shopping", label: "SHOPPING LIST", icon: ShoppingCart },
+  approvals:{ to: "/approvals",label: "APPROVAL QUEUE",icon: ClipboardCheck },
   admin:    { to: "/admin",    label: "ADMIN",         icon: Shield },
 };
 
@@ -366,10 +368,10 @@ import type { Role } from "../lib/auth";
 // Messages is always last.
 // Shopping List is visible to EVERY role (U, 8/2) — a shared list, no gating.
 const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
-  lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts","shopping"] },
+  lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts","shopping","approvals"] },
   assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts","shopping"] },
   office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts","shopping"] },
-  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","shopping","admin"] },
+  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","shopping","approvals","admin"] },
 };
 
 const LIME_TAB = "#7cff00";
