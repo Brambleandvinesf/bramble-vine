@@ -2085,17 +2085,51 @@ function ClientHeader({
   event,
   clientMatch,
   state,
+  inventory = [],
+  knownInventory = [],
+  send,
+  panelDisabled = false,
 }: {
   event: EventItem;
   clientMatch: string | null;
   state: RouteState;
+  inventory?: string[];
+  knownInventory?: string[];
+  send?: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  panelDisabled?: boolean;
 }) {
+  // Tapping the client name opens the reference panel (operational only —
+  // never gate codes or WiFi; those have their own lead-gated action).
+  const [panelOpen, setPanelOpen] = useState(false);
+  const label = clientMatch ?? event.title;
+  const canOpen = !!clientMatch && !!send && !panelDisabled;
   return (
     <div style={{ padding: "14px 14px 0" }}>
       <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>{state.toUpperCase()}</div>
-      <div style={{ color: LIME, fontSize: 22, fontWeight: "bold", marginTop: 2 }}>
-        {clientMatch ?? event.title}
-      </div>
+      {canOpen ? (
+        <button
+          onClick={() => setPanelOpen(true)}
+          style={{
+            display: "block",
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            marginTop: 2,
+            color: LIME,
+            fontFamily: "inherit",
+            fontSize: 22,
+            fontWeight: "bold",
+            textAlign: "left",
+            cursor: "pointer",
+            borderBottom: `1px dashed ${LIME_DIM}`,
+          }}
+          aria-label={`Open ${label} reference`}
+        >
+          {label}
+        </button>
+      ) : (
+        <div style={{ color: LIME, fontSize: 22, fontWeight: "bold", marginTop: 2 }}>{label}</div>
+      )}
       <div style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>
         {fmtTime(event.start)}{event.end ? ` – ${fmtTime(event.end)}` : ""}
       </div>
@@ -2103,6 +2137,15 @@ function ClientHeader({
         <div style={{ color: RED, fontSize: 12, marginTop: 6 }}>
           no client match — tell Brandon
         </div>
+      )}
+      {panelOpen && clientMatch && send && (
+        <ClientRefPanel
+          client={clientMatch}
+          inventory={inventory}
+          knownInventory={knownInventory}
+          send={send}
+          onClose={() => setPanelOpen(false)}
+        />
       )}
     </div>
   );
