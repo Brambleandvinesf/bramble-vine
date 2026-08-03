@@ -2666,6 +2666,8 @@ function StateArrived({
 }: {
   skipSameDayTexts: boolean;
   textsSuppressed: boolean;
+  /** Arrival text is routed to a contact, not the client (specialTextClients). */
+  arrivalToContact?: boolean;
   roster: RosterMember[];
   clientMatch: string | null;
   stopIndex: number;
