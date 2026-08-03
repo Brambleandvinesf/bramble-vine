@@ -17,6 +17,8 @@ type Entry = {
   end: string | null; // ISO or null (still on clock)
   onClock: boolean;
   seconds: number;
+  /** QB Time jobcode — the client this segment was billed to. */
+  jobcode?: string;
 };
 type Person = { userId: string; name: string; entries: Entry[] };
 type PayrollDayResponse = { ok?: boolean; day?: string; people?: Person[] };
