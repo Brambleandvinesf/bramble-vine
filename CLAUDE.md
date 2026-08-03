@@ -208,6 +208,19 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   getDayState ladder reads — the client-side subStep override is a 2s
   bridge, never the mechanism (7/31 lesson).
 - Lovable prompts must state: "Backend deploy required first: YES/NO."
+- COSMETIC FRONTEND WORK GOES TO LOVABLE'S OWN AI. For genuinely low-risk,
+  frontend-only changes with no backend coordination, no data-model
+  implication and no state/logic change — a duplicated visual label, spacing,
+  a colour — recommend Brandon do it directly in Lovable rather than writing a
+  full technical prompt. Claude Code's budget is finite; spend it on backend
+  work, real feature builds, and anything touching data integrity, billing or
+  client communication.
+  This does NOT cover frontend work carrying real logic, state or backend
+  coordination — a button whose label depends on a Client Info column, a
+  payload shape change, anything reading a new getField field. Those get the
+  full audit-before-build pass and a detailed prompt. When in doubt, keep the
+  fuller process: the cheap failure is writing a prompt that wasn't needed,
+  the expensive one is hand-waving a change that touches money or texts.
 - CALENDAR CONTENT MUST HAVE A HOME ON SCREEN. Any content recorded in a
   client's calendar event that is NOT currently populating anywhere on the
   Visit In Progress screen must be made available through the client-name tap
