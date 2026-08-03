@@ -14,7 +14,6 @@ import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
 import { ClientRefPanel } from "../components/ClientRefPanel";
-import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 
 const CK = "field:getField";
 
@@ -130,6 +129,12 @@ type GetFieldResponse = {
   inventory?: Record<string, string[]>;
   /** Full inventory vocabulary for the picker. */
   knownInventory?: string[];
+  /** Client name -> irrigation zone map (text mapping OR Drive image URL). */
+  zoneMaps?: Record<string, string>;
+  /** Client Info AB, special message shown at the top of the event body. */
+  clients_info?: Array<{ client?: string; name?: string; specialMessage?: string }>;
+  clientInfo?: Array<{ client?: string; name?: string; specialMessage?: string }>;
+  specialMessages?: Record<string, string>;
   serverTime?: string;
 };
 
@@ -732,14 +737,12 @@ function FieldPage() {
   );
 }
 
-/* Hours is LAST: it can only be right once people have clocked out of this
-   client, so it closes the debrief rather than opening it. */
 const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
+  { key: "billing", label: "Hours" },
   { key: "updates", label: "Projects Completed" },
   { key: "items", label: "Items Used" },
   { key: "new", label: "Future Projects" },
   { key: "office", label: "Messages" },
-  { key: "billing", label: "Hours" },
 ];
 
 function PreviewBadge({
@@ -894,6 +897,29 @@ function FieldBody({
     const hit = Object.keys(map).find((k) => k.trim().toLowerCase() === want);
     return hit ? (map[hit] ?? []) : [];
   }, [data.inventory, clientMatch]);
+
+  // Zone map + special message are per-client reference, same case-insensitive
+  // lookup as inventory (sheet casing isn't guaranteed).
+  const clientZoneMap = useMemo(() => {
+    const map = data.zoneMaps ?? {};
+    if (!clientMatch) return "";
+    const want = clientMatch.trim().toLowerCase();
+    const hit = Object.keys(map).find((k) => k.trim().toLowerCase() === want);
+    return hit ? (map[hit] ?? "") : "";
+  }, [data.zoneMaps, clientMatch]);
+
+  const clientSpecialMessage = useMemo(() => {
+    if (!clientMatch) return "";
+    const want = clientMatch.trim().toLowerCase();
+    const rec = data.specialMessages ?? {};
+    const recHit = Object.keys(rec).find((k) => k.trim().toLowerCase() === want);
+    if (recHit && rec[recHit]) return rec[recHit] ?? "";
+    const rows = data.clientInfo ?? data.clients_info ?? [];
+    const row = rows.find(
+      (r) => ((r.client ?? r.name ?? "").trim().toLowerCase() === want),
+    );
+    return row?.specialMessage ?? "";
+  }, [data.specialMessages, data.clientInfo, data.clients_info, clientMatch]);
 
 
 
@@ -1120,21 +1146,6 @@ function FieldBody({
     ? (nextVendor ? nextVendor.vendor : matchClient(nextEvent.title, clients))
     : null;
   const isLastStop = stopIndex + 1 >= events.length;
-  // NEXT stop's ARRIVAL preference (AF) — same convention the arrival button
-  // uses. Vendor stops never text.
-  const nextSkipsText =
-    !nextClientMatch ||
-    !!nextVendor ||
-    (data.skipTextClients ?? []).some(
-      (c) => c.trim().toLowerCase() === nextClientMatch.trim().toLowerCase(),
-    );
-  const nextArrivalToContact =
-    !!nextClientMatch &&
-    (data.specialTextClients ?? []).some(
-      (s0) =>
-        s0.client.trim().toLowerCase() === nextClientMatch.trim().toLowerCase() &&
-        s0.arrival === true,
-    );
 
   const handleBackToCrew = () => {
     if (isPreview) return;
@@ -1326,6 +1337,8 @@ function FieldBody({
               state={state}
               inventory={clientInventory}
               knownInventory={data.knownInventory ?? []}
+              zoneMap={clientZoneMap}
+              specialMessage={clientSpecialMessage}
               send={send}
               /* Vendor/break stops aren't clients — no inventory reference. */
               panelDisabled={!!vendorStop || isBreakStop || isPreview}
@@ -1493,68 +1506,6 @@ function FieldBody({
                   previewStep={isPreview ? previewStep : null}
                   employees={data.employees ?? []}
                   notes={stopNotes}
-                  meId={me?.id ?? null}
-                  meName={me?.name ?? null}
-                  meOnClock={meOnClock}
-                  onClockOutMe={async () => {
-                    if (isPreview || !me) return false;
-                    const from = meRow?.client ?? clientMatch ?? OVERHEAD_CLIENT;
-                    const r = await send({
-                      action: "qbClock",
-                      userId: me.id,
-                      dir: "out",
-                      client: from,
-                    });
-                    if (!r.ok) setBanner({ kind: "err", text: "Clock out failed — retry." });
-                    return r.ok;
-                  }}
-                  /* Label only — AG routing is decided server-side at send time. */
-                  departureLabel={
-                    departureTextsSuppressed
-                      ? null
-                      : departureToContact
-                        ? "their special contact"
-                        : "the client"
-                  }
-                  onDeparture={async (yes) => {
-                    if (!yes || isPreview) return;
-                    await handleVisitComplete();
-                  }}
-                  navigateLabel={
-                    isLastStop || !nextEvent
-                      ? "ROUTE COMPLETE →"
-                      : `NAVIGATE TO ${(nextClientMatch ?? nextEvent.title).toUpperCase()} ${
-                          nextSkipsText
-                            ? "(NO TEXT)"
-                            : nextArrivalToContact
-                              ? "& TEXT CONTACT"
-                              : "& TEXT ETA"
-                        }`
-                  }
-                  onNavigateNext={async () => {
-                    if (isPreview) return;
-                    if (isLastStop || !nextEvent) {
-                      await send({ action: "setRoute", stopIndex: stopIndex + 1, state: "next" });
-                      return;
-                    }
-                    // Opened before any await — popup blockers eat it otherwise.
-                    if (nextEvent.location) {
-                      window.open(
-                        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
-                          encodeURIComponent(nextEvent.location),
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }
-                    const r = await send({
-                      action: "setRoute",
-                      state: "enroute",
-                      stopIndex: stopIndex + 1,
-                      client: nextClientMatch,
-                      eventId: nextEvent.id,
-                    });
-                    if (r.ok && !nextSkipsText) void send({ action: "textEta" }, { silent: true });
-                  }}
                   onFinish={async (payload) => {
                     if (isPreview) return;
                     const r = await send({
@@ -1580,12 +1531,10 @@ function FieldBody({
                         // fire-and-forget clear of consumed notes for this client
                         void postScript({ action: "visitNote", clearClient: clientMatch });
                       }
-                      /* The route advances from the NAVIGATE button now (step 7),
-                         so the departure prompt has a screen to live on. */
+                      await send({ action: "setRoute", state: "next" });
                     }
                   }}
                 />
-
 
               ) : (
                 <div style={PANEL_BOX}>
@@ -2187,6 +2136,8 @@ function ClientHeader({
   state,
   inventory = [],
   knownInventory = [],
+  zoneMap = "",
+  specialMessage = "",
   send,
   panelDisabled = false,
 }: {
@@ -2195,6 +2146,8 @@ function ClientHeader({
   state: RouteState;
   inventory?: string[];
   knownInventory?: string[];
+  zoneMap?: string;
+  specialMessage?: string;
   send?: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   panelDisabled?: boolean;
 }) {
@@ -2243,6 +2196,8 @@ function ClientHeader({
           client={clientMatch}
           inventory={inventory}
           knownInventory={knownInventory}
+          zoneMap={zoneMap}
+          specialMessage={specialMessage}
           send={send}
           onClose={() => setPanelOpen(false)}
         />
@@ -4001,279 +3956,6 @@ type NewProject = { action: string; type?: string; notes?: string; items?: NewPr
  */
 type ItemUsed = { name: string; qty?: string; partial?: boolean };
 
-/* ============================================================
- * DEBRIEF — HOURS
- *
- * The figure has to TICK, and it has to come from the backend. The roster
- * only ever carries a person's CURRENT segment (overwritten on every client
- * switch), so it cannot total a day. payrollDay?client=… returns every
- * segment for this client:
- *
- *   live total = Σ seconds of closed entries + (now − start) of any open one
- *
- * A row becomes confirmable the moment THAT person clocks out — never gated
- * on the whole crew being done.
- * ============================================================ */
-type PayrollDayEntry = {
-  id: string;
-  start: string;
-  end: string | null;
-  onClock: boolean;
-  seconds: number;
-  jobcode?: string;
-};
-type PayrollDayPerson = { userId: string; name: string; entries: PayrollDayEntry[] };
-
-function liveSeconds(p: PayrollDayPerson, now: number): number {
-  let total = 0;
-  for (const e of p.entries) {
-    if (e.onClock) {
-      const st = new Date(e.start).getTime();
-      if (!isNaN(st)) total += Math.max(0, (now - st) / 1000);
-    } else {
-      total += Number(e.seconds) || 0;
-    }
-  }
-  return total;
-}
-function hoursOf(secs: number): number {
-  return +(secs / 3600).toFixed(2);
-}
-function hmOf(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function DebriefHours({
-  client,
-  meId,
-  meName,
-  meOnClock,
-  billing,
-  onConfirm,
-  onAdjust,
-  onClockOutMe,
-  disabled,
-  isPreview,
-}: {
-  client: string | null;
-  meId: string | null;
-  meName: string | null;
-  meOnClock: boolean;
-  billing: DebriefBilling[];
-  onConfirm: (name: string, hours: number) => void;
-  onAdjust: (name: string, delta: number) => void;
-  onClockOutMe?: () => Promise<boolean>;
-  disabled: boolean;
-  isPreview: boolean;
-}) {
-  const [people, setPeople] = useState<PayrollDayPerson[]>([]);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
-  const [clockingOut, setClockingOut] = useState(false);
-
-  const load = useCallback(async () => {
-    if (isPreview) return;
-    setLoading(true);
-    try {
-      const url =
-        `${SCRIPT_URL}?action=payrollDay` +
-        (client ? `&client=${encodeURIComponent(client)}` : "");
-      const r = await fetch(url, { method: "GET" });
-      const j = (await r.json().catch(() => ({}))) as {
-        ok?: boolean;
-        people?: PayrollDayPerson[];
-      };
-      if (!j || j.ok === false) throw new Error("payrollDay failed");
-      setPeople(Array.isArray(j.people) ? j.people : []);
-      setErr(null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "load failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [client, isPreview]);
-
-  // Fresh data on mount, then a slow re-poll so a clock-out elsewhere lands.
-  useEffect(() => {
-    void load();
-    const id = window.setInterval(() => void load(), 20_000);
-    return () => window.clearInterval(id);
-  }, [load]);
-
-  // The tick. Recomputes from fetched entries — nothing is captured at mount.
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const confirmedFor = (name: string) =>
-    billing.find((b) => b.name.toLowerCase() === name.toLowerCase());
-
-  const rows = people.length
-    ? people
-    : meName
-      ? [{ userId: meId ?? "me", name: meName, entries: [] as PayrollDayEntry[] }]
-      : [];
-
-  const handleClockOutMe = async (person: PayrollDayPerson) => {
-    if (!onClockOutMe || clockingOut) return;
-    setClockingOut(true);
-    try {
-      const ok = await onClockOutMe();
-      if (!ok) return;
-      // Freeze at the total as of the clock-out, then refresh from the server.
-      onConfirm(person.name, hoursOf(liveSeconds(person, Date.now())));
-      await load();
-    } finally {
-      setClockingOut(false);
-    }
-  };
-
-  return (
-    <div>
-      {err && (
-        <div style={{ color: MUTED, fontSize: 12, marginBottom: 8 }}>
-          Couldn't read today's hours ({err}).{" "}
-          <button
-            onClick={() => void load()}
-            style={{ ...SMALL_BTN, padding: "2px 8px", marginLeft: 6 }}
-          >
-            RETRY
-          </button>
-        </div>
-      )}
-      {!rows.length && (
-        <div style={{ color: MUTED, fontSize: 13 }}>
-          {loading ? "Reading today's hours…" : "No hours recorded for this client yet."}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {rows.map((p) => {
-          const secs = liveSeconds(p, now);
-          const stillOn = p.entries.some((e) => e.onClock);
-          const isMe = !!meId && p.userId === meId;
-          const done = confirmedFor(p.name);
-          const jobcodes = Array.from(
-            new Set(p.entries.map((e) => (e.jobcode ?? "").trim()).filter(Boolean)),
-          );
-          return (
-            <div key={p.userId || p.name} style={{ ...PANEL_BOX, textAlign: "center" }}>
-              <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 6 }}>
-                {p.name.toUpperCase()}
-              </div>
-              <div
-                style={{
-                  color: LIME,
-                  fontSize: 38,
-                  fontWeight: "bold",
-                  fontVariantNumeric: "tabular-nums",
-                  animation: stillOn ? "bvSpineBlink 3s ease-in-out infinite" : undefined,
-                }}
-              >
-                {done ? done.hours.toFixed(2) : hmOf(secs)}
-              </div>
-              <div style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>
-                {done
-                  ? "hours confirmed"
-                  : stillOn
-                    ? `on the clock — ${hoursOf(secs).toFixed(2)} h`
-                    : `${hoursOf(secs).toFixed(2)} h — clocked out`}
-              </div>
-              {jobcodes.length > 0 && (
-                <div style={{ color: DIM_GREEN, fontSize: 11, marginTop: 4 }}>
-                  {jobcodes.join(" · ")}
-                </div>
-              )}
-
-              {done ? (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginTop: 10,
-                  }}
-                >
-                  <button
-                    onClick={() => onAdjust(p.name, -0.25)}
-                    aria-label="Decrease hours"
-                    style={{ ...SMALL_BTN, width: 48, minHeight: 44, fontSize: 20 }}
-                  >
-                    −
-                  </button>
-                  <div style={{ color: LIME, fontSize: 13, letterSpacing: 1 }}>✓ CONFIRMED</div>
-                  <button
-                    onClick={() => onAdjust(p.name, 0.25)}
-                    aria-label="Increase hours"
-                    style={{ ...SMALL_BTN, width: 48, minHeight: 44, fontSize: 20 }}
-                  >
-                    +
-                  </button>
-                </div>
-              ) : stillOn && isMe ? (
-                <button
-                  onClick={() => void handleClockOutMe(p)}
-                  disabled={disabled || isPreview || clockingOut || !onClockOutMe}
-                  style={{ ...PRIMARY_BTN, marginTop: 12, minHeight: 56 }}
-                >
-                  {clockingOut ? "CLOCKING OUT…" : "CLOCK OUT AND CONFIRM YOUR HOURS"}
-                </button>
-              ) : stillOn ? (
-                <div style={{ color: MUTED, fontSize: 12, marginTop: 10 }}>
-                  Confirmable once {p.name.split(" ")[0]} clocks out.
-                </div>
-              ) : (
-                <button
-                  onClick={() => onConfirm(p.name, hoursOf(secs))}
-                  disabled={disabled || isPreview}
-                  style={{ ...PRIMARY_BTN, marginTop: 12, minHeight: 56 }}
-                >
-                  CONFIRM {hoursOf(secs).toFixed(2)} HOURS
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Manually added people (no QB Time entry for this client) */}
-      {billing
-        .filter((b) => !rows.some((p) => p.name.toLowerCase() === b.name.toLowerCase()))
-        .map((b) => (
-          <div key={`manual-${b.name}`} style={{ ...PANEL_BOX, marginTop: 10, textAlign: "center" }}>
-            <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1 }}>{b.name.toUpperCase()}</div>
-            <div style={{ display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginTop: 8 }}>
-              <button
-                onClick={() => onAdjust(b.name, -0.25)}
-                aria-label="Decrease hours"
-                style={{ ...SMALL_BTN, width: 52, minHeight: 48, fontSize: 22 }}
-              >
-                −
-              </button>
-              <div style={{ color: LIME, fontSize: 32, fontWeight: "bold", minWidth: 96 }}>
-                {b.hours.toFixed(2)}
-              </div>
-              <button
-                onClick={() => onAdjust(b.name, 0.25)}
-                aria-label="Increase hours"
-                style={{ ...SMALL_BTN, width: 52, minHeight: 48, fontSize: 22 }}
-              >
-                +
-              </button>
-            </div>
-          </div>
-        ))}
-    </div>
-  );
-}
-
-
 function StateDebrief({
   clientMatch,
   event,
@@ -4285,14 +3967,6 @@ function StateDebrief({
   previewStep,
   employees = [],
   notes = [],
-  meId = null,
-  meName = null,
-  meOnClock = false,
-  onClockOutMe,
-  departureLabel,
-  onDeparture,
-  navigateLabel,
-  onNavigateNext,
 }: {
   clientMatch: string | null;
   event?: EventItem;
@@ -4310,25 +3984,14 @@ function StateDebrief({
   previewStep?: DebriefStepKey | null;
   employees?: Employee[];
   notes?: VisitNote[];
-  /** This phone's crew member — the only person it can clock out. */
-  meId?: string | null;
-  meName?: string | null;
-  meOnClock?: boolean;
-  onClockOutMe?: () => Promise<boolean>;
-  /** Who the departure text will actually reach ("client" / "contact" / null = nobody). */
-  departureLabel?: string | null;
-  onDeparture?: (yes: boolean) => Promise<void> | void;
-  /** Full label for the next-stop button, incl. "& TEXT ETA" / "(NO TEXT)". */
-  navigateLabel?: string | null;
-  onNavigateNext?: () => Promise<void> | void;
 }) {
+  const clocked = roster.filter((m) => m.in);
   const { effectiveRole } = useViewAs();
-  // Hours are NOT seeded from the roster: it only holds each person's current
-  // segment and is overwritten on every switch. They come from payrollDay,
-  // confirmed per person as each one clocks out (see DebriefHours).
-  const [billing, setBilling] = useState<DebriefBilling[]>([]);
+  const nowIso = useMemo(() => new Date().toISOString(), []);
+  const [billing, setBilling] = useState<DebriefBilling[]>(
+    () => clocked.map((m) => ({ name: m.name, hours: hoursBetween(m.in, m.out ?? nowIso) })),
+  );
   const [showAddPerson, setShowAddPerson] = useState(false);
-
 
   const specialProjects = useMemo(
     () =>
@@ -4399,38 +4062,19 @@ function StateDebrief({
 
   const total = billing.reduce((a, b) => a + b.hours, 0);
 
-  /* After SUBMIT DEBRIEF the screen walks two separate texts, in order:
-     "depart"   = the DEPARTURE text to the client just finished with
-     "navigate" = the ETA text for the NEXT client
-     Routing for both lives in the backend (AG / AF); this is labels only. */
-  const [phase, setPhase] = useState<"form" | "depart" | "navigate">("form");
-  const [submitting, setSubmitting] = useState(false);
-
   const handleFinish = async () => {
     const office = [
       ...clientUpdates.filter(Boolean).map((t) => `Client update: ${t}`),
       ...officeTasks.filter(Boolean),
     ];
-    setSubmitting(true);
-    try {
-      await onFinish({
-        billing,
-        updates,
-        newProjects,
-        itemsUsed,
-        officeTasks: office,
-      });
-      setPhase("depart");
-    } finally {
-      setSubmitting(false);
-    }
+    await onFinish({
+      billing,
+      updates,
+      newProjects,
+      itemsUsed,
+      officeTasks: office,
+    });
   };
-
-  const answerDeparture = async (yes: boolean) => {
-    setPhase("navigate");
-    if (yes) await onDeparture?.(true);
-  };
-
 
   const isPreview = !!previewStep;
   const previewIndex = previewStep
@@ -4512,32 +4156,64 @@ function StateDebrief({
       <div style={{ marginTop: 10 }}>
         {currentKey === "billing" && (
           <div>
-            <DebriefHours
-              client={clientMatch}
-              meId={meId}
-              meName={meName}
-              meOnClock={meOnClock}
-              billing={billing}
-              onConfirm={(name, hours) =>
-                setBilling((cur) => [
-                  ...cur.filter((r) => r.name.toLowerCase() !== name.toLowerCase()),
-                  { name, hours },
-                ])
-              }
-              onAdjust={(name, delta) =>
-                setBilling((cur) =>
-                  cur.map((r) =>
-                    r.name.toLowerCase() === name.toLowerCase()
-                      ? { ...r, hours: Math.min(16, Math.max(0, +(r.hours + delta).toFixed(2))) }
-                      : r,
-                  ),
-                )
-              }
-              onClockOutMe={onClockOutMe}
-              disabled={busy}
-              isPreview={isPreview}
-            />
-
+            <div style={{ display: "grid", gap: 10 }}>
+              {billing.map((b, i) => {
+                const dec = () =>
+                  setBilling((cur) =>
+                    cur.map((r, j) => (j === i ? { ...r, hours: Math.max(0, +(r.hours - 0.25).toFixed(2)) } : r)),
+                  );
+                const inc = () =>
+                  setBilling((cur) =>
+                    cur.map((r, j) => (j === i ? { ...r, hours: Math.min(16, +(r.hours + 0.25).toFixed(2)) } : r)),
+                  );
+                return (
+                  <div key={`${b.name}-${i}`} style={{ ...PANEL_BOX, textAlign: "center" }}>
+                    <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 10 }}>
+                      {b.name.toUpperCase()}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
+                      <button
+                        onClick={dec}
+                        aria-label="Decrease hours"
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 8,
+                          border: `1px solid ${LIME_DIM}`,
+                          background: "transparent",
+                          color: LIME,
+                          fontSize: 28,
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        −
+                      </button>
+                      <div style={{ minWidth: 120, color: LIME, fontSize: 40, fontWeight: "bold", fontVariantNumeric: "tabular-nums" }}>
+                        {b.hours.toFixed(2)}
+                      </div>
+                      <button
+                        onClick={inc}
+                        aria-label="Increase hours"
+                        style={{
+                          width: 56,
+                          height: 56,
+                          borderRadius: 8,
+                          border: `1px solid ${LIME_DIM}`,
+                          background: "transparent",
+                          color: LIME,
+                          fontSize: 28,
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             <button
               onClick={() => setShowAddPerson(true)}
@@ -4745,113 +4421,45 @@ function StateDebrief({
         )}
       </div>
 
-      {/* Wizard nav — gone once the debrief is submitted (steps 6/7 take over) */}
-      {phase === "form" && (
-        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+      {/* Wizard nav */}
+      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+        <button
+          onClick={goBack}
+          disabled={isPreview || current === 0}
+          style={{
+            ...SMALL_BTN,
+            flex: "0 0 auto",
+            minHeight: 56,
+            padding: "0 18px",
+            background: "transparent",
+            color: current === 0 || isPreview ? MUTED : LIME,
+            borderColor: current === 0 || isPreview ? LINE : LIME_DIM,
+            opacity: current === 0 || isPreview ? 0.5 : 1,
+          }}
+        >
+          ← BACK
+        </button>
+        {isLast ? (
           <button
-            onClick={goBack}
-            disabled={isPreview || current === 0}
-            style={{
-              ...SMALL_BTN,
-              flex: "0 0 auto",
-              minHeight: 56,
-              padding: "0 18px",
-              background: "transparent",
-              color: current === 0 || isPreview ? MUTED : LIME,
-              borderColor: current === 0 || isPreview ? LINE : LIME_DIM,
-              opacity: current === 0 || isPreview ? 0.5 : 1,
-            }}
+            onClick={handleFinish}
+            disabled={busy || isPreview}
+            style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
           >
-            ← BACK
+            FINISH DEBRIEF
           </button>
-          {isLast ? (
-            <button
-              onClick={handleFinish}
-              disabled={busy || isPreview || submitting}
-              style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
-            >
-              {submitting ? "SUBMITTING…" : "SUBMIT DEBRIEF"}
-            </button>
-          ) : (
-            <button
-              onClick={goNext}
-              disabled={isPreview}
-              style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
-            >
-              NEXT →
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Step 6 — departure text for the client just finished with. */}
-      {phase === "depart" && (
-        <StickyPrompt>
-          <div style={{ color: LIME, fontSize: 15, letterSpacing: 1, textAlign: "center" }}>
-            NOTIFY {(clientMatch ?? event?.title ?? "CLIENT").toUpperCase()} OF DEPARTURE?
-          </div>
-          {departureLabel !== undefined && (
-            <div style={{ color: MUTED, fontSize: 12, textAlign: "center", marginTop: 4 }}>
-              {departureLabel
-                ? `Text goes to ${departureLabel}.`
-                : "This client's departure texts are turned off."}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            <button
-              onClick={() => void answerDeparture(false)}
-              style={{ ...SMALL_BTN, flex: 1, minHeight: 56, background: "transparent", color: LIME }}
-            >
-              NO
-            </button>
-            <button
-              onClick={() => void answerDeparture(true)}
-              style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56 }}
-            >
-              YES
-            </button>
-          </div>
-        </StickyPrompt>
-      )}
-
-      {/* Step 7 — the NEXT client's ETA text, a separate send. */}
-      {phase === "navigate" && navigateLabel && (
-        <StickyPrompt>
+        ) : (
           <button
-            onClick={() => void onNavigateNext?.()}
-            style={{ ...PRIMARY_BTN, width: "100%", minHeight: 60 }}
+            onClick={goNext}
+            disabled={isPreview}
+            style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
           >
-            {navigateLabel}
+            NEXT →
           </button>
-        </StickyPrompt>
-      )}
+        )}
+      </div>
     </div>
   );
 }
-
-/** Fixed footer that always clears the day-state spine (never a raw px value). */
-function StickyPrompt({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <div style={{ height: 150 }} />
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: SPINE_RESERVE_CSS,
-          background: PANEL,
-          borderTop: `1px solid ${LIME_DIM}`,
-          padding: "12px 14px",
-          zIndex: 60,
-        }}
-      >
-        {children}
-      </div>
-    </>
-  );
-}
-
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
