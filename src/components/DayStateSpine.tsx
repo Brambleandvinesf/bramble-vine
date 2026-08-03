@@ -1023,14 +1023,14 @@ export function DayStateSpine() {
                   >
                     <span
                       style={{
-                        width: 18,
-                        height: 18,
+                        width: 14,
+                        height: 14,
                         borderRadius: 999,
                         background: BG,
                         border: `1px solid ${LIME_DIM}`,
                         color: LIME,
-                        fontSize: 16,
-                        lineHeight: "16px",
+                        fontSize: 13,
+                        lineHeight: "13px",
                         textAlign: "center",
                         display: "flex",
                         alignItems: "center",
@@ -1039,6 +1039,7 @@ export function DayStateSpine() {
                     >
                       +
                     </span>
+
                   </button>
                 );
               })}
@@ -1076,9 +1077,11 @@ function AddStopSheet({
   onClose: () => void;
   onAdded: () => void;
 }) {
+  const [mode, setMode] = useState<"vendor" | "client" | "other" | null>(null);
   const [query, setQuery] = useState("");
   const [vendors, setVendors] = useState<DestSuggest[]>([]);
   const [frequent, setFrequent] = useState<DestSuggest[]>([]);
+  const [clients, setClients] = useState<DestSuggest[]>([]);
   const [picked, setPicked] = useState<DestSuggest | null>(null);
   const [saveFrequent, setSaveFrequent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1098,9 +1101,30 @@ function AddStopSheet({
     return () => { cancelled = true; };
   }, []);
 
+  /* Client roster comes from getField.clientAddresses (name -> address). */
+  useEffect(() => {
+    if (mode !== "client" || clients.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getField`);
+        const json = (await res.json()) as { clientAddresses?: Record<string, string> };
+        if (cancelled) return;
+        setClients(
+          Object.entries(json.clientAddresses ?? {}).map(([label, address]) => ({
+            label,
+            address: address || "",
+          })),
+        );
+      } catch { /* roster is optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mode, clients.length]);
+
   const q = query.trim().toLowerCase();
+  const pool = mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
   const matches = q
-    ? [...frequent, ...vendors].filter(
+    ? pool.filter(
         (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
       ).slice(0, 8)
     : [];
@@ -1111,15 +1135,16 @@ function AddStopSheet({
     setBusy(true);
     setErr(null);
     try {
+      const address = picked?.address ?? (mode === "other" ? query.trim() : "");
       const res = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           action: "addStop",
           title,
-          address: picked?.address ?? "",
+          address,
           insertAt,
-          saveFrequent,
+          saveFrequent: mode === "client" ? false : saveFrequent,
           /* CC (8/2): retargeting the destination is explicit — only the
              CHANGE COURSE button (active line) ever sends this. */
           changeCourse: activeLine,
@@ -1130,16 +1155,17 @@ function AddStopSheet({
         setErr(json.error ?? "Add stop failed — retry.");
         return;
       }
-      /* EE (8/2): confirming also launches navigation, the same way every
-         other navigate action in the app does — adding a stop you're
-         driving to and then having to find Maps yourself made no sense. */
-      const dest = (picked?.address ?? "").trim() || title;
-      window.open(
-        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
-          encodeURIComponent(dest),
-        "_blank",
-        "noopener,noreferrer",
-      );
+      /* EE (8/2): confirming also launches navigation — but ONLY on the leg the
+         crew is actually driving right now. */
+      if (activeLine) {
+        const dest = address.trim() || title;
+        window.open(
+          "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+            encodeURIComponent(dest),
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }
       onAdded();
     } catch {
       setErr("Add stop failed — retry.");
@@ -1147,6 +1173,7 @@ function AddStopSheet({
       setBusy(false);
     }
   };
+
 
   const chip: React.CSSProperties = {
     background: "transparent",
@@ -1196,9 +1223,43 @@ function AddStopSheet({
             : "Inserted into today's route right where you tapped."}
         </div>
 
-        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 4px" }}>
-          DESTINATION
+        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 6px" }}>
+          STOP TYPE
         </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {(["vendor", "client", "other"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => {
+                setMode(m);
+                setPicked(null);
+                setQuery("");
+                if (m === "client") setSaveFrequent(false);
+              }}
+              style={{
+                ...chip,
+                flex: 1,
+                textAlign: "center",
+                minHeight: 40,
+                letterSpacing: 1,
+                fontWeight: "bold",
+                background: mode === m ? LIME : "transparent",
+                color: mode === m ? BG : LIME,
+                border: `1px solid ${mode === m ? LIME : LIME_DIM}`,
+              }}
+            >
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {mode && (
+          <>
+        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 4px" }}>
+          {mode === "other" ? "ADDRESS" : "DESTINATION"}
+        </div>
+
         <input
           autoFocus
           value={picked ? picked.label : query}
@@ -1206,7 +1267,14 @@ function AddStopSheet({
             setPicked(null);
             setQuery(e.target.value);
           }}
-          placeholder="Vendor, client, or place…"
+          placeholder={
+            mode === "vendor"
+              ? "Search vendors…"
+              : mode === "client"
+                ? "Search clients…"
+                : "Type the full address…"
+          }
+
           style={{
             width: "100%",
             boxSizing: "border-box",
@@ -1252,7 +1320,7 @@ function AddStopSheet({
           </div>
         )}
 
-        {!picked && !q && frequent.length > 0 && (
+        {mode === "vendor" && !picked && !q && frequent.length > 0 && (
           <>
             <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "12px 0 6px" }}>
               FREQUENTED
@@ -1270,25 +1338,30 @@ function AddStopSheet({
         {picked?.address && (
           <div style={{ color: "#8f8f8f", fontSize: 11, marginTop: 8 }}>{picked.address}</div>
         )}
+          </>
+        )}
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginTop: 14,
-            color: "#8f8f8f",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={saveFrequent}
-            onChange={(e) => setSaveFrequent(e.target.checked)}
-          />
-          Add to Frequented Destinations
-        </label>
+        {(mode === "vendor" || mode === "other") && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 14,
+              color: "#8f8f8f",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={saveFrequent}
+              onChange={(e) => setSaveFrequent(e.target.checked)}
+            />
+            Add to Frequented Destinations
+          </label>
+        )}
+
 
         {err && <div style={{ color: "#ff5555", fontSize: 12, marginTop: 8 }}>{err}</div>}
 
@@ -1296,7 +1369,7 @@ function AddStopSheet({
           <button
             type="button"
             onClick={() => void confirm()}
-            disabled={busy || !(picked?.label ?? query).trim()}
+            disabled={busy || !mode || !(picked?.label ?? query).trim()}
             style={{
               flex: 1,
               minHeight: 48,
@@ -1309,10 +1382,15 @@ function AddStopSheet({
               letterSpacing: 2,
               fontWeight: "bold",
               cursor: "pointer",
-              opacity: busy || !(picked?.label ?? query).trim() ? 0.5 : 1,
+              opacity: busy || !mode || !(picked?.label ?? query).trim() ? 0.5 : 1,
             }}
           >
-            {busy ? "ADDING…" : "CONFIRM ADD STOP & NAVIGATE"}
+            {busy
+              ? "ADDING…"
+              : activeLine
+                ? "CONFIRM ADD STOP & NAVIGATE"
+                : "CONFIRM ADD STOP"}
+
           </button>
           <button
             type="button"
