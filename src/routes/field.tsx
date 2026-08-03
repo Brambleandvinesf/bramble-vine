@@ -894,7 +894,25 @@ function FieldBody({
     (data.skipTextClients ?? []).some(
       (c) => c.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
     );
+  // AG ("Departure Text") is a SEPARATE column from AF — departure must never
+  // be gated on the arrival flag (that mix-up is the bug this fixes).
+  const agOptOut =
+    !!clientMatch &&
+    (data.skipDepartureClients ?? []).some(
+      (c) => c.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
+    );
+  const skipDepartureTexts = agOptOut;
   const textsSuppressed = skipSameDayTexts || afOptOut || !!vendorStop;
+  const departureTextsSuppressed = skipDepartureTexts || !!vendorStop;
+  // Clients whose text goes to someone else (housekeeper, neighbour…). Labels
+  // only — the backend decides the actual recipient.
+  const special = clientMatch
+    ? (data.specialTextClients ?? []).find(
+        (s0) => s0.client.trim().toLowerCase() === clientMatch.trim().toLowerCase(),
+      )
+    : undefined;
+  const arrivalToContact = special?.arrival === true;
+  const departureToContact = special?.departure === true;
   // Clock identity requires the ACTUAL signed-in role — never view-as. Before
   // this check, management browsing /field was handed the field phone holder's
   // QBT id and a live CLOCK IN button under someone else's timesheet.
