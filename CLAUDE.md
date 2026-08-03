@@ -208,6 +208,19 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   getDayState ladder reads — the client-side subStep override is a 2s
   bridge, never the mechanism (7/31 lesson).
 - Lovable prompts must state: "Backend deploy required first: YES/NO."
+- CALENDAR CONTENT MUST HAVE A HOME ON SCREEN. Any content recorded in a
+  client's calendar event that is NOT currently populating anywhere on the
+  Visit In Progress screen must be made available through the client-name tap
+  panel (AY). Standing rule, not a one-off: apply it every time event content
+  is found that the app does not already surface. The panel is the default
+  destination, so "it's only in the calendar" is never an acceptable resting
+  state — the crew reads the app, not the event body. Access-sensitive fields
+  (Gate/Door Codes AP, WiFi AQ/AR) still go through the separate lead-gated
+  action, never the shared getField payload.
+  Why: the BI audit (8/3) found 44 clients whose events carried instructions
+  the screen never showed — "do not weed", an under-deck access restriction, a
+  driveway warning — because the only place they lived was a description
+  nothing rendered.
 - Only crew vehicle is a black Prius (no truck references).
 - Script Properties hold all config; edits are live, no redeploy needed.
 - PUBLISH after every Lovable change that's confirmed working.
