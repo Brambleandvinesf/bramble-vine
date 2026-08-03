@@ -208,6 +208,21 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   getDayState ladder reads — the client-side subStep override is a 2s
   bridge, never the mechanism (7/31 lesson).
 - Lovable prompts must state: "Backend deploy required first: YES/NO."
+- AND A LOVABLE PROMPT MUST BE LABELLED AS ONE (BV, 8/3). Say explicitly that a
+  block is a Lovable prompt for Brandon to paste, and separate it from work
+  already deployed. Sessions here mix work the assistant deploys itself (Apps
+  Script, via clasp) with work only Brandon can deploy (anything frontend), so an
+  unlabelled code block is genuinely ambiguous — and guessing wrong means either
+  a change nobody applies or Brandon redoing something already done. Same for any
+  other hand-off: a sheet edit, a Make change. Name whose action it is.
+- PUBLISHED IS NOT THE SAME AS COMMITTED (8/3). Lovable commits to git as it
+  edits, but the live app only changes on an explicit PUBLISH. Three frontend
+  changes once sat in main, unpublished, while the running app served an older
+  bundle — the same fix was re-requested three times because nobody could see it.
+  To check what is actually live without signing in: read the script src from the
+  page, fetch that asset, and grep it for a string the change introduced. The
+  route chunks are code-split (assets/field-*.js etc.), so grep the chunk that
+  owns the component, not just the index bundle.
 - BUILD FULLY; DEFER ONLY THE LITERAL LIVE-DATA STEP. Brandon verifies live once
   work lands in the app — assume that. It does NOT lower the bar: build and
   prove everything checkable without live data (unit tests, dry runs, past-record
