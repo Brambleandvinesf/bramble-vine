@@ -4565,11 +4565,7 @@ function ItemsUsedPicker({
   return (
     <div>
       {items.map((i, idx) => (
-        <div key={idx} style={{ ...ROW_LINE, borderBottom: `1px solid ${LINE}`, gap: 6 }}>
-          <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
-            {i.name}
-          </div>
-      {items.map((i, idx) => (
+
         <div
           key={idx}
           style={{ borderBottom: `1px solid ${LINE}`, padding: "2px 0 8px" }}
