@@ -74,6 +74,19 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   can miss the new event. Anything that creates an event and then rebuilds
   a cached view must SEED the cache with the expected result, never just
   bust it (Y2 lesson, 8/2 — the busted cache got refilled stale for 60s).
+- SCRIPT PROPERTIES ARE THE APP'S LIVE STATE, NOT JUST CONFIG (BA.2, 8/2
+  — the general form of the rule below, learned the hard way the same
+  evening). ROUTE_STATE, CONFIRM_STATE, DEPART_ETA, VISIT_NOTES,
+  TEXT_SENT, MSG_* and the QBO token ALL live in the one Script
+  Properties table alongside hand-edited config. Editing that table in
+  the Apps Script UI can drop siblings — and on 8/2 it did: the
+  QBO_BILLING_GROUPS paste took out both `oauth2.qbo` AND ROUTE_STATE.
+  routeGet_ silently rebuilds a missing ROUTE_STATE as an EMPTY default
+  ({roster: [], state: '', ...}), so the crew's whole day vanished with
+  no error — Route Complete read 'Billing hours today 0.00' and offered
+  CLOCK IN while QB Time held 9.3 real hours. NEVER hand-edit this table
+  mid-day. Afterwards check getDayState.roster is non-empty as well as
+  calling qboCustomers.
 - SCRIPT PROPERTIES SHARE A TABLE WITH THE QBO TOKEN (AZ.3, 8/2 —
   iron-rule weight). qboService_ calls .setPropertyStore(
   getScriptProperties()), so the OAuth2 library keeps the QBO REFRESH
