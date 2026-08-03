@@ -58,14 +58,25 @@ function s(v: unknown): string {
   return String(v ?? "").trim();
 }
 
+function pick(r: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = s(r[k]);
+    if (v) return v;
+  }
+  return "";
+}
+
+// The Receipts tab headers carry REAL trailing spaces on "Date " and "Vendor "
+// (Make scenarios write those columns and cannot be renamed), so read by
+// fallback list, first non-empty wins.
 function normReceipt(r: Record<string, unknown>): Receipt {
   return {
     row: Number(r.row ?? 0),
     receiptId: s(r["Receipt_ID"]),
-    date: s(r["Date"]),
-    vendor: s(r["Vendor"]),
-    total: s(r["Total_Amount"]),
-    photo: s(r["Photo_Link"]) || s(r["Receipt_Image"]),
+    date: pick(r, ["Date", "Date "]),
+    vendor: pick(r, ["Vendor", "Vendor "]),
+    total: pick(r, ["Total", "Total_Amount"]),
+    photo: pick(r, ["Receipt_URL", "Photos", "Photo_Link", "Receipt_Image"]),
   };
 }
 
