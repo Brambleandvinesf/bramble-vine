@@ -3912,7 +3912,12 @@ type DebriefBilling = { name: string; hours: number };
 type DebriefUpdate = { projectId: string; status?: string; notes?: string };
 type NewProjectItem = { name: string; qty?: string; size?: string; notes?: string };
 type NewProject = { action: string; type?: string; notes?: string; items?: NewProjectItem[] };
-type ItemUsed = { name: string; qty?: string };
+/**
+ * `partial` = "Partially Used — Left Onsite". A plain Used marking makes the
+ * backend drop the item from the client's Inventory; partial keeps/adds it.
+ * That consequence is server-side — never reimplemented here.
+ */
+type ItemUsed = { name: string; qty?: string; partial?: boolean };
 
 function StateDebrief({
   clientMatch,
