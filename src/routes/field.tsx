@@ -882,6 +882,18 @@ function FieldBody({
     [allNotes, clientMatch],
   );
 
+  // Items already on site for this client. Keyed by client name, matched
+  // case-insensitively because the sheet's casing isn't guaranteed.
+  const clientInventory = useMemo(() => {
+    const map = data.inventory ?? {};
+    if (!clientMatch) return [] as string[];
+    const want = clientMatch.trim().toLowerCase();
+    const hit = Object.keys(map).find((k) => k.trim().toLowerCase() === want);
+    return hit ? (map[hit] ?? []) : [];
+  }, [data.inventory, clientMatch]);
+
+
+
   const [rosterEdit, setRosterEdit] = useState(false);
   const [backNotice, setBackNotice] = useState<string | null>(null);
   // Identity now comes from day-state's fieldPhone; there's no per-phone picker.
