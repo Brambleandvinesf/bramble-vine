@@ -893,6 +893,8 @@ function InvoiceTab({
                                 onError={onError}
                                 writer={writer}
                                 setLines={setLines}
+                                allowMarkInvoiced
+
                               />
                             </div>
                           ))}
