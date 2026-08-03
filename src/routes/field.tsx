@@ -4569,29 +4569,56 @@ function ItemsUsedPicker({
           <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
             {i.name}
           </div>
-          <input
-            placeholder="Qty"
-            value={i.qty ?? ""}
-            onChange={(e) =>
-              onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
+      {items.map((i, idx) => (
+        <div
+          key={idx}
+          style={{ borderBottom: `1px solid ${LINE}`, padding: "2px 0 8px" }}
+        >
+          <div style={{ ...ROW_LINE, borderBottom: "none", gap: 6 }}>
+            <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
+              {i.name}
+            </div>
+            <input
+              placeholder="Qty"
+              value={i.qty ?? ""}
+              onChange={(e) =>
+                onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
+              }
+              disabled={disabled}
+              style={{ ...INPUT, width: 72, marginTop: 0 }}
+            />
+            <button
+              onClick={() => onChange(items.filter((_, j) => j !== idx))}
+              disabled={disabled}
+              style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
+            >
+              ✕
+            </button>
+          </div>
+          {/* Rare case, so deliberately quiet: small text toggle, not a button. */}
+          <button
+            onClick={() =>
+              onChange(items.map((x, j) => (j === idx ? { ...x, partial: !x.partial } : x)))
             }
             disabled={disabled}
-            style={{ ...INPUT, width: 72, marginTop: 0 }}
-          />
-          <button
-            onClick={() => onChange(items.filter((_, j) => j !== idx))}
-            disabled={disabled}
-            style={{ ...SMALL_BTN, color: RED, borderColor: RED }}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: "2px 0 0",
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 0.5,
+              color: i.partial ? LIME : MUTED,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+            aria-pressed={!!i.partial}
           >
-            ✕
+            {i.partial ? "☑" : "☐"} partially used — left onsite
           </button>
         </div>
       ))}
-      <button
-        onClick={() => setPickerOpen(true)}
-        disabled={disabled}
-        style={{ ...SMALL_BTN, marginTop: 8, opacity: disabled ? 0.4 : 1 }}
-      >
+
         + ADD ITEM
       </button>
       {pickerOpen && (
