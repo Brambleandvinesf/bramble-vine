@@ -1231,7 +1231,8 @@ function FieldBody({
 
   const handleVisitComplete = async () => {
     if (vendorStop) return;   // vendor stops never text
-    void textClient(send, "done", clientMatch, stopIndex, isPreview, skipSameDayTexts);
+    // AG, not AF: departure has its own opt-out column.
+    void textClient(send, "done", clientMatch, stopIndex, isPreview, skipDepartureTexts);
   };
 
 
