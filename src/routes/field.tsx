@@ -4614,8 +4614,13 @@ function ItemsUsedPicker({
           </button>
         </div>
       ))}
-
+      <button
+        onClick={() => setPickerOpen(true)}
+        disabled={disabled}
+        style={{ ...SMALL_BTN, marginTop: 8, opacity: disabled ? 0.4 : 1 }}
+      >
         + ADD ITEM
+
       </button>
       {pickerOpen && (
         <ItemPicker
