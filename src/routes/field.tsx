@@ -3192,7 +3192,11 @@ function StateVisit({
           disabled={!!isPreview}
           style={{ ...PRIMARY_BTN, marginTop: 8, opacity: isPreview ? 0.45 : 1 }}
         >
-          DEBRIEF
+          {/* Departure is governed by AG, not AF — the label states exactly
+              what the tap will do; the backend re-checks at send time. */}
+          {departureTextsSuppressed
+            ? "DEBRIEF (NO TEXT)"
+            : `DEBRIEF & TEXT ${departureToContact ? "CONTACT" : "CLIENT"}`}
         </button>
       )}
 
