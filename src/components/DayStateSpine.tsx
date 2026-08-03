@@ -1006,23 +1006,39 @@ export function DayStateSpine() {
                     }
                     style={{
                       position: "absolute",
-                      left: midX - 11,
-                      top: a.cy + 8,
-                      width: 22,
-                      height: 22,
+                      left: midX - 22,
+                      top: a.cy - 22,
+                      width: 44,
+                      height: 44,
                       borderRadius: 999,
-                      background: BG,
-                      border: `1px solid ${LIME_DIM}`,
-                      color: LIME,
-                      fontSize: 14,
-                      lineHeight: "20px",
-                      textAlign: "center",
+                      background: "transparent",
+                      border: "none",
                       padding: 0,
                       cursor: "pointer",
                       zIndex: 3,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    +
+                    <span
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 999,
+                        background: BG,
+                        border: `1px solid ${LIME_DIM}`,
+                        color: LIME,
+                        fontSize: 16,
+                        lineHeight: "16px",
+                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      +
+                    </span>
                   </button>
                 );
               })}
