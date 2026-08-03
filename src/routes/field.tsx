@@ -4594,7 +4594,12 @@ function ItemsUsedPicker({
           {/* Rare case, so deliberately quiet: small text toggle, not a button. */}
           <button
             onClick={() =>
-              onChange(items.map((x, j) => (j === idx ? { ...x, partial: !x.partial } : x)))
+              onChange(
+                items.map((x, j) =>
+                  // Off means absent, so the payload only ever carries partial: true.
+                  j === idx ? { ...x, partial: x.partial ? undefined : true } : x,
+                ),
+              )
             }
             disabled={disabled}
             style={{
