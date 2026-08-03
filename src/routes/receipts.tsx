@@ -2165,9 +2165,44 @@ function LineActions({
 
   void onError;
 
+  // Already invoiced by hand in QuickBooks. Never offered for QUEUED rows —
+  // the invoice scenario already owns those and flipping one would race it.
+  const canMarkInvoiced = !!allowMarkInvoiced && !line.invoiced;
+
+  const markInvoiced = () => {
+    const prevInvoiced = line.invoiced;
+    setArmInvoiced(false);
+    setLines((prev) => prev.map((l) => (l.row === line.row ? { ...l, invoiced: "INVOICED" } : l)));
+    writer.dispatch(
+      `invoiced-${line.row}`,
+      { action: "markInvoiced", rows: [line.row], confirm: "INVOICED", dryRun: false },
+      {
+        rollback: () =>
+          setLines((prev) =>
+            prev.map((l) => (l.row === line.row ? { ...l, invoiced: prevInvoiced } : l)),
+          ),
+        onSuccessMsg: "Marked already invoiced",
+        onErrorMsg: (e) => `Couldn't mark — restored (${e.message})`,
+      },
+    );
+  };
+
   return (
     <>
       <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+        {canMarkInvoiced && (
+          <button
+            style={{
+              ...TINY_BTN,
+              borderColor: LIME_DIM,
+              color: armInvoiced ? LIME : MUTED,
+            }}
+            onClick={() => (armInvoiced ? markInvoiced() : setArmInvoiced(true))}
+            onBlur={() => setArmInvoiced(false)}
+          >
+            {armInvoiced ? "TAP AGAIN TO CONFIRM" : "ALREADY INVOICED"}
+          </button>
+        )}
         <button style={TINY_BTN} onClick={() => setMode("edit")}>
           {isSyncing ? "…" : "EDIT"}
         </button>
@@ -2175,6 +2210,7 @@ function LineActions({
           DELETE
         </button>
       </div>
+
 
       {mode === "edit" && (
         <div
