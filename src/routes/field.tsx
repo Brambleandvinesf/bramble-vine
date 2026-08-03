@@ -1478,6 +1478,68 @@ function FieldBody({
                   previewStep={isPreview ? previewStep : null}
                   employees={data.employees ?? []}
                   notes={stopNotes}
+                  meId={me?.id ?? null}
+                  meName={me?.name ?? null}
+                  meOnClock={meOnClock}
+                  onClockOutMe={async () => {
+                    if (isPreview || !me) return false;
+                    const from = meRow?.client ?? clientMatch ?? OVERHEAD_CLIENT;
+                    const r = await send({
+                      action: "qbClock",
+                      userId: me.id,
+                      dir: "out",
+                      client: from,
+                    });
+                    if (!r.ok) setBanner({ kind: "err", text: "Clock out failed — retry." });
+                    return r.ok;
+                  }}
+                  /* Label only — AG routing is decided server-side at send time. */
+                  departureLabel={
+                    departureTextsSuppressed
+                      ? null
+                      : departureToContact
+                        ? "their special contact"
+                        : "the client"
+                  }
+                  onDeparture={async (yes) => {
+                    if (!yes || isPreview) return;
+                    await handleVisitComplete();
+                  }}
+                  navigateLabel={
+                    isLastStop || !nextEvent
+                      ? "ROUTE COMPLETE →"
+                      : `NAVIGATE TO ${(nextClientMatch ?? nextEvent.title).toUpperCase()} ${
+                          nextSkipsText
+                            ? "(NO TEXT)"
+                            : nextArrivalToContact
+                              ? "& TEXT CONTACT"
+                              : "& TEXT ETA"
+                        }`
+                  }
+                  onNavigateNext={async () => {
+                    if (isPreview) return;
+                    if (isLastStop || !nextEvent) {
+                      await send({ action: "setRoute", stopIndex: stopIndex + 1, state: "next" });
+                      return;
+                    }
+                    // Opened before any await — popup blockers eat it otherwise.
+                    if (nextEvent.location) {
+                      window.open(
+                        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+                          encodeURIComponent(nextEvent.location),
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }
+                    const r = await send({
+                      action: "setRoute",
+                      state: "enroute",
+                      stopIndex: stopIndex + 1,
+                      client: nextClientMatch,
+                      eventId: nextEvent.id,
+                    });
+                    if (r.ok && !nextSkipsText) void send({ action: "textEta" }, { silent: true });
+                  }}
                   onFinish={async (payload) => {
                     if (isPreview) return;
                     const r = await send({
@@ -1503,10 +1565,12 @@ function FieldBody({
                         // fire-and-forget clear of consumed notes for this client
                         void postScript({ action: "visitNote", clearClient: clientMatch });
                       }
-                      await send({ action: "setRoute", state: "next" });
+                      /* The route advances from the NAVIGATE button now (step 7),
+                         so the departure prompt has a screen to live on. */
                     }
                   }}
                 />
+
 
               ) : (
                 <div style={PANEL_BOX}>
