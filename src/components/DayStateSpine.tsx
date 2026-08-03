@@ -1385,7 +1385,12 @@ function AddStopSheet({
               opacity: busy || !(picked?.label ?? query).trim() ? 0.5 : 1,
             }}
           >
-            {busy ? "ADDING…" : "CONFIRM ADD STOP & NAVIGATE"}
+            {busy
+              ? "ADDING…"
+              : activeLine
+                ? "CONFIRM ADD STOP & NAVIGATE"
+                : "CONFIRM ADD STOP"}
+
           </button>
           <button
             type="button"
