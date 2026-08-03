@@ -4392,45 +4392,113 @@ function StateDebrief({
         )}
       </div>
 
-      {/* Wizard nav */}
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <button
-          onClick={goBack}
-          disabled={isPreview || current === 0}
-          style={{
-            ...SMALL_BTN,
-            flex: "0 0 auto",
-            minHeight: 56,
-            padding: "0 18px",
-            background: "transparent",
-            color: current === 0 || isPreview ? MUTED : LIME,
-            borderColor: current === 0 || isPreview ? LINE : LIME_DIM,
-            opacity: current === 0 || isPreview ? 0.5 : 1,
-          }}
-        >
-          ← BACK
-        </button>
-        {isLast ? (
+      {/* Wizard nav — gone once the debrief is submitted (steps 6/7 take over) */}
+      {phase === "form" && (
+        <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button
-            onClick={handleFinish}
-            disabled={busy || isPreview}
-            style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
+            onClick={goBack}
+            disabled={isPreview || current === 0}
+            style={{
+              ...SMALL_BTN,
+              flex: "0 0 auto",
+              minHeight: 56,
+              padding: "0 18px",
+              background: "transparent",
+              color: current === 0 || isPreview ? MUTED : LIME,
+              borderColor: current === 0 || isPreview ? LINE : LIME_DIM,
+              opacity: current === 0 || isPreview ? 0.5 : 1,
+            }}
           >
-            FINISH DEBRIEF
+            ← BACK
           </button>
-        ) : (
+          {isLast ? (
+            <button
+              onClick={handleFinish}
+              disabled={busy || isPreview || submitting}
+              style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
+            >
+              {submitting ? "SUBMITTING…" : "SUBMIT DEBRIEF"}
+            </button>
+          ) : (
+            <button
+              onClick={goNext}
+              disabled={isPreview}
+              style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
+            >
+              NEXT →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Step 6 — departure text for the client just finished with. */}
+      {phase === "depart" && (
+        <StickyPrompt>
+          <div style={{ color: LIME, fontSize: 15, letterSpacing: 1, textAlign: "center" }}>
+            NOTIFY {(clientMatch ?? event?.title ?? "CLIENT").toUpperCase()} OF DEPARTURE?
+          </div>
+          {departureLabel !== undefined && (
+            <div style={{ color: MUTED, fontSize: 12, textAlign: "center", marginTop: 4 }}>
+              {departureLabel
+                ? `Text goes to ${departureLabel}.`
+                : "This client's departure texts are turned off."}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+            <button
+              onClick={() => void answerDeparture(false)}
+              style={{ ...SMALL_BTN, flex: 1, minHeight: 56, background: "transparent", color: LIME }}
+            >
+              NO
+            </button>
+            <button
+              onClick={() => void answerDeparture(true)}
+              style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56 }}
+            >
+              YES
+            </button>
+          </div>
+        </StickyPrompt>
+      )}
+
+      {/* Step 7 — the NEXT client's ETA text, a separate send. */}
+      {phase === "navigate" && navigateLabel && (
+        <StickyPrompt>
           <button
-            onClick={goNext}
-            disabled={isPreview}
-            style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
+            onClick={() => void onNavigateNext?.()}
+            style={{ ...PRIMARY_BTN, width: "100%", minHeight: 60 }}
           >
-            NEXT →
+            {navigateLabel}
           </button>
-        )}
-      </div>
+        </StickyPrompt>
+      )}
     </div>
   );
 }
+
+/** Fixed footer that always clears the day-state spine (never a raw px value). */
+function StickyPrompt({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <div style={{ height: 150 }} />
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: SPINE_RESERVE_CSS,
+          background: PANEL,
+          borderTop: `1px solid ${LIME_DIM}`,
+          padding: "12px 14px",
+          zIndex: 60,
+        }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
