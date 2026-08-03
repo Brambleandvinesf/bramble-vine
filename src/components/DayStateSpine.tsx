@@ -1023,14 +1023,14 @@ export function DayStateSpine() {
                   >
                     <span
                       style={{
-                        width: 18,
-                        height: 18,
+                        width: 14,
+                        height: 14,
                         borderRadius: 999,
                         background: BG,
                         border: `1px solid ${LIME_DIM}`,
                         color: LIME,
-                        fontSize: 16,
-                        lineHeight: "16px",
+                        fontSize: 13,
+                        lineHeight: "13px",
                         textAlign: "center",
                         display: "flex",
                         alignItems: "center",
@@ -1039,6 +1039,7 @@ export function DayStateSpine() {
                     >
                       +
                     </span>
+
                   </button>
                 );
               })}
