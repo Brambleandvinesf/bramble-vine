@@ -1077,9 +1077,11 @@ function AddStopSheet({
   onClose: () => void;
   onAdded: () => void;
 }) {
+  const [mode, setMode] = useState<"vendor" | "client" | "other" | null>(null);
   const [query, setQuery] = useState("");
   const [vendors, setVendors] = useState<DestSuggest[]>([]);
   const [frequent, setFrequent] = useState<DestSuggest[]>([]);
+  const [clients, setClients] = useState<DestSuggest[]>([]);
   const [picked, setPicked] = useState<DestSuggest | null>(null);
   const [saveFrequent, setSaveFrequent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1099,9 +1101,30 @@ function AddStopSheet({
     return () => { cancelled = true; };
   }, []);
 
+  /* Client roster comes from getField.clientAddresses (name -> address). */
+  useEffect(() => {
+    if (mode !== "client" || clients.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getField`);
+        const json = (await res.json()) as { clientAddresses?: Record<string, string> };
+        if (cancelled) return;
+        setClients(
+          Object.entries(json.clientAddresses ?? {}).map(([label, address]) => ({
+            label,
+            address: address || "",
+          })),
+        );
+      } catch { /* roster is optional */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mode, clients.length]);
+
   const q = query.trim().toLowerCase();
+  const pool = mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
   const matches = q
-    ? [...frequent, ...vendors].filter(
+    ? pool.filter(
         (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
       ).slice(0, 8)
     : [];
@@ -1112,15 +1135,16 @@ function AddStopSheet({
     setBusy(true);
     setErr(null);
     try {
+      const address = picked?.address ?? (mode === "other" ? query.trim() : "");
       const res = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
           action: "addStop",
           title,
-          address: picked?.address ?? "",
+          address,
           insertAt,
-          saveFrequent,
+          saveFrequent: mode === "client" ? false : saveFrequent,
           /* CC (8/2): retargeting the destination is explicit — only the
              CHANGE COURSE button (active line) ever sends this. */
           changeCourse: activeLine,
@@ -1131,16 +1155,17 @@ function AddStopSheet({
         setErr(json.error ?? "Add stop failed — retry.");
         return;
       }
-      /* EE (8/2): confirming also launches navigation, the same way every
-         other navigate action in the app does — adding a stop you're
-         driving to and then having to find Maps yourself made no sense. */
-      const dest = (picked?.address ?? "").trim() || title;
-      window.open(
-        "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
-          encodeURIComponent(dest),
-        "_blank",
-        "noopener,noreferrer",
-      );
+      /* EE (8/2): confirming also launches navigation — but ONLY on the leg the
+         crew is actually driving right now. */
+      if (activeLine) {
+        const dest = address.trim() || title;
+        window.open(
+          "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" +
+            encodeURIComponent(dest),
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }
       onAdded();
     } catch {
       setErr("Add stop failed — retry.");
@@ -1148,6 +1173,7 @@ function AddStopSheet({
       setBusy(false);
     }
   };
+
 
   const chip: React.CSSProperties = {
     background: "transparent",
