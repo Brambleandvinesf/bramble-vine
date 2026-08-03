@@ -1369,7 +1369,7 @@ function AddStopSheet({
           <button
             type="button"
             onClick={() => void confirm()}
-            disabled={busy || !(picked?.label ?? query).trim()}
+            disabled={busy || !mode || !(picked?.label ?? query).trim()}
             style={{
               flex: 1,
               minHeight: 48,
