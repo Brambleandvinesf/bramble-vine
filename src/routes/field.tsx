@@ -2924,6 +2924,8 @@ function StateArrived({
 function StateVisit({
   skipSameDayTexts,
   textsSuppressed,
+  departureTextsSuppressed,
+  departureToContact,
   event,
   clientMatch,
   vendorStop,
