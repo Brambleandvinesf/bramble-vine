@@ -208,6 +208,18 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   getDayState ladder reads — the client-side subStep override is a 2s
   bridge, never the mechanism (7/31 lesson).
 - Lovable prompts must state: "Backend deploy required first: YES/NO."
+- BUILD FULLY; DEFER ONLY THE LITERAL LIVE-DATA STEP. Brandon verifies live once
+  work lands in the app — assume that. It does NOT lower the bar: build and
+  prove everything checkable without live data (unit tests, dry runs, past-record
+  checks, offline decision tables), then defer only the step that genuinely
+  requires a live roster or real-time data to exist — an actual QB Time write
+  against a currently-open segment, say. Present that as "ready, needs your live
+  check" and move to other queued work rather than idling.
+  "Needs a live day" is never a reason to stop building adjacent,
+  independently-verifiable pieces. AG is the cautionary tale in both directions:
+  it was once reported done with no verification at all, and later stalled
+  entirely on a live check when the whole data layer could have been built and
+  proven against past records — which is how it was eventually done.
 - COSMETIC FRONTEND WORK GOES TO LOVABLE'S OWN AI. For genuinely low-risk,
   frontend-only changes with no backend coordination, no data-model
   implication and no state/logic change — a duplicated visual label, spacing,
