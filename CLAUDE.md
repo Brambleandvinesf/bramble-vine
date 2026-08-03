@@ -1,7 +1,7 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.26 @159; calendar backfill tooling, QBO billing-name audit and fixes)*
+*Last updated: 2026-08-02 (backend v7.4.29 @162; property snapshots, guarded config setter, QBO billing-name fixes)*
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
@@ -22,7 +22,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.26), single web-app
+- Backend: Google Apps Script "chron order" (v7.4.29), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -49,7 +49,7 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.26); full changelog in Code.js header.
+- Backend versions sequential (current: v7.4.29); full changelog in Code.js header.
 - CLIENT PROJECTS COLUMN ROLES — do not overload:
     Status  = 'Confirmed' (Load Vehicle/PP2) | 'SKIP' (buildTasks_) | ''
     Crossed = 'DAY <date>' (recurring, self-expiring) | 'DONE <date>'
@@ -106,6 +106,27 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   Mini Spray visit stops resolving. qboCustomers.rulesSource reports
   which source is live; qboCustomers.resolves shows what the rules
   actually produce.
+- "LEAD-ONLY" IS SCOPING, NOT AUTHENTICATION (AY, 8/2 — iron-rule
+  weight, because the word invites the wrong assumption). THE BACKEND
+  CANNOT TELL WHO IS CALLING. The web app executes as the script account
+  (info@), and role arrives only as `data.role` — a string the CALLER
+  supplies. Every role check in Code.js trusts it. That was harmless
+  while role gating only chose which screen to show; AY changed the
+  stakes by putting clients' DOOR CODES and HOME WIFI PASSWORDS behind
+  it (Client Info AP/AQ/AR).
+  AY's design, Brandon's call 8/2 — option (b): those three fields are
+  NEVER part of a shared payload. They are fetched by their own
+  lead-only action, on tap, so an assistant's device never receives
+  them at all. Do NOT "fix" this later by folding them into getField
+  with a UI-side check — that would put the codes back on every phone
+  and only stop them being drawn.
+  RESIDUAL LIMITATION, on the record: this defeats casual and accidental
+  exposure, which IS the threat model for a small trusted crew. It is
+  still spoofable by anyone able to craft a raw request. Real per-user
+  identity (option c) is a separate, larger project and is NOT in place —
+  note that Apps Script "execute as user" is not the shortcut it looks
+  like, since it would break the anonymous access the Quo webhook needs.
+  Never read "lead-only" anywhere in this app as airtight.
 - OPTIMISTIC-WRITE RULE (VV, 8/2 — same weight as SPINE_RESERVE_CSS).
   Every interactive element that updates the UI before the server has
   confirmed MUST ship with one of these, DECIDED WHEN IT IS BUILT, never
