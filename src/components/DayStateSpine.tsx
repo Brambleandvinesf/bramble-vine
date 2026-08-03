@@ -1267,7 +1267,14 @@ function AddStopSheet({
             setPicked(null);
             setQuery(e.target.value);
           }}
-          placeholder="Vendor, client, or place…"
+          placeholder={
+            mode === "vendor"
+              ? "Search vendors…"
+              : mode === "client"
+                ? "Search clients…"
+                : "Type the full address…"
+          }
+
           style={{
             width: "100%",
             boxSizing: "border-box",
