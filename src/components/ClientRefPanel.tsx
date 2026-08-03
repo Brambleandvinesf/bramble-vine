@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useAuth } from "@/lib/auth";
 
 /**
  * CLIENT REFERENCE PANEL (AY-adjacent, but NOT the access-sensitive one).
@@ -142,6 +143,8 @@ export function ClientRefPanel({
   client,
   inventory,
   knownInventory,
+  zoneMap = "",
+  specialMessage = "",
   send,
   onClose,
   readOnly = false,
@@ -151,6 +154,10 @@ export function ClientRefPanel({
   inventory: string[];
   /** Full vocabulary for the picker (getField.knownInventory). */
   knownInventory: string[];
+  /** getField.zoneMaps[client] — text mapping OR a Drive/image URL. */
+  zoneMap?: string;
+  /** Client Info AB. Plain text, never edited here. */
+  specialMessage?: string;
   send: InventoryPost;
   onClose: () => void;
   readOnly?: boolean;
@@ -165,6 +172,11 @@ export function ClientRefPanel({
   const [removed, setRemoved] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  /* Real signed-in role only — never the management view-as role. Access
+     credentials are scoped by the PAYLOAD boundary (their own action), not by
+     this check; see the AY iron rule. */
+  const { role } = useAuth();
+  const isLead = role === "lead" || role === "management";
 
   const items = useMemo(() => {
     const seen = new Set<string>();
@@ -284,6 +296,49 @@ export function ClientRefPanel({
               </button>
             )}
           </div>
+
+          {/* ---- SECTION: Special Message (Client Info AB) ---- */}
+          <div style={SECTION_HEAD}>Special Message</div>
+          <div style={CARD}>
+            {specialMessage.trim() ? (
+              <div style={{ fontSize: 15, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+                {specialMessage.trim()}
+              </div>
+            ) : (
+              <div style={{ color: MUTED, fontSize: 14 }}>Nothing on file.</div>
+            )}
+          </div>
+
+          {/* ---- SECTION: Irrigation Zone Map ---- */}
+          <div style={SECTION_HEAD}>Irrigation Zone Map</div>
+          <div style={CARD}>
+            {!zoneMap.trim() ? (
+              <div style={{ color: MUTED, fontSize: 14 }}>Nothing on file.</div>
+            ) : isImageLink(zoneMap) ? (
+              <a href={zoneMap.trim()} target="_blank" rel="noreferrer">
+                <img
+                  src={zoneMap.trim()}
+                  alt={`${client} irrigation zone map`}
+                  style={{ maxWidth: "100%", display: "block", borderRadius: 6 }}
+                />
+              </a>
+            ) : (
+              <pre
+                style={{
+                  margin: 0,
+                  fontFamily: "inherit",
+                  fontSize: 15,
+                  whiteSpace: "pre-wrap",
+                  lineHeight: 1.5,
+                }}
+              >
+                {zoneMap.trim()}
+              </pre>
+            )}
+          </div>
+
+          {/* ---- SECTION: Access — LEAD ONLY, fetched on demand ---- */}
+          {isLead && <AccessSection client={client} send={send} />}
         </div>
 
         {pickerOpen && (
@@ -407,6 +462,153 @@ function InventoryPicker({
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+const CARD: React.CSSProperties = {
+  background: PANEL,
+  border: `1px solid ${LINE}`,
+  borderRadius: 8,
+  padding: 12,
+};
+
+/** Decide by the VALUE, not by assumption: only http(s) links that look like
+ *  an image or a Drive file get rendered as an image. */
+function isImageLink(v: string): boolean {
+  const s = v.trim();
+  if (!/^https?:\/\//i.test(s)) return false;
+  if (/\.(png|jpe?g|gif|webp|bmp|svg|heic)(\?|#|$)/i.test(s)) return true;
+  return /(drive|docs)\.google\.com|googleusercontent\.com/i.test(s);
+}
+
+type Credentials = {
+  gateDoorCodes?: string;
+  wifiNetwork?: string;
+  wifiPassword?: string;
+  scopingNote?: string;
+};
+
+/**
+ * ACCESS — LEAD ONLY (AY).
+ *
+ * These three fields are deliberately NOT in getField: that payload goes to
+ * every device on the route, so a hidden field is still a delivered field. They
+ * are fetched by their own action, lazily on expand, so an assistant's phone
+ * never receives them and a lead's phone only holds them while the section is
+ * open. Do not fold these into getField behind a UI check.
+ */
+function AccessSection({ client, send }: { client: string; send: InventoryPost }) {
+  const [open, setOpen] = useState(false);
+  const [creds, setCreds] = useState<Credentials | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const expand = async () => {
+    setOpen(true);
+    if (creds || loading) return;
+    setLoading(true);
+    setErr(null);
+    const r = await send(
+      { action: "clientCredentials", confirm: "LEAD", role: "lead", client },
+      { silent: true },
+    );
+    setLoading(false);
+    const raw = (r.raw ?? {}) as Record<string, unknown>;
+    if (!r.ok) {
+      setErr("Couldn't load access details.");
+      return;
+    }
+    const src = (raw.data && typeof raw.data === "object" ? raw.data : raw) as Credentials;
+    setCreds({
+      gateDoorCodes: typeof src.gateDoorCodes === "string" ? src.gateDoorCodes : "",
+      wifiNetwork: typeof src.wifiNetwork === "string" ? src.wifiNetwork : "",
+      wifiPassword: typeof src.wifiPassword === "string" ? src.wifiPassword : "",
+      scopingNote: typeof src.scopingNote === "string" ? src.scopingNote : "",
+    });
+  };
+
+  const collapse = () => {
+    setOpen(false);
+    /* Drop them out of component state again as soon as it's closed. */
+    setCreds(null);
+    setErr(null);
+  };
+
+  return (
+    <>
+      <div style={SECTION_HEAD}>Access — lead only</div>
+      <div style={CARD}>
+        {!open ? (
+          <button
+            onClick={() => void expand()}
+            style={{
+              background: "transparent",
+              color: LIME,
+              border: `1px solid ${LIME}`,
+              borderRadius: 999,
+              padding: "0 16px",
+              minHeight: 38,
+              fontFamily: "inherit",
+              fontWeight: "bold",
+              letterSpacing: 1.5,
+              fontSize: 14,
+              cursor: "pointer",
+            }}
+          >
+            SHOW ACCESS DETAILS
+          </button>
+        ) : (
+          <>
+            {loading && <div style={{ color: MUTED, fontSize: 14 }}>Loading…</div>}
+            {err && <div style={{ color: LIME, fontSize: 14 }}>{err}</div>}
+            {creds && (
+              <div style={{ display: "grid", gap: 10 }}>
+                <Field label="Gate / door codes" value={creds.gateDoorCodes} />
+                <Field label="WiFi network" value={creds.wifiNetwork} />
+                <Field label="WiFi password" value={creds.wifiPassword} />
+                {creds.scopingNote?.trim() && (
+                  <div style={{ color: MUTED, fontSize: 12, lineHeight: 1.5 }}>
+                    {creds.scopingNote.trim()}
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={collapse}
+                style={{
+                  background: "transparent",
+                  color: MUTED,
+                  border: `1px solid ${LINE}`,
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                hide
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function Field({ label, value }: { label: string; value?: string }) {
+  const v = (value ?? "").trim();
+  return (
+    <div>
+      <div style={{ color: MUTED, fontSize: 12, letterSpacing: 1, textTransform: "uppercase" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 17, color: v ? TEXT : MUTED, wordBreak: "break-word" }}>
+        {v || "not on file"}
       </div>
     </div>
   );
