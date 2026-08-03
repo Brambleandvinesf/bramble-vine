@@ -1134,36 +1134,8 @@ function DayGrid({
                 {ev.location}
               </a>
             ) : null}
-            {isOpen && ev.description ? (
-              <div
-                style={{
-                  marginTop: 6,
-                  color: "#cfcfcf",
-                  fontSize: 11,
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.4,
-                }}
-              >
-                {sanitizeDescription(ev.description).map((seg, i) =>
-                  seg.kind === "link" ? (
-                    <a
-                      key={i}
-                      href={seg.href}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        window.open(seg.href, "_blank", "noopener,noreferrer");
-                      }}
-                      style={{ color: LIME, textDecoration: "underline" }}
-                    >
-                      {seg.text}
-                    </a>
-                  ) : (
-                    <span key={i}>{seg.value}</span>
-                  ),
-                )}
-              </div>
-            ) : null}
+            {/* Details live in the fixed overlay layer, never inline: the grid is
+                absolutely positioned, so a card that grew would cover its siblings. */}
           </div>
         );
       })}
