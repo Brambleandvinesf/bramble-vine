@@ -198,7 +198,7 @@ function ApprovalsPage() {
         <h1 style={{ color: LIME, fontSize: 18, letterSpacing: 2, margin: 0, fontWeight: 900 }}>
           APPROVAL QUEUE
         </h1>
-        <RefreshDot loading={loading} />
+        <RefreshDot refreshing={loading} />
         <button
           type="button"
           onClick={() => void load()}
