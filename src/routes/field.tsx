@@ -2951,6 +2951,10 @@ function StateVisit({
 }: {
   skipSameDayTexts: boolean;
   textsSuppressed: boolean;
+  /** AG-derived: departure text suppressed (or vendor stop). */
+  departureTextsSuppressed?: boolean;
+  /** Departure text is routed to a contact, not the client. */
+  departureToContact?: boolean;
   event?: EventItem;
   clientMatch: string | null;
   vendorStop?: FieldVendor | null;
