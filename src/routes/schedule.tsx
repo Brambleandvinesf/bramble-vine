@@ -333,7 +333,7 @@ function SchedulePage() {
   const [anchor, setAnchor] = useState<string>(() => laDateKey(new Date()));
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [openId, setOpenId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
   const reqIdRef = useRef(0);
@@ -399,13 +399,9 @@ function SchedulePage() {
   const goNext = () => setAnchor((a) => addDaysKey(a, view === "day" ? 1 : 7));
   const goToday = () => setAnchor(laDateKey(new Date()));
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const n = new Set(prev);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
+  // Only one detail overlay shows at a time, so a single id replaces the Set.
+  const toggle = (id: string) => setOpenId((prev) => (prev === id ? null : id));
+  const expanded = useMemo(() => new Set(openId ? [openId] : []), [openId]);
 
   const byDay = useMemo(() => {
     const m = new Map<string, EventItem[]>();
@@ -684,9 +680,146 @@ function SchedulePage() {
         </div>
       )}
       {isFieldCrew && <MessagesFab />}
+      <EventDetailOverlay
+        ev={events.find((e) => e.id === openId) ?? null}
+        onClose={() => setOpenId(null)}
+      />
     </div>
   );
 }
+
+function EventDetailOverlay({ ev, onClose }: { ev: EventItem | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!ev) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ev, onClose]);
+
+  const desc = useMemo(() => sanitizeDescription(ev?.description ?? ""), [ev?.description]);
+  if (!ev) return null;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,.75)",
+        zIndex: 4000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          maxHeight: "80vh",
+          overflowY: "auto",
+          background: PANEL,
+          border: `1.5px solid ${LIME}`,
+          borderRadius: 8,
+          boxShadow: "0 0 24px rgba(124,255,0,.3)",
+          fontFamily: MONO,
+          padding: 16,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: LIME, fontSize: 16, fontWeight: "bold", letterSpacing: 1 }}>
+              {ev.title || "(untitled)"}
+            </div>
+            <div style={{ color: DIM_GREEN, fontSize: 12, letterSpacing: 1, marginTop: 4 }}>
+              {fmtTime(ev.start)}
+              {ev.end ? ` – ${fmtTime(ev.end)}` : ""}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close details"
+            style={{
+              width: 44,
+              height: 44,
+              flexShrink: 0,
+              background: "transparent",
+              border: `1px solid ${BORDER}`,
+              borderRadius: 6,
+              color: LIME,
+              fontFamily: MONO,
+              fontSize: 18,
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {ev.location ? (
+          <a
+            href={mapsHref(ev.location)}
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(mapsHref(ev.location), "_blank", "noopener,noreferrer");
+            }}
+            style={{
+              display: "block",
+              marginTop: 10,
+              color: "#e8e8e8",
+              textDecoration: "underline",
+              fontSize: 13,
+              lineHeight: 1.4,
+            }}
+          >
+            {ev.location}
+          </a>
+        ) : null}
+
+        {desc.length > 0 ? (
+          <div
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              background: BG,
+              border: `1px solid ${BORDER}`,
+              borderRadius: 4,
+              color: "#cfcfcf",
+              fontSize: 12,
+              whiteSpace: "pre-wrap",
+              lineHeight: 1.5,
+            }}
+          >
+            {desc.map((seg, i) =>
+              seg.kind === "link" ? (
+                <a
+                  key={i}
+                  href={seg.href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.open(seg.href, "_blank", "noopener,noreferrer");
+                  }}
+                  style={{ color: LIME, textDecoration: "underline", cursor: "pointer" }}
+                >
+                  {seg.text}
+                </a>
+              ) : (
+                <span key={i}>{seg.value}</span>
+              ),
+            )}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 
 
 function NavBtn({ onClick, label }: { onClick: () => void; label: string }) {
@@ -1084,11 +1217,13 @@ function DayGrid({
               left: GUTTER_PX,
               right: 4,
               minHeight: heightPx,
-              height: isOpen ? "auto" : heightPx,
+              height: heightPx,
               background: PANEL,
               border: `1.5px solid ${LIME}`,
               borderRadius: 6,
-              boxShadow: "0 0 10px rgba(124,255,0,.15)",
+              boxShadow: isOpen
+                ? "0 0 16px rgba(124,255,0,.45)"
+                : "0 0 10px rgba(124,255,0,.15)",
               padding: "6px 10px",
               overflow: "hidden",
               cursor: "pointer",
@@ -1138,36 +1273,8 @@ function DayGrid({
                 {ev.location}
               </a>
             ) : null}
-            {isOpen && ev.description ? (
-              <div
-                style={{
-                  marginTop: 6,
-                  color: "#cfcfcf",
-                  fontSize: 11,
-                  whiteSpace: "pre-wrap",
-                  lineHeight: 1.4,
-                }}
-              >
-                {sanitizeDescription(ev.description).map((seg, i) =>
-                  seg.kind === "link" ? (
-                    <a
-                      key={i}
-                      href={seg.href}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        window.open(seg.href, "_blank", "noopener,noreferrer");
-                      }}
-                      style={{ color: LIME, textDecoration: "underline" }}
-                    >
-                      {seg.text}
-                    </a>
-                  ) : (
-                    <span key={i}>{seg.value}</span>
-                  ),
-                )}
-              </div>
-            ) : null}
+            {/* Details live in the fixed overlay layer, never inline: the grid is
+                absolutely positioned, so a card that grew would cover its siblings. */}
           </div>
         );
       })}
