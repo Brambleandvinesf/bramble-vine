@@ -1382,7 +1382,7 @@ function AddStopSheet({
               letterSpacing: 2,
               fontWeight: "bold",
               cursor: "pointer",
-              opacity: busy || !(picked?.label ?? query).trim() ? 0.5 : 1,
+              opacity: busy || !mode || !(picked?.label ?? query).trim() ? 0.5 : 1,
             }}
           >
             {busy
