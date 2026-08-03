@@ -2115,15 +2115,18 @@ function LineActions({
   onError,
   writer,
   setLines,
+  allowMarkInvoiced,
 }: {
   line: Line;
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
   writer: Writer;
   setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+  allowMarkInvoiced?: boolean;
 }) {
   void _onSaved;
   const [mode, setMode] = useState<null | "edit" | "delete">(null);
+  const [armInvoiced, setArmInvoiced] = useState(false);
   const [description, setDescription] = useState(line.description);
   const [qty, setQty] = useState(line.quantity);
   const [unitPrice, setUnitPrice] = useState(line.unitPrice);
