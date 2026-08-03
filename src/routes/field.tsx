@@ -2642,6 +2642,7 @@ function AssistantLoadingGate({
 function StateArrived({
   skipSameDayTexts,
   textsSuppressed,
+  arrivalToContact,
   roster,
   clientMatch,
   stopIndex,
