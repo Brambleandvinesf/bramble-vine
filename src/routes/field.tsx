@@ -129,6 +129,12 @@ type GetFieldResponse = {
   inventory?: Record<string, string[]>;
   /** Full inventory vocabulary for the picker. */
   knownInventory?: string[];
+  /** Client name -> irrigation zone map (text mapping OR Drive image URL). */
+  zoneMaps?: Record<string, string>;
+  /** Client Info AB, special message shown at the top of the event body. */
+  clients_info?: Array<{ client?: string; name?: string; specialMessage?: string }>;
+  clientInfo?: Array<{ client?: string; name?: string; specialMessage?: string }>;
+  specialMessages?: Record<string, string>;
   serverTime?: string;
 };
 
@@ -892,6 +898,29 @@ function FieldBody({
     return hit ? (map[hit] ?? []) : [];
   }, [data.inventory, clientMatch]);
 
+  // Zone map + special message are per-client reference, same case-insensitive
+  // lookup as inventory (sheet casing isn't guaranteed).
+  const clientZoneMap = useMemo(() => {
+    const map = data.zoneMaps ?? {};
+    if (!clientMatch) return "";
+    const want = clientMatch.trim().toLowerCase();
+    const hit = Object.keys(map).find((k) => k.trim().toLowerCase() === want);
+    return hit ? (map[hit] ?? "") : "";
+  }, [data.zoneMaps, clientMatch]);
+
+  const clientSpecialMessage = useMemo(() => {
+    if (!clientMatch) return "";
+    const want = clientMatch.trim().toLowerCase();
+    const rec = data.specialMessages ?? {};
+    const recHit = Object.keys(rec).find((k) => k.trim().toLowerCase() === want);
+    if (recHit && rec[recHit]) return rec[recHit] ?? "";
+    const rows = data.clientInfo ?? data.clients_info ?? [];
+    const row = rows.find(
+      (r) => ((r.client ?? r.name ?? "").trim().toLowerCase() === want),
+    );
+    return row?.specialMessage ?? "";
+  }, [data.specialMessages, data.clientInfo, data.clients_info, clientMatch]);
+
 
 
   const [rosterEdit, setRosterEdit] = useState(false);
@@ -1308,6 +1337,8 @@ function FieldBody({
               state={state}
               inventory={clientInventory}
               knownInventory={data.knownInventory ?? []}
+              zoneMap={clientZoneMap}
+              specialMessage={clientSpecialMessage}
               send={send}
               /* Vendor/break stops aren't clients — no inventory reference. */
               panelDisabled={!!vendorStop || isBreakStop || isPreview}
@@ -2105,6 +2136,8 @@ function ClientHeader({
   state,
   inventory = [],
   knownInventory = [],
+  zoneMap = "",
+  specialMessage = "",
   send,
   panelDisabled = false,
 }: {
@@ -2113,6 +2146,8 @@ function ClientHeader({
   state: RouteState;
   inventory?: string[];
   knownInventory?: string[];
+  zoneMap?: string;
+  specialMessage?: string;
   send?: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   panelDisabled?: boolean;
 }) {
@@ -2161,6 +2196,8 @@ function ClientHeader({
           client={clientMatch}
           inventory={inventory}
           knownInventory={knownInventory}
+          zoneMap={zoneMap}
+          specialMessage={specialMessage}
           send={send}
           onClose={() => setPanelOpen(false)}
         />
