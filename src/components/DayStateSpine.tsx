@@ -1279,7 +1279,7 @@ function AddStopSheet({
           </div>
         )}
 
-        {!picked && !q && frequent.length > 0 && (
+        {mode === "vendor" && !picked && !q && frequent.length > 0 && (
           <>
             <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "12px 0 6px" }}>
               FREQUENTED
@@ -1297,25 +1297,30 @@ function AddStopSheet({
         {picked?.address && (
           <div style={{ color: "#8f8f8f", fontSize: 11, marginTop: 8 }}>{picked.address}</div>
         )}
+          </>
+        )}
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginTop: 14,
-            color: "#8f8f8f",
-            fontSize: 12,
-            cursor: "pointer",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={saveFrequent}
-            onChange={(e) => setSaveFrequent(e.target.checked)}
-          />
-          Add to Frequented Destinations
-        </label>
+        {(mode === "vendor" || mode === "other") && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 14,
+              color: "#8f8f8f",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={saveFrequent}
+              onChange={(e) => setSaveFrequent(e.target.checked)}
+            />
+            Add to Frequented Destinations
+          </label>
+        )}
+
 
         {err && <div style={{ color: "#ff5555", fontSize: 12, marginTop: 8 }}>{err}</div>}
 
