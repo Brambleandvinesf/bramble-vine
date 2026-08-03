@@ -4121,64 +4121,32 @@ function StateDebrief({
       <div style={{ marginTop: 10 }}>
         {currentKey === "billing" && (
           <div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {billing.map((b, i) => {
-                const dec = () =>
-                  setBilling((cur) =>
-                    cur.map((r, j) => (j === i ? { ...r, hours: Math.max(0, +(r.hours - 0.25).toFixed(2)) } : r)),
-                  );
-                const inc = () =>
-                  setBilling((cur) =>
-                    cur.map((r, j) => (j === i ? { ...r, hours: Math.min(16, +(r.hours + 0.25).toFixed(2)) } : r)),
-                  );
-                return (
-                  <div key={`${b.name}-${i}`} style={{ ...PANEL_BOX, textAlign: "center" }}>
-                    <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 10 }}>
-                      {b.name.toUpperCase()}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
-                      <button
-                        onClick={dec}
-                        aria-label="Decrease hours"
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 8,
-                          border: `1px solid ${LIME_DIM}`,
-                          background: "transparent",
-                          color: LIME,
-                          fontSize: 28,
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        −
-                      </button>
-                      <div style={{ minWidth: 120, color: LIME, fontSize: 40, fontWeight: "bold", fontVariantNumeric: "tabular-nums" }}>
-                        {b.hours.toFixed(2)}
-                      </div>
-                      <button
-                        onClick={inc}
-                        aria-label="Increase hours"
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 8,
-                          border: `1px solid ${LIME_DIM}`,
-                          background: "transparent",
-                          color: LIME,
-                          fontSize: 28,
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                        }}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <DebriefHours
+              client={clientMatch}
+              meId={meId}
+              meName={meName}
+              meOnClock={meOnClock}
+              billing={billing}
+              onConfirm={(name, hours) =>
+                setBilling((cur) => [
+                  ...cur.filter((r) => r.name.toLowerCase() !== name.toLowerCase()),
+                  { name, hours },
+                ])
+              }
+              onAdjust={(name, delta) =>
+                setBilling((cur) =>
+                  cur.map((r) =>
+                    r.name.toLowerCase() === name.toLowerCase()
+                      ? { ...r, hours: Math.min(16, Math.max(0, +(r.hours + delta).toFixed(2))) }
+                      : r,
+                  ),
+                )
+              }
+              onClockOutMe={onClockOutMe}
+              disabled={busy}
+              isPreview={isPreview}
+            />
+
 
             <button
               onClick={() => setShowAddPerson(true)}
