@@ -1223,9 +1223,43 @@ function AddStopSheet({
             : "Inserted into today's route right where you tapped."}
         </div>
 
-        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 4px" }}>
-          DESTINATION
+        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 6px" }}>
+          STOP TYPE
         </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {(["vendor", "client", "other"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => {
+                setMode(m);
+                setPicked(null);
+                setQuery("");
+                if (m === "client") setSaveFrequent(false);
+              }}
+              style={{
+                ...chip,
+                flex: 1,
+                textAlign: "center",
+                minHeight: 40,
+                letterSpacing: 1,
+                fontWeight: "bold",
+                background: mode === m ? LIME : "transparent",
+                color: mode === m ? BG : LIME,
+                border: `1px solid ${mode === m ? LIME : LIME_DIM}`,
+              }}
+            >
+              {m.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {mode && (
+          <>
+        <div style={{ fontSize: 10, letterSpacing: 1, color: "#8f8f8f", margin: "14px 0 4px" }}>
+          {mode === "other" ? "ADDRESS" : "DESTINATION"}
+        </div>
+
         <input
           autoFocus
           value={picked ? picked.label : query}
