@@ -1080,11 +1080,13 @@ function DayGrid({
               left: GUTTER_PX,
               right: 4,
               minHeight: heightPx,
-              height: isOpen ? "auto" : heightPx,
+              height: heightPx,
               background: PANEL,
               border: `1.5px solid ${LIME}`,
               borderRadius: 6,
-              boxShadow: "0 0 10px rgba(124,255,0,.15)",
+              boxShadow: isOpen
+                ? "0 0 16px rgba(124,255,0,.45)"
+                : "0 0 10px rgba(124,255,0,.15)",
               padding: "6px 10px",
               overflow: "hidden",
               cursor: "pointer",
