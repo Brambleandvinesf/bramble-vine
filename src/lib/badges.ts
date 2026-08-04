@@ -176,5 +176,5 @@ export function useBadgePoller({
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [email, canMessages, canReceipts]);
+  }, [email, canMessages, canReceipts, canVisits, canApprovals]);
 }
