@@ -45,6 +45,10 @@ type Line = {
   invoiced: string;
   specificDesignation: string;
   finalDesignation: string;
+  plantSize: string;
+  plantFloor: number | null;
+  plantAskBG: boolean;
+  costFlag: string;
 };
 
 type GetReceiptsResponse = {
