@@ -1320,32 +1320,8 @@ function AddStopSheet({
               WebkitOverflowScrolling: "touch",
             }}
           >
-            {matches.map((d, i) => (
-              <button
-                key={`${d.label}-${i}`}
-                type="button"
-                onClick={() => setPicked(d)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "transparent",
-                  color: "#e8e8e8",
-                  border: "none",
-                  borderBottom: "1px solid #1d1d1d",
-                  fontFamily: "inherit",
-                  fontSize: 13,
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                {d.label}
-                {d.address && (
-                  <span style={{ display: "block", color: "#8f8f8f", fontSize: 11, marginTop: 2 }}>
-                    {d.address}
-                  </span>
-                )}
-              </button>
+            {matches.map((d) => (
+              <SuggestRow key={`${d.label}|${d.address}`} dest={d} onPick={onPick} />
             ))}
           </div>
         )}
