@@ -5111,7 +5111,7 @@ function RouteComplete({
   onFinishedUnloading,
   clockSlot,
   approveNote,
-  onApprove,
+  leadName,
   busy,
 }: {
   events: EventItem[];
@@ -5129,8 +5129,10 @@ function RouteComplete({
   clockSlot?: React.ReactNode;
   /** Why approval isn't available yet; null = it is (T1/T3, 8/2). */
   approveNote: string | null;
-  onApprove: () => void;
+  /** Name recorded as the approver on payrollConfirm. */
+  leadName: string;
   busy: boolean;
+
 }) {
   const totalHours = roster.reduce((a, m) => a + hoursBetween(m.in, m.out), 0);
   // Preview renders every stage's controls read-only; a day where the route
