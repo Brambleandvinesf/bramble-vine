@@ -743,6 +743,7 @@ function FieldPage() {
           data={view}
           now={now}
           send={send}
+          refresh={fetchOnce}
           busy={busy}
           role={effectiveRole}
           setBanner={setBanner}
@@ -859,6 +860,7 @@ function FieldBody({
   data,
   now,
   send,
+  refresh,
   busy,
   role,
   setBanner,
@@ -869,6 +871,7 @@ function FieldBody({
   data: GetFieldResponse;
   now: number;
   send: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
+  refresh: () => void | Promise<void>;
   busy: boolean;
   role: ReturnType<typeof useViewAs>["effectiveRole"];
   setBanner: (b: { kind: "info" | "err"; text: string } | null) => void;
@@ -1231,7 +1234,7 @@ function FieldBody({
             /* Not routed through send(): that posts raw and would not apply the
                dryRun:false / throw-on-dryRun discipline. So refetch by hand,
                the same call send() makes on success. */
-            void fetchOnce();
+            void refresh();
           } catch (e) {
             setBanner({
               kind: "err",
