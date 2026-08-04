@@ -971,7 +971,11 @@ function ApprovalsPage() {
                   </div>
                   <div style={{ color: FINE, fontSize: 13, marginTop: 2 }}>
                     {r.segments ?? 0} segment{Number(r.segments) === 1 ? "" : "s"}
+                    {r.approvedTo
+                      ? ` · approved through ${fmtShort(r.approvedTo)}`
+                      : " · never approved in QuickBooks Time"}
                   </div>
+
 
                   <Timeline row={r} clients={dayClients} onApplied={() => void load()} />
 
