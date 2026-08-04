@@ -1063,7 +1063,7 @@ export function DayStateSpine() {
 
 /* ---------- V (8/2): Add Stop flow ---------- */
 
-type DestSuggest = { label: string; address: string };
+type DestSuggest = { label: string; address: string; placeId?: string };
 
 const SUGGEST_ROW: React.CSSProperties = {
   display: "block",
@@ -1122,6 +1122,51 @@ function AddStopSheet({
   const [saveFrequent, setSaveFrequent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  /* CO (8/3): Google Places lookup for the OTHER pill.
+     Billing: ONE sessionToken threads all placesAutocomplete keystrokes plus
+     the closing placesDetails call — that is what makes Google bill this as a
+     single session instead of per request. Minted on first keystroke of a
+     lookup, discarded the moment the lookup ends (pick, clear, pill switch,
+     sheet close). */
+  const [placesEnabled, setPlacesEnabled] = useState(false);
+  const [placeSuggests, setPlaceSuggests] = useState<DestSuggest[]>([]);
+  const tokenRef = useRef<string | null>(null);
+  const seqRef = useRef(0);
+
+  const ensureToken = useCallback(() => {
+    if (!tokenRef.current) {
+      tokenRef.current =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Math.random()).slice(2) + Date.now();
+    }
+    return tokenRef.current;
+  }, []);
+
+  const dropLookup = useCallback(() => {
+    tokenRef.current = null;
+    seqRef.current += 1;
+    setPlaceSuggests([]);
+  }, []);
+
+  /* Discard any live session token when the sheet unmounts. */
+  useEffect(() => () => { tokenRef.current = null; }, []);
+
+  /* placesEnabled flag lives on getField. */
+  useEffect(() => {
+    if (mode !== "other") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getField`);
+        const json = (await res.json()) as { placesEnabled?: boolean };
+        if (!cancelled) setPlacesEnabled(json.placesEnabled === true);
+      } catch { /* free text still works */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mode]);
+
 
   useEffect(() => {
     let cancelled = false;
@@ -1183,7 +1228,89 @@ function AddStopSheet({
     return filtered.slice(0, 50);
   }, [pool, q]);
 
-  const onPick = useCallback((d: DestSuggest) => setPicked(d), []);
+  /* Network debounce (~300ms) for placesAutocomplete — separate from, and in
+     addition to, the render-level useDeferredValue above. Under 3 chars the
+     backend refuses anyway, so we never spend the round trip. */
+  useEffect(() => {
+    if (mode !== "other" || !placesEnabled || picked) return;
+    const text = query.trim();
+    if (text.length < 3) {
+      dropLookup();
+      return;
+    }
+    const token = ensureToken();
+    const seq = ++seqRef.current;
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              action: "placesAutocomplete",
+              input: text,
+              sessionToken: token,
+            }),
+          });
+          const json = (await res.json()) as {
+            ok?: boolean;
+            suggestions?: { placeId: string; text?: string; primary?: string; secondary?: string }[];
+          };
+          if (seq !== seqRef.current) return; // stale response
+          if (!json.ok || !json.suggestions?.length) {
+            setPlaceSuggests([]);
+            return;
+          }
+          setPlaceSuggests(
+            json.suggestions.map((s) => ({
+              label: s.primary || s.text || "",
+              address: s.secondary || "",
+              placeId: s.placeId,
+            })),
+          );
+        } catch {
+          if (seq === seqRef.current) setPlaceSuggests([]);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(t);
+  }, [mode, placesEnabled, picked, query, ensureToken, dropLookup]);
+
+  const onPick = useCallback(
+    (d: DestSuggest) => {
+      if (!d.placeId) {
+        setPicked(d);
+        return;
+      }
+      const token = ensureToken();
+      const placeId = d.placeId;
+      setPicked({ label: d.label, address: d.address });
+      setPlaceSuggests([]);
+      void (async () => {
+        try {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "placesDetails", placeId, sessionToken: token }),
+          });
+          const json = (await res.json()) as {
+            ok?: boolean;
+            name?: string;
+            address?: string;
+          };
+          if (json.ok && (json.name || json.address)) {
+            setPicked({ label: json.name || d.label, address: json.address || d.address });
+          }
+        } catch { /* typed text / suggestion text stands */ }
+        finally {
+          // Session ends with placesDetails — next lookup mints a fresh token.
+          tokenRef.current = null;
+        }
+      })();
+    },
+    [ensureToken],
+  );
+
 
   const confirm = async () => {
     const title = (picked?.label ?? query).trim();
@@ -1289,6 +1416,7 @@ function AddStopSheet({
               type="button"
               onClick={() => {
                 setMode(m);
+                dropLookup();
                 setPicked(null);
                 setQuery("");
                 if (m === "client") setSaveFrequent(false);
@@ -1322,6 +1450,7 @@ function AddStopSheet({
           onChange={(e) => {
             setPicked(null);
             setQuery(e.target.value);
+            if (mode === "other" && !e.target.value.trim()) dropLookup();
           }}
           placeholder={
             mode === "vendor"
@@ -1344,7 +1473,7 @@ function AddStopSheet({
           }}
         />
 
-        {!picked && matches.length > 0 && mode !== "other" && (
+        {!picked && (mode === "other" ? placeSuggests : matches).length > 0 && (
           <div
             style={{
               marginTop: 6,
@@ -1356,11 +1485,16 @@ function AddStopSheet({
               WebkitOverflowScrolling: "touch",
             }}
           >
-            {matches.map((d) => (
-              <SuggestRow key={`${d.label}|${d.address}`} dest={d} onPick={onPick} />
+            {(mode === "other" ? placeSuggests : matches).map((d) => (
+              <SuggestRow
+                key={d.placeId ?? `${d.label}|${d.address}`}
+                dest={d}
+                onPick={onPick}
+              />
             ))}
           </div>
         )}
+
 
         {mode === "vendor" && !picked && !q && frequent.length > 0 && (
           <>
