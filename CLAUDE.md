@@ -394,7 +394,50 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
-Backend is CURRENT at **v7.4.76 @215**.
+Backend is CURRENT at **v7.4.82 @221**.
+
+PAYROLL ACCURACY — TWO REAL BUGS, BOTH FIXED 8/4. Read this before touching
+approvals; both failed SILENTLY and both affected real payroll.
+- **APPROVAL WAS READ FROM THE WRONG PLACE.** approvalQueue_ decided "approved"
+  from the app's own Payroll Confirmations tab, which nothing authoritative ever
+  wrote — so time approved directly in QuickBooks read as unapproved forever.
+  Measured: all three crew were `approved_to = 2026-07-26` in QBT while the app
+  listed 46 unapproved person-days back to 7/6. It now reads QBT's watermark
+  (`date <= approved_to`, via cached qbApprovedTo_), and the count fell to 10.
+  The sheet is DEMOTED to an audit log: who clicked approve and when, which QBT
+  does not record. It decides nothing.
+- **AND APPROVING IN THE APP NEVER REACHED QUICKBOOKS.** payrollConfirm writes
+  only that sheet — no qbFetch_, no qbWrite_, no approved_to anywhere in its
+  block. New `approveThrough {person, date}` moves ONE person's watermark via
+  qbWrite_ (not a bare r.code check — QBT buries rejections inside a 200), reads
+  it back, then appends the audit row.
+- **APPROVAL NECESSARILY SWEEPS BACKWARDS, AND THAT IS NOT A DESIGN CHOICE.**
+  approved_to is a single DATE per user; there is no per-day representation. So
+  approving 30 Jul while 27–29 are open DOES approve them. Disallowing
+  out-of-order approval would be theatre — it cannot be prevented, only
+  DISCLOSED. approveThrough returns sweep / sweepDays / sweepHours /
+  alsoApproves, and the UI must state it before committing. Watermarks are
+  per-person and independent, matching QBT.
+- Never moves backwards: a target at or before the current watermark is a
+  reported NO-OP. qbApprove and payrollConfirm are untouched — a refusal
+  ("can't verify") still writes only the sheet, because a refusal cannot move a
+  watermark forward.
+- **THE QUEUE WAS ALSO TRUNCATED AT EXACTLY 200 (v7.4.81).** It asked
+  /timesheets for per_page=1000; TSheets silently caps at 200 and returns
+  oldest-first, so the NEWEST days fell off. days=21 → 156 segments with today
+  present; days=30 → exactly 200 with everything from 7/31 onward INVISIBLE —
+  and a day absent from the list cannot be approved at all. Now loops on `more`
+  and reports pagesRead / timesheetsRead / truncated so it can never be silent
+  again. See the /jobcodes watch item below: same ceiling, not yet fixed.
+- Non-payroll people (Jose, Brandon) are filtered from the queue via
+  nonPayrollPeople_, kept SEPARATE from excludedEmployees_ because that list also
+  filters qbEmployees_, which feeds the employee picker and the app's own identity
+  resolution — excluding Brandon there could break his session rather than tidy a
+  queue.
+- NOT PROVEN, and proven on first real use: no live approve was performed, so
+  the actual watermark write, its read-back and the audit row are unexercised.
+  Everything else — the read change, the no-op guard, the sweep computation, the
+  refusals — is verified behaviourally.
 
 LIVE-FLOW BUG FIX, not feature scope (v7.4.75): saveDebrief's Billing Hours write
 was a blind APPEND, so submitting the same debrief twice DOUBLE-BILLED the client.
@@ -591,6 +634,29 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   line item. Confirmed unbuilt — Name-from-Photo never persists its image and
   nothing attaches a photo to a Line items row (attachPhoto is receipt-level,
   visitPhoto is visit-level). Not queued.
+
+## WATCH ITEMS (not bugs yet — they will become bugs quietly)
+- **/jobcodes?per_page=200 IS THE NEXT ONE TO TRIP (8/4).** TSheets hard-caps
+  per_page at 200 and returns oldest-first, and NOTHING in Code.js paginates
+  except approvalQueue_ (fixed 8/4). qbJobcodeNames_ / qbJobcode_ ask for exactly
+  200 jobcodes. Jobcodes are CLIENTS, so the 201st client silently stops
+  resolving: qbJobcode_ returns nothing, and every caller treats that as "no
+  jobcode for this client" — clock-ins land on overhead, payrollDay cannot
+  attribute a segment, billing goes to the wrong place. It will look like a client
+  problem, not a pagination problem. Fix it the same way (loop on `more`) BEFORE
+  the client list approaches 200, not after.
+- **NAME MATCHING IS THE ONLY EMPLOYEE IDENTITY THIS SYSTEM HAS (8/4).** There is
+  no employee tab with an on-payroll flag anywhere. excludedEmployees_
+  (EXCLUDED_EMPLOYEES) and nonPayrollPeople_ (NON_PAYROLL_PEOPLE) both match on
+  lower-cased NAME, and approveThrough resolves a person to a QBT user id by name
+  too. QBT's own name strings are ALREADY inconsistent — "Rogelio Montejo torres"
+  is real, with a lower-case surname — so this is a live risk, not a hypothetical:
+  add an accent ("José Garcia"), fix a capital, or hyphenate a surname upstream in
+  QuickBooks and the exclusion silently stops working. A non-payroll person
+  reappears in payroll review, or an approval targets nobody. approveThrough at
+  least REFUSES on an ambiguous name rather than guessing; the exclusion lists
+  fail silently. If QBT ever exposes a stable employee id in the places these
+  lists are used, switch to it.
 
 ## OPEN ITEMS
 - OWN ITEM, NOT FIXED (8/4) — "officePush: sent" IS NOT PROOF ANYTHING WAS SENT.
