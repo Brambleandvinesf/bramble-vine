@@ -312,20 +312,62 @@ function SchedulePage() {
     setBaseLoadSubmitting(true);
     setBaseLoadFlash(null);
     try {
-      await fetch(SCRIPT_URL, {
+      /* Record the DECISION first, and treat a failure as fatal.
+         Until 8/4 this handler only sent a Quo text and set a local flag, so
+         CONFIRM_STATE.confirmed stayed false and the day-state ladder pinned
+         every OTHER device at 'dailyload_confirm' — "Waiting for Daily Load
+         Confirmation" — with no way to tell a no from a lead who had not
+         answered yet. Dismissing locally without a recorded decision IS the
+         bug, so this must not be best-effort. */
+      const res = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({
-          action: "replyQuo",
-          participants: ["+14152343696"],
-          text: "Different loading today — standby.",
-        }),
+        body: JSON.stringify({ action: "confirmBaseLoad", needsLoad: false }),
       });
-    } catch { /* best-effort */ }
-    setBaseLoadSubmitting(false);
-    setBaseLoadDismissed(true);
-    void navigate({ to: "/confirm" });
-  }, [navigate]);
+      const j = (await res.json()) as { ok?: boolean; error?: string };
+      if (!j.ok) throw new Error(j.error || "not ok");
+      setConfirmed(true);
+
+      /* Crew notification is best-effort — the decision is already recorded,
+         so a failed text can no longer strand anyone on the waiting screen. */
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "replyQuo",
+            participants: ["+14152343696"],
+            text: "Different loading today — standby.",
+          }),
+        });
+      } catch { /* best-effort */ }
+
+      setBaseLoadFlash("DAILY LOAD: NO — RECORDED, CREW NOTIFIED");
+      setBaseLoadDismissed(true);
+      if (reviewable === false) {
+        /* Same stall the yes path already guards against: with nothing to
+           review the special gate is vacuous, and the route refuses to run
+           until it is confirmed, so a no on a no-specials day would sit at
+           special_confirm forever. */
+        try {
+          await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "confirmSpecial" }),
+          });
+        } catch { /* poll reconciliation will surface it */ }
+        advanceSubStep("loading");
+        void navigate({ to: "/loading" });
+      } else {
+        advanceSubStep("special_confirm");
+        void navigate({ to: "/confirm" });
+      }
+    } catch (e) {
+      setBaseLoadFlash(`FAILED: ${e instanceof Error ? e.message : "unknown"}`);
+    } finally {
+      setBaseLoadSubmitting(false);
+    }
+  }, [navigate, advanceSubStep, reviewable]);
 
 
   const [view, setView] = useState<"day" | "week">("day");

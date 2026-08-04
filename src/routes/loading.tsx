@@ -48,6 +48,11 @@ type ConfirmState = {
   confirmed?: boolean;
   at?: string;
   clients?: unknown[];
+  /* Which way the Daily Load question was answered. Only meaningful when
+     confirmed is true. Absent on blobs written before 8/4, and every one of
+     those was a yes, so the backend backfills it to true rather than leaving
+     it undefined — see confirmGet_. */
+  needsLoad?: boolean;
 };
 
 type ToolRow = {
@@ -419,6 +424,33 @@ function LoadingPage() {
 
       {!loadErr && confirm && !confirm.confirmed && (
         <WaitingState canConfirm={canConfirm} />
+      )}
+
+      {/* Which way the Daily Load question actually went. Shown for BOTH
+          outcomes and on every device, because until 8/4 a "no" wrote nothing
+          anywhere — it only dismissed a banner on the one phone that tapped
+          it, so everyone else could not tell a no from an unanswered gate. */}
+      {!loadErr && confirm?.confirmed && (
+        <div
+          style={{
+            margin: "12px 14px 0",
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: `1px solid ${confirm.needsLoad === false ? RED : LIME_DIM}`,
+            background: confirm.needsLoad === false ? "rgba(255,59,48,.10)" : "transparent",
+            color: confirm.needsLoad === false ? RED : LIME,
+            fontFamily: "'Courier New', Courier, monospace",
+            fontSize: 12,
+            letterSpacing: 1,
+          }}
+        >
+          DAILY LOAD: {confirm.needsLoad === false ? "NO" : "YES"}
+          {confirm.needsLoad === false && (
+            <span style={{ color: MUTED, letterSpacing: 0 }}>
+              {" "}— loading is different today, check with the lead
+            </span>
+          )}
+        </div>
       )}
 
       {!loadErr && confirm?.confirmed && reviewable === false && (
