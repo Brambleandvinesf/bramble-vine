@@ -15,7 +15,10 @@ export const BK = {
   inbox: "home:getInbox:count",
   receipts: "home:getReceipts:count",
   visits: "home:getQueue:count",
+  approvals: "home:approvalQueue:count",
+  debriefq: "home:debriefQueue:count",
 } as const;
+
 
 const EVT = "bv:badges";
 
