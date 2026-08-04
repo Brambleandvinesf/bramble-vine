@@ -4109,15 +4109,31 @@ function StateDebrief({
   const [billingBusy, setBillingBusy] = useState<string | null>(null);
   const [billingNote, setBillingNote] = useState<string | null>(null);
 
+  /* BUGFIX (8/4): this effect used to list qbtLoading in its OWN dependency
+     array while also setting it. That deadlocked, deterministically:
+       run 1  guard passes, setQbtLoading(true), fetch starts, cleanup C1 armed
+       state change re-renders -> deps changed -> React runs C1 (cancelled=true)
+       run 2  early-returns on the qbtLoading guard
+       fetch resolves -> `if (cancelled) return` -> result DISCARDED, and
+              setQbtLoading(false) never runs, so the guard blocks every retry
+     Result: "READING QUICKBOOKS TIME…" forever, with the request visibly
+     completing in the network panel. Caught only by loading the real screen —
+     it typechecks perfectly.
+     Now guarded by a REF, which is not reactive, so nothing the effect does can
+     retrigger or cancel it. No cancellation flag either: a late setState on an
+     unmounted component is a harmless no-op in React 18, whereas cancelling is
+     what broke this. The ref also makes StrictMode's double-invoke a no-op
+     instead of a second discarded request. */
+  const qbtStarted = useRef(false);
+
   useEffect(() => {
-    if (currentKey !== "billing" || qbtDay || qbtLoading) return;
-    let cancelled = false;
+    if (currentKey !== "billing" || qbtStarted.current) return;
+    qbtStarted.current = true;
     setQbtLoading(true);
     setQbtErr(null);
     void (async () => {
       try {
         const j = await fetchPayrollDay(clientMatch ?? undefined);
-        if (cancelled) return;
         setQbtDay(j);
         /* Re-seed the billing figure from the real clock time. Only for people
            QBT actually knows about — anyone added by hand keeps their figure. */
@@ -4138,15 +4154,12 @@ function StateDebrief({
           return seeded;
         });
       } catch (e) {
-        if (!cancelled) setQbtErr(e instanceof Error ? e.message : "could not read QuickBooks Time");
+        setQbtErr(e instanceof Error ? e.message : "could not read QuickBooks Time");
       } finally {
-        if (!cancelled) setQbtLoading(false);
+        setQbtLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [currentKey, qbtDay, qbtLoading, clientMatch]);
+  }, [currentKey, clientMatch]);
 
   /* Absolute figure, never a delta — setBillingHours upserts on
      date+client+person, so sending the total means repeated taps leave ONE row.
