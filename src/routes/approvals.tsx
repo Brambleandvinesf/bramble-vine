@@ -989,7 +989,7 @@ function ApprovalsPage() {
                     <button
                       type="button"
                       disabled={isBusy}
-                      onClick={() => void submit(r, true)}
+                      onClick={() => void approve(r)}
                       style={{
                         background: LIME,
                         color: "#0a0a0a",
