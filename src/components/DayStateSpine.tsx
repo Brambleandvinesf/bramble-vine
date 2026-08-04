@@ -1065,6 +1065,42 @@ export function DayStateSpine() {
 
 type DestSuggest = { label: string; address: string };
 
+const SUGGEST_ROW: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  padding: "10px 12px",
+  background: "transparent",
+  color: "#e8e8e8",
+  border: "none",
+  borderBottom: "1px solid #1d1d1d",
+  fontFamily: "inherit",
+  fontSize: 13,
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const SUGGEST_SUB: React.CSSProperties = {
+  display: "block",
+  color: "#8f8f8f",
+  fontSize: 11,
+  marginTop: 2,
+};
+
+const SuggestRow = memo(function SuggestRow({
+  dest,
+  onPick,
+}: {
+  dest: DestSuggest;
+  onPick: (d: DestSuggest) => void;
+}) {
+  return (
+    <button type="button" onClick={() => onPick(dest)} style={SUGGEST_ROW}>
+      {dest.label}
+      {dest.address && <span style={SUGGEST_SUB}>{dest.address}</span>}
+    </button>
+  );
+});
+
 function AddStopSheet({
   insertAt,
   activeLine,
