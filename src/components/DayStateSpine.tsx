@@ -1065,60 +1065,22 @@ export function DayStateSpine() {
 
 type DestSuggest = { label: string; address: string; placeId?: string };
 
-/* CO (8/3): shape-tolerant reader for the placesAutocomplete response.
-   The earlier version only accepted {ok:true, suggestions:[{placeId,primary,
-   secondary}]} and silently rendered nothing for every other shape — including
-   Google's own raw v1 payload ({suggestions:[{placePrediction:{...}}]}) and the
-   legacy {predictions:[{description,place_id}]}. Accept them all. */
+/* CO (8/3): the backend returns exactly one documented shape:
+     { ok, configured, suggestions: [{ placeId, text, primary, secondary }] }
+   Read that and nothing else — the earlier multi-shape parser chased a bug
+   that did not exist. */
 function parsePlaces(json: unknown): DestSuggest[] {
-  const root = (json ?? {}) as Record<string, unknown>;
-  const rawList =
-    (Array.isArray(root["suggestions"]) && root["suggestions"]) ||
-    (Array.isArray(root["predictions"]) && root["predictions"]) ||
-    (Array.isArray(root["results"]) && root["results"]) ||
-    (Array.isArray(root["places"]) && root["places"]) ||
-    (Array.isArray(json) ? (json as unknown[]) : []);
-
-  const str = (v: unknown): string => (typeof v === "string" ? v : "");
-  const textOf = (v: unknown): string => {
-    if (typeof v === "string") return v;
-    if (v && typeof v === "object") return str((v as Record<string, unknown>)["text"]);
-    return "";
-  };
-
+  const root = (json ?? {}) as { suggestions?: unknown };
+  const list = Array.isArray(root.suggestions) ? root.suggestions : [];
   const out: DestSuggest[] = [];
-  for (const item of rawList as unknown[]) {
-    if (!item) continue;
-    if (typeof item === "string") {
-      out.push({ label: item, address: "" });
-      continue;
-    }
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
-    /* Google v1 wraps each entry in placePrediction. */
-    const p = (o["placePrediction"] ?? o["prediction"] ?? o) as Record<string, unknown>;
-    const sf = (p["structuredFormat"] ?? p["structured_formatting"] ?? {}) as Record<string, unknown>;
-
-    const primary =
-      str(p["primary"]) ||
-      textOf(sf["mainText"]) ||
-      textOf(sf["main_text"]) ||
-      textOf(p["text"]) ||
-      str(p["description"]) ||
-      str(p["name"]) ||
-      textOf(p["displayName"]) ||
-
-      str(p["formattedAddress"]);
-    const secondary =
-      str(p["secondary"]) ||
-      textOf(sf["secondaryText"]) ||
-      textOf(sf["secondary_text"]) ||
-      str(p["formattedAddress"]) ||
-      str(p["address"]);
-    const placeId =
-      str(p["placeId"]) || str(p["place_id"]) || str(p["id"]) || str(p["place"]);
-
-    const label = primary || secondary;
+    const s = (v: unknown) => (typeof v === "string" ? v : "");
+    const label = s(o["primary"]) || s(o["text"]);
     if (!label) continue;
+    const secondary = s(o["secondary"]);
+    const placeId = s(o["placeId"]);
     out.push({
       label,
       address: secondary && secondary !== label ? secondary : "",
@@ -1127,6 +1089,7 @@ function parsePlaces(json: unknown): DestSuggest[] {
   }
   return out.slice(0, 50);
 }
+
 
 
 const SUGGEST_ROW: React.CSSProperties = {
@@ -1199,8 +1162,10 @@ function AddStopSheet({
      Script, so every early keystroke was skipped and the list looked dead. */
   const [placesOff, setPlacesOff] = useState(false);
   const [placeSuggests, setPlaceSuggests] = useState<DestSuggest[]>([]);
+  const [searching, setSearching] = useState(false);
   const tokenRef = useRef<string | null>(null);
   const seqRef = useRef(0);
+
 
   const ensureToken = useCallback(() => {
     if (!tokenRef.current) {
@@ -1216,10 +1181,18 @@ function AddStopSheet({
     tokenRef.current = null;
     seqRef.current += 1;
     setPlaceSuggests([]);
+    setSearching(false);
   }, []);
+
+  /* placesOff is NOT a permanent latch: a stale configured:false must not kill
+     the feature for the rest of the session. Reset on open and pill switch. */
+  useEffect(() => {
+    setPlacesOff(false);
+  }, [mode]);
 
   /* Discard any live session token when the sheet unmounts. */
   useEffect(() => () => { tokenRef.current = null; }, []);
+
 
 
 
@@ -1284,19 +1257,24 @@ function AddStopSheet({
     return filtered.slice(0, 50);
   }, [pool, q]);
 
-  /* Network debounce (~300ms) for placesAutocomplete — separate from, and in
+  /* Network debounce (450ms) for placesAutocomplete — separate from, and in
      addition to, the render-level useDeferredValue above. Under 3 chars the
-     backend refuses anyway, so we never spend the round trip. */
+     backend refuses anyway, so we never spend the round trip.
+     HONESTY (8/3): an Apps Script POST costs ~1.4s no matter what it does;
+     Places adds only 200-400ms. So we debounce longer and SAY we're searching
+     rather than looking frozen. Typing is never blocked. */
   useEffect(() => {
     if (mode !== "other" || placesOff || picked) return;
     const text = query.trim();
     if (text.length < 3) {
       dropLookup();
+      setSearching(false);
       return;
     }
     const token = ensureToken();
     const seq = ++seqRef.current;
     const t = setTimeout(() => {
+      setSearching(true);
       void (async () => {
         try {
           const res = await fetch(SCRIPT_URL, {
@@ -1311,26 +1289,33 @@ function AddStopSheet({
           const json = (await res.json()) as Record<string, unknown>;
           if (seq !== seqRef.current) return; // stale response
           if (json["configured"] === false) {
-            // Backend has no Places key — stop asking, stay pure free text.
+            /* ONLY an explicit configured:false disables lookups. Never a
+               network error, non-JSON body, or ok:false — Apps Script
+               intermittently answers a POST with an unrelated payload. */
             setPlacesOff(true);
             setPlaceSuggests([]);
             return;
           }
-          const parsed = parsePlaces(json);
-          setPlaceSuggests(parsed);
-
+          setPlaceSuggests(parsePlaces(json));
         } catch {
           if (seq === seqRef.current) setPlaceSuggests([]);
+        } finally {
+          if (seq === seqRef.current) setSearching(false);
         }
       })();
-    }, 300);
+    }, 450);
     return () => clearTimeout(t);
   }, [mode, placesOff, picked, query, ensureToken, dropLookup]);
 
 
 
+
   const onPick = useCallback(
     (d: DestSuggest) => {
+      /* `query` is the single source of truth for the input — a pick must
+         write it, or the next keystroke appends to a stale value and every
+         later lookup searches garbage. */
+      setQuery(d.label);
       if (!d.placeId) {
         setPicked(d);
         return;
@@ -1339,6 +1324,7 @@ function AddStopSheet({
       const placeId = d.placeId;
       setPicked({ label: d.label, address: d.address });
       setPlaceSuggests([]);
+      setSearching(false);
       void (async () => {
         try {
           const res = await fetch(SCRIPT_URL, {
@@ -1346,21 +1332,15 @@ function AddStopSheet({
             headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({ action: "placesDetails", placeId, sessionToken: token }),
           });
-          const raw = (await res.json()) as Record<string, unknown>;
-          const j = (raw["place"] && typeof raw["place"] === "object"
-            ? (raw["place"] as Record<string, unknown>)
-            : raw) as Record<string, unknown>;
-          const s = (v: unknown) => (typeof v === "string" ? v : "");
-          const dn = j["displayName"];
-          const name =
-            s(j["name"]) ||
-            s(dn) ||
-            (dn && typeof dn === "object" ? s((dn as Record<string, unknown>)["text"]) : "");
-          const address =
-            s(j["address"]) || s(j["formattedAddress"]) || s(j["formatted_address"]);
+          const j = (await res.json()) as { name?: string; address?: string };
+          const name = typeof j.name === "string" ? j.name : "";
+          const address = typeof j.address === "string" ? j.address : "";
           if (name || address) {
             setPicked({ label: name || d.label, address: address || d.address });
+            if (name) setQuery(name);
           }
+
+
 
         } catch { /* typed text / suggestion text stands */ }
         finally {
@@ -1507,7 +1487,7 @@ function AddStopSheet({
 
         <input
           autoFocus
-          value={picked ? picked.label : query}
+          value={query}
           onChange={(e) => {
             setPicked(null);
             setQuery(e.target.value);
@@ -1533,6 +1513,10 @@ function AddStopSheet({
             fontSize: 14,
           }}
         />
+
+        {mode === "other" && !picked && searching && placeSuggests.length === 0 && (
+          <div style={{ marginTop: 8, color: "#8f8f8f", fontSize: 11 }}>searching…</div>
+        )}
 
         {!picked && (mode === "other" ? placeSuggests : matches).length > 0 && (
           <div
