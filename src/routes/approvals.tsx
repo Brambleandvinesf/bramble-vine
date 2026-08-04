@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { SCRIPT_URL } from "./confirm";
@@ -8,8 +8,10 @@ import { RefreshDot } from "../components/RefreshDot";
 import { sessionCache } from "../lib/session-cache";
 import { confirmModal } from "../components/ConfirmModal";
 import {
+  applyPunchDelete,
   applyPunchEdit,
   laIso,
+  planPunchDelete,
   planPunchEdit,
   punchTime,
   type PunchEditArgs,
@@ -458,7 +460,7 @@ function Timeline({
         const lines = [
           "Delete this punch permanently?",
           "",
-          `${r.person} · ${dayLabel(r.date)} · ${r.client}`,
+          `${r.person} · ${fmtDate(r.date)} · ${r.client}`,
           `${punchTime(r.start)}–${punchTime(r.end ?? undefined)} · ${Number(r.hours).toFixed(2)}h`,
           `id ${r.id}`,
         ];
