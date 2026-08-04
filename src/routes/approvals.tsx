@@ -108,10 +108,32 @@ type Row = {
   segments: number;
   clients?: string[];
   approved?: boolean;
+  /** That person's QBT watermark (approved_to), or null. Server-computed. */
+  approvedTo?: string | null;
+  /** Audit only — someone clicked approve in the app. NEVER decides approval. */
+  appConfirmed?: boolean;
   punches?: Punch[];
   timeline?: TimelineRow[];
   breakMinutes?: number;
 };
+
+type SweepDay = { date: string; hours?: number };
+
+type ApproveThroughResponse = {
+  ok?: boolean;
+  error?: string;
+  dryRun?: boolean;
+  confirmed?: boolean;
+  noOp?: boolean;
+  message?: string;
+  approvedToBefore?: string | null;
+  target?: string;
+  sweep?: SweepDay[];
+  sweepDays?: number;
+  sweepHours?: number;
+  alsoApproves?: SweepDay[];
+};
+
 
 type OnClock = {
   person?: string;
