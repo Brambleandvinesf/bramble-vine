@@ -1129,7 +1129,11 @@ function AddStopSheet({
      single session instead of per request. Minted on first keystroke of a
      lookup, discarded the moment the lookup ends (pick, clear, pill switch,
      sheet close). */
-  const [placesEnabled, setPlacesEnabled] = useState(false);
+  /* Optimistic gate: we ATTEMPT the lookup and only stop once the backend has
+     actually told us it is unavailable (configured:false / ok:false). Gating on
+     a getField roundtrip first was the CO bug — getField takes seconds on Apps
+     Script, so every early keystroke was skipped and the list looked dead. */
+  const [placesOff, setPlacesOff] = useState(false);
   const [placeSuggests, setPlaceSuggests] = useState<DestSuggest[]>([]);
   const tokenRef = useRef<string | null>(null);
   const seqRef = useRef(0);
@@ -1153,19 +1157,7 @@ function AddStopSheet({
   /* Discard any live session token when the sheet unmounts. */
   useEffect(() => () => { tokenRef.current = null; }, []);
 
-  /* placesEnabled flag lives on getField. */
-  useEffect(() => {
-    if (mode !== "other") return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${SCRIPT_URL}?action=getField`);
-        const json = (await res.json()) as { placesEnabled?: boolean };
-        if (!cancelled) setPlacesEnabled(json.placesEnabled === true);
-      } catch { /* free text still works */ }
-    })();
-    return () => { cancelled = true; };
-  }, [mode]);
+
 
 
   useEffect(() => {
