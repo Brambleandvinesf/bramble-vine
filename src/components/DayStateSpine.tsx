@@ -1416,6 +1416,7 @@ function AddStopSheet({
               type="button"
               onClick={() => {
                 setMode(m);
+                dropLookup();
                 setPicked(null);
                 setQuery("");
                 if (m === "client") setSaveFrequent(false);
