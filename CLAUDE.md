@@ -394,7 +394,62 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
-Backend is CURRENT at **v7.4.74 @213**. Full detail of the earlier batch is in
+Backend is CURRENT at **v7.4.76 @215**.
+
+LIVE-FLOW BUG FIX, not feature scope (v7.4.75): saveDebrief's Billing Hours write
+was a blind APPEND, so submitting the same debrief twice DOUBLE-BILLED the client.
+It now UPSERTS on date+client+person — the same key setBillingHours already uses,
+so the two writers of that tab finally agree instead of one appending while the
+other upserts. It also takes a `date` param instead of hardcoding today, because a
+visit debriefed the next morning was stamping the wrong day onto Billing Hours and
+Items Used. Defaults to today; the live flow is otherwise byte-identical, and the
+other four sections (updates, newProjects, itemsUsed, officeTasks) are unchanged.
+Verified: a second submit reported ins=0 upd=1 with exactly one row left.
+
+NEW TAB 'Debrief Log' (Event ID / Date / Client / Timestamp / By), written
+UNCONDITIONALLY by saveDebrief and deliberately OUTSIDE all five section
+try/catches. It has to land even when every section is empty, because "this visit
+has been debriefed" is true regardless of whether the debrief happened to write
+anything. Nothing else could play this role: a debrief with no billing and no items
+writes no Event ID anywhere, and Office Tasks has no Event ID column at all.
+
+FAILSAFE DEBRIEF QUEUE (v7.4.75, frontend /debrief-queue). The live flow reaches a
+debrief through exactly ONE gate — route.state === 'debrief' — so when the
+early-day gates misbehave the screen is unreachable and debriefs routinely did not
+happen at all, while billing hours / items used / projects completed are the input
+to invoicing. The queue reaches the SAME screens from EVIDENCE instead: a
+dayEvents_ client stop whose end time has passed with no Debrief Log entry. Today
+onward by construction — dayEvents_ reads today's window, so it cannot reconstruct
+a historical backlog even by accident. Vendor stops and breaks excluded: neither
+has a debrief in the live flow.
+StateDebrief is now EXPORTED from field.tsx and rendered as-is — a second entry
+point, not a rebuild. What the route object normally supplies is substituted:
+route.roster -> payrollDay people for that client+date (timesheets are evidence;
+route state is the unreliable thing), events[stopIndex] -> the queue entry's event,
+plus a new optional `date` prop so a next-morning debrief reads that visit's hours.
+In the lead and management 3-dot menu as DEBRIEF QUEUE.
+suppressInvoice (v7.4.75) exists ONLY for sandboxed verification and is NEVER sent
+by the queue UI: a real debrief invoices exactly as the live flow does, and a
+submission that quietly skipped invoicing would be worse than one that failed
+loudly. Note the consequence — QBO IS authorised (184 customers), so a UI submit
+against a synthetic client WOULD attempt a real invoice. That is why the sandboxed
+verification submitted through the API with the flag rather than through the
+button; "verify via the UI" and "never expose the flag in the UI" cannot both hold
+while QBO is live.
+New cleanups deleteItemsUsedRow / deleteOfficeTaskRow / deleteDebriefLogRow on
+deleteBillingRow's pattern. v7.4.76 added `expect:<n>` to them: those three tabs
+APPEND (only Billing Hours upserts), so debriefing one visit twice legitimately
+leaves duplicates, and a cleanup that can never touch a duplicate cannot undo its
+own test. Still refuses by default; a WRONG declared count is refused too.
+VERIFIED LIVE IN THE BROWSER against a sandboxed calendar event
+(ZZ_DEBRIEF_UI_PROBE, 6:00–6:30 AM, deleted afterwards): the queue surfaced it,
+tapping it rendered the real StateDebrief bound to that visit, payrollDay correctly
+reported no timesheets for a synthetic client, the submit logged with no invoice,
+and the visit left the queue. Every artifact removed — Billing Hours, Items Used,
+Office Tasks, Debrief Log, and the calendar event.
+Safety note recorded because it constrained the test: inserting a test event into
+today's CV_CAL shifts route.stopIndex, so this was only done after confirming the
+route was NOT started (state undefined, empty roster). Do not repeat it mid-shift. Full detail of the earlier batch is in
 ARCHITECTURE.md under "8/3–8/4 (CC–CO + PERF)".
 
 SHIPPED 8/4, later batch — all deployed, all behaviourally verified except where
