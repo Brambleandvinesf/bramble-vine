@@ -521,28 +521,52 @@ function Timeline({
                   {Number((t as BreakRow).minutes ?? 0)} min
                 </span>
               ) : (
-                <button
-                  type="button"
-                  aria-label={`Edit ${label} segment`}
-                  onClick={() =>
-                    setEditing((cur) => (cur === (t as WorkRow).id ? null : (t as WorkRow).id))
-                  }
-                  style={{
-                    background: "transparent",
-                    border: `1px solid ${LINE}`,
-                    borderRadius: 6,
-                    color: LIME,
-                    width: 44,
-                    height: 44,
-                    display: "grid",
-                    placeItems: "center",
-                    cursor: "pointer",
-                    flex: "0 0 auto",
-                  }}
-                >
-                  <Pencil size={16} />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Edit ${label} segment`}
+                    onClick={() =>
+                      setEditing((cur) => (cur === (t as WorkRow).id ? null : (t as WorkRow).id))
+                    }
+                    style={{
+                      background: "transparent",
+                      border: `1px solid ${LINE}`,
+                      borderRadius: 6,
+                      color: LIME,
+                      width: 44,
+                      height: 44,
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${label} segment`}
+                    disabled={deleting === (t as WorkRow).id}
+                    onClick={() => void doDelete(t as WorkRow)}
+                    style={{
+                      background: "transparent",
+                      border: `1px solid ${LIME}`,
+                      borderRadius: 6,
+                      color: LIME,
+                      width: 44,
+                      height: 44,
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: deleting === (t as WorkRow).id ? "wait" : "pointer",
+                      opacity: deleting === (t as WorkRow).id ? 0.5 : 1,
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
               )}
+
             </div>
             {!isBreak && editing === (t as WorkRow).id ? (
               <PunchEditor
