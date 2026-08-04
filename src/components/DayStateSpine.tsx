@@ -1065,60 +1065,22 @@ export function DayStateSpine() {
 
 type DestSuggest = { label: string; address: string; placeId?: string };
 
-/* CO (8/3): shape-tolerant reader for the placesAutocomplete response.
-   The earlier version only accepted {ok:true, suggestions:[{placeId,primary,
-   secondary}]} and silently rendered nothing for every other shape — including
-   Google's own raw v1 payload ({suggestions:[{placePrediction:{...}}]}) and the
-   legacy {predictions:[{description,place_id}]}. Accept them all. */
+/* CO (8/3): the backend returns exactly one documented shape:
+     { ok, configured, suggestions: [{ placeId, text, primary, secondary }] }
+   Read that and nothing else — the earlier multi-shape parser chased a bug
+   that did not exist. */
 function parsePlaces(json: unknown): DestSuggest[] {
-  const root = (json ?? {}) as Record<string, unknown>;
-  const rawList =
-    (Array.isArray(root["suggestions"]) && root["suggestions"]) ||
-    (Array.isArray(root["predictions"]) && root["predictions"]) ||
-    (Array.isArray(root["results"]) && root["results"]) ||
-    (Array.isArray(root["places"]) && root["places"]) ||
-    (Array.isArray(json) ? (json as unknown[]) : []);
-
-  const str = (v: unknown): string => (typeof v === "string" ? v : "");
-  const textOf = (v: unknown): string => {
-    if (typeof v === "string") return v;
-    if (v && typeof v === "object") return str((v as Record<string, unknown>)["text"]);
-    return "";
-  };
-
+  const root = (json ?? {}) as { suggestions?: unknown };
+  const list = Array.isArray(root.suggestions) ? root.suggestions : [];
   const out: DestSuggest[] = [];
-  for (const item of rawList as unknown[]) {
-    if (!item) continue;
-    if (typeof item === "string") {
-      out.push({ label: item, address: "" });
-      continue;
-    }
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
-    /* Google v1 wraps each entry in placePrediction. */
-    const p = (o["placePrediction"] ?? o["prediction"] ?? o) as Record<string, unknown>;
-    const sf = (p["structuredFormat"] ?? p["structured_formatting"] ?? {}) as Record<string, unknown>;
-
-    const primary =
-      str(p["primary"]) ||
-      textOf(sf["mainText"]) ||
-      textOf(sf["main_text"]) ||
-      textOf(p["text"]) ||
-      str(p["description"]) ||
-      str(p["name"]) ||
-      textOf(p["displayName"]) ||
-
-      str(p["formattedAddress"]);
-    const secondary =
-      str(p["secondary"]) ||
-      textOf(sf["secondaryText"]) ||
-      textOf(sf["secondary_text"]) ||
-      str(p["formattedAddress"]) ||
-      str(p["address"]);
-    const placeId =
-      str(p["placeId"]) || str(p["place_id"]) || str(p["id"]) || str(p["place"]);
-
-    const label = primary || secondary;
+    const s = (v: unknown) => (typeof v === "string" ? v : "");
+    const label = s(o["primary"]) || s(o["text"]);
     if (!label) continue;
+    const secondary = s(o["secondary"]);
+    const placeId = s(o["placeId"]);
     out.push({
       label,
       address: secondary && secondary !== label ? secondary : "",
@@ -1127,6 +1089,7 @@ function parsePlaces(json: unknown): DestSuggest[] {
   }
   return out.slice(0, 50);
 }
+
 
 
 const SUGGEST_ROW: React.CSSProperties = {
