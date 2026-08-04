@@ -1321,10 +1321,8 @@ function FieldBody({
             if (!leadShiftDone) return "Approve unlocks after the lead clocks out.";
             return null;
           })()}
-          onApprove={async () => {
-            const r = await send({ action: "qbApprove" });
-            if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
-          }}
+          leadName={me?.name ?? user ?? ""}
+
           busy={busy}
         />
       )}
