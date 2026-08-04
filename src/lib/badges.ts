@@ -129,13 +129,41 @@ export function useBadgePoller({
       }
     };
 
+    const countApprovals = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=approvalQueue&days=30`);
+        const j = (await r.json()) as { unapprovedCount?: number };
+        if (!cancelled && typeof j.unapprovedCount === "number") {
+          setBadge(BK.approvals, j.unapprovedCount);
+        }
+      } catch {
+        /* keep last value */
+      }
+    };
+
+    /* readyCount, never count/upcomingCount: it exists precisely so a badge
+       cannot count visits that have not happened yet as needing action. */
+    const countDebriefQueue = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=debriefQueue`);
+        const j = (await r.json()) as { readyCount?: number };
+        if (!cancelled && typeof j.readyCount === "number") {
+          setBadge(BK.debriefq, j.readyCount);
+        }
+      } catch {
+        /* keep last value */
+      }
+    };
+
     const tick = async () => {
       const jobs: Array<Promise<void>> = [];
       if (canMessages) jobs.push(countInbox());
       if (canVisits) jobs.push(countVisits());
       if (canReceipts) jobs.push(countReceipts());
+      if (canApprovals) jobs.push(countApprovals(), countDebriefQueue());
       await Promise.all(jobs);
     };
+
 
     void tick();
     const interval = window.setInterval(tick, 60_000);
