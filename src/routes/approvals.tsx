@@ -731,6 +731,87 @@ function ApprovalsPage() {
     [name],
   );
 
+  /* APPROVE — two steps, because QBT stores approval as ONE DATE PER PERSON
+   * (approved_to). Approving 30 Jul while 27–29 are open DOES approve them; that
+   * cannot be blocked, only disclosed. Step 1 plans (dryRun), step 2 commits. */
+  const approve = useCallback(
+    async (r: Row) => {
+      const key = rowKey(r);
+      setBusy(key);
+      try {
+        const call = async (dryRun: boolean) => {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              action: "approveThrough",
+              confirm: "APPROVE",
+              person: r.person,
+              date: r.date,
+              by: name ?? "",
+              dryRun,
+            }),
+          });
+          return (await res.json().catch(() => ({}))) as ApproveThroughResponse;
+        };
+
+        const plan = await call(true);
+        if (plan.ok === false && !plan.noOp) {
+          throw new Error(plan.error || "Could not plan that approval.");
+        }
+        if (plan.noOp) {
+          // The watermark never moves backwards. Not an approval; do not offer to proceed.
+          setToast({
+            msg:
+              plan.message ||
+              `${r.person} is already approved through ${fmtShort(plan.approvedToBefore)}.`,
+            err: false,
+          });
+          return;
+        }
+
+        const also = plan.alsoApproves ?? [];
+        let message = `Approve ${r.person} through ${fmtDow(plan.target || r.date)}?`;
+        if (also.length) {
+          message +=
+            `\n\nThis also approves ${also.length} earlier unapproved day${
+              also.length === 1 ? "" : "s"
+            }:\n` +
+            `${also.map((d) => fmtShort(d.date)).join(", ")} — ${fmtHours(plan.sweepHours)}h total.` +
+            `\n\nQuickBooks Time records approval as a date, not per-day, so earlier days cannot stay unapproved.`;
+        }
+        const ok = await confirmModal({ message, confirmLabel: "APPROVE" });
+        if (!ok) return;
+
+        const applied = await call(false);
+        if (applied.ok === false) throw new Error(applied.error || "Approval failed.");
+        // A write the backend could not read back is not a success.
+        if (applied.confirmed === false) {
+          throw new Error(
+            applied.error ||
+              "QuickBooks Time did not confirm the approval — refresh and check before retrying.",
+          );
+        }
+        setToast({
+          msg: `Approved ${r.person} through ${fmtShort(applied.target || plan.target || r.date)}${
+            applied.sweepDays ? ` — ${applied.sweepDays} day${applied.sweepDays === 1 ? "" : "s"}` : ""
+          }`,
+          err: false,
+        });
+        await load();
+      } catch (e) {
+        setToast({
+          msg: e instanceof Error ? e.message : "Could not record that.",
+          err: true,
+        });
+      } finally {
+        setBusy(null);
+      }
+    },
+    [name, load],
+  );
+
+
   if (!allowed) {
     return (
       <div
