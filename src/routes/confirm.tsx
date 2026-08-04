@@ -260,6 +260,20 @@ function ConfirmPage() {
   // Read once per mount: later writes go through writeStaged, and re-reading
   // would fight the state we just restored.
   const stagedRef = useRef<StagedWork | null>(readStaged());
+  /* Has `edits` been populated from a payload yet?
+   *
+   * THE BUG THIS FIXES. sessionCache is in-memory and documented as "cleared on
+   * full page reload", so on EVERY reload `cached` is undefined and the `edits`
+   * initializer below iterates an empty list — edits starts as {}. The mirror
+   * effect then ran immediately, derived `statuses` from those empty edits, and
+   * wrote statuses:{} straight over the localStorage copy BEFORE the fetch came
+   * back. Every staged Confirmed/SKIP was destroyed on reload, and if the lead
+   * had staged nothing else the whole record hit the clearStaged() branch. The
+   * persistence added to survive a reload was being erased by the reload.
+   *
+   * Seeded true when we DID seed from cache, because then edits already holds
+   * the restored statuses and mirroring it back is correct. */
+  const hydratedRef = useRef<boolean>(!!cached);
   const [edits, setEdits] = useState<Record<string, Edit>>(() => {
     const initial: Record<string, Edit> = {};
     for (const p of (cached?.projects ?? []).map(normProject)) {
@@ -349,6 +363,11 @@ function ConfirmPage() {
   // over a newer value from the sheet, and these three are what make a card
   // vanish and come back.
   useEffect(() => {
+    /* Do not mirror until `edits` reflects a real payload. Before that it is {},
+       and writing it back erases the very staging this effect exists to keep —
+       see hydratedRef. Nothing is lost by waiting: the effect re-runs the moment
+       applyData sets edits, which is also when hydratedRef becomes true. */
+    if (!hydratedRef.current) return;
     const statuses: Record<string, "Confirmed" | "SKIP"> = {};
     for (const [uid, e] of Object.entries(edits)) {
       if (e.status === "Confirmed" || e.status === "SKIP") statuses[uid] = e.status;
@@ -410,6 +429,11 @@ function ConfirmPage() {
     setState(d.state ?? {});
     setTodaysClients((d.todaysClients ?? []).map((c) => String(c).trim()).filter(Boolean));
     setProjects(ps);
+    /* Set BEFORE setEdits: this is the moment `edits` starts reflecting real
+       data, so the mirror effect that setEdits triggers is now safe to write.
+       A ref, not state — it must be readable by that effect on the very same
+       pass, without scheduling another render. */
+    hydratedRef.current = true;
     setEdits((prev) => {
       const next: Record<string, Edit> = {};
       for (const p of ps) {
