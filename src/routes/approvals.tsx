@@ -441,6 +441,45 @@ function Timeline({
   onApplied: () => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
+
+  const doDelete = useCallback(
+    async (seg: WorkRow) => {
+      setDelMsg(null);
+      setDeleting(seg.id);
+      try {
+        const plan = await planPunchDelete({ person: row.person, id: seg.id, date: row.date });
+        if (plan.ok === false || !plan.removing) {
+          setDelMsg(plan.error || "Could not plan that delete.");
+          return;
+        }
+        const r = plan.removing;
+        const lines = [
+          "Delete this punch permanently?",
+          "",
+          `${r.person} · ${dayLabel(r.date)} · ${r.client}`,
+          `${punchTime(r.start)}–${punchTime(r.end ?? undefined)} · ${Number(r.hours).toFixed(2)}h`,
+          `id ${r.id}`,
+        ];
+        if (plan.billingProjection) lines.push("", plan.billingProjection);
+        const ok = await confirmModal({
+          message: lines.join("\n"),
+          destructive: true,
+          confirmLabel: "DELETE PERMANENTLY",
+        });
+        if (!ok) return;
+        await applyPunchDelete({ person: row.person, id: seg.id, date: row.date });
+        onApplied();
+      } catch (e) {
+        setDelMsg(e instanceof Error ? e.message : "Could not delete that segment.");
+      } finally {
+        setDeleting(null);
+      }
+    },
+    [row.person, row.date, onApplied],
+  );
+
   const rows = row.timeline ?? [];
   if (!rows.length) {
     return (
@@ -449,6 +488,7 @@ function Timeline({
       </div>
     );
   }
+
   return (
     <div style={{ marginTop: 8 }}>
       {rows.map((t, i) => {
