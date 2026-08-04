@@ -1321,10 +1321,8 @@ function FieldBody({
             if (!leadShiftDone) return "Approve unlocks after the lead clocks out.";
             return null;
           })()}
-          onApprove={async () => {
-            const r = await send({ action: "qbApprove" });
-            if (r.ok) setBanner({ kind: "info", text: "Approved through today ✓" });
-          }}
+          leadName={me?.name ?? ""}
+
           busy={busy}
         />
       )}
@@ -4745,6 +4743,360 @@ function RouteSoFar({ events, stopIndex }: { events: EventItem[]; stopIndex: num
   );
 }
 
+/* ============================================================
+ * DAY CLOSE APPROVAL GATE (Lv11)
+ * The lead cannot finish the day until every employee is clocked
+ * out and their hours are approved. gateSatisfied and blockers[]
+ * are computed server-side and are the ONLY source of truth —
+ * blockers are written for a human and shown verbatim.
+ * The LEAD IS NEVER APPROVED (approvalRequired: false): ownership,
+ * not an hourly employee. Do not add a lead approval control.
+ * ============================================================ */
+const AMBER = "#8f8f8f"; /* muted, per palette rules — no amber/red here */
+
+type DayCloseEmployee = {
+  name: string;
+  userId?: string;
+  clockedOut?: boolean;
+  stillOnClockInQbt?: boolean;
+  approved?: boolean;
+  hours?: number;
+};
+type DayCloseDoc = {
+  ok?: boolean;
+  day?: string;
+  employees?: DayCloseEmployee[];
+  noEmployeesToday?: boolean;
+  requiresSoloAck?: boolean;
+  lead?: { name?: string; hours?: number; approvalRequired?: boolean } | null;
+  totalHoursToday?: number;
+  gateSatisfied?: boolean;
+  blockers?: string[];
+};
+
+function h2(n: unknown): string {
+  const v = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(v) ? v.toFixed(2) : "0.00";
+}
+
+function DayCloseGate({
+  leadName,
+  isPreview,
+  busy,
+}: {
+  leadName: string;
+  isPreview: boolean;
+  busy: boolean;
+}) {
+  const [doc, setDoc] = useState<DayCloseDoc | null>(null);
+  const [loadErr, setLoadErr] = useState(false);
+  const [working, setWorking] = useState<string | null>(null);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [soloAck, setSoloAck] = useState(false);
+  const [approveMsg, setApproveMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  const load = useCallback(async () => {
+    if (isPreview) return;
+    try {
+      const res = await fetch(appendTeamParam(`${SCRIPT_URL}?action=dayClose`));
+      const json = (await res.json()) as DayCloseDoc;
+      setDoc(json);
+      setLoadErr(false);
+    } catch {
+      setLoadErr(true);
+    }
+  }, [isPreview]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const employees = doc?.employees ?? [];
+  const solo = !!(doc?.noEmployeesToday || doc?.requiresSoloAck);
+  const blockers = doc?.blockers ?? [];
+  const allOut = employees.length > 0 && employees.every((e) => e.clockedOut === true);
+  const gateOpen =
+    !!doc && doc.gateSatisfied === true && (!solo || soloAck) && (solo || allOut);
+
+  const write = async (body: Record<string, unknown>, key: string) => {
+    if (isPreview) return;
+    setWorking(key);
+    const r = await postScript(body);
+    setWorking(null);
+    if (!r.ok) {
+      const raw = (r.raw ?? {}) as Record<string, unknown>;
+      setApproveMsg({
+        kind: "err",
+        text: String(raw.error ?? r.error ?? "Save failed — retry."),
+      });
+    }
+    // gateSatisfied/blockers are server-computed: always refetch.
+    await load();
+  };
+
+  const runQbApprove = async () => {
+    if (isPreview) return;
+    setApproveMsg(null);
+    setWorking("qbApprove");
+    const r = await postScript({ action: "qbApprove" });
+    setWorking(null);
+    const raw = (r.raw ?? {}) as Record<string, unknown>;
+    if (r.ok) {
+      const count = raw.approvedCount ?? raw.users ?? raw.userCount;
+      const thru = raw.approvedTo ?? raw.through ?? doc?.day;
+      setApproveMsg({
+        kind: "ok",
+        text:
+          `Approved${count !== undefined ? ` ${count} user${String(count) === "1" ? "" : "s"}` : ""}` +
+          `${thru ? ` through ${String(thru)}` : ""}`,
+      });
+    } else {
+      // A refusal is correct, not transient — surface verbatim, never retry.
+      setApproveMsg({ kind: "err", text: String(raw.error ?? r.error ?? "qbApprove failed") });
+    }
+    await load();
+  };
+
+  return (
+    <>
+      <div style={{ ...SECTION_HEAD, marginTop: 20 }}>HOURS APPROVAL</div>
+
+      {isPreview && (
+        <div style={{ color: MUTED, fontSize: 12, padding: "0 4px 6px" }}>
+          Preview — approval controls are read-only.
+        </div>
+      )}
+      {loadErr && !doc && (
+        <div style={{ ...PANEL_BOX, color: MUTED, fontSize: 12 }}>
+          Couldn't load today's hours.{" "}
+          <button type="button" onClick={() => void load()} style={SMALL_BTN}>
+            RETRY
+          </button>
+        </div>
+      )}
+
+      {solo && (
+        <div style={{ ...PANEL_BOX, marginBottom: 8 }}>
+          <div style={{ color: TEXT, fontSize: 13, marginBottom: 10 }}>
+            No employees on today's roster — nothing to approve.
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={soloAck}
+              disabled={isPreview}
+              onChange={(e) => setSoloAck(e.target.checked)}
+              style={{ width: 22, height: 22, accentColor: LIME }}
+            />
+            <span style={{ color: soloAck ? LIME : TEXT, fontSize: 13, letterSpacing: 0.5 }}>
+              Working alone today — no hours to approve
+            </span>
+          </label>
+        </div>
+      )}
+
+      {employees.map((e) => {
+        const key = e.userId || e.name;
+        const busyRow = busy || working !== null || isPreview;
+        return (
+          <div key={key} style={{ ...PANEL_BOX, marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "baseline" }}>
+              <span style={{ color: TEXT, fontSize: 15, fontWeight: "bold", letterSpacing: 1 }}>
+                {e.name}
+              </span>
+              <span style={{ marginLeft: "auto", color: LIME, fontWeight: "bold", fontSize: 15 }}>
+                {h2(e.hours)}
+              </span>
+            </div>
+
+            {/* These two states are DISTINCT and never merged: the roster can
+                lag a rejected write, so a person may read as clocked out
+                locally while QuickBooks Time still has them open. */}
+            {e.stillOnClockInQbt === true && (
+              <div style={{ color: AMBER, fontSize: 12, marginTop: 6, letterSpacing: 0.5 }}>
+                still on the clock in QuickBooks Time
+              </div>
+            )}
+            {e.clockedOut !== true && (
+              <div style={{ color: MUTED, fontSize: 12, marginTop: 6, letterSpacing: 0.5 }}>
+                still clocked in — cannot be approved yet
+              </div>
+            )}
+
+            {e.clockedOut === true && e.approved === true && (
+              <div style={{ color: LIME, fontSize: 12, marginTop: 6, letterSpacing: 0.5 }}>
+                ✓ hours approved
+              </div>
+            )}
+
+            {e.clockedOut === true && e.approved !== true && (
+              <>
+                <button
+                  type="button"
+                  disabled={busyRow}
+                  onClick={() =>
+                    void write(
+                      { action: "payrollConfirm", by: leadName, ok: true, person: e.name },
+                      `ok:${key}`,
+                    )
+                  }
+                  style={{
+                    ...PRIMARY_BTN,
+                    marginTop: 10,
+                    opacity: busyRow ? 0.6 : 1,
+                  }}
+                >
+                  {working === `ok:${key}` ? "APPROVING…" : "APPROVE"}
+                </button>
+
+                {noteFor !== key ? (
+                  <button
+                    type="button"
+                    disabled={busyRow}
+                    onClick={() => {
+                      setNoteFor(key);
+                      setNote("");
+                    }}
+                    style={{ ...SMALL_BTN, marginTop: 8, color: MUTED, borderColor: LINE }}
+                  >
+                    CAN'T VERIFY THESE HOURS
+                  </button>
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ color: MUTED, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>
+                      WHY CAN'T THESE HOURS BE VERIFIED? (REQUIRED)
+                    </div>
+                    <textarea
+                      value={note}
+                      onChange={(ev) => setNote(ev.target.value)}
+                      rows={2}
+                      style={{ ...INPUT, resize: "vertical" }}
+                    />
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button
+                        type="button"
+                        disabled={busyRow || note.trim().length < 3}
+                        onClick={async () => {
+                          await write(
+                            {
+                              action: "payrollConfirm",
+                              by: leadName,
+                              ok: false,
+                              person: e.name,
+                              note: note.trim(),
+                            },
+                            `no:${key}`,
+                          );
+                          setNoteFor(null);
+                          setNote("");
+                        }}
+                        style={{
+                          ...SMALL_BTN,
+                          color: MUTED,
+                          borderColor: LINE,
+                          opacity: busyRow || note.trim().length < 3 ? 0.5 : 1,
+                        }}
+                      >
+                        SEND TO MANAGEMENT
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNoteFor(null);
+                          setNote("");
+                        }}
+                        style={{ ...SMALL_BTN, color: MUTED, borderColor: LINE }}
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Reference only. The lead is ownership, not an hourly employee —
+          no approve button, no bearing on the gate. */}
+      {doc?.lead && (
+        <div style={{ ...PANEL_BOX, marginBottom: 8, background: PANEL_2 }}>
+          <div style={{ display: "flex", alignItems: "baseline" }}>
+            <span style={{ color: MUTED, fontSize: 13, letterSpacing: 1 }}>
+              {doc.lead.name} (lead)
+            </span>
+            <span style={{ marginLeft: "auto", color: MUTED, fontWeight: "bold", fontSize: 14 }}>
+              {h2(doc.lead.hours)}
+            </span>
+          </div>
+          <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>
+            Reference only — no approval required.
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...PANEL_BOX, marginTop: 8 }}>
+        <div style={{ display: "flex" }}>
+          <span style={{ color: MUTED }}>Total hours today</span>
+          <span style={{ marginLeft: "auto", color: LIME, fontWeight: "bold" }}>
+            {h2(doc?.totalHoursToday)}
+          </span>
+        </div>
+      </div>
+
+      {/* qbApprove is offered only once every employee is clocked out. */}
+      <button
+        type="button"
+        onClick={() => void runQbApprove()}
+        disabled={!gateOpen || busy || working !== null || isPreview}
+        style={{
+          ...PRIMARY_BTN,
+          marginTop: 14,
+          opacity: !gateOpen || busy || working !== null || isPreview ? 0.5 : 1,
+          cursor: gateOpen ? "pointer" : "not-allowed",
+        }}
+      >
+        {working === "qbApprove" ? "APPROVING…" : "APPROVE TODAY'S HOURS IN QB TIME"}
+      </button>
+
+      {/* Blockers are written to be read by a human — shown verbatim. */}
+      {!gateOpen && blockers.length > 0 && (
+        <div style={{ marginTop: 10, padding: "0 4px" }}>
+          {blockers.map((b, i) => (
+            <div key={`${b}-${i}`} style={{ color: MUTED, fontSize: 12, padding: "3px 0" }}>
+              {b}
+            </div>
+          ))}
+        </div>
+      )}
+      {!gateOpen && blockers.length === 0 && solo && !soloAck && (
+        <div style={{ marginTop: 10, padding: "0 4px", color: MUTED, fontSize: 12 }}>
+          Acknowledge working alone to finish the day.
+        </div>
+      )}
+
+      {approveMsg && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "10px 12px",
+            border: `1px solid ${approveMsg.kind === "ok" ? LIME_DIM : LINE}`,
+            borderRadius: 8,
+            color: approveMsg.kind === "ok" ? LIME : TEXT,
+            fontSize: 12,
+            lineHeight: 1.5,
+          }}
+        >
+          {approveMsg.text}
+        </div>
+      )}
+    </>
+  );
+}
+
+
 function RouteComplete({
   events,
   roster,
@@ -4757,7 +5109,7 @@ function RouteComplete({
   onFinishedUnloading,
   clockSlot,
   approveNote,
-  onApprove,
+  leadName,
   busy,
 }: {
   events: EventItem[];
@@ -4775,8 +5127,10 @@ function RouteComplete({
   clockSlot?: React.ReactNode;
   /** Why approval isn't available yet; null = it is (T1/T3, 8/2). */
   approveNote: string | null;
-  onApprove: () => void;
+  /** Name recorded as the approver on payrollConfirm. */
+  leadName: string;
   busy: boolean;
+
 }) {
   const totalHours = roster.reduce((a, m) => a + hoursBetween(m.in, m.out), 0);
   // Preview renders every stage's controls read-only; a day where the route
@@ -4852,12 +5206,9 @@ function RouteComplete({
             rolls straight into approving today's hours.
           </div>
           {clockSlot}
-          {isLead && approveNote && note(approveNote)}
-          {isLead && !approveNote && (
-            <button onClick={onApprove} disabled={busy || isPreview} style={{ ...PRIMARY_BTN, marginTop: 14 }}>
-              APPROVE TODAY'S HOURS IN QB TIME
-            </button>
-          )}
+          {/* Lv11: the server-computed dayClose gate owns approval from here. */}
+          {isLead && <DayCloseGate leadName={leadName} isPreview={isPreview} busy={busy} />}
+
         </>
       )}
     </div>
