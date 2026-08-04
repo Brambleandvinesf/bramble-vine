@@ -449,7 +449,16 @@ and the visit left the queue. Every artifact removed — Billing Hours, Items Us
 Office Tasks, Debrief Log, and the calendar event.
 Safety note recorded because it constrained the test: inserting a test event into
 today's CV_CAL shifts route.stopIndex, so this was only done after confirming the
-route was NOT started (state undefined, empty roster). Do not repeat it mid-shift. Full detail of the earlier batch is in
+route was NOT started (state undefined, empty roster). Do not repeat it mid-shift.
+
+TWO THINGS ACCEPTED AND CLOSED (Brandon, 8/4), so they are not open questions:
+- The debrief button's own onClick submit path is ACCEPTED AS SUFFICIENTLY
+  VERIFIED. The write path and the UI rendering were each proven separately; only
+  the wiring between them is unexercised, and that gets confirmed on first real
+  use of /debrief-queue. Not a gap to chase.
+- The test office ping: LEAVE IT FIRING. suppressInvoice keeps its current scope —
+  invoice only, no notification suppression. (Separately, see the OPEN ITEM below:
+  'sent' does not actually mean delivered.) Full detail of the earlier batch is in
 ARCHITECTURE.md under "8/3–8/4 (CC–CO + PERF)".
 
 SHIPPED 8/4, later batch — all deployed, all behaviourally verified except where
@@ -584,6 +593,33 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   visitPhoto is visit-level). Not queued.
 
 ## OPEN ITEMS
+- OWN ITEM, NOT FIXED (8/4) — "officePush: sent" IS NOT PROOF ANYTHING WAS SENT.
+  Investigated because two test debrief pushes were never seen anywhere. The
+  premise (a leftover pre-migration ntfy.sh call) is WRONG and worth not
+  re-investigating: ntfyPushRoles_ POSTs to api.pushover.net. The 7/21 migration
+  is complete. The only two `ntfy.sh` literals in Code.js are inside CHANGELOG
+  COMMENTS, and notifyBrandon_'s doc comment still claims "ntfy push when
+  NTFY_TOPIC is set" while its body is pure Pushover — stale COMMENTS and a stale
+  FUNCTION NAME (ntfyPushRoles_, 23 call sites), never stale endpoints. Nothing to
+  rewire.
+  THE REAL DEFECT: saveDebrief sets report.officePush = 'sent' unconditionally
+  after calling a function that silently no-ops four ways —
+    · `if (!token) return;`            no PUSHOVER_TOKEN, nothing sent
+    · `if (!userKey || …) return;`      no PUSHOVER_KEY_<ROLE>, role skipped
+    · muteHttpExceptions:true and the response code NEVER CHECKED, so a Pushover
+      4xx for a bad token/key is swallowed
+    · the whole body wrapped in try{}catch(err){}
+  So 'sent' means "we called a function", not "a notification was delivered" —
+  the same silent-success shape as the dryRun trap. The CORRECT pattern already
+  exists one function away: notifyBrandon_ checks
+  `r.getResponseCode() === 200` and returns 'pushover 200'.
+  Fix would be: have ntfyPushRoles_ return a per-role delivery result and let
+  callers report it, rather than asserting 'sent'. Affects all 23 call sites'
+  honesty, so NOT a one-line change — hence its own item.
+  STILL UNKNOWN, and cheap for Brandon to settle: whether PUSHOVER_KEY_OFFICE is
+  actually set. It is not in CONFIG_MIGRATED so configAudit does not report it,
+  and ntfyPropsDebug() is editor-only (Logger.log). Run ntfyPropsDebug() in the
+  Apps Script editor — it prints token + all four role keys in one go.
 - HIGH PRIORITY, NOT YET SCOPED — PLACEHOLDER, MORE DETAIL COMING (8/4).
   A FAILSAFE MANUAL DEBRIEF TRIGGER. The debrief is central to this app, and
   today it can only be reached off the live day-state machine — which is
