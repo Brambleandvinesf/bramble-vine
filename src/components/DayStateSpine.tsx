@@ -1121,14 +1121,33 @@ function AddStopSheet({
     return () => { cancelled = true; };
   }, [mode, clients.length]);
 
-  const q = query.trim().toLowerCase();
-  const pool = mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
-  const filtered = q
-    ? pool.filter(
-        (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
-      )
-    : pool;
-  const matches = filtered.slice(0, 50);
+  const deferredQuery = useDeferredValue(query);
+  const q = deferredQuery.trim().toLowerCase();
+
+  const pool = useMemo<DestSuggest[]>(() => {
+    const raw =
+      mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
+    const seen = new Set<string>();
+    const out: DestSuggest[] = [];
+    for (const d of raw) {
+      const k = `${d.label}|${d.address}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(d);
+    }
+    return out;
+  }, [mode, clients, frequent, vendors]);
+
+  const matches = useMemo(() => {
+    const filtered = q
+      ? pool.filter(
+          (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
+        )
+      : pool;
+    return filtered.slice(0, 50);
+  }, [pool, q]);
+
+  const onPick = useCallback((d: DestSuggest) => setPicked(d), []);
 
   const confirm = async () => {
     const title = (picked?.label ?? query).trim();
