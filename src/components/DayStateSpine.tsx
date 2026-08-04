@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useDayState, useDayStateRefresh, type DayPhase } from "../lib/day-state";
@@ -1065,6 +1065,42 @@ export function DayStateSpine() {
 
 type DestSuggest = { label: string; address: string };
 
+const SUGGEST_ROW: React.CSSProperties = {
+  display: "block",
+  width: "100%",
+  padding: "10px 12px",
+  background: "transparent",
+  color: "#e8e8e8",
+  border: "none",
+  borderBottom: "1px solid #1d1d1d",
+  fontFamily: "inherit",
+  fontSize: 13,
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const SUGGEST_SUB: React.CSSProperties = {
+  display: "block",
+  color: "#8f8f8f",
+  fontSize: 11,
+  marginTop: 2,
+};
+
+const SuggestRow = memo(function SuggestRow({
+  dest,
+  onPick,
+}: {
+  dest: DestSuggest;
+  onPick: (d: DestSuggest) => void;
+}) {
+  return (
+    <button type="button" onClick={() => onPick(dest)} style={SUGGEST_ROW}>
+      {dest.label}
+      {dest.address && <span style={SUGGEST_SUB}>{dest.address}</span>}
+    </button>
+  );
+});
+
 function AddStopSheet({
   insertAt,
   activeLine,
@@ -1121,14 +1157,33 @@ function AddStopSheet({
     return () => { cancelled = true; };
   }, [mode, clients.length]);
 
-  const q = query.trim().toLowerCase();
-  const pool = mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
-  const filtered = q
-    ? pool.filter(
-        (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
-      )
-    : pool;
-  const matches = filtered.slice(0, 50);
+  const deferredQuery = useDeferredValue(query);
+  const q = deferredQuery.trim().toLowerCase();
+
+  const pool = useMemo<DestSuggest[]>(() => {
+    const raw =
+      mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
+    const seen = new Set<string>();
+    const out: DestSuggest[] = [];
+    for (const d of raw) {
+      const k = `${d.label}|${d.address}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(d);
+    }
+    return out;
+  }, [mode, clients, frequent, vendors]);
+
+  const matches = useMemo(() => {
+    const filtered = q
+      ? pool.filter(
+          (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
+        )
+      : pool;
+    return filtered.slice(0, 50);
+  }, [pool, q]);
+
+  const onPick = useCallback((d: DestSuggest) => setPicked(d), []);
 
   const confirm = async () => {
     const title = (picked?.label ?? query).trim();
@@ -1301,32 +1356,8 @@ function AddStopSheet({
               WebkitOverflowScrolling: "touch",
             }}
           >
-            {matches.map((d, i) => (
-              <button
-                key={`${d.label}-${i}`}
-                type="button"
-                onClick={() => setPicked(d)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "transparent",
-                  color: "#e8e8e8",
-                  border: "none",
-                  borderBottom: "1px solid #1d1d1d",
-                  fontFamily: "inherit",
-                  fontSize: 13,
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                {d.label}
-                {d.address && (
-                  <span style={{ display: "block", color: "#8f8f8f", fontSize: 11, marginTop: 2 }}>
-                    {d.address}
-                  </span>
-                )}
-              </button>
+            {matches.map((d) => (
+              <SuggestRow key={`${d.label}|${d.address}`} dest={d} onPick={onPick} />
             ))}
           </div>
         )}
