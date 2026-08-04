@@ -1181,10 +1181,18 @@ function AddStopSheet({
     tokenRef.current = null;
     seqRef.current += 1;
     setPlaceSuggests([]);
+    setSearching(false);
   }, []);
+
+  /* placesOff is NOT a permanent latch: a stale configured:false must not kill
+     the feature for the rest of the session. Reset on open and pill switch. */
+  useEffect(() => {
+    setPlacesOff(false);
+  }, [mode]);
 
   /* Discard any live session token when the sheet unmounts. */
   useEffect(() => () => { tokenRef.current = null; }, []);
+
 
 
 
