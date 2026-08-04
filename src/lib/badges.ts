@@ -62,7 +62,14 @@ type PollOpts = {
  * Inbox count uses the same rule as the Messages screen's own badge:
  * items where `awaiting` is true.
  */
-export function useBadgePoller({ email, canMessages, canReceipts, canVisits }: PollOpts): void {
+export function useBadgePoller({
+  email,
+  canMessages,
+  canReceipts,
+  canVisits,
+  canApprovals,
+}: PollOpts): void {
+
   useEffect(() => {
     if (!email) return;
     let cancelled = false;
