@@ -197,7 +197,10 @@ function AppFrame() {
     canMessages: canSee(role, "messages"),
     canReceipts: canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice"),
     canVisits: canSee(role, "visits"),
+    // /approvals and /debrief-queue are lead/management only.
+    canApprovals: role === "lead" || role === "management",
   });
+
 
   // Client-side gate. Legacy screens hit external endpoints and require identity;
   // we bounce unauthenticated visitors to /login. SSR renders nothing until ready.
