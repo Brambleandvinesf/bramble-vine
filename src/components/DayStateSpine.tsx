@@ -1105,6 +1105,8 @@ function parsePlaces(json: unknown): DestSuggest[] {
       textOf(p["text"]) ||
       str(p["description"]) ||
       str(p["name"]) ||
+      textOf(p["displayName"]) ||
+
       str(p["formattedAddress"]);
     const secondary =
       str(p["secondary"]) ||
