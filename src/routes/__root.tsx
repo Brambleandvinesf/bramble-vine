@@ -391,6 +391,9 @@ function HamburgerMenu() {
   const inboxCount = useBadge(BK.inbox) ?? 0;
   const receiptsCount = useBadge(BK.receipts) ?? 0;
   const visitsCount = useBadge(BK.visits) ?? 0;
+  const approvalsCount = useBadge(BK.approvals) ?? 0;
+  const debriefqCount = useBadge(BK.debriefq) ?? 0;
+
 
   if (!effectiveRole) return null;
 
