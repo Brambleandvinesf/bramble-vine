@@ -31,8 +31,10 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   lead +16507105061, assistant +14152343696, spare +15106600796)
 - Time clock: QuickBooks Time (proxied through backend). Overhead jobcode
   is exactly "Bramble & Vine" (ampersand, not "and").
-- Push: Pushover (all 4 roles, per-role keys) + MacroDroid webhooks pending
-  (MACRODROID_*_URL Script Properties). MacroDroid is the future.
+- Push: **NONE, as of 8/4.** Notifications are the Quo app. Pushover is
+  deactivated (empty PUSHOVER_TOKEN) and MacroDroid is deprioritised, not
+  pending — see the ntfyPushRoles_ WATCH ITEM. ntfyPushRoles_ still exists and
+  is called in 23 places, and every one of them delivers nothing.
 - Calendars: "1. Client Visits" (route), "2. Field Team" (daily staffing)
 - Invoicing: QBO (realm 9130348705679206) in-script OAuth2
 - PTT: Zello Work "bramblevine" network — DOWNGRADE TO FREE planned
@@ -658,6 +660,43 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   fail silently. If QBT ever exposes a stable employee id in the places these
   lists are used, switch to it.
 
+- **INVOICE LINE DEDUPE IS BY EXACT DESCRIPTION, AND l.desc ENCODES THE HOURS
+  (8/4).** qboDebriefInvoice_ now stamps a hashed eventId into every line
+  Description and drops incoming lines whose exact Description is already on the
+  invoice — that fully fixes an identical repeat submission. But decomposeLabor_
+  builds `desc: 'Labor — 2 people × 4.5h'`, so if the HOURS CHANGE between two
+  saves the description differs, the dedupe does not match, and the new labour
+  line is appended ALONGSIDE the stale one. Harmless today (saveDebrief is
+  submitted once) and it is the safe direction — it never deletes from an
+  existing invoice. It becomes a DOUBLE-BILL the moment progressive mid-visit
+  saves ship. Progressive saves need replace-by-stamp semantics: drop every
+  existing line carrying this event's stamp, then add the current set. That means
+  sending a reduced Line array, which is how QBO deletes lines — so get it
+  wrong and you delete real invoice lines. Test that one hard.
+- **THE ROSTER IS A MIRROR, AND IT WAS ALREADY WRONG ON 8/4.** getField returns
+  routeGet_().roster (Code.js 2218), not QBT. Observed live on 8/4: the roster
+  was EMPTY while QBT held four completed timesheets for two people that day, so
+  ClockCard's `open = !!row?.in && !row?.out` was false for someone who had
+  actually worked — the app told a crew member they were not on the clock while
+  they were. autoClockIn now reconciles the roster from the QBT entry it already
+  fetches, but ONLY for a person currently ON the clock at app-open. Nothing
+  reconciles completed segments, and nothing reconciles a clock-OUT made in
+  Workforce (the roster keeps `in` set with no `out`, showing them still on the
+  clock). If clock display is ever wrong again, suspect the mirror first.
+- **ntfyPushRoles_ IS A COMPLETE NO-OP TODAY — TREAT IT AS DEAD (8/4, Brandon's
+  call).** Notifications go through the **Quo app**, not push/voice. Both halves of
+  ntfyPushRoles_ are inert: the Pushover half returns immediately on an empty
+  PUSHOVER_TOKEN (deliberately deactivated), and macroDroidPing_ skips every role
+  whose MACRODROID_*_URL Script Property is unset — all three are. **DO NOT
+  configure MacroDroid**; Brandon has explicitly deprioritised it ("that gap isn't
+  a priority"). Two consequences worth remembering: (a) every one of the 23
+  ntfyPushRoles_ call sites is decoration right now, so no backend change that
+  merely *adds* a push call is delivering anything to anyone — do not report one as
+  a notification feature; (b) it makes live write-path testing SAFE, since actions
+  that fire ntfyPushRoles_ cannot reach a real phone. That is what made the
+  confirmBaseLoad verification safe on 8/4. If Quo ever becomes the outbound push
+  channel, revisit — until then, treat "it pushes" as "it does nothing".
+
 ## OPEN ITEMS
 - OWN ITEM, NOT FIXED (8/4) — "officePush: sent" IS NOT PROOF ANYTHING WAS SENT.
   Investigated because two test debrief pushes were never seen anywhere. The
@@ -751,6 +790,7 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   in chat for Brandon's go-ahead before any deploy.
 - Root-cause the WS604s preset wipe (bridge re-asserts as mitigation).
 - (ANSWERED 8/4 — see WHERE THINGS STAND: git push -> Lovable sync confirmed.)
-- MacroDroid webhook URLs pending; Zello downgrade to free planned.
+- MacroDroid: NOT pending — deprioritised 8/4, do not configure. Zello
+  downgrade to free planned.
 - Pi password SSH broken (key-based only); diagnose via journalctl -u ssh.
 - Retroactive "I'm here" presence screen (Pass 2) not yet built.
