@@ -12,6 +12,7 @@ import {
   laIso,
   planPunchEdit,
   punchTime,
+  type PunchEditArgs,
   type PunchPlan,
 } from "../lib/punch-edit";
 
@@ -218,8 +219,8 @@ function PunchEditor({
   const doPlan = useCallback(
     async (withOptIn: boolean) => {
       const built = build(withOptIn);
-      if ("err" in built) {
-        setMsg(built.err);
+      if (built.err || !built.args) {
+        setMsg(built.err ?? "Could not build that edit.");
         setPlan(null);
         return;
       }
@@ -239,8 +240,8 @@ function PunchEditor({
 
   const doApply = useCallback(async () => {
     const built = build(optIn);
-    if ("err" in built) {
-      setMsg(built.err);
+    if (built.err || !built.args) {
+      setMsg(built.err ?? "Could not build that edit.");
       return;
     }
     setBusy(true);
@@ -385,7 +386,9 @@ function PunchEditor({
         </button>
         <button
           type="button"
-          disabled={busy || !plan || plan.ok === false ? !(plan?.needsOptIn && optIn) : false}
+          disabled={
+            busy || !plan || (plan.ok === false && !(plan.needsOptIn && optIn))
+          }
           onClick={() => void doApply()}
           style={{
             background: LIME,
