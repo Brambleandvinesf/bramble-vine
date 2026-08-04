@@ -1247,19 +1247,24 @@ function AddStopSheet({
     return filtered.slice(0, 50);
   }, [pool, q]);
 
-  /* Network debounce (~300ms) for placesAutocomplete — separate from, and in
+  /* Network debounce (450ms) for placesAutocomplete — separate from, and in
      addition to, the render-level useDeferredValue above. Under 3 chars the
-     backend refuses anyway, so we never spend the round trip. */
+     backend refuses anyway, so we never spend the round trip.
+     HONESTY (8/3): an Apps Script POST costs ~1.4s no matter what it does;
+     Places adds only 200-400ms. So we debounce longer and SAY we're searching
+     rather than looking frozen. Typing is never blocked. */
   useEffect(() => {
     if (mode !== "other" || placesOff || picked) return;
     const text = query.trim();
     if (text.length < 3) {
       dropLookup();
+      setSearching(false);
       return;
     }
     const token = ensureToken();
     const seq = ++seqRef.current;
     const t = setTimeout(() => {
+      setSearching(true);
       void (async () => {
         try {
           const res = await fetch(SCRIPT_URL, {
@@ -1274,21 +1279,24 @@ function AddStopSheet({
           const json = (await res.json()) as Record<string, unknown>;
           if (seq !== seqRef.current) return; // stale response
           if (json["configured"] === false) {
-            // Backend has no Places key — stop asking, stay pure free text.
+            /* ONLY an explicit configured:false disables lookups. Never a
+               network error, non-JSON body, or ok:false — Apps Script
+               intermittently answers a POST with an unrelated payload. */
             setPlacesOff(true);
             setPlaceSuggests([]);
             return;
           }
-          const parsed = parsePlaces(json);
-          setPlaceSuggests(parsed);
-
+          setPlaceSuggests(parsePlaces(json));
         } catch {
           if (seq === seqRef.current) setPlaceSuggests([]);
+        } finally {
+          if (seq === seqRef.current) setSearching(false);
         }
       })();
-    }, 300);
+    }, 450);
     return () => clearTimeout(t);
   }, [mode, placesOff, picked, query, ensureToken, dropLookup]);
+
 
 
 
