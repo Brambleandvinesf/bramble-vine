@@ -8,7 +8,6 @@ import { sessionCache } from "../lib/session-cache";
 import { useDayState } from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
-import { MessagesFab } from "../components/MessagesFab";
 import { appendTeamParam } from "../lib/team";
 import { confirmModal } from "../components/ConfirmModal";
 import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
@@ -731,7 +730,8 @@ function LoadingPage() {
       })()}
 
       {effectiveRole === "management" && field && <RouteFooter field={field} />}
-      <MessagesFab />
+      {/* No MessagesFab here: __root renders one globally for every signed-in
+          page, and two message icons were showing on this screen. */}
     </div>
   );
 }
