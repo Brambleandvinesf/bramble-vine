@@ -394,8 +394,77 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
-Backend is CURRENT at v7.4.70 @209 — nothing pending on the Apps Script side.
-Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PERF)".
+Backend is CURRENT at **v7.4.74 @213**. Full detail of the earlier batch is in
+ARCHITECTURE.md under "8/3–8/4 (CC–CO + PERF)".
+
+SHIPPED 8/4, later batch — all deployed, all behaviourally verified except where
+noted:
+- v7.4.71 deleteBillingRow — a narrow, confirm-gated physical delete of ONE
+  Billing Hours row. Exact date+client+person, refuses on 0 or >1 matches,
+  reports the hours it would destroy, dry-run by default. Written because
+  setBillingHours can only upsert, so a mistaken row had no exit but hand-editing
+  a sheet that feeds the invoice labor line.
+- v7.4.72 ONSITE BREAK part 1 — a Break event whose window sits FULLY INSIDE a
+  client/vendor event no longer becomes its own stop. It used to fracture a
+  full-day visit into TWO arrivals with a second client text and a second
+  debrief. Filtered in dayEvents_, NOT dayStops_, because stops[], the field
+  screen's events[], addStop's insertAt, shiftFrom_'s fromIdx and route.stopIndex
+  all index into that one list. Containment only — a break BETWEEN two stops
+  still becomes its own stop, which is the leave-the-property case.
+  Verified on today's real A&G Sect 7 (9:50–4:20, break 12:00–1:00): stops and
+  events both went 2 → 1, stayed the same length, and lunchPlan still saw the
+  window, so the clock pause is untouched.
+- v7.4.73 ONSITE BREAK parts 2+3 — the coexistence guard, then the action.
+  THE BUG IT PREVENTS: two mechanisms can now pause a clock (lunchClockTick_'s
+  scheduled window, and a crew tap) and they close/reopen the SAME timesheet.
+  Pause was already safe — the tick skips anyone with p.out set. RESUME WAS NOT:
+  the tick reopens a timesheet for everyone in entry.paused when the window ends,
+  so if the crew tapped END LUNCH first they were already back on a NEW timesheet
+  and the tick opened a SECOND one — two concurrent open timesheets for one
+  person, i.e. DOUBLE-PAID TIME. Now a shared ONSITE_BREAK registry (per person
+  per crew day): whoever resumes REMOVES the entry, and the other side declines
+  because it no longer owns the pause.
+  New action onsiteBreak {mode:'start'|'end', person, dryRun}. Never reads or
+  writes route.stopIndex, so no arrival, departure, client text or debrief can
+  fire from it. getField gains onsiteBreaks so ON BREAK survives a reload.
+- v7.4.74 getSchedule shows HQ AND lunch — two DIFFERENT causes, frontend
+  innocent. HQ was dropped by isHqNoise_; that helper is NOT wrong (v6.8.4a added
+  it because the app owns the HQ loading sequence, so HQ is duplicate noise on the
+  ROUTE and not a drivable ETA destination — both uses kept), so it was removed
+  from THIS READ ONLY rather than loosened, which would have put HQ back on the
+  spine. Lunch was never filtered, never FETCHED: breaks live on OFV_CAL and this
+  read only opened CV_CAL. Verified: getSchedule went 1 → 3 events
+  (A&G Sect 7 | 40min Break | HQ Unloading Priorities) with the route unaffected.
+- FRONTEND: the Lv09 payrollDay DEADLOCK fix, the PREVIEW-NOT-ACTUALLY-READ-ONLY
+  fix, and the TAKE LUNCH button. See the two entries below.
+
+TWO FRONTEND BUGS FOUND BY LOADING THE REAL SCREEN, both of which TYPECHECK
+CLEANLY — the standing argument for verifying in the browser and not just building:
+- payrollDay fetch DEADLOCK. The effect listed qbtLoading in its OWN dependency
+  array while also setting it, so run 1's cleanup cancelled run 1's in-flight
+  request, the response was discarded, setQbtLoading(false) never ran, and the
+  guard blocked every retry. "READING QUICKBOOKS TIME…" forever while the network
+  panel showed the request completing. Deterministic, not a race. Now ref-guarded,
+  with cancellation dropped entirely.
+- The debrief preview said "PREVIEW — READ ONLY" but the ±0.25h billing stepper
+  was not gated on isPreview, so tapping it from a management preview would have
+  written a real Billing Hours row for a real employee against the live client.
+  Now refused. NOTE the first attempt at this fix used a file-wide sed, hit 8
+  sites including ProjectCard (which has no isPreview in scope, so it would not
+  have compiled), and was reverted and redone surgically. Scripted edits across
+  this file need an explicit scope check.
+
+DELIBERATELY UNVERIFIED, NOT OVERLOOKED (8/4): that the Hours ±0.25h stepper
+writes THROUGH THE REAL UI. The write CONTRACT is proven behaviourally
+(dryRun:false → mode=insert → the row landed, confirmed by a follow-up dry probe),
+but the button wired to it is not. There is no safe synthetic way left: preview is
+now correctly read-only, and the UI necessarily writes today's date against the
+live client and a real roster person, so it cannot be sandboxed or past-dated the
+way a direct API call can. Waiting on the next genuine end-of-day debrief.
+Same limitation applies to onsiteBreak's live round trip — verified in dry run
+only, because a live one would close and reopen a real employee's timesheet
+mid-shift, and the both-fire-at-once case additionally needs the clock to be
+inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
 
 - LOVABLE QUEUE IS EMPTY. Lv09–Lv12 are all in main. Lv09 (AG Hours rebuild)
   was written directly into the repo on 8/4 rather than handed over as a prompt:
@@ -460,6 +529,20 @@ Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PE
   visitPhoto is visit-level). Not queued.
 
 ## OPEN ITEMS
+- HIGH PRIORITY, NOT YET SCOPED — PLACEHOLDER, MORE DETAIL COMING (8/4).
+  A FAILSAFE MANUAL DEBRIEF TRIGGER. The debrief is central to this app, and
+  today it can only be reached off the live day-state machine — which is
+  unreliable enough that debriefs routinely DO NOT HAPPEN AT ALL. That is the
+  actual problem being solved; the trigger is the remedy, not the goal.
+  The ask: a lead-facing entry (likely another 3-dot-menu item) that can activate
+  a debrief for ANY SINGLE VISIT regardless of what the day/route machine thinks
+  the current state is. It gets its OWN QUEUE, built from calendar events +
+  timesheet entries as the signal for which visits actually happened and are
+  still awaiting a debrief — i.e. derived from evidence, not from route state,
+  which is the thing that fails.
+  DO NOT DESIGN THIS YET. Brandon has a further list of debrief-related bugs
+  coming, and those should land first — the queue's shape depends on what is
+  actually broken. Recorded now only so it is not lost.
 - FUTURE, NOT SCOPED OR SCHEDULED (8/4) — EDIT THE ACTUAL QUICKBOOKS TIME PUNCH.
   Today the Hours step can only adjust what the CLIENT IS BILLED; the real clock
   times are read-only, because the only backend pieces that exist are PLANNERS
