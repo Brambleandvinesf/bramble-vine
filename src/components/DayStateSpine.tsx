@@ -1063,7 +1063,7 @@ export function DayStateSpine() {
 
 /* ---------- V (8/2): Add Stop flow ---------- */
 
-type DestSuggest = { label: string; address: string };
+type DestSuggest = { label: string; address: string; placeId?: string };
 
 const SUGGEST_ROW: React.CSSProperties = {
   display: "block",
