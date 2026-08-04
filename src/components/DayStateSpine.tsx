@@ -1312,6 +1312,10 @@ function AddStopSheet({
 
   const onPick = useCallback(
     (d: DestSuggest) => {
+      /* `query` is the single source of truth for the input — a pick must
+         write it, or the next keystroke appends to a stale value and every
+         later lookup searches garbage. */
+      setQuery(d.label);
       if (!d.placeId) {
         setPicked(d);
         return;
@@ -1320,6 +1324,7 @@ function AddStopSheet({
       const placeId = d.placeId;
       setPicked({ label: d.label, address: d.address });
       setPlaceSuggests([]);
+      setSearching(false);
       void (async () => {
         try {
           const res = await fetch(SCRIPT_URL, {
@@ -1327,21 +1332,15 @@ function AddStopSheet({
             headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({ action: "placesDetails", placeId, sessionToken: token }),
           });
-          const raw = (await res.json()) as Record<string, unknown>;
-          const j = (raw["place"] && typeof raw["place"] === "object"
-            ? (raw["place"] as Record<string, unknown>)
-            : raw) as Record<string, unknown>;
-          const s = (v: unknown) => (typeof v === "string" ? v : "");
-          const dn = j["displayName"];
-          const name =
-            s(j["name"]) ||
-            s(dn) ||
-            (dn && typeof dn === "object" ? s((dn as Record<string, unknown>)["text"]) : "");
-          const address =
-            s(j["address"]) || s(j["formattedAddress"]) || s(j["formatted_address"]);
+          const j = (await res.json()) as { name?: string; address?: string };
+          const name = typeof j.name === "string" ? j.name : "";
+          const address = typeof j.address === "string" ? j.address : "";
           if (name || address) {
             setPicked({ label: name || d.label, address: address || d.address });
+            if (name) setQuery(name);
           }
+
+
 
         } catch { /* typed text / suggestion text stands */ }
         finally {
