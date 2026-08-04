@@ -215,6 +215,13 @@ button. Someday: native app, Zello SDK embed, irrigation APIs.
   unlabelled code block is genuinely ambiguous — and guessing wrong means either
   a change nobody applies or Brandon redoing something already done. Same for any
   other hand-off: a sheet edit, a Make change. Name whose action it is.
+- EVERY LOVABLE PROMPT GETS AN ID — Lv01, Lv02, ... (Brandon, 8/3). Put it in
+  the lead-in AND as the first line inside the pasted block, so it shows up in
+  Lovable's own history. Sessions here can have five prompts in flight at once,
+  each a different file and a different work item; "the receipts one" stops
+  being unambiguous fast. IDs are session-sequential and never reused — a
+  superseded prompt keeps its number and is marked SUPERSEDED rather than
+  renumbered. Quote the ID when reporting what landed.
 - PUBLISHED IS NOT THE SAME AS COMMITTED (8/3). Lovable commits to git as it
   edits, but the live app only changes on an explicit PUBLISH. Three frontend
   changes once sat in main, unpublished, while the running app served an older
