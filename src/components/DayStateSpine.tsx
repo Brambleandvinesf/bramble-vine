@@ -1344,14 +1344,22 @@ function AddStopSheet({
             headers: { "Content-Type": "text/plain" },
             body: JSON.stringify({ action: "placesDetails", placeId, sessionToken: token }),
           });
-          const json = (await res.json()) as {
-            ok?: boolean;
-            name?: string;
-            address?: string;
-          };
-          if (json.ok && (json.name || json.address)) {
-            setPicked({ label: json.name || d.label, address: json.address || d.address });
+          const raw = (await res.json()) as Record<string, unknown>;
+          const j = (raw["place"] && typeof raw["place"] === "object"
+            ? (raw["place"] as Record<string, unknown>)
+            : raw) as Record<string, unknown>;
+          const s = (v: unknown) => (typeof v === "string" ? v : "");
+          const dn = j["displayName"];
+          const name =
+            s(j["name"]) ||
+            s(dn) ||
+            (dn && typeof dn === "object" ? s((dn as Record<string, unknown>)["text"]) : "");
+          const address =
+            s(j["address"]) || s(j["formattedAddress"]) || s(j["formatted_address"]);
+          if (name || address) {
+            setPicked({ label: name || d.label, address: address || d.address });
           }
+
         } catch { /* typed text / suggestion text stands */ }
         finally {
           // Session ends with placesDetails — next lookup mints a fresh token.
