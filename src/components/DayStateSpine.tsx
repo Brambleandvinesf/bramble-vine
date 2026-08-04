@@ -1197,39 +1197,33 @@ function AddStopSheet({
 
 
 
+  /* One fetch when the sheet opens: vendors, frequent AND the client roster.
+   * getStopSuggest returns clients as name -> address (~2s/6KB); the old
+   * getField read cost ~6.8s on tap, so there is deliberately no fallback. */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getStopSuggest`);
-        const json = (await res.json()) as { vendors?: DestSuggest[]; frequent?: DestSuggest[] };
+        const json = (await res.json()) as {
+          vendors?: DestSuggest[];
+          frequent?: DestSuggest[];
+          clients?: Record<string, string>;
+        };
         if (cancelled) return;
         setVendors(json.vendors ?? []);
         setFrequent(json.frequent ?? []);
+        setClients(
+          Object.entries(json.clients ?? {}).map(([label, address]) => ({
+            label,
+            address: address || "",
+          })),
+        );
       } catch { /* suggestions are optional */ }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  /* Client roster comes from getField.clientAddresses (name -> address). */
-  useEffect(() => {
-    if (mode !== "client" || clients.length) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${SCRIPT_URL}?action=getField`);
-        const json = (await res.json()) as { clientAddresses?: Record<string, string> };
-        if (cancelled) return;
-        setClients(
-          Object.entries(json.clientAddresses ?? {}).map(([label, address]) => ({
-            label,
-            address: address || "",
-          })),
-        );
-      } catch { /* roster is optional */ }
-    })();
-    return () => { cancelled = true; };
-  }, [mode, clients.length]);
 
   const deferredQuery = useDeferredValue(query);
   const q = deferredQuery.trim().toLowerCase();
