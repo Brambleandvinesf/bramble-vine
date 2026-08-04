@@ -1224,23 +1224,14 @@ function AddStopSheet({
      addition to, the render-level useDeferredValue above. Under 3 chars the
      backend refuses anyway, so we never spend the round trip. */
   useEffect(() => {
-    if (mode !== "other") return;
+    if (mode !== "other" || placesOff || picked) return;
     const text = query.trim();
-    const dbg = (o: Record<string, unknown>) => {
-      (window as unknown as Record<string, unknown>).__addStopDbg = {
-        ...o, mode, placesEnabled, picked: picked?.label ?? null, text, at: Date.now(),
-      };
-    };
-    if (picked) { dbg({ step: "skip-picked" }); return; }
-    if (!placesEnabled) { dbg({ step: "skip-disabled" }); return; }
     if (text.length < 3) {
       dropLookup();
-      dbg({ step: "skip-short" });
       return;
     }
     const token = ensureToken();
     const seq = ++seqRef.current;
-    dbg({ step: "scheduled", seq });
     const t = setTimeout(() => {
       void (async () => {
         try {
@@ -1255,15 +1246,20 @@ function AddStopSheet({
           });
           const json = (await res.json()) as {
             ok?: boolean;
+            configured?: boolean;
             suggestions?: { placeId: string; text?: string; primary?: string; secondary?: string }[];
           };
-          if (seq !== seqRef.current) { dbg({ step: "stale", seq, cur: seqRef.current }); return; }
-          if (!json.ok || !json.suggestions?.length) {
-            dbg({ step: "empty", ok: json.ok, n: json.suggestions?.length ?? 0 });
+          if (seq !== seqRef.current) return; // stale response
+          if (json.configured === false) {
+            // Backend has no Places key — stop asking, stay pure free text.
+            setPlacesOff(true);
             setPlaceSuggests([]);
             return;
           }
-          dbg({ step: "got", n: json.suggestions.length });
+          if (!json.ok || !json.suggestions?.length) {
+            setPlaceSuggests([]);
+            return;
+          }
           setPlaceSuggests(
             json.suggestions.map((s) => ({
               label: s.primary || s.text || "",
@@ -1271,14 +1267,14 @@ function AddStopSheet({
               placeId: s.placeId,
             })),
           );
-        } catch (e) {
-          dbg({ step: "threw", e: String(e) });
+        } catch {
           if (seq === seqRef.current) setPlaceSuggests([]);
         }
       })();
     }, 300);
     return () => clearTimeout(t);
-  }, [mode, placesEnabled, picked, query, ensureToken, dropLookup]);
+  }, [mode, placesOff, picked, query, ensureToken, dropLookup]);
+
 
 
   const onPick = useCallback(
