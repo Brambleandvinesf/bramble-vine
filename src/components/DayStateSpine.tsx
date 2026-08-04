@@ -1228,7 +1228,89 @@ function AddStopSheet({
     return filtered.slice(0, 50);
   }, [pool, q]);
 
-  const onPick = useCallback((d: DestSuggest) => setPicked(d), []);
+  /* Network debounce (~300ms) for placesAutocomplete — separate from, and in
+     addition to, the render-level useDeferredValue above. Under 3 chars the
+     backend refuses anyway, so we never spend the round trip. */
+  useEffect(() => {
+    if (mode !== "other" || !placesEnabled || picked) return;
+    const text = query.trim();
+    if (text.length < 3) {
+      dropLookup();
+      return;
+    }
+    const token = ensureToken();
+    const seq = ++seqRef.current;
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({
+              action: "placesAutocomplete",
+              input: text,
+              sessionToken: token,
+            }),
+          });
+          const json = (await res.json()) as {
+            ok?: boolean;
+            suggestions?: { placeId: string; text?: string; primary?: string; secondary?: string }[];
+          };
+          if (seq !== seqRef.current) return; // stale response
+          if (!json.ok || !json.suggestions?.length) {
+            setPlaceSuggests([]);
+            return;
+          }
+          setPlaceSuggests(
+            json.suggestions.map((s) => ({
+              label: s.primary || s.text || "",
+              address: s.secondary || "",
+              placeId: s.placeId,
+            })),
+          );
+        } catch {
+          if (seq === seqRef.current) setPlaceSuggests([]);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(t);
+  }, [mode, placesEnabled, picked, query, ensureToken, dropLookup]);
+
+  const onPick = useCallback(
+    (d: DestSuggest) => {
+      if (!d.placeId) {
+        setPicked(d);
+        return;
+      }
+      const token = ensureToken();
+      const placeId = d.placeId;
+      setPicked({ label: d.label, address: d.address });
+      setPlaceSuggests([]);
+      void (async () => {
+        try {
+          const res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify({ action: "placesDetails", placeId, sessionToken: token }),
+          });
+          const json = (await res.json()) as {
+            ok?: boolean;
+            name?: string;
+            address?: string;
+          };
+          if (json.ok && (json.name || json.address)) {
+            setPicked({ label: json.name || d.label, address: json.address || d.address });
+          }
+        } catch { /* typed text / suggestion text stands */ }
+        finally {
+          // Session ends with placesDetails — next lookup mints a fresh token.
+          tokenRef.current = null;
+        }
+      })();
+    },
+    [ensureToken],
+  );
+
 
   const confirm = async () => {
     const title = (picked?.label ?? query).trim();
