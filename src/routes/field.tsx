@@ -5206,12 +5206,9 @@ function RouteComplete({
             rolls straight into approving today's hours.
           </div>
           {clockSlot}
-          {isLead && approveNote && note(approveNote)}
-          {isLead && !approveNote && (
-            <button onClick={onApprove} disabled={busy || isPreview} style={{ ...PRIMARY_BTN, marginTop: 14 }}>
-              APPROVE TODAY'S HOURS IN QB TIME
-            </button>
-          )}
+          {/* Lv11: the server-computed dayClose gate owns approval from here. */}
+          {isLead && <DayCloseGate leadName={leadName} isPreview={isPreview} busy={busy} />}
+
         </>
       )}
     </div>
