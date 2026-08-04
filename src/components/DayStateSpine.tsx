@@ -1450,6 +1450,7 @@ function AddStopSheet({
           onChange={(e) => {
             setPicked(null);
             setQuery(e.target.value);
+            if (mode === "other" && !e.target.value.trim()) dropLookup();
           }}
           placeholder={
             mode === "vendor"
@@ -1472,7 +1473,7 @@ function AddStopSheet({
           }}
         />
 
-        {!picked && matches.length > 0 && mode !== "other" && (
+        {!picked && (mode === "other" ? placeSuggests : matches).length > 0 && (
           <div
             style={{
               marginTop: 6,
@@ -1484,11 +1485,16 @@ function AddStopSheet({
               WebkitOverflowScrolling: "touch",
             }}
           >
-            {matches.map((d) => (
-              <SuggestRow key={`${d.label}|${d.address}`} dest={d} onPick={onPick} />
+            {(mode === "other" ? placeSuggests : matches).map((d) => (
+              <SuggestRow
+                key={d.placeId ?? `${d.label}|${d.address}`}
+                dest={d}
+                onPick={onPick}
+              />
             ))}
           </div>
         )}
+
 
         {mode === "vendor" && !picked && !q && frequent.length > 0 && (
           <>
