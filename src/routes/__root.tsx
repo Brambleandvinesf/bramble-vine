@@ -41,6 +41,7 @@ import { ReviewableTodayProvider } from "../lib/reviewable-today";
 import { useBadge, useBadgePoller, BK } from "../lib/badges";
 import { useAutoClockIn } from "../lib/auto-clock-in";
 import { ConfirmModalHost } from "../components/ConfirmModal";
+import { KioskScreensaver } from "../components/KioskScreensaver";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
 import { DayStateSpine, SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 import { ReportButton } from "../components/ReportButton";
@@ -339,6 +340,10 @@ function AppFrame() {
       <Toaster position="top-center" richColors />
       <ConfirmModalHost />
       <OfficeTeamSetup />
+      {/* (8/4) Wall display only, and mounted UNCONDITIONALLY on purpose: it
+          gates itself on the device flag and on LA quiet hours, and the kiosk can
+          be sitting on the login screen at 8pm — which still wants covering. */}
+      <KioskScreensaver />
     </>
   );
 }
