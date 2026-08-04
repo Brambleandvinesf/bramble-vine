@@ -106,6 +106,9 @@ function normLine(l: Record<string, unknown>): Line {
     plantFloor: l["plantFloor"] == null ? null : Number(l["plantFloor"]),
     plantAskBG: Boolean(l["plantAskBG"]),
     costFlag: s(l["costFlag"]),
+    multiplier: Number(l["multiplier"] ?? 1.15) || 1.15,
+    productMatched: Boolean(l["productMatched"]),
+    masterPrice: l["masterPrice"] == null ? null : Number(l["masterPrice"]),
   };
 }
 
