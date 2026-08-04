@@ -2502,7 +2502,7 @@ function ProjectCard({
                  checked-off treatment, reading as already done. Items
                  here always render normal. */
               ignoreLoaded
-              disabled={busy}
+              disabled={busy || isPreview}
               onClick={onToggleTool ? () => onToggleTool(t) : undefined}
             />
           ))}
@@ -2692,7 +2692,7 @@ function AssistantLoadingGate({
           {!loadingDone ? (
             <button
               onClick={onComplete}
-              disabled={busy}
+              disabled={busy || isPreview}
               style={{ ...PRIMARY_BTN, opacity: busy ? 0.6 : 1 }}
             >
               LOADING COMPLETE
@@ -2704,7 +2704,7 @@ function AssistantLoadingGate({
               </button>
               <button
                 onClick={() => onDepart(!skipText)}
-                disabled={busy}
+                disabled={busy || isPreview}
                 style={{ ...PRIMARY_BTN, marginTop: 10, opacity: busy ? 0.6 : 1 }}
               >
                 {skipText ? "NAVIGATE (NO TEXT)" : "NAVIGATE & SEND TEXT"}
@@ -2712,7 +2712,7 @@ function AssistantLoadingGate({
               {!skipText && (
                 <button
                   onClick={() => onDepart(false)}
-                  disabled={busy}
+                  disabled={busy || isPreview}
                   style={{
                     display: "block",
                     margin: "8px auto 0",
@@ -3275,7 +3275,7 @@ function StateVisit({
                   <ItemPill
                     key={`u-${t.row}-${i}`}
                     t={t}
-                    disabled={busy}
+                    disabled={busy || isPreview}
                     onClick={() => onToggleTool(t)}
                   />
                 ))}
@@ -4167,6 +4167,12 @@ function StateDebrief({
      lib/billing-hours.ts for why that guard exists. BILLING ONLY: this cannot
      touch QuickBooks Time or anyone's pay. */
   const adjustBilling = async (name: string, delta: number) => {
+    /* (8/4) The debrief preview badge promises "PREVIEW — READ ONLY", and this
+       write was not honouring it: tapping ± from a management preview would have
+       written a real Billing Hours row for a real employee on the live client.
+       Found while trying to verify the stepper in preview. Refuse there — a
+       screen that says read-only must be read-only. */
+    if (isPreview) return;
     const row = billing.find((b) => b.name === name);
     if (!row || billingBusy) return;
     const prev = row.hours;
@@ -4323,7 +4329,7 @@ function StateDebrief({
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
                       <button
                         onClick={() => void adjustBilling(b.name, -0.25)}
-                        disabled={busy}
+                        disabled={busy || isPreview}
                         aria-label="Decrease billed hours"
                         style={{
                           width: 56,
@@ -4345,7 +4351,7 @@ function StateDebrief({
                       </div>
                       <button
                         onClick={() => void adjustBilling(b.name, 0.25)}
-                        disabled={busy}
+                        disabled={busy || isPreview}
                         aria-label="Increase billed hours"
                         style={{
                           width: 56,
@@ -4366,7 +4372,7 @@ function StateDebrief({
                     {qbtHours !== null && delta !== 0 && (
                       <button
                         onClick={() => void adjustBilling(b.name, qbtHours - b.hours)}
-                        disabled={busy}
+                        disabled={busy || isPreview}
                         style={{
                           marginTop: 8,
                           background: "transparent",
