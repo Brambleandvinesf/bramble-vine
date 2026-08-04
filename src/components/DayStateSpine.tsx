@@ -1488,7 +1488,7 @@ function AddStopSheet({
 
         <input
           autoFocus
-          value={picked ? picked.label : query}
+          value={query}
           onChange={(e) => {
             setPicked(null);
             setQuery(e.target.value);
