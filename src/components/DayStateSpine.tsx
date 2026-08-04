@@ -1162,8 +1162,10 @@ function AddStopSheet({
      Script, so every early keystroke was skipped and the list looked dead. */
   const [placesOff, setPlacesOff] = useState(false);
   const [placeSuggests, setPlaceSuggests] = useState<DestSuggest[]>([]);
+  const [searching, setSearching] = useState(false);
   const tokenRef = useRef<string | null>(null);
   const seqRef = useRef(0);
+
 
   const ensureToken = useCallback(() => {
     if (!tokenRef.current) {
