@@ -15,6 +15,12 @@ import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
 import { ClientRefPanel } from "../components/ClientRefPanel";
 import {
+  breakElapsed,
+  endOnsiteBreak,
+  startOnsiteBreak,
+  type OnsiteBreakMap,
+} from "../lib/onsite-break";
+import {
   fetchPayrollDay,
   personOnClock,
   personSeconds,
@@ -140,6 +146,9 @@ type GetFieldResponse = {
   knownInventory?: string[];
   /** Client name -> irrigation zone map (text mapping OR Drive image URL). */
   zoneMaps?: Record<string, string>;
+  /* ONSITE BREAK (8/4): name -> {since, source, client}. Server-held so ON BREAK
+     survives a reload and shows on a second phone. */
+  onsiteBreaks?: OnsiteBreakMap;
   /** Client Info AB, special message shown at the top of the event body. */
   clients_info?: Array<{ client?: string; name?: string; specialMessage?: string }>;
   clientInfo?: Array<{ client?: string; name?: string; specialMessage?: string }>;
@@ -1200,6 +1209,37 @@ function FieldBody({
 
   const meRow = me ? roster.find((r) => r.id === me.id) : undefined;
   const meOnClock = !!(meRow?.in && !meRow?.out);
+
+  /* ONSITE BREAK (8/4): lunch taken WITHOUT leaving this stop. Entirely separate
+     from startBreakFromCurrent below, which clocks out via qbClock and stashes
+     "field:breakFrom" in sessionStorage for a crew that LEAVES the property —
+     that path is untouched. This one never advances stopIndex, so no arrival,
+     departure, client text or debrief can fire from it.
+     State lives on the SERVER (getField.onsiteBreaks) rather than here, because
+     it has to survive a reload and be visible from a second phone. */
+  const onsiteBreaks = data.onsiteBreaks ?? {};
+  const myOnsiteBreak = me ? onsiteBreaks[me.name] : undefined;
+  const onOnsiteBreak = !!myOnsiteBreak?.since;
+
+  const takeOnsiteLunch =
+    me && (meOnClock || onOnsiteBreak)
+      ? async () => {
+          if (isPreview) return;
+          try {
+            if (onOnsiteBreak) await endOnsiteBreak(me.name);
+            else await startOnsiteBreak(me.name);
+            /* Not routed through send(): that posts raw and would not apply the
+               dryRun:false / throw-on-dryRun discipline. So refetch by hand,
+               the same call send() makes on success. */
+            void fetchOnce();
+          } catch (e) {
+            setBanner({
+              kind: "err",
+              text: e instanceof Error ? e.message : "Break failed — retry.",
+            });
+          }
+        }
+      : undefined;
   // "Start Visit & Switch": move this device's crew member onto the client's
   // clock. Everyone else does the same via their own SWITCH TO button, which
   // is what makes the shared state read correctly on every device.
@@ -1476,6 +1516,8 @@ function FieldBody({
               notes={stopNotes}
               clockSlot={personalClockSlot}
               onBreak={startBreakFromCurrent}
+              onOnsiteLunch={takeOnsiteLunch}
+              onsiteBreakSince={myOnsiteBreak?.since}
               onEndVisit={() => void send({ action: "setRoute", state: "debrief" })}
               onCrossProject={(projectId, crossed) =>
                 void send({ action: "crossProject", projectId, client: clientMatch, crossed }, { silent: true })
@@ -3060,6 +3102,10 @@ function StateVisit({
   notes,
   clockSlot,
   onBreak,
+  /* ONSITE BREAK (8/4): distinct from onBreak, which is the leave-the-property
+     flow. This one pauses the clock at THIS stop and never advances stopIndex. */
+  onOnsiteLunch,
+  onsiteBreakSince,
   onEndVisit,
   onCrossProject,
   onToggleTool,
@@ -3089,6 +3135,8 @@ function StateVisit({
   notes: VisitNote[];
   clockSlot?: React.ReactNode;
   onBreak?: () => void;
+  onOnsiteLunch?: () => void;
+  onsiteBreakSince?: string;
   /** LL.1: advance the route out of the visit (was silently missing). */
   onEndVisit: () => void;
   /** AD.8: persist a project's crossed-out state. */
@@ -3196,6 +3244,74 @@ function StateVisit({
         />
       )}
       <NotesStrip notes={notes} disabled={isPreview} />
+      {/* ONSITE BREAK (8/4): lunch WITHOUT leaving this stop. Deliberately its
+          own control, sitting above the existing break button rather than
+          replacing it — that one is for a crew that leaves the property and is
+          untouched. This never advances stopIndex, so no second arrival, no
+          duplicate client text, no second debrief. */}
+      {onOnsiteLunch && (
+        <div style={{ marginTop: 10 }}>
+          {onsiteBreakSince ? (
+            <div
+              style={{
+                ...PANEL_BOX,
+                textAlign: "center",
+                borderColor: "#ffb020",
+              }}
+            >
+              <div style={{ color: "#ffb020", fontSize: 13, letterSpacing: 2 }}>
+                ON BREAK
+              </div>
+              <div
+                style={{
+                  color: "#ffb020",
+                  fontSize: 30,
+                  fontWeight: "bold",
+                  fontVariantNumeric: "tabular-nums",
+                  marginTop: 4,
+                }}
+              >
+                {breakElapsed(onsiteBreakSince, now)}
+              </div>
+              <div style={{ color: MUTED, fontSize: 10, marginTop: 4 }}>
+                Clock paused · still at {clientMatch ?? "this stop"}
+              </div>
+              <button
+                type="button"
+                onClick={onOnsiteLunch}
+                disabled={busy || isPreview}
+                style={{
+                  ...PRIMARY_BTN,
+                  marginTop: 10,
+                  background: "transparent",
+                  color: "#ffb020",
+                  border: "1px solid #ffb020",
+                  opacity: busy || isPreview ? 0.5 : 1,
+                  cursor: busy || isPreview ? "default" : "pointer",
+                }}
+              >
+                END LUNCH
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onOnsiteLunch}
+              disabled={busy || isPreview}
+              style={{
+                ...PRIMARY_BTN,
+                background: "transparent",
+                color: LIME,
+                border: `1px solid ${LIME_DIM}`,
+                opacity: busy || isPreview ? 0.5 : 1,
+                cursor: busy || isPreview ? "default" : "pointer",
+              }}
+            >
+              TAKE LUNCH
+            </button>
+          )}
+        </div>
+      )}
       {onBreak && (
         <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
           <button
