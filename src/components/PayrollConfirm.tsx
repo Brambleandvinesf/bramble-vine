@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { writeBillingHours } from "../lib/billing-hours";
 
 /* Palette (mirrors field.tsx) */
 const BG = "#0a0a0a";
@@ -202,19 +203,22 @@ export function PayrollConfirm({ open, scriptUrl, byName, client, onClose, onPro
       setBillingBusy(person.name);
       setErr(null);
       try {
-        const r = await fetch(scriptUrl, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({
-            action: "setBillingHours",
-            confirm: "BILLING",
-            date: day || todayISODate(),
-            client: personClient(person, client),
-            rows: [{ person: person.name, hours: next }],
-          }),
+        /* BUGFIX (8/4): this POSTed setBillingHours WITHOUT dryRun. The backend
+           computes `dry = data.dryRun !== false`, so omitting it means
+           dryRun:true and the write is SKIPPED — while still answering ok:true
+           with a billingOnly note. The old guard checked only `ok === false`,
+           so it read that as success, kept the optimistic update and displayed
+           the reassuring note. Every adjustment this screen ever made was
+           silently discarded. Verified against the deployed backend rather than
+           inferred: the identical call sent twice still reported
+           hoursFrom:null / mode:"insert", proving the first wrote nothing.
+           writeBillingHours sends dryRun:false AND throws on a dryRun response,
+           so this can no longer fail quietly. */
+        const j = await writeBillingHours({
+          client: personClient(person, client),
+          rows: [{ person: person.name, hours: next }],
+          date: day || todayISODate(),
         });
-        const j = (await r.json().catch(() => ({}))) as { ok?: boolean; billingOnly?: string };
-        if (j.ok === false) throw new Error("billing update failed");
         if (j.billingOnly) setBillingNote(j.billingOnly);
       } catch (e) {
         setBilling((b) => ({ ...b, [person.name]: prev })); // roll back
@@ -223,7 +227,7 @@ export function PayrollConfirm({ open, scriptUrl, byName, client, onClose, onPro
         setBillingBusy(null);
       }
     },
-    [billing, scriptUrl, day, client],
+    [billing, day, client],
   );
 
   /* (B) Ask the planner first. Never write straight to payrollEdit. */

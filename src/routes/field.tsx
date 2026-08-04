@@ -14,6 +14,15 @@ import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
 import { ClientRefPanel } from "../components/ClientRefPanel";
+import {
+  fetchPayrollDay,
+  personOnClock,
+  personSeconds,
+  todayISODate,
+  toQuarter,
+  writeBillingHours,
+  type PayrollDay,
+} from "../lib/billing-hours";
 
 const CK = "field:getField";
 
@@ -565,7 +574,8 @@ function FieldPage() {
 
   const isPreview = effectiveRole === "management" && !!search.preview;
   const previewState: RouteState | null = isPreview ? (search.preview as RouteState) : null;
-  const initialStep: DebriefStepKey = search.step ?? "billing";
+  /* Lv09 (8/4): was "billing". Follows DEBRIEF_STEPS[0] now that Hours is last. */
+  const initialStep: DebriefStepKey = search.step ?? DEBRIEF_STEPS[0].key;
   const [previewStep, setPreviewStep] = useState<DebriefStepKey>(initialStep);
   useEffect(() => {
     if (search.step) setPreviewStep(search.step);
@@ -737,12 +747,16 @@ function FieldPage() {
   );
 }
 
+/* AG/Lv09 (8/4): Hours moved to LAST. It is the wrap-up, not the opener, and it
+   now reads real QuickBooks Time figures which are only worth confirming once
+   the visit's work has been recorded. initialStep defaults to the FIRST entry
+   here for the same reason — opening on Hours would defeat the reorder. */
 const DEBRIEF_STEPS: { key: DebriefStepKey; label: string }[] = [
-  { key: "billing", label: "Hours" },
   { key: "updates", label: "Projects Completed" },
   { key: "items", label: "Items Used" },
   { key: "new", label: "Future Projects" },
   { key: "office", label: "Messages" },
+  { key: "billing", label: "Hours" },
 ];
 
 function PreviewBadge({
@@ -4085,6 +4099,90 @@ function StateDebrief({
   const currentLabel = DEBRIEF_STEPS[current].label;
   const isLast = current === DEBRIEF_STEPS.length - 1;
 
+  /* Lv09 (8/4): the Hours step reads QuickBooks Time instead of guessing from
+     the roster's in/out stamps. Fetched when the step is first opened rather
+     than on mount — it is the LAST step now, so most debriefs would pay for a
+     request nobody looks at. */
+  const [qbtDay, setQbtDay] = useState<PayrollDay | null>(null);
+  const [qbtLoading, setQbtLoading] = useState(false);
+  const [qbtErr, setQbtErr] = useState<string | null>(null);
+  const [billingBusy, setBillingBusy] = useState<string | null>(null);
+  const [billingNote, setBillingNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentKey !== "billing" || qbtDay || qbtLoading) return;
+    let cancelled = false;
+    setQbtLoading(true);
+    setQbtErr(null);
+    void (async () => {
+      try {
+        const j = await fetchPayrollDay(clientMatch ?? undefined);
+        if (cancelled) return;
+        setQbtDay(j);
+        /* Re-seed the billing figure from the real clock time. Only for people
+           QBT actually knows about — anyone added by hand keeps their figure. */
+        const byName = new Map((j.people ?? []).map((p) => [p.name.toLowerCase(), p]));
+        setBilling((cur) => {
+          const seeded = cur.map((r) => {
+            const p = byName.get(r.name.toLowerCase());
+            return p ? { ...r, hours: toQuarter(personSeconds(p) / 3600) } : r;
+          });
+          /* Someone on the clock for this client who is not on the visit roster
+             still has to be billed, so add them rather than hiding them. */
+          const known = new Set(seeded.map((r) => r.name.toLowerCase()));
+          for (const p of j.people ?? []) {
+            if (!known.has(p.name.toLowerCase())) {
+              seeded.push({ name: p.name, hours: toQuarter(personSeconds(p) / 3600) });
+            }
+          }
+          return seeded;
+        });
+      } catch (e) {
+        if (!cancelled) setQbtErr(e instanceof Error ? e.message : "could not read QuickBooks Time");
+      } finally {
+        if (!cancelled) setQbtLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentKey, qbtDay, qbtLoading, clientMatch]);
+
+  /* Absolute figure, never a delta — setBillingHours upserts on
+     date+client+person, so sending the total means repeated taps leave ONE row.
+     writeBillingHours sends dryRun:false and throws on a dryRun response; see
+     lib/billing-hours.ts for why that guard exists. BILLING ONLY: this cannot
+     touch QuickBooks Time or anyone's pay. */
+  const adjustBilling = async (name: string, delta: number) => {
+    const row = billing.find((b) => b.name === name);
+    if (!row || billingBusy) return;
+    const prev = row.hours;
+    const next = Math.min(16, toQuarter(prev + delta));
+    if (next === prev) return;
+    setBilling((cur) => cur.map((r) => (r.name === name ? { ...r, hours: next } : r)));
+    setBillingBusy(name);
+    setQbtErr(null);
+    try {
+      const client = (clientMatch ?? "").trim();
+      if (!client) throw new Error("no client on this visit — cannot bill hours");
+      const j = await writeBillingHours({
+        client,
+        rows: [{ person: name, hours: next }],
+        date: qbtDay?.day || todayISODate(),
+        eventId: event?.id,
+      });
+      if (j.billingOnly) setBillingNote(j.billingOnly);
+    } catch (e) {
+      setBilling((cur) => cur.map((r) => (r.name === name ? { ...r, hours: prev } : r)));
+      setQbtErr(e instanceof Error ? e.message : "billing update failed");
+    } finally {
+      setBillingBusy(null);
+    }
+  };
+
+  const qbtPerson = (name: string) =>
+    (qbtDay?.people ?? []).find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
+
   const goNext = () => {
     setCompleted((c) => new Set(c).add(current));
     setLiveIndex((i) => Math.min(DEBRIEF_STEPS.length - 1, i + 1));
@@ -4154,25 +4252,66 @@ function StateDebrief({
       <div style={{ marginTop: 10 }}>
         {currentKey === "billing" && (
           <div>
+            {qbtLoading && !qbtDay && (
+              <div style={{ color: MUTED, fontSize: 12, marginBottom: 10 }}>
+                READING QUICKBOOKS TIME…
+              </div>
+            )}
+            {/* The client has no matching QB jobcode, so the figures below span
+                every jobcode rather than just this visit. Shown, not swallowed —
+                a total that quietly includes other clients' time is worse than a
+                visible caveat. */}
+            {qbtDay?.warning && (
+              <div style={{ color: "#ffb020", fontSize: 12, marginBottom: 10 }}>
+                ⚠ {qbtDay.warning}
+              </div>
+            )}
+            {qbtErr && (
+              <div style={{ color: "#ff6b6b", fontSize: 12, marginBottom: 10 }}>{qbtErr}</div>
+            )}
+            {qbtDay && (qbtDay.people ?? []).length === 0 && (
+              <div style={{ color: MUTED, fontSize: 12, marginBottom: 10 }}>
+                No QuickBooks Time entries for this client today — figures below are
+                from the visit roster and are billing-only.
+              </div>
+            )}
+
             <div style={{ display: "grid", gap: 10 }}>
               {billing.map((b, i) => {
-                const dec = () =>
-                  setBilling((cur) =>
-                    cur.map((r, j) => (j === i ? { ...r, hours: Math.max(0, +(r.hours - 0.25).toFixed(2)) } : r)),
-                  );
-                const inc = () =>
-                  setBilling((cur) =>
-                    cur.map((r, j) => (j === i ? { ...r, hours: Math.min(16, +(r.hours + 0.25).toFixed(2)) } : r)),
-                  );
+                const p = qbtPerson(b.name);
+                const qbtHours = p ? toQuarter(personSeconds(p) / 3600) : null;
+                const onClock = p ? personOnClock(p) : false;
+                const delta = qbtHours === null ? 0 : +(b.hours - qbtHours).toFixed(2);
+                const busy = billingBusy === b.name;
                 return (
                   <div key={`${b.name}-${i}`} style={{ ...PANEL_BOX, textAlign: "center" }}>
-                    <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 10 }}>
+                    <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 4 }}>
                       {b.name.toUpperCase()}
+                    </div>
+                    {/* What QuickBooks Time actually recorded, versus what the
+                        client is billed. Two different numbers on purpose. */}
+                    <div style={{ color: MUTED, fontSize: 11, marginBottom: 10 }}>
+                      {qbtHours === null ? (
+                        <>not in QuickBooks Time · billing only</>
+                      ) : (
+                        <>
+                          QBT {qbtHours.toFixed(2)}
+                          {onClock && <span style={{ color: "#ffb020" }}> · still on the clock</span>}
+                          {delta !== 0 && (
+                            <>
+                              {" · billing "}
+                              {delta > 0 ? "+" : ""}
+                              {delta.toFixed(2)}
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
                       <button
-                        onClick={dec}
-                        aria-label="Decrease hours"
+                        onClick={() => void adjustBilling(b.name, -0.25)}
+                        disabled={busy}
+                        aria-label="Decrease billed hours"
                         style={{
                           width: 56,
                           height: 56,
@@ -4182,17 +4321,19 @@ function StateDebrief({
                           color: LIME,
                           fontSize: 28,
                           fontWeight: "bold",
-                          cursor: "pointer",
+                          cursor: busy ? "default" : "pointer",
+                          opacity: busy ? 0.5 : 1,
                         }}
                       >
                         −
                       </button>
-                      <div style={{ minWidth: 120, color: LIME, fontSize: 40, fontWeight: "bold", fontVariantNumeric: "tabular-nums" }}>
+                      <div style={{ minWidth: 120, color: LIME, fontSize: 40, fontWeight: "bold", fontVariantNumeric: "tabular-nums", opacity: busy ? 0.6 : 1 }}>
                         {b.hours.toFixed(2)}
                       </div>
                       <button
-                        onClick={inc}
-                        aria-label="Increase hours"
+                        onClick={() => void adjustBilling(b.name, 0.25)}
+                        disabled={busy}
+                        aria-label="Increase billed hours"
                         style={{
                           width: 56,
                           height: 56,
@@ -4202,15 +4343,54 @@ function StateDebrief({
                           color: LIME,
                           fontSize: 28,
                           fontWeight: "bold",
-                          cursor: "pointer",
+                          cursor: busy ? "default" : "pointer",
+                          opacity: busy ? 0.5 : 1,
                         }}
                       >
                         +
                       </button>
                     </div>
+                    {qbtHours !== null && delta !== 0 && (
+                      <button
+                        onClick={() => void adjustBilling(b.name, qbtHours - b.hours)}
+                        disabled={busy}
+                        style={{
+                          marginTop: 8,
+                          background: "transparent",
+                          border: "none",
+                          color: MUTED,
+                          fontFamily: "inherit",
+                          fontSize: 11,
+                          textDecoration: "underline",
+                          cursor: busy ? "default" : "pointer",
+                        }}
+                      >
+                        reset to QBT
+                      </button>
+                    )}
+                    {/* Segments are reference, so the lead can see what the
+                        number is made of. Read-only: editing the actual QBT
+                        times needs a backend write action that does not exist
+                        (neighborPlan_/neighborProbe are planners only). */}
+                    {p && p.entries.length > 0 && (
+                      <div style={{ marginTop: 8, color: MUTED, fontSize: 10, lineHeight: 1.5 }}>
+                        {p.entries.map((en) => (
+                          <div key={en.id}>
+                            {fmtTime(en.start)}–{en.end ? fmtTime(en.end) : "now"}
+                            {en.jobcode ? ` · ${en.jobcode}` : ""}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
+            </div>
+
+            <div style={{ color: MUTED, fontSize: 10, marginTop: 10, lineHeight: 1.5 }}>
+              Adjusts what the CLIENT IS BILLED. Does not touch QuickBooks Time or
+              anyone's pay.
+              {billingNote ? ` ${billingNote}` : ""}
             </div>
 
             <button

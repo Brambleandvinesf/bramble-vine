@@ -397,16 +397,33 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
 Backend is CURRENT at v7.4.70 @209 — nothing pending on the Apps Script side.
 Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PERF)".
 
-- OUTSTANDING LOVABLE PROMPT: **Lv09 only** — the AG Hours-screen rebuild in
-  field.tsx (move Hours to LAST in DEBRIEF_STEPS; source per-person hours from
-  GET ?action=payrollDay&date=&client=; the ±0.25h stepper becomes an explicit
-  BILLING adjustment committed via setBillingHours with confirm:'BILLING' and
-  dryRun:false). Backend for it has been live since v7.4.50. NOT started —
-  DEBRIEF_STEPS still opens on Hours and field.tsx has no payrollDay call.
-  Lv10 (OTHER-pill state), Lv11 (BN route-complete gate) and Lv12 (CLIENT pill
-  reads the roster from getStopSuggest) all LANDED. Note Lv11 landed WITHOUT
-  Lv09, so the gate exists while the Hours screen it was scoped alongside does
-  not — that is fine, they are separate screens, but do not assume AG is done.
+- LOVABLE QUEUE IS EMPTY. Lv09–Lv12 are all in main. Lv09 (AG Hours rebuild)
+  was written directly into the repo on 8/4 rather than handed over as a prompt:
+  Hours is now LAST in DEBRIEF_STEPS (initialStep follows DEBRIEF_STEPS[0]), the
+  step reads GET ?action=payrollDay on first open, and the ±0.25h stepper writes
+  through setBillingHours. Segments render read-only — editing actual QBT times
+  needs a backend write action that does NOT exist (neighborPlan_/neighborProbe
+  are planners only).
+- **THE dryRun TRAP — READ BEFORE TOUCHING ANY WRITE ACTION.** setBillingHours
+  computes `const dry = data.dryRun !== false`. Omitting dryRun therefore means
+  dryRun:TRUE and the write is skipped — while the response is still `ok:true`
+  and carries a reassuring `billingOnly` note. A caller guarding only on
+  `ok === false` reads that as success. PayrollConfirm.tsx shipped exactly that
+  bug, so **every billing adjustment the Lv11 end-of-day screen ever made was
+  silently discarded**. Verified against the deployed backend, not inferred: the
+  identical call sent twice still reported hoursFrom:null / mode:"insert".
+  Fixed 8/4 by routing both screens through `src/lib/billing-hours.ts`, which
+  always sends dryRun:false AND THROWS on a dryRun:true response. That second
+  half is the load-bearing part — it turns this class of mistake from silent into
+  loud. Every other write action here is dry-run-by-default too; the convention
+  is deliberate, so the caller is always what needs checking.
+- NOT VERIFIED, and cannot be from this machine: no Node toolchain and no
+  node_modules, so `tsc`/`eslint`/`vite build` were NOT run against the 8/4
+  frontend changes. Static checks only (every imported symbol is exported,
+  EventItem.id exists, no orphaned handlers, fmtTime reused rather than
+  duplicated). Lovable's own build is the first real typecheck. Also COMMITTED
+  IS NOT PUBLISHED — these changes need an explicit Publish, and whether a
+  direct git push reaches Lovable cleanly is still an open item below.
 - NEEDS BRANDON, NOT CLAUDE:
   · Browser-direct Places. The ONLY way past the ~1.4s floor that every Apps
     Script /exec call pays (measured against a nonexistent action, so it is
