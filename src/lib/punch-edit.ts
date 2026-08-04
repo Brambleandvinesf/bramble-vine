@@ -105,6 +105,102 @@ export async function applyPunchEdit(args: PunchEditArgs): Promise<PunchPlan> {
   return j;
 }
 
+/* ---------------- THE TRASH: delete a segment outright ----------------
+ *
+ * More destructive than the pencil: the segment is GONE, not adjusted. Separate
+ * confirm token (DELETEPUNCH, not PUNCH) so a token carried over from an edit
+ * cannot destroy a timesheet.
+ *
+ * The gap it leaves is left ALONE. No neighbour is stretched to cover it and no
+ * intent is guessed at — the approval timeline's gap inference (BREAK_GAP_MIN,
+ * default 5 min) simply renders it as a Break. neighborPlan_ is deliberately not
+ * involved: that planner decides who yields when a boundary MOVES, and a delete
+ * moves no boundary. Its unpaid-break opt-in is also unnecessary here, because a
+ * delete runs paid -> unpaid and so can never silently overcharge a client.
+ *
+ * Billing follows: recomputed for the client the segment was billed to, and when
+ * that client reaches zero hours for the day the Billing Hours row is REMOVED
+ * rather than left at 0.
+ *
+ * The backend confirms the delete by RE-READING the id, not by trusting the
+ * response code — QB Time buries a rejected write inside an HTTP 200.
+ */
+
+export type PunchDeleteArgs = {
+  person: string;
+  /** Timesheet id, from a timeline row of type "work". Break rows have none. */
+  id: string;
+  date?: string;
+};
+
+export type PunchDeletePlan = {
+  ok: boolean;
+  dryRun?: boolean;
+  /** Built from the SERVER's read of the segment — show this, verbatim, to confirm. */
+  removing?: {
+    person: string;
+    date: string;
+    id: string;
+    client: string;
+    start: string;
+    end: string | null;
+    hours: number;
+    permanent: boolean;
+  };
+  hoursBefore?: Record<string, number>;
+  /** Dry run only: hours as they WOULD be afterwards. */
+  hoursProjected?: Record<string, number>;
+  /** Dry run only: plain-English billing consequence. */
+  billingProjection?: string;
+  hoursAfter?: Record<string, number>;
+  billing?: { client: string; person: string; was?: number; to?: number; mode: string }[];
+  deleted?: boolean;
+  /** The real proof: the backend re-read the id and it was gone. */
+  confirmedGone?: boolean;
+  deleteCode?: number;
+  auditNote?: string;
+  error?: string;
+  note?: string;
+};
+
+async function postDelete(args: PunchDeleteArgs, dryRun: boolean): Promise<PunchDeletePlan> {
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "punchDelete", confirm: "DELETEPUNCH", dryRun, ...args }),
+  });
+  return (await res.json().catch(() => ({}))) as PunchDeletePlan;
+}
+
+/**
+ * What WOULD be removed. Never deletes. Show `removing` and `billingProjection`
+ * to the lead before offering to commit — this is the whole point of the two-step:
+ * a permanent removal should be confirmed against the server's own description of
+ * the segment, not against whatever the screen happened to be showing.
+ */
+export function planPunchDelete(args: PunchDeleteArgs): Promise<PunchDeletePlan> {
+  return postDelete(args, true);
+}
+
+/**
+ * Actually delete it. Throws on refusal, on a QBT rejection, and on a dryRun:true
+ * response. Also throws when the backend could not confirm the segment was gone —
+ * a delete that reports success without a read-back is exactly what this guards.
+ */
+export async function applyPunchDelete(args: PunchDeleteArgs): Promise<PunchDeletePlan> {
+  const j = await postDelete(args, false);
+  if (j.dryRun === true) {
+    throw new Error("punch delete was a dry run — nothing was removed");
+  }
+  if (j.ok === false) {
+    throw new Error(j.error || "punch delete failed");
+  }
+  if (j.confirmedGone !== true) {
+    throw new Error("QB Time did not confirm the segment was removed — refresh and check");
+  }
+  return j;
+}
+
 /** "9:03 am" in LA time, matching how the approval rows read. */
 export function punchTime(iso?: string): string {
   if (!iso) return "open";
