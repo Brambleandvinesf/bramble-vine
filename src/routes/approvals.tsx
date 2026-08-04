@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
 import { SCRIPT_URL } from "./confirm";
@@ -8,8 +8,10 @@ import { RefreshDot } from "../components/RefreshDot";
 import { sessionCache } from "../lib/session-cache";
 import { confirmModal } from "../components/ConfirmModal";
 import {
+  applyPunchDelete,
   applyPunchEdit,
   laIso,
+  planPunchDelete,
   planPunchEdit,
   punchTime,
   type PunchEditArgs,
@@ -441,6 +443,45 @@ function Timeline({
   onApplied: () => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
+
+  const doDelete = useCallback(
+    async (seg: WorkRow) => {
+      setDelMsg(null);
+      setDeleting(seg.id);
+      try {
+        const plan = await planPunchDelete({ person: row.person, id: seg.id, date: row.date });
+        if (plan.ok === false || !plan.removing) {
+          setDelMsg(plan.error || "Could not plan that delete.");
+          return;
+        }
+        const r = plan.removing;
+        const lines = [
+          "Delete this punch permanently?",
+          "",
+          `${r.person} · ${fmtDate(r.date)} · ${r.client}`,
+          `${punchTime(r.start)}–${punchTime(r.end ?? undefined)} · ${Number(r.hours).toFixed(2)}h`,
+          `id ${r.id}`,
+        ];
+        if (plan.billingProjection) lines.push("", plan.billingProjection);
+        const ok = await confirmModal({
+          message: lines.join("\n"),
+          destructive: true,
+          confirmLabel: "DELETE PERMANENTLY",
+        });
+        if (!ok) return;
+        await applyPunchDelete({ person: row.person, id: seg.id, date: row.date });
+        onApplied();
+      } catch (e) {
+        setDelMsg(e instanceof Error ? e.message : "Could not delete that segment.");
+      } finally {
+        setDeleting(null);
+      }
+    },
+    [row.person, row.date, onApplied],
+  );
+
   const rows = row.timeline ?? [];
   if (!rows.length) {
     return (
@@ -449,6 +490,7 @@ function Timeline({
       </div>
     );
   }
+
   return (
     <div style={{ marginTop: 8 }}>
       {rows.map((t, i) => {
@@ -479,28 +521,52 @@ function Timeline({
                   {Number((t as BreakRow).minutes ?? 0)} min
                 </span>
               ) : (
-                <button
-                  type="button"
-                  aria-label={`Edit ${label} segment`}
-                  onClick={() =>
-                    setEditing((cur) => (cur === (t as WorkRow).id ? null : (t as WorkRow).id))
-                  }
-                  style={{
-                    background: "transparent",
-                    border: `1px solid ${LINE}`,
-                    borderRadius: 6,
-                    color: LIME,
-                    width: 44,
-                    height: 44,
-                    display: "grid",
-                    placeItems: "center",
-                    cursor: "pointer",
-                    flex: "0 0 auto",
-                  }}
-                >
-                  <Pencil size={16} />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Edit ${label} segment`}
+                    onClick={() =>
+                      setEditing((cur) => (cur === (t as WorkRow).id ? null : (t as WorkRow).id))
+                    }
+                    style={{
+                      background: "transparent",
+                      border: `1px solid ${LINE}`,
+                      borderRadius: 6,
+                      color: LIME,
+                      width: 44,
+                      height: 44,
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: "pointer",
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${label} segment`}
+                    disabled={deleting === (t as WorkRow).id}
+                    onClick={() => void doDelete(t as WorkRow)}
+                    style={{
+                      background: "transparent",
+                      border: `1px solid ${LIME}`,
+                      borderRadius: 6,
+                      color: LIME,
+                      width: 44,
+                      height: 44,
+                      display: "grid",
+                      placeItems: "center",
+                      cursor: deleting === (t as WorkRow).id ? "wait" : "pointer",
+                      opacity: deleting === (t as WorkRow).id ? 0.5 : 1,
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
               )}
+
             </div>
             {!isBreak && editing === (t as WorkRow).id ? (
               <PunchEditor
@@ -514,11 +580,17 @@ function Timeline({
           </div>
         );
       })}
+      {delMsg ? (
+        <div style={{ color: LIME, fontSize: 13, marginTop: 6, whiteSpace: "pre-wrap" }}>
+          {delMsg}
+        </div>
+      ) : null}
       {row.breakMinutes ? (
         <div style={{ color: FINE, fontSize: 13, marginTop: 4 }}>
           {row.breakMinutes} min unpaid break
         </div>
       ) : null}
+
     </div>
   );
 }
