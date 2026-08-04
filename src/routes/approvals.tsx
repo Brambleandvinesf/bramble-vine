@@ -176,6 +176,25 @@ function fmtDate(d: string) {
   });
 }
 
+/** "30 Jul" — compact form used in sweep sentences and the watermark note. */
+function fmtShort(d?: string | null) {
+  if (!d) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return dt.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+}
+
+/** "Thu 30 Jul" — how the confirmation names the target day. */
+function fmtDow(d?: string | null) {
+  if (!d) return "—";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  if (!m) return d;
+  const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return dt.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+}
+
+
 /** "9:03" in LA time — what the H:mm inputs are prefilled with. */
 function laHHMM(iso?: string): string {
   if (!iso) return "";
