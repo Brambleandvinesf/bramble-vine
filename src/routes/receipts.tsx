@@ -99,6 +99,10 @@ function normLine(l: Record<string, unknown>): Line {
     invoiced: s(l["Invoiced"]),
     specificDesignation: s(l["Specific_Designation"]),
     finalDesignation: s(l["Final Designation"]),
+    plantSize: s(l["plantSize"]),
+    plantFloor: l["plantFloor"] == null ? null : Number(l["plantFloor"]),
+    plantAskBG: Boolean(l["plantAskBG"]),
+    costFlag: s(l["costFlag"]),
   };
 }
 
