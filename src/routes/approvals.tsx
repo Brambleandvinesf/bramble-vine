@@ -189,8 +189,10 @@ function PunchEditor({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  type Built = { err: string; args?: undefined } | { err?: undefined; args: PunchEditArgs };
   const build = useCallback(
-    (withOptIn: boolean) => {
+    (withOptIn: boolean): Built => {
+
       const args: Parameters<typeof planPunchEdit>[0] = {
         person: row.person,
         id: seg.id,
