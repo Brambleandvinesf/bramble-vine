@@ -417,13 +417,27 @@ Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PE
   half is the load-bearing part — it turns this class of mistake from silent into
   loud. Every other write action here is dry-run-by-default too; the convention
   is deliberate, so the caller is always what needs checking.
-- NOT VERIFIED, and cannot be from this machine: no Node toolchain and no
-  node_modules, so `tsc`/`eslint`/`vite build` were NOT run against the 8/4
-  frontend changes. Static checks only (every imported symbol is exported,
-  EventItem.id exists, no orphaned handlers, fmtTime reused rather than
-  duplicated). Lovable's own build is the first real typecheck. Also COMMITTED
-  IS NOT PUBLISHED — these changes need an explicit Publish, and whether a
-  direct git push reaches Lovable cleanly is still an open item below.
+- GIT PUSH -> LOVABLE SYNC: CONFIRMED WORKING (8/4). All three direct-push
+  commits appear in Lovable's own history as GitHub entries, and fe4f2fb opens
+  with src/lib/billing-hours.ts listed as "Created" with the full diff. The
+  earlier open item doubting this is answered. Caveat on reading that UI: a
+  history entry's "Preview" button is greyed out when you are ALREADY on that
+  version — that is not a build failure, it briefly looked like one.
+- NOT VERIFIED, HELD BEFORE PUBLISH: no Node toolchain here (no node_modules, no
+  npx), so tsc/eslint/vite build were NOT run on the 8/4 frontend work. Static
+  checks only. Lovable's build is the first real typecheck. The PREVIEW bundle
+  cannot be grepped from outside either — preview--brambleandvinesf.lovable.app
+  returns Lovable's gatekeeper HTML for every asset path when unauthenticated,
+  so a marker scan there produces FALSE NEGATIVES; do not read one as proof the
+  code is missing. Still unconfirmed: that the Hours step renders, and that the
+  stepper writes through the real UI.
+  The WRITE CONTRACT it depends on *is* proven behaviourally: dryRun:false
+  returned dryRun=false / mode=insert and the row landed (a follow-up dry probe
+  read hoursFrom=3.25, mode=update), with no "dryRun":true anywhere in the
+  response. Sandboxed on 2020-01-01 / A&G Sect 7 / ZZ_LV09_WRITE_PROBE, left at
+  0 — a stray row that cannot affect live billing; delete by hand if unwanted.
+  COMMITTED IS NOT PUBLISHED: fe4f2fb is NOT live (the published bundle has zero
+  Lv09 markers). Publish is Brandon's call.
 - NEEDS BRANDON, NOT CLAUDE:
   · Browser-direct Places. The ONLY way past the ~1.4s floor that every Apps
     Script /exec call pays (measured against a nonexistent action, so it is
@@ -446,6 +460,31 @@ Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PE
   visitPhoto is visit-level). Not queued.
 
 ## OPEN ITEMS
+- FUTURE, NOT SCOPED OR SCHEDULED (8/4) — EDIT THE ACTUAL QUICKBOOKS TIME PUNCH.
+  Today the Hours step can only adjust what the CLIENT IS BILLED; the real clock
+  times are read-only, because the only backend pieces that exist are PLANNERS
+  (neighborPlan_ / neighborProbe) which preview a move and never write.
+  THE SPEC, as Brandon described it:
+  · A small PENCIL icon beside each person's ACTUAL (QBT) hours in the Hours
+    step — visually separate from the ±0.25h billing stepper. That stepper stays
+    billing-only and unchanged; these are two different powers and must not blur.
+  · Tapping it lets a lead correct a punch's actual clock-in or clock-out time.
+    A real edit-and-save, NOT the preview-only planner.
+  · Saving must do TWO things, not one:
+      (a) recompute and update the rounded BILLING figure to match the new
+          actual, so the two never silently diverge; and
+      (b) extend or shrink the ADJACENT segment's boundary so no gap or overlap
+          is left behind — e.g. if the Bramble & Vine → client switch time moves
+          later, the preceding B&V (overhead) segment's END extends to meet it
+          rather than leaving a hole in the day.
+  · Needs a NEW BACKEND WRITE ACTION. Do not try to bend neighborProbe into it.
+  · WHEN IT IS BUILT: scope and verify its dry-run contract EXPLICITLY AND
+    BEHAVIOURALLY, exactly as setBillingHours had to be on 8/4 — send it, then
+    prove from the sheet whether it actually wrote. Then wrap it the way
+    src/lib/billing-hours.ts wraps setBillingHours: always send dryRun:false AND
+    THROW on a dryRun:true response. See the dryRun trap in WHERE THINGS STAND
+    for why the throw is the load-bearing half.
+  · Not started, not scheduled. Do NOT begin without Brandon scoping it.
 - FUTURE, NOT SCOPED OR SCHEDULED (CH.SCOPE.CLOSE, 8/3) — consolidate the
   RECEIPT-SCAN MAKE SCENARIO into Apps Script, the same way the
   calendar-population and QB-invoice scenarios were migrated. Today that
@@ -471,7 +510,7 @@ Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PE
   regardless: behavioral verification before reporting done, and pausing
   in chat for Brandon's go-ahead before any deploy.
 - Root-cause the WS604s preset wipe (bridge re-asserts as mitigation).
-- Verify git-pushed assets survive the next Lovable sync (icons on main).
+- (ANSWERED 8/4 — see WHERE THINGS STAND: git push -> Lovable sync confirmed.)
 - MacroDroid webhook URLs pending; Zello downgrade to free planned.
 - Pi password SSH broken (key-based only); diagnose via journalctl -u ssh.
 - Retroactive "I'm here" presence screen (Pass 2) not yet built.
