@@ -580,11 +580,17 @@ function Timeline({
           </div>
         );
       })}
+      {delMsg ? (
+        <div style={{ color: LIME, fontSize: 13, marginTop: 6, whiteSpace: "pre-wrap" }}>
+          {delMsg}
+        </div>
+      ) : null}
       {row.breakMinutes ? (
         <div style={{ color: FINE, fontSize: 13, marginTop: 4 }}>
           {row.breakMinutes} min unpaid break
         </div>
       ) : null}
+
     </div>
   );
 }
