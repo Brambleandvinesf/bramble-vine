@@ -52,7 +52,10 @@ type PollOpts = {
   canMessages: boolean;
   canReceipts: boolean;
   canVisits?: boolean;
+  /** lead/management only — the approvals + debrief-queue routes are gated. */
+  canApprovals?: boolean;
 };
+
 
 /**
  * Poll inbox + receipts counts every ~60s while the user is signed in.
