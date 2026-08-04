@@ -4167,6 +4167,12 @@ function StateDebrief({
      lib/billing-hours.ts for why that guard exists. BILLING ONLY: this cannot
      touch QuickBooks Time or anyone's pay. */
   const adjustBilling = async (name: string, delta: number) => {
+    /* (8/4) The debrief preview badge promises "PREVIEW — READ ONLY", and this
+       write was not honouring it: tapping ± from a management preview would have
+       written a real Billing Hours row for a real employee against the live
+       client and today's date. Found while trying to verify the stepper from
+       preview mode. A screen that says read-only must be read-only. */
+    if (isPreview) return;
     const row = billing.find((b) => b.name === name);
     if (!row || billingBusy) return;
     const prev = row.hours;
@@ -4323,7 +4329,7 @@ function StateDebrief({
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
                       <button
                         onClick={() => void adjustBilling(b.name, -0.25)}
-                        disabled={busy}
+                        disabled={busy || isPreview}
                         aria-label="Decrease billed hours"
                         style={{
                           width: 56,
@@ -4345,7 +4351,7 @@ function StateDebrief({
                       </div>
                       <button
                         onClick={() => void adjustBilling(b.name, 0.25)}
-                        disabled={busy}
+                        disabled={busy || isPreview}
                         aria-label="Increase billed hours"
                         style={{
                           width: 56,
@@ -4366,7 +4372,7 @@ function StateDebrief({
                     {qbtHours !== null && delta !== 0 && (
                       <button
                         onClick={() => void adjustBilling(b.name, qbtHours - b.hours)}
-                        disabled={busy}
+                        disabled={busy || isPreview}
                         style={{
                           marginTop: 8,
                           background: "transparent",
