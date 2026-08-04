@@ -49,6 +49,9 @@ type Line = {
   plantFloor: number | null;
   plantAskBG: boolean;
   costFlag: string;
+  multiplier: number;
+  productMatched: boolean;
+  masterPrice: number | null;
 };
 
 type GetReceiptsResponse = {
