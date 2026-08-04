@@ -1244,29 +1244,17 @@ function AddStopSheet({
               sessionToken: token,
             }),
           });
-          const json = (await res.json()) as {
-            ok?: boolean;
-            configured?: boolean;
-            suggestions?: { placeId: string; text?: string; primary?: string; secondary?: string }[];
-          };
+          const json = (await res.json()) as Record<string, unknown>;
           if (seq !== seqRef.current) return; // stale response
-          if (json.configured === false) {
+          if (json["configured"] === false) {
             // Backend has no Places key — stop asking, stay pure free text.
             setPlacesOff(true);
             setPlaceSuggests([]);
             return;
           }
-          if (!json.ok || !json.suggestions?.length) {
-            setPlaceSuggests([]);
-            return;
-          }
-          setPlaceSuggests(
-            json.suggestions.map((s) => ({
-              label: s.primary || s.text || "",
-              address: s.secondary || "",
-              placeId: s.placeId,
-            })),
-          );
+          const parsed = parsePlaces(json);
+          setPlaceSuggests(parsed);
+
         } catch {
           if (seq === seqRef.current) setPlaceSuggests([]);
         }
