@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { useDayState, useDayStateRefresh, type DayPhase } from "../lib/day-state";
