@@ -393,6 +393,41 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   current stop — never a sub-node pill; sub-row hides during transit.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
+## WHERE THINGS STAND (end of 8/4 session)
+Backend is CURRENT at v7.4.70 @209 — nothing pending on the Apps Script side.
+Full detail of what shipped is in ARCHITECTURE.md under "8/3–8/4 (CC–CO + PERF)".
+
+- OUTSTANDING LOVABLE PROMPT: **Lv09 only** — the AG Hours-screen rebuild in
+  field.tsx (move Hours to LAST in DEBRIEF_STEPS; source per-person hours from
+  GET ?action=payrollDay&date=&client=; the ±0.25h stepper becomes an explicit
+  BILLING adjustment committed via setBillingHours with confirm:'BILLING' and
+  dryRun:false). Backend for it has been live since v7.4.50. NOT started —
+  DEBRIEF_STEPS still opens on Hours and field.tsx has no payrollDay call.
+  Lv10 (OTHER-pill state), Lv11 (BN route-complete gate) and Lv12 (CLIENT pill
+  reads the roster from getStopSuggest) all LANDED. Note Lv11 landed WITHOUT
+  Lv09, so the gate exists while the Hours screen it was scoped alongside does
+  not — that is fine, they are separate screens, but do not assume AG is done.
+- NEEDS BRANDON, NOT CLAUDE:
+  · Browser-direct Places. The ONLY way past the ~1.4s floor that every Apps
+    Script /exec call pays (measured against a nonexistent action, so it is
+    pure platform overhead). Needs a SECOND API key restricted by HTTP referrer
+    to brambleandvinesf.lovable.app — the existing server key must never ship to
+    the client. Console change + a frontend rewrite of the OTHER pill.
+  · The Make receipt-scan prompt. Deliberately NOT changed — see KEY DECISIONS.
+- BIGGEST REMAINING APP-WIDE WIN, not started: getField is ~4s (down from 12.5s)
+  and is polled every ~10s. A version-stamp short-circuit — getField returns a
+  tiny "nothing changed" while FIELD_EPOCH has not moved — would put most polls
+  near the floor. Needs a backend AND a frontend change together, so it is one
+  prompt plus one deploy, not a solo fix.
+- NEEDS A LIVE DAY WITH A REAL EMPLOYEE CLOCKED IN: BJ; AG items 5 and 10; and
+  two paths in the Lv11 gate that shipped unverified — the stillOnClockInQbt
+  divergence (roster says out, QuickBooks Time says in) and qbApprove's refusal
+  while anyone is still on the clock.
+- CE, still Brandon's call: a documentation-only photo attached to ONE purchased
+  line item. Confirmed unbuilt — Name-from-Photo never persists its image and
+  nothing attaches a photo to a Line items row (attachPhoto is receipt-level,
+  visitPhoto is visit-level). Not queued.
+
 ## OPEN ITEMS
 - FUTURE, NOT SCOPED OR SCHEDULED (CH.SCOPE.CLOSE, 8/3) — consolidate the
   RECEIPT-SCAN MAKE SCENARIO into Apps Script, the same way the
