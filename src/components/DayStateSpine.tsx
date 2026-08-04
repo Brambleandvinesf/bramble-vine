@@ -1123,11 +1123,12 @@ function AddStopSheet({
 
   const q = query.trim().toLowerCase();
   const pool = mode === "client" ? clients : mode === "vendor" ? [...frequent, ...vendors] : [];
-  const matches = q
+  const filtered = q
     ? pool.filter(
         (d) => d.label.toLowerCase().includes(q) || d.address.toLowerCase().includes(q),
-      ).slice(0, 8)
-    : [];
+      )
+    : pool;
+  const matches = filtered.slice(0, 50);
 
   const confirm = async () => {
     const title = (picked?.label ?? query).trim();
@@ -1288,8 +1289,18 @@ function AddStopSheet({
           }}
         />
 
-        {!picked && matches.length > 0 && (
-          <div style={{ marginTop: 6, border: "1px solid #2a2a2a", borderRadius: 6, overflow: "hidden" }}>
+        {!picked && matches.length > 0 && mode !== "other" && (
+          <div
+            style={{
+              marginTop: 6,
+              border: "1px solid #2a2a2a",
+              borderRadius: 6,
+              overflow: "hidden",
+              maxHeight: 260,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
             {matches.map((d, i) => (
               <button
                 key={`${d.label}-${i}`}
