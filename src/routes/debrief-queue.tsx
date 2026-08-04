@@ -101,6 +101,7 @@ function DebriefQueuePage() {
   const who = effectiveRole ?? role;
   const allowed = who === "lead" || who === "management";
 
+  const [upcoming, setUpcoming] = useState<QueueEntry[]>([]);
   const [queue, setQueue] = useState<QueueEntry[] | null>(
     () => sessionCache.get<QueueEntry[]>(CK) ?? null,
   );
@@ -117,10 +118,15 @@ function DebriefQueuePage() {
     setErr(null);
     try {
       const r = await fetch(`${SCRIPT_URL}?action=debriefQueue`);
-      const j = (await r.json().catch(() => ({}))) as { queue?: QueueEntry[]; error?: string };
+      const j = (await r.json().catch(() => ({}))) as {
+        queue?: QueueEntry[];
+        upcoming?: QueueEntry[];
+        error?: string;
+      };
       if (j.error) throw new Error(j.error);
       const q = Array.isArray(j.queue) ? j.queue : [];
       setQueue(q);
+      setUpcoming(Array.isArray(j.upcoming) ? j.upcoming : []);
       sessionCache.set(CK, q);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "could not read the queue");
@@ -341,6 +347,34 @@ function DebriefQueuePage() {
           </button>
         ))}
       </div>
+
+      {/* UPCOMING — same evidence signal inverted: the visit has not ended yet,
+          so there is nothing to debrief. Visible but deliberately inert. */}
+      {upcoming.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <div style={{ fontSize: 12, letterSpacing: 2, color: FINE }}>UPCOMING DEBRIEFS</div>
+          <div style={{ color: FINE, fontSize: 11, marginTop: 4, marginBottom: 10 }}>
+            Not finished yet — available once the visit ends.
+          </div>
+          <div style={{ display: "grid", gap: 10 }}>
+            {upcoming.map((e) => (
+              <div key={e.eventId} style={{ ...panel, opacity: 0.55 }}>
+                <div style={{ color: FINE, fontSize: 14, fontWeight: "bold" }}>{e.client}</div>
+                <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>
+                  {fmtWhen(e.start, e.end)}
+                </div>
+                {e.location && (
+                  <div style={{ color: FINE, fontSize: 10, marginTop: 2 }}>{e.location}</div>
+                )}
+                <div style={{ color: FINE, fontSize: 10, marginTop: 6, letterSpacing: 1 }}>
+                  ends{" "}
+                  {new Date(e.end).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

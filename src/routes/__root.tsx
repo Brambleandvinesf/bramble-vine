@@ -197,7 +197,10 @@ function AppFrame() {
     canMessages: canSee(role, "messages"),
     canReceipts: canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice"),
     canVisits: canSee(role, "visits"),
+    // /approvals and /debrief-queue are lead/management only.
+    canApprovals: role === "lead" || role === "management",
   });
+
 
   // Client-side gate. Legacy screens hit external endpoints and require identity;
   // we bounce unauthenticated visitors to /login. SSR renders nothing until ready.
@@ -388,6 +391,9 @@ function HamburgerMenu() {
   const inboxCount = useBadge(BK.inbox) ?? 0;
   const receiptsCount = useBadge(BK.receipts) ?? 0;
   const visitsCount = useBadge(BK.visits) ?? 0;
+  const approvalsCount = useBadge(BK.approvals) ?? 0;
+  const debriefqCount = useBadge(BK.debriefq) ?? 0;
+
 
   if (!effectiveRole) return null;
 
@@ -409,6 +415,9 @@ function HamburgerMenu() {
     if (to === "/messages") return inboxCount;
     if (to === "/receipts") return receiptsCount;
     if (to === "/visits") return visitsCount;
+    if (to === "/approvals") return approvalsCount;
+    if (to === "/debrief-queue") return debriefqCount;
+
     return 0;
   };
 

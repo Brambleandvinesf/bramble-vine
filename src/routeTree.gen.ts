@@ -19,6 +19,7 @@ import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoadingRouteImport } from './routes/loading'
 import { Route as FieldRouteImport } from './routes/field'
+import { Route as DebriefQueueRouteImport } from './routes/debrief-queue'
 import { Route as ConfirmRouteImport } from './routes/confirm'
 import { Route as ApprovalsRouteImport } from './routes/approvals'
 import { Route as AdminRouteImport } from './routes/admin'
@@ -74,6 +75,11 @@ const FieldRoute = FieldRouteImport.update({
   path: '/field',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DebriefQueueRoute = DebriefQueueRouteImport.update({
+  id: '/debrief-queue',
+  path: '/debrief-queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConfirmRoute = ConfirmRouteImport.update({
   id: '/confirm',
   path: '/confirm',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/approvals': typeof ApprovalsRoute
   '/confirm': typeof ConfirmRoute
+  '/debrief-queue': typeof DebriefQueueRoute
   '/field': typeof FieldRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/approvals': typeof ApprovalsRoute
   '/confirm': typeof ConfirmRoute
+  '/debrief-queue': typeof DebriefQueueRoute
   '/field': typeof FieldRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/approvals': typeof ApprovalsRoute
   '/confirm': typeof ConfirmRoute
+  '/debrief-queue': typeof DebriefQueueRoute
   '/field': typeof FieldRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/approvals'
     | '/confirm'
+    | '/debrief-queue'
     | '/field'
     | '/loading'
     | '/login'
@@ -167,6 +177,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/approvals'
     | '/confirm'
+    | '/debrief-queue'
     | '/field'
     | '/loading'
     | '/login'
@@ -183,6 +194,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/approvals'
     | '/confirm'
+    | '/debrief-queue'
     | '/field'
     | '/loading'
     | '/login'
@@ -200,6 +212,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   ApprovalsRoute: typeof ApprovalsRoute
   ConfirmRoute: typeof ConfirmRoute
+  DebriefQueueRoute: typeof DebriefQueueRoute
   FieldRoute: typeof FieldRoute
   LoadingRoute: typeof LoadingRoute
   LoginRoute: typeof LoginRoute
@@ -284,6 +297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FieldRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/debrief-queue': {
+      id: '/debrief-queue'
+      path: '/debrief-queue'
+      fullPath: '/debrief-queue'
+      preLoaderRoute: typeof DebriefQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/confirm': {
       id: '/confirm'
       path: '/confirm'
@@ -320,6 +340,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   ApprovalsRoute: ApprovalsRoute,
   ConfirmRoute: ConfirmRoute,
+  DebriefQueueRoute: DebriefQueueRoute,
   FieldRoute: FieldRoute,
   LoadingRoute: LoadingRoute,
   LoginRoute: LoginRoute,

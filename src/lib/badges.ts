@@ -15,7 +15,10 @@ export const BK = {
   inbox: "home:getInbox:count",
   receipts: "home:getReceipts:count",
   visits: "home:getQueue:count",
+  approvals: "home:approvalQueue:count",
+  debriefq: "home:debriefQueue:count",
 } as const;
+
 
 const EVT = "bv:badges";
 
@@ -49,14 +52,24 @@ type PollOpts = {
   canMessages: boolean;
   canReceipts: boolean;
   canVisits?: boolean;
+  /** lead/management only — the approvals + debrief-queue routes are gated. */
+  canApprovals?: boolean;
 };
+
 
 /**
  * Poll inbox + receipts counts every ~60s while the user is signed in.
  * Inbox count uses the same rule as the Messages screen's own badge:
  * items where `awaiting` is true.
  */
-export function useBadgePoller({ email, canMessages, canReceipts, canVisits }: PollOpts): void {
+export function useBadgePoller({
+  email,
+  canMessages,
+  canReceipts,
+  canVisits,
+  canApprovals,
+}: PollOpts): void {
+
   useEffect(() => {
     if (!email) return;
     let cancelled = false;
@@ -116,13 +129,41 @@ export function useBadgePoller({ email, canMessages, canReceipts, canVisits }: P
       }
     };
 
+    const countApprovals = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=approvalQueue&days=30`);
+        const j = (await r.json()) as { unapprovedCount?: number };
+        if (!cancelled && typeof j.unapprovedCount === "number") {
+          setBadge(BK.approvals, j.unapprovedCount);
+        }
+      } catch {
+        /* keep last value */
+      }
+    };
+
+    /* readyCount, never count/upcomingCount: it exists precisely so a badge
+       cannot count visits that have not happened yet as needing action. */
+    const countDebriefQueue = async () => {
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=debriefQueue`);
+        const j = (await r.json()) as { readyCount?: number };
+        if (!cancelled && typeof j.readyCount === "number") {
+          setBadge(BK.debriefq, j.readyCount);
+        }
+      } catch {
+        /* keep last value */
+      }
+    };
+
     const tick = async () => {
       const jobs: Array<Promise<void>> = [];
       if (canMessages) jobs.push(countInbox());
       if (canVisits) jobs.push(countVisits());
       if (canReceipts) jobs.push(countReceipts());
+      if (canApprovals) jobs.push(countApprovals(), countDebriefQueue());
       await Promise.all(jobs);
     };
+
 
     void tick();
     const interval = window.setInterval(tick, 60_000);
@@ -135,5 +176,5 @@ export function useBadgePoller({ email, canMessages, canReceipts, canVisits }: P
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [email, canMessages, canReceipts]);
+  }, [email, canMessages, canReceipts, canVisits, canApprovals]);
 }
