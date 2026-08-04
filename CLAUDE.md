@@ -323,6 +323,30 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
 - Full incident history and detail: ARCHITECTURE §12.
 
 ## KEY DECISIONS (details in ARCHITECTURE §9)
+- NURSERY PRICE MISMATCH — ROOT CAUSE UNRESOLVED, NO MAKE CHANGE MADE
+  (CH.SCOPE.CLOSE, 8/3). Some nursery line items carry a Unit_Price that is not
+  the price printed on the source document — Devil Mountain INV719569 shows
+  11.75 on the invoice and 24.99 in the sheet. On 38 of 45 Devil Mountain lines
+  the stored cost equals a Plants/Retail FLOOR PRICE to the cent (24.99 = 1 gal,
+  11.99 = 4inch, 49.99 = 5 gal). Two candidate explanations, NEITHER CONFIRMED:
+    (a) the receipt-scan AI substituted expected prices instead of transcribing;
+    (b) Brandon's own manual price corrections, entered before pushing the
+        receipt into invoices.
+  (b) is the better fit for the exact-to-the-cent match and is Brandon's own
+  read: the Make scenario has no access to his private Plants/Retail table, so
+  it could not reproduce those numbers by coincidence, whereas someone typing
+  his own floor prices would. CH.SCOPE originally concluded (a); that conclusion
+  is NOT settled and should not be cited as established.
+  DECIDED: no Make scenario change. Do not "fix" the extraction prompt on the
+  strength of this finding.
+  What IS established and unaffected: nothing in Code.js ever creates a Line
+  items row (no appendRow on LI_TAB anywhere) — the Make receipt-scan scenario
+  writes them. And the CJ tripwire stays live as the safety net, because it
+  flags the SYMPTOM (a cost at or above its Plants/Retail floor) and so catches
+  it whichever cause is real. v7.4.66's haikuReceipt_ hardening also stays: it
+  governs the emailed-text path only, is good practice regardless, and was never
+  the suspected culprit — those invoices arrive as PDF attachments it cannot
+  read.
 - HOURLY LEADS AND SELF-APPROVAL — FUTURE CONSTRAINT, NOT A PROBLEM NOW (BO,
   8/3). The hours-approval gate deliberately exempts Lead: the current Lead is
   ownership/management, not an hourly employee, so there is nothing to approve
@@ -363,6 +387,14 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## OPEN ITEMS
+- FUTURE, NOT SCOPED OR SCHEDULED (CH.SCOPE.CLOSE, 8/3) — consolidate the
+  RECEIPT-SCAN MAKE SCENARIO into Apps Script, the same way the
+  calendar-population and QB-invoice scenarios were migrated. Today that
+  scenario is the ONLY writer of Line items rows (Code.js has no appendRow on
+  LI_TAB), which is why the nursery price mismatch above could not be diagnosed
+  or fixed from this codebase — the extraction prompt is not in the repo and
+  cannot be read, versioned, or tested here. Logged so it is not lost. Do NOT
+  start this without Brandon scoping it.
 - PARKED (AE, 8/2) — FULL SEASONAL SCHEDULING SYSTEM, not to be built
   until Brandon revives it. The big version: a per-account PLANT ROSTER,
   then a selection of compost/fertilizer QB products + AI to generate a
