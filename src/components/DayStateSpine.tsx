@@ -1123,6 +1123,51 @@ function AddStopSheet({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  /* CO (8/3): Google Places lookup for the OTHER pill.
+     Billing: ONE sessionToken threads all placesAutocomplete keystrokes plus
+     the closing placesDetails call — that is what makes Google bill this as a
+     single session instead of per request. Minted on first keystroke of a
+     lookup, discarded the moment the lookup ends (pick, clear, pill switch,
+     sheet close). */
+  const [placesEnabled, setPlacesEnabled] = useState(false);
+  const [placeSuggests, setPlaceSuggests] = useState<DestSuggest[]>([]);
+  const tokenRef = useRef<string | null>(null);
+  const seqRef = useRef(0);
+
+  const ensureToken = useCallback(() => {
+    if (!tokenRef.current) {
+      tokenRef.current =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : String(Math.random()).slice(2) + Date.now();
+    }
+    return tokenRef.current;
+  }, []);
+
+  const dropLookup = useCallback(() => {
+    tokenRef.current = null;
+    seqRef.current += 1;
+    setPlaceSuggests([]);
+  }, []);
+
+  /* Discard any live session token when the sheet unmounts. */
+  useEffect(() => () => { tokenRef.current = null; }, []);
+
+  /* placesEnabled flag lives on getField. */
+  useEffect(() => {
+    if (mode !== "other") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=getField`);
+        const json = (await res.json()) as { placesEnabled?: boolean };
+        if (!cancelled) setPlacesEnabled(json.placesEnabled === true);
+      } catch { /* free text still works */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mode]);
+
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
