@@ -1515,6 +1515,10 @@ function AddStopSheet({
           }}
         />
 
+        {mode === "other" && !picked && searching && placeSuggests.length === 0 && (
+          <div style={{ marginTop: 8, color: "#8f8f8f", fontSize: 11 }}>searching…</div>
+        )}
+
         {!picked && (mode === "other" ? placeSuggests : matches).length > 0 && (
           <div
             style={{
