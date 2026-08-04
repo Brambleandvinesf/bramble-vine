@@ -865,3 +865,93 @@ Backend source is NOT in this repo. It is edited via clasp on the Pi.
       quarters, so its prose ("pruned hard in January") can sit just
       outside the label it picks — harmless because the pick is
       suggestion-only and editable, but worth knowing.
+- 8/3–8/4 (CC–CO + PERF, backend v7.4.61 @200 → v7.4.70 @209). Long session;
+  the through-line is that several "features" turned out to be reporting
+  problems, and the app's slowness turned out to be one endpoint.
+  BACKEND, ALL DEPLOYED AND VERIFIED:
+  CA spine break label — the lunch node read "40Min" because dayStops_ handed
+    the stop its RAW calendar title and shortTag takes the first word. Now
+    LUNCH, or BREAK under 30 min. Label-only: every functional path keys on
+    isBreakEvent_ against the raw title, and the countdown chips read the
+    separate BREAK_TIMES config.
+  CB markInvoiced — for a line already invoiced by hand. Sets Invoiced (K) =
+    'INVOICED', the same flag the pipeline lands on. Cannot double-invoice:
+    addToInvoices is what creates invoices (K='QUEUED' + QB_INVOICE_HOOK), the
+    Make scenario filters on K='QUEUED' only, and the lazy sweep only flips
+    QUEUED. Refuses a row currently QUEUED rather than racing a live run.
+  CD Receipts header mismatches — THREE call sites addressed the Receipts tab
+    using LINE ITEMS column names and all failed silently: attachPhoto wrote to
+    Photo_Link/Receipt_Image (neither exists there — every photo since v6.5.3 is
+    orphaned in Drive), editReceipt mapped vendor/date/total to names the tab
+    does not have so only Notes ever wrote, and realReceipt tested r['Vendor']
+    when the header is 'Vendor '. Root cause is trailing-space headers that are
+    REAL and cannot be tidied without breaking the Make scenarios that write
+    them. Two defences: tabToObjects_ publishes a trimmed ALIAS beside each raw
+    key (additive), and headerCol_ resolves by exact name → trimmed/ci → a
+    pinned positional fallback taken ONLY when that header cell is blank.
+  CG vendor tier multiplier — getReceipts stamps a resolved `multiplier` per
+    receipt and line. Resolved server-side because vendorMultiplier_ matches
+    exact → prefix → Vendors-tab aliases → 1.15 default, and the live data
+    proves it matters: 'Devil-Mountain-Wholesale-Nursery' resolves to 1.6 only
+    via the alias column, so a frontend exact-match would have understated every
+    plant order.
+  CJ Plants/Retail floor + tripwire — 4" now matches (canonSize_; it stripped to
+    "4" and was rejected by a 2-char minimum, so the commonest plant size matched
+    nothing). 6inch/10inch are never auto-priced — the sheet marks them "Ask BG"
+    because price depends on the individual plant. costFlag fires when a plant
+    line's RAW cost is at or above its retail floor: 42 lines, 36 of them Devil
+    Mountain. MAX(tier, floor) is deliberately NOT wired into the invoice figure.
+  CK Arrival/Departure Message Note (AW/AX) — a client-facing ADDENDUM appended
+    to the outgoing text, distinct from AB (crew-facing, never sent) and AU/AV
+    (recipient routing only). Independent of AF/AG by construction. Governance
+    mirrors AF/AG: arrival note rides eta+arrived, departure note rides done.
+  CO/CI Places — placesAutocomplete + placesDetails, Places API (NEW), SF-biased
+    50km. Was NEVER BUILT (grep found no Places call anywhere), which is why
+    OTHER was free-text; PLACES_API_KEY already existed as a Script Property.
+    Autocomplete is billed per SESSION when a sessionToken threads the keystrokes
+    and the details call, per REQUEST otherwise — the client must mint one token
+    per lookup. Results cached 3 min per input; a cache hit is not billable.
+  PERF (v7.4.68–70) — getField measured 12.5 SECONDS and is polled every ~10s,
+    so everything else queued behind it; an Add Stop keystroke could take a full
+    minute. ONE response did SEVEN-PLUS FULL READS of Client Info
+    (clientDirectory_ does getDataRange every call and was called four times in
+    the same object literal; inventory and zoneMaps each re-read the sheet), plus
+    uncached knownInventory_ (another full read + TM_TAB), vendorsList_, and
+    todayEvents_ (two CalendarApp reads). Now one shared read plus 300s/600s/12s
+    caches → ~4s. todayEvents_ caches PLAIN JSON at that level, never inside
+    dayEvents_, because dayEvents_ hands live CalendarEvent objects to dayStops_
+    and shiftFrom_. Busting is by EPOCH, not key name, because todayEvents_ is
+    per-team and a removeAll of guessed names would silently miss one. addStop
+    now calls fieldCacheBust_ — it never did. getStopSuggest also serves the
+    client roster, so Add Stop's CLIENT pill stopped fetching getField
+    (6.8s/19KB → ~2s/6KB, and it is already in memory before the pill is tapped).
+  THE FLOOR THAT REMAINS: any Apps Script /exec call costs ~1.4s before your code
+    runs (measured with a nonexistent action). Autocomplete through this proxy
+    will never feel instant. The fix is calling places.googleapis.com from the
+    browser with a separate HTTP-referrer-restricted key — console change plus a
+    frontend rewrite, NOT started.
+  CH receipt 86373 — 17 parsed lines summing to $548.28 against a $269.95 total.
+    The source PDF prints SUBTOTAL 246.39 + TAX 23.56, and rows 3–12 sum to
+    246.39 exactly, so that scan is perfect and rows 161–167 were a second scan
+    with prices paired to the wrong descriptions. Retired via deleteLine's soft
+    flag (the tab carries array formulas; physical deletion would stale every row
+    handle). 10 survivors, reconciling to the printed subtotal.
+  CH.SCOPE — root cause of the nursery price mismatch is UNRESOLVED, see
+    CLAUDE.md KEY DECISIONS. No Make change made. Established and unaffected:
+    nothing in Code.js ever creates a Line items row (no appendRow on LI_TAB),
+    so the Make receipt-scan scenario writes them and its prompt is not in this
+    repo. haikuReceipt_ was hardened anyway (captures unitPrice; transcribe-only,
+    never substitute a known price, take the price CHARGED not "Compare at") —
+    it governs the emailed-text path, and the nursery invoices arrive as PDF
+    attachments it cannot read.
+  AUDITS THAT CHANGED THE ANSWER, not just confirmed it:
+  CC — "Name from Photo" NEVER persists the image, not even on accept. identifyItem
+    posts base64 to Claude and returns a suggestion; accepting fires renameLine,
+    which writes text. There are exactly four createFile( calls in the script and
+    none is on that path. So the separate documentation-photo button is not
+    redundant, it is simply unbuilt — no line-item photo attachment exists
+    (attachPhoto is receipt-level, visitPhoto is visit-level).
+  CL/CM — the Add Stop pills were not broken and were not case-sensitive. The
+    deployed bundle lowercases both sides; the list was hardcoded to [] for an
+    empty query, so it showed nothing until you typed. Verified by de-minifying
+    the live bundle at brambleandvinesf.lovable.app rather than trusting the repo.
