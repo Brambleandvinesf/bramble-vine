@@ -1321,7 +1321,7 @@ function FieldBody({
             if (!leadShiftDone) return "Approve unlocks after the lead clocks out.";
             return null;
           })()}
-          leadName={me?.name ?? user ?? ""}
+          leadName={me?.name ?? ""}
 
           busy={busy}
         />
