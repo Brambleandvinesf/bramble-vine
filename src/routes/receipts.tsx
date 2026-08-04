@@ -45,6 +45,10 @@ type Line = {
   invoiced: string;
   specificDesignation: string;
   finalDesignation: string;
+  plantSize: string;
+  plantFloor: number | null;
+  plantAskBG: boolean;
+  costFlag: string;
 };
 
 type GetReceiptsResponse = {
@@ -95,6 +99,10 @@ function normLine(l: Record<string, unknown>): Line {
     invoiced: s(l["Invoiced"]),
     specificDesignation: s(l["Specific_Designation"]),
     finalDesignation: s(l["Final Designation"]),
+    plantSize: s(l["plantSize"]),
+    plantFloor: l["plantFloor"] == null ? null : Number(l["plantFloor"]),
+    plantAskBG: Boolean(l["plantAskBG"]),
+    costFlag: s(l["costFlag"]),
   };
 }
 
@@ -1832,8 +1840,50 @@ function LineBody({ line }: { line: Line }) {
         {line.total && ` = ${fmtMoney(line.total)}`}
         {line.notes && ` · ${line.notes}`}
       </div>
+      <CostFlagRow line={line} />
     </>
   );
+}
+
+const AMBER = "#ffb020";
+
+function CostFlagRow({ line }: { line: Line }) {
+  const flag = line.costFlag;
+  if (!flag) return null;
+
+  if (/mis-extracted/i.test(flag)) {
+    const cost = fmtMoney(line.unitPrice);
+    const floor = line.plantFloor == null ? "" : fmtMoney(String(line.plantFloor));
+    return (
+      <div
+        style={{
+          fontSize: 12,
+          color: AMBER,
+          marginTop: 3,
+          lineHeight: 1.35,
+          display: "flex",
+          gap: 5,
+          alignItems: "flex-start",
+        }}
+      >
+        <span aria-hidden style={{ flex: "0 0 auto" }}>⚠</span>
+        <span>
+          cost {cost} is at or above the {floor} floor
+          {line.plantSize ? ` for ${line.plantSize}` : ""} — check against the receipt
+        </span>
+      </div>
+    );
+  }
+
+  if (/confirm with BG/i.test(flag)) {
+    return (
+      <div style={{ fontSize: 12, color: MUTED, marginTop: 3, lineHeight: 1.35 }}>
+        {line.plantSize ? `${line.plantSize} — ` : ""}specialty size, confirm price with BG
+      </div>
+    );
+  }
+
+  return null;
 }
 
 /* ---- Receipt "⋯" menu: edit, add photo, delete ---- */
