@@ -49,6 +49,9 @@ type Line = {
   plantFloor: number | null;
   plantAskBG: boolean;
   costFlag: string;
+  multiplier: number;
+  productMatched: boolean;
+  masterPrice: number | null;
 };
 
 type GetReceiptsResponse = {
@@ -103,6 +106,9 @@ function normLine(l: Record<string, unknown>): Line {
     plantFloor: l["plantFloor"] == null ? null : Number(l["plantFloor"]),
     plantAskBG: Boolean(l["plantAskBG"]),
     costFlag: s(l["costFlag"]),
+    multiplier: Number(l["multiplier"] ?? 1.15) || 1.15,
+    productMatched: Boolean(l["productMatched"]),
+    masterPrice: l["masterPrice"] == null ? null : Number(l["masterPrice"]),
   };
 }
 
@@ -1828,18 +1834,77 @@ const INPUT: React.CSSProperties = {
   minHeight: 36,
 };
 
+function num(v: unknown): number {
+  const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
+  return isFinite(n) ? n : NaN;
+}
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+function usd(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
+
 function LineBody({ line }: { line: Line }) {
+  const unitCost = num(line.unitPrice);
+  const hasCost = isFinite(unitCost) && unitCost > 0;
+
+  const qRaw = num(line.quantity);
+  const qty = isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
+
+  const mult = isFinite(line.multiplier) && line.multiplier > 0 ? line.multiplier : 1.15;
+  const tierUnit = round2(unitCost * mult);
+  const invUnit =
+    line.productMatched && line.masterPrice != null && isFinite(line.masterPrice)
+      ? Math.max(round2(line.masterPrice), tierUnit)
+      : tierUnit;
+
+  const costSubtotal = round2(qty * unitCost);
+  const invSubtotal = round2(qty * invUnit);
+  const showQty = qty !== 1;
+
+  const LABEL: React.CSSProperties = {
+    display: "inline-block",
+    minWidth: 54,
+    color: MUTED,
+    fontSize: 12,
+  };
+
   return (
     <>
       <div style={{ fontSize: 15, color: LIME, fontWeight: "bold" }}>
         {line.description || "(no description)"}
       </div>
-      <div style={{ fontSize: 13, color: LIME, marginTop: 2 }}>
-        {line.quantity && `${line.quantity} × `}
-        {line.unitPrice && fmtMoney(line.unitPrice)}
-        {line.total && ` = ${fmtMoney(line.total)}`}
-        {line.notes && ` · ${line.notes}`}
-      </div>
+
+      {hasCost ? (
+        <>
+          <div style={{ fontSize: 13, color: MUTED, marginTop: 3 }}>
+            <span style={LABEL}>cost</span>
+            {showQty
+              ? `${qty} × ${usd(unitCost)} = ${usd(costSubtotal)}`
+              : usd(unitCost)}
+            {line.notes && ` · ${line.notes}`}
+          </div>
+          <div style={{ marginTop: 2, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13 }}>
+              <span style={LABEL}>invoice</span>
+              <span style={{ fontSize: 16, fontWeight: "bold", color: LIME }}>
+                {showQty
+                  ? `${qty} × ${usd(invUnit)} = ${usd(invSubtotal)}`
+                  : usd(invUnit)}
+              </span>
+            </span>
+            <span style={{ fontSize: 11, color: MUTED }}>
+              {mult}×{line.productMatched ? "" : " · not yet matched"}
+            </span>
+          </div>
+        </>
+      ) : (
+        line.notes && (
+          <div style={{ fontSize: 13, color: MUTED, marginTop: 3 }}>{line.notes}</div>
+        )
+      )}
+
       <CostFlagRow line={line} />
     </>
   );
