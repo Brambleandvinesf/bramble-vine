@@ -4084,7 +4084,10 @@ type NewProject = { action: string; type?: string; notes?: string; items?: NewPr
  */
 type ItemUsed = { name: string; qty?: string; partial?: boolean };
 
-function StateDebrief({
+/* (8/4) EXPORTED so the failsafe DEBRIEF QUEUE route can render these very same
+   steps for a visit that already happened. A second entry point, NOT a rebuild -
+   everything about the live flow below is untouched. */
+export function StateDebrief({
   clientMatch,
   event,
   roster,
@@ -4095,6 +4098,10 @@ function StateDebrief({
   previewStep,
   employees = [],
   notes = [],
+  /* (8/4) Which DAY this debrief is for. The live flow omits it, so payrollDay
+     defaults to today exactly as before; the queue passes the visit's own date so
+     a next-morning debrief reads that visit's hours rather than today's. */
+  date,
 }: {
   clientMatch: string | null;
   event?: EventItem;
@@ -4112,6 +4119,7 @@ function StateDebrief({
   previewStep?: DebriefStepKey | null;
   employees?: Employee[];
   notes?: VisitNote[];
+  date?: string;
 }) {
   const clocked = roster.filter((m) => m.in);
   const { effectiveRole } = useViewAs();
@@ -4249,7 +4257,7 @@ function StateDebrief({
     setQbtErr(null);
     void (async () => {
       try {
-        const j = await fetchPayrollDay(clientMatch ?? undefined);
+        const j = await fetchPayrollDay(clientMatch ?? undefined, date);
         setQbtDay(j);
         /* Re-seed the billing figure from the real clock time. Only for people
            QBT actually knows about — anyone added by hand keeps their figure. */
@@ -4275,7 +4283,7 @@ function StateDebrief({
         setQbtLoading(false);
       }
     })();
-  }, [currentKey, clientMatch]);
+  }, [currentKey, clientMatch, date]);
 
   /* Absolute figure, never a delta — setBillingHours upserts on
      date+client+person, so sending the total means repeated taps leave ONE row.
