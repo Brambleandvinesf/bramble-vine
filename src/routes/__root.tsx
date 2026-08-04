@@ -415,6 +415,9 @@ function HamburgerMenu() {
     if (to === "/messages") return inboxCount;
     if (to === "/receipts") return receiptsCount;
     if (to === "/visits") return visitsCount;
+    if (to === "/approvals") return approvalsCount;
+    if (to === "/debrief-queue") return debriefqCount;
+
     return 0;
   };
 
