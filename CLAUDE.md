@@ -679,6 +679,30 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   body — the Messages screen would have shown nothing. It was caught only by the
   response SIZE (673B where ~21KB was expected). Compare payload shape and size
   before and after, every time.
+- **A CLIENT NAME IS AN UNENFORCED FOREIGN KEY IN FIVE PLACES (8/4, rename).**
+  Renaming one means updating, together: Client Info `'Account Name '` (trailing
+  space REAL), Client Projects `Client Name`, **Project Tools & Materials**
+  `Client Name` (tools orphan from their project otherwise — getField filters
+  them by name), **Current Clients** `Client Name` (today's route; a mismatch
+  breaks today's stops), and the `1. Client Visits` CALENDAR — matchClient_
+  resolves a stop by checking whether the TITLE CONTAINS the client name, so an
+  event left on the old spelling resolves to nothing at all. The last two are
+  easy to forget; both were missing from the first plan.
+  `renameClient` does all five, dry-run by DEFAULT, refuses if the target name
+  already exists (that would merge two clients), and writes Client Info LAST so
+  a mid-way failure leaves the data self-consistent. Historical tabs (Billing
+  Hours, Debrief Log, Items Used, Message Queue, Project Photos) are deliberately
+  NOT rewritten — it reports their counts instead.
+  Done 8/4: "A&G Sec. 1" -> "A&G Sect 1", "A&G Sector 3" -> "A&G Sect 3". All
+  eight sections now read "A&G Sect N".
+- **"A&G - Guerrero" IS A NINTH A&G CLIENT AND IS NOT A SECTION (8/4).** Found
+  during the rename; the earlier "8 sections" survey missed it because it has no
+  section suffix. It correctly does NOT appear in the follow-up sector picker
+  (sectionBase returns '' for it). But it DOES match the QBO_BILLING_GROUPS 'A&G'
+  substring rule, so it bills to "Amita & Giuseppe" and resolves to that jobcode
+  exactly as the numbered sections do. If Guerrero is ever meant to bill
+  separately, that rule is what to change — the substring is doing more work than
+  its name suggests.
 - **A CLIENT'S JOBCODE MAY ONLY RESOLVE VIA ITS BILLING-GROUP ALIAS (8/4).**
   qbJobcode_ matches Client Info names against QBT jobcode names (exact, then
   substring either way) and then, since CC-05, retries with
