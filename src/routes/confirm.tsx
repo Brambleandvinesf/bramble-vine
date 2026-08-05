@@ -126,6 +126,21 @@ function normProject(p: Record<string, unknown>): Project {
  * confirmDay and setStatus both write exactly 'Confirmed' or 'SKIP'; anything
  * else (including blank) is still pending.
  */
+/**
+ * Does this project belong on the Confirm screen at all?
+ *
+ * Every SPECIAL project, plus any RECURRING or untyped one that actually has
+ * items to load. Extracted (8/4) because two places now need the identical
+ * rule — the grouping below and serverConfirmedClients — and a client would be
+ * judged "fully confirmed" against a different set of projects than the one
+ * shown if they ever drifted. Same rule as computeReviewable in
+ * lib/reviewable-today.tsx; keep the three in step.
+ */
+function isLoadable(p: Project): boolean {
+  const type = (p.type || "").trim().toUpperCase();
+  return type === "SPECIAL" || ((type === "RECURRING" || type === "") && p.items.length > 0);
+}
+
 function statusFromServer(raw: string): "Confirmed" | "SKIP" | "Pending" {
   const v = String(raw || "").trim().toUpperCase();
   if (v === "CONFIRMED") return "Confirmed";
@@ -351,10 +366,54 @@ function ConfirmPage() {
   const [seasonFor, setSeasonFor] = useState<
     { uid: string; projectId: string; client: string; action: string } | null
   >(null);
+  /* Clients the SHEET already says are done: every project this screen shows
+     for them is Confirmed or SKIP server-side.
+   *
+   * Ticking a client was a local-only flag, and clearStaged() now correctly
+   * wipes it on submit — so without this a fully submitted day came back
+   * un-ticked, as if nothing had been confirmed. The sheet knows better, so ask
+   * it.
+   *
+   * REQUIRES AT LEAST ONE PROJECT. A client with nothing loadable would
+   * otherwise satisfy `every()` vacuously and tick itself, which would enable
+   * Submit before the lead had confirmed anything — the opposite of what this
+   * screen is for. */
+  const serverConfirmedClients = useMemo(() => {
+    const byClient: Record<string, Project[]> = {};
+    for (const p of projects) {
+      if (!p.client || committedDeletes.has(p.uid) || !isLoadable(p)) continue;
+      (byClient[p.client] ||= []).push(p);
+    }
+    const done = new Set<string>();
+    for (const c of todaysClients) {
+      const list = byClient[c] ?? [];
+      if (list.length > 0 && list.every((p) => statusFromServer(p.status) !== "Pending")) {
+        done.add(c);
+      }
+    }
+    return done;
+  }, [projects, todaysClients, committedDeletes]);
+
+  /* Fold server truth into the local set rather than deriving over it, so the
+     existing tick/untick control, the "n of m done" counters and submit's
+     per-project status fan-out all keep working off one set. The no-op guard
+     matters: without it this re-runs forever. */
+  useEffect(() => {
+    if (!hydratedRef.current || serverConfirmedClients.size === 0) return;
+    setConfirmedClients((prev) => {
+      const missing = [...serverConfirmedClients].filter((c) => !prev.has(c));
+      if (!missing.length) return prev;
+      const next = new Set(prev);
+      missing.forEach((c) => next.add(c));
+      return next;
+    });
+  }, [serverConfirmedClients]);
+
   /* PP1 (8/2): lifted out of the footer's IIFE — the footer's very
      EXISTENCE now depends on this, not just the button's enabled state. */
   const allClientsConfirmed =
-    todaysClients.length > 0 && todaysClients.every((c) => confirmedClients.has(c));
+    todaysClients.length > 0 &&
+    todaysClients.every((c) => confirmedClients.has(c) || serverConfirmedClients.has(c));
   const toggleClientConfirmed = useCallback((client: string) => {
     setConfirmedClients((prev) => {
       const next = new Set(prev);
@@ -402,7 +461,11 @@ function ConfirmPage() {
       statuses[uid] = e.status;
     }
     const next = {
-      confirmedClients: [...confirmedClients],
+      /* Same rule for client ticks: a tick the sheet already implies needs no
+         staging. Without this the effect above, which folds server-confirmed
+         clients INTO confirmedClients, would immediately re-stage them and undo
+         the clearStaged() fix — a submitted day would never end up unstaged. */
+      confirmedClients: [...confirmedClients].filter((c) => !serverConfirmedClients.has(c)),
       statuses,
       deletes: [...deletes],
     };
@@ -412,7 +475,7 @@ function ConfirmPage() {
     } else {
       writeStaged(next);
     }
-  }, [edits, deletes, confirmedClients, projects]);
+  }, [edits, deletes, confirmedClients, projects, serverConfirmedClients]);
 
   const fetchedRef = useRef(false);
   /** Reconciliation is suspended until this moment; see applyData and submit. */
@@ -528,11 +591,7 @@ function ConfirmPage() {
     for (const p of projects) {
       if (!p.client) continue;
       if (committedDeletes.has(p.uid)) continue;
-      const type = (p.type || "").trim().toUpperCase();
-      const keep =
-        type === "SPECIAL" ||
-        ((type === "RECURRING" || type === "") && p.items.length > 0);
-      if (!keep) continue;
+      if (!isLoadable(p)) continue;
       if (!map[p.client]) map[p.client] = [];
       map[p.client].push(p);
     }
