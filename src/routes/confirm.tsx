@@ -114,6 +114,25 @@ function normProject(p: Record<string, unknown>): Project {
   };
 }
 
+/**
+ * The sheet's own Status for a project, as an Edit status.
+ *
+ * The staged copy in localStorage is a record of markers NOT YET ON THE SERVER.
+ * Reading the server's Status is what lets that be true: once a marker has been
+ * submitted the sheet holds it, so it no longer needs staging, and the staged
+ * copy can genuinely be cleared instead of being rewritten from local state
+ * every time a payload lands.
+ *
+ * confirmDay and setStatus both write exactly 'Confirmed' or 'SKIP'; anything
+ * else (including blank) is still pending.
+ */
+function statusFromServer(raw: string): "Confirmed" | "SKIP" | "Pending" {
+  const v = String(raw || "").trim().toUpperCase();
+  if (v === "CONFIRMED") return "Confirmed";
+  if (v === "SKIP" || v === "SKIPPED") return "SKIP";
+  return "Pending";
+}
+
 type Edit = {
   action: string;
   garden: string;
@@ -284,7 +303,8 @@ function ConfirmPage() {
         type: p.type,
         category: p.category,
         notes: p.notes,
-        status: stagedRef.current?.statuses[key] ?? "Pending",
+        // Staged (not yet saved) wins; otherwise the sheet is the record.
+        status: stagedRef.current?.statuses[key] ?? statusFromServer(p.status),
         expanded: p.showOnReview,
         notesOpen: !!p.notes,
       };
@@ -368,9 +388,18 @@ function ConfirmPage() {
        see hydratedRef. Nothing is lost by waiting: the effect re-runs the moment
        applyData sets edits, which is also when hydratedRef becomes true. */
     if (!hydratedRef.current) return;
+    /* Stage only what the SERVER DOES NOT ALREADY HAVE.
+       Previously every Confirmed/SKIP went in regardless, so the load() that
+       follows a submit re-wrote the staged copy microseconds after submit
+       cleared it — the "cleared on a successful submit" comment above was not
+       true in practice. Comparing against the sheet's own Status makes it true:
+       once submitted, a marker is server truth and needs no staging. */
+    const serverStatus = new Map(projects.map((p) => [p.uid, statusFromServer(p.status)]));
     const statuses: Record<string, "Confirmed" | "SKIP"> = {};
     for (const [uid, e] of Object.entries(edits)) {
-      if (e.status === "Confirmed" || e.status === "SKIP") statuses[uid] = e.status;
+      if (e.status !== "Confirmed" && e.status !== "SKIP") continue;
+      if (serverStatus.get(uid) === e.status) continue;   // already saved
+      statuses[uid] = e.status;
     }
     const next = {
       confirmedClients: [...confirmedClients],
@@ -383,7 +412,7 @@ function ConfirmPage() {
     } else {
       writeStaged(next);
     }
-  }, [edits, deletes, confirmedClients]);
+  }, [edits, deletes, confirmedClients, projects]);
 
   const fetchedRef = useRef(false);
   /** Reconciliation is suspended until this moment; see applyData and submit. */
@@ -447,7 +476,8 @@ function ConfirmPage() {
           notes: p.notes,
           // A card handled before a reload stays handled: the first payload
           // after remounting is exactly when it would otherwise come back.
-          status: stagedRef.current?.statuses[key] ?? "Pending",
+          // Staged (not yet saved) wins; otherwise the sheet is the record.
+        status: stagedRef.current?.statuses[key] ?? statusFromServer(p.status),
           expanded: p.showOnReview,
           notesOpen: !!p.notes,
         };
@@ -819,6 +849,13 @@ function ConfirmPage() {
       clearStaged();
       setDeletes(new Set());
       setNewByClient({});
+      /* Also drop the client-level confirmations. They are purely local — the
+         sheet records the per-project Status, never "the lead ticked this client"
+         — so leaving them set kept the staged copy non-empty and the mirror
+         effect rewrote it immediately after this clearStaged(). With statuses
+         now compared against server truth, this is the last thing that kept a
+         submitted day staged. */
+      setConfirmedClients(new Set());
       // Reload to reflect authoritative server state
       try {
         await load();

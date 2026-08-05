@@ -660,6 +660,17 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   fail silently. If QBT ever exposes a stable employee id in the places these
   lists are used, switch to it.
 
+- **A&G's FUTURE-DATED INVOICE IS INTENDED — DO NOT "FIX" IT (8/4, Brandon
+  confirmed).** qboDebriefInvoice_ finds an invoice with `TxnDate >= today` and
+  appends to it. For A&G that is a monthly invoice dated the 31st, so debrief
+  lines land on the month's invoice rather than a fresh same-day one. That is a
+  deliberate monthly billing arrangement and correct behaviour; no safeguard
+  wanted. Surveyed 8 clients on 8/4: A&G was the ONLY one with a future-dated
+  invoice, the other 7 correctly get a new invoice dated today. Note the rule is
+  generic, not per-client — any client who happens to have an open future-dated
+  invoice (a deposit, a scheduled invoice, an estimate converted to one) will
+  absorb debrief lines the same way. Verify with the read-only qboInvoiceProbe
+  before assuming that is a bug.
 - **INVOICE LINE DEDUPE IS BY EXACT DESCRIPTION, AND l.desc ENCODES THE HOURS
   (8/4).** qboDebriefInvoice_ now stamps a hashed eventId into every line
   Description and drops incoming lines whose exact Description is already on the
