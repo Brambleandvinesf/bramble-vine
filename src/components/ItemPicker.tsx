@@ -176,6 +176,31 @@ export function ItemPicker({
     return list.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 100);
   }, [list, query]);
 
+  /**
+   * What the Add button (and the on-screen keyboard's enter key) does.
+   *
+   * CC-16(b): this button was labelled GO and wired to a submit handler whose
+   * whole body was `e.preventDefault()`. Search runs live on every keystroke, so
+   * there was genuinely nothing left for it to do — but a lead typing an item and
+   * tapping the only obvious button got silence, and the working path was the
+   * separate "+ Custom" pill below. Now it always resolves to an action:
+   *   - exactly one catalog match: that is unambiguous, take it
+   *   - no match: open the Custom form, already carrying the typed text, which is
+   *     what the "use + Custom above" hint was asking the lead to do by hand
+   *   - several matches: leave the list alone and let them pick, because guessing
+   *     which one they meant is how the wrong item ends up on a project
+   */
+  const submitQuery = () => {
+    if (!query.trim()) return;
+    if (searchResults.length === 1) {
+      setSelected(searchResults[0]);
+      return;
+    }
+    if (searchResults.length === 0) {
+      setCustomOpen(true);
+    }
+  };
+
   const categories = useMemo(() => {
     const map = new Map<string, ProductRow[]>();
     for (const p of list) {
@@ -252,8 +277,7 @@ export function ItemPicker({
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  // Enter/Go just commits current query (search is live already);
-                  // no-op if empty.
+                  submitQuery();
                 }}
                 style={{ display: "flex", gap: 8, alignItems: "stretch" }}
               >
@@ -280,9 +304,9 @@ export function ItemPicker({
                     cursor: "pointer",
                     minHeight: 44,
                   }}
-                  aria-label="Search"
+                  aria-label="Add item"
                 >
-                  GO
+                  Add
                 </button>
                 {query && (
                   <button

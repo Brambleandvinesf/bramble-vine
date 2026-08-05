@@ -457,6 +457,13 @@ export function DayStateSpine() {
     // with its children.)
   }, [state, activeSubs, currentSubIdx, activeIdx, anchors]);
 
+  /* CC-17 (8/5): these are two different situations and used to print the same
+     sentence. `!state` is genuinely still loading — the first getDayState has not
+     come back. An empty `anchors` WITH state is not loading at all and never will
+     be: `anchors` already falls back to per-phase labels when there are no stops,
+     so reaching zero means the payload arrived without a usable phaseOrder. That
+     rendered as "day state loading…" forever, which sent us looking for a slow
+     request when the real problem was the data. Say which one it is. */
   if (!state || anchors.length === 0) {
     return (
       <div
@@ -476,7 +483,7 @@ export function DayStateSpine() {
           textAlign: "center",
         }}
       >
-        day state loading…
+        {!state ? "day state loading…" : "no route for today"}
       </div>
     );
   }

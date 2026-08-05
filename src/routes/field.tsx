@@ -9,6 +9,8 @@ import { sessionCache } from "../lib/session-cache";
 import { useOptimistic } from "../lib/optimistic";
 import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
+import { usePoll } from "../lib/use-poll";
+import { makeGetData } from "../lib/get-data";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
@@ -70,7 +72,12 @@ export const Route = createFileRoute("/field")({
 const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
 
-const POLL_MS = 10_000;
+/* CC-17 (8/5): was 10_000 — shorter than the calls themselves (getField measured
+   2.7-21.0s), so ticks overlapped and piled up. usePoll now blocks overlapping
+   ticks and refreshes on tab focus. Kept tighter than Load Vehicle's 30s because
+   this screen shows the live stop, roster and clock state that another device can
+   change mid-visit. */
+const POLL_MS = 20_000;
 
 /* ---------- palette ---------- */
 const BG = "#0a0a0a";
@@ -224,20 +231,23 @@ function useLoadingSnapshot(enabled: boolean) {
     itemsRef.current = items;
   }, [items]);
 
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    const tick = async () => {
+  /* CC-17: epoch-aware, so an unchanged catalog costs no tab reads server-side.
+     One fetcher per screen — see makeGetData. */
+  const getData = useMemo(() => makeGetData(), []);
+  usePoll(
+    async (isCancelled) => {
+      if (!enabled) return;
       try {
-        const res = await fetch(`${SCRIPT_URL}?action=getData`);
-        if (!res.ok) return;
-        const json = (await res.json()) as {
+        const json = (await getData()) as {
           tools?: Array<Record<string, unknown>>;
           projects?: Array<Record<string, unknown>>;
           clients?: unknown[];
           confirm?: { confirmed?: boolean };
-        };
-        if (cancelled) return;
+        } | null;
+        if (isCancelled()) return;
+        /* Nothing moved — the checklist on screen is still correct, and
+           re-deriving it would only risk clobbering optimistic toggles. */
+        if (!json) return;
         setConfirmed(!!json.confirm?.confirmed);
         const clientSet = new Set(
           (json.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
@@ -280,14 +290,10 @@ function useLoadingSnapshot(enabled: boolean) {
       } catch {
         /* keep last snapshot */
       }
-    };
-    void tick();
-    const id = window.setInterval(tick, POLL_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-    };
-  }, [enabled, optReconcile]);
+    },
+    POLL_MS,
+    [enabled, optReconcile, getData],
+  );
 
   const toggle = useCallback(
     async (row: number) => {
@@ -692,16 +698,20 @@ function FieldPage() {
     }
   }, [routeReconcile]);
 
+  usePoll(
+    async () => {
+      if (!canSeeField) return;
+      await fetchOnce();
+    },
+    POLL_MS,
+    [canSeeField, fetchOnce],
+  );
+  /* Pure clock tick — no network, so it keeps its own plain interval. */
   useEffect(() => {
     if (!canSeeField) return;
-    void fetchOnce();
-    const id = window.setInterval(() => void fetchOnce(), POLL_MS);
     const clk = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => {
-      window.clearInterval(id);
-      window.clearInterval(clk);
-    };
-  }, [canSeeField, fetchOnce]);
+    return () => window.clearInterval(clk);
+  }, [canSeeField]);
 
   // Route progression is the laggiest thing in the app: every setRoute waited on
   // the next 10s getField before the screen moved, and a poll that raced the

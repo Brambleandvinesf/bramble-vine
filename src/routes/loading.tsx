@@ -9,6 +9,8 @@ import { useDayState } from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { appendTeamParam } from "../lib/team";
+import { usePoll } from "../lib/use-poll";
+import { makeGetData } from "../lib/get-data";
 import { confirmModal } from "../components/ConfirmModal";
 import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 
@@ -41,7 +43,13 @@ export const Route = createFileRoute("/loading")({
 const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
 
-const POLL_MS = 10000;
+/* CC-17 (8/5): was 10000, which was shorter than the calls themselves — getData
+   measured 3.0-23.3s and getField 2.7-21.0s, so ticks overlapped and the screen
+   never left its loading state. usePoll now refuses to start a second tick while
+   one is in flight, and refreshes on tab focus, so a longer period costs nothing
+   the crew can feel. Nothing on this checklist changes on a 10-second timescale;
+   the Loading Complete gate is driven by the day-state poll, not by this one. */
+const POLL_MS = 30_000;
 
 type ConfirmState = {
   day?: string;
@@ -239,55 +247,53 @@ function LoadingPage() {
 
 
   // Poll getData so the screen unlocks automatically once confirmed.
-  useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
-      if (!cancelled) setRefreshing(true);
+  /* CC-17: one fetcher per screen, so this screen's epoch tracks this screen's
+     copy of the data. An `unchanged` answer means keep what is already on
+     screen — and, importantly, do NOT touch the refreshing flag afterwards as
+     though new data had arrived. */
+  const getData = useMemo(() => makeGetData(), []);
+  usePoll(
+    async (isCancelled) => {
+      if (!isCancelled()) setRefreshing(true);
       try {
-        const res = await fetch(`${SCRIPT_URL}?action=getData`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as GetDataResponse;
-        if (cancelled) return;
-        sessionCache.set(CK, json);
-        setConfirm(json.confirm ?? null);
-        setItems(applyPending(normalize(json), pendingRef.current));
+        const json = (await getData()) as GetDataResponse | null;
+        if (isCancelled()) return;
+        if (json) {
+          sessionCache.set(CK, json);
+          setConfirm(json.confirm ?? null);
+          setItems(applyPending(normalize(json), pendingRef.current));
+        }
         setLoadErr(null);
         setOffline(false);
       } catch (e) {
-        if (cancelled) return;
+        if (isCancelled()) return;
         if (sessionCache.has(CK)) setOffline(true);
         else setLoadErr(e instanceof Error ? e.message : "Failed to load");
       } finally {
-        if (!cancelled) setRefreshing(false);
+        if (!isCancelled()) setRefreshing(false);
       }
-    };
-    tick();
-    const id = setInterval(tick, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+    },
+    POLL_MS,
+    [getData],
+  );
 
   // Also poll getField so the pinned footer can show the current stop.
   const fieldCached = sessionCache.get<GetFieldResponse>(FIELD_CK) ?? null;
   const [field, setField] = useState<GetFieldResponse | null>(fieldCached);
-  useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
+  usePoll(
+    async (isCancelled) => {
       try {
         const res = await fetch(appendTeamParam(`${SCRIPT_URL}?action=getField`));
         if (!res.ok) return;
         const json = (await res.json()) as GetFieldResponse;
-        if (cancelled) return;
+        if (isCancelled()) return;
         sessionCache.set(FIELD_CK, json);
         setField(json);
       } catch { /* keep last */ }
-    };
-    tick();
-    const id = setInterval(tick, POLL_MS);
-    return () => { cancelled = true; clearInterval(id); };
-  }, []);
+    },
+    POLL_MS,
+    [],
+  );
 
   const toggle = useCallback(async (row: number) => {
     /* TT.3 (8/2): once LOADING COMPLETE is pressed the checklist is

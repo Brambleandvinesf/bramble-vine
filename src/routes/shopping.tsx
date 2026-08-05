@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../lib/auth";
 import { useDayState } from "../lib/day-state";
@@ -7,6 +7,7 @@ import { ItemPicker, type PickedItem } from "../components/ItemPicker";
 import { RefreshDot } from "../components/RefreshDot";
 import { sessionCache } from "../lib/session-cache";
 import { SCRIPT_URL } from "./confirm";
+import { usePoll } from "../lib/use-poll";
 
 /* ============================================================
  * Shared shopping list (U, 8/2 — fulfils the parked E workstream).
@@ -30,7 +31,10 @@ const BG = "#0a0a0a";
 const RED = "#ff5555";
 
 const CK = "shopping:getShopping";
-const POLL_MS = 15_000;
+/* CC-17 (8/5): was 15_000. With usePoll's in-flight guard and hidden-tab skip,
+   plus a refresh whenever the tab regains focus, a longer period costs the crew
+   nothing — and this was one of the three screens reported stuck on "loading". */
+const POLL_MS = 30_000;
 
 type ShopItem = {
   id: string;
@@ -111,11 +115,20 @@ function ShoppingPage() {
     }
   }, [vendorAtStop]);
 
-  useEffect(() => {
-    void load(false);
-    const id = window.setInterval(() => void load(true), POLL_MS);
-    return () => window.clearInterval(id);
-  }, [load]);
+  /* CC-17: in-flight guard + no polling a hidden tab. The shopping catalog was
+     one of the three screens reported stuck on "loading".
+     The first run stays non-silent so the refresh indicator still shows on
+     arrival; every poll after it is silent, exactly as before. */
+  const firstLoadRef = useRef(true);
+  usePoll(
+    async () => {
+      const silent = !firstLoadRef.current;
+      firstLoadRef.current = false;
+      await load(silent);
+    },
+    POLL_MS,
+    [load],
+  );
 
   const items = data?.items ?? [];
   const open = items.filter((i) => !i.done);

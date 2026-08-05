@@ -289,13 +289,16 @@ function SchedulePage() {
         // Nothing to review today — the special gate is vacuous, and since
         // v7.4.8 the route refuses to run until it's confirmed. Close it now
         // or a daily-load-only day stalls at special_confirm forever.
-        try {
-          await fetch(SCRIPT_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify({ action: "confirmSpecial" }),
-          });
-        } catch { /* poll reconciliation will surface it */ }
+        /* CC-16(a): fire, do NOT await. The decisive write above has already
+           returned ok, so the crew must not watch a second round trip finish
+           before the screen moves — that was the several-second lag. A failure
+           here is recoverable: the poll reconciles the override, and the gate is
+           vacuous by definition on this branch. */
+        void fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "confirmSpecial" }),
+        }).catch(() => { /* poll reconciliation will surface it */ });
         advanceSubStep("loading");
       } else {
         // Advance the spine on the ok, not on the next poll.
@@ -330,17 +333,18 @@ function SchedulePage() {
 
       /* Crew notification is best-effort — the decision is already recorded,
          so a failed text can no longer strand anyone on the waiting screen. */
-      try {
-        await fetch(SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({
-            action: "replyQuo",
-            participants: ["+14152343696"],
-            text: "Different loading today — standby.",
-          }),
-        });
-      } catch { /* best-effort */ }
+      /* CC-16(a): fired, never awaited. This result was already being discarded,
+         yet the crew used to watch an SMS round trip finish before the screen
+         moved — a third sequential POST on the critical path to a tap. */
+      void fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "replyQuo",
+          participants: ["+14152343696"],
+          text: "Different loading today — standby.",
+        }),
+      }).catch(() => { /* best-effort */ });
 
       setBaseLoadFlash("DAILY LOAD: NO — RECORDED, CREW NOTIFIED");
       setBaseLoadDismissed(true);
@@ -349,13 +353,12 @@ function SchedulePage() {
            review the special gate is vacuous, and the route refuses to run
            until it is confirmed, so a no on a no-specials day would sit at
            special_confirm forever. */
-        try {
-          await fetch(SCRIPT_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify({ action: "confirmSpecial" }),
-          });
-        } catch { /* poll reconciliation will surface it */ }
+        /* CC-16(a): also fired, not awaited — see above. */
+        void fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({ action: "confirmSpecial" }),
+        }).catch(() => { /* poll reconciliation will surface it */ });
         advanceSubStep("loading");
         void navigate({ to: "/loading" });
       } else {

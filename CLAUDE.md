@@ -637,7 +637,54 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   nothing attaches a photo to a Line items row (attachPhoto is receipt-level,
   visitPhoto is visit-level). Not queued.
 
+## POLLING (CC-17, 8/5) — READ THIS BEFORE ADDING ANY POLL
+Three screens were reported "stuck loading" on the same day (day-state spine,
+shopping catalog, Load Vehicle). They were ONE bug, and it was not the thing
+everyone assumed.
+
+**It was not the concurrency ceiling.** Measured from the browser: 8 concurrent
+/exec calls finished in 1758-13420ms, 5 concurrent in 2488-6697ms — but TWO
+concurrent produced a 21001ms getField. Latency tracks WHICH endpoint you call,
+not how many at once. Do not reach for "batch the calls" as a latency fix; XX-04
+already proved that can make things worse.
+
+**It was fixed-interval polling of endpoints slower than the interval.**
+getData measured 3.0-23.3s and returned 360KB; getField 2.7-21.0s. Both were on
+bare 10s `setInterval`s in loading.tsx and field.tsx (shopping.tsx at 15s).
+`setInterval` does not wait for the previous run, so ticks overlapped, and since
+each screen raises a refreshing flag at the top of every tick, the flag was
+re-raised before the previous tick's `finally` lowered it — the screen never left
+its loading state. One idle screen produced **44 /exec calls in 168 seconds**.
+
+Rules now:
+- **Never `setInterval` a fetch directly. Use `usePoll` (src/lib/use-poll.ts).**
+  It refuses to start a tick while one is in flight, skips hidden tabs, and
+  refreshes on focus. All five poll sites go through it.
+- Intervals: Load Vehicle 30s, Field 20s, Shopping 30s, day state 30s, badges
+  60s. Longer is safe because focus triggers an immediate refresh.
+- **getData is epoch-gated.** Use `makeGetData()` (src/lib/get-data.ts), never a
+  bare `?action=getData`. Send the epoch you hold; the backend answers
+  `{unchanged:true}` in **66 bytes** instead of 359,985 when nothing moved.
+  The epoch is `<workbook Drive lastUpdated>.<FIELD_EPOCH>.<CONFIRM_STATE hash>` —
+  the Drive timestamp is what catches Brandon's HAND EDITS, which no in-app epoch
+  can see. Clients still force a full read every 5 minutes so a missed
+  invalidation cannot hide an edit indefinitely. If the Drive read throws,
+  dataEpoch_ returns a value that can never match, so it degrades to always-fresh
+  rather than serving stale data.
+- **STILL OPEN: duplicate identical requests across components.** A cold load
+  still fires getData x2 and getField x3 within 12ms, because each component owns
+  its own poller and `usePoll`'s guard is per-instance. The guard cannot dedupe
+  across components. A request-coalescing layer (share one in-flight promise per
+  URL, hand each caller its own parsed copy) would fix it — not built yet.
+
 ## WATCH ITEMS (not bugs yet — they will become bugs quietly)
+- **"day state loading…" NO LONGER MEANS LOADING (8/5, CC-17).** DayStateSpine
+  gated on `!state || anchors.length === 0` and printed the same sentence for
+  both. `anchors` already falls back to per-phase labels when there are no stops,
+  so zero anchors WITH state means the payload arrived without a usable
+  phaseOrder — a data problem that rendered as a permanent loading message and
+  sent us hunting a slow request. It now says "no route for today" for that case.
+  If you add another reason anchors can be empty, give it its own message.
 - **BATCHING APPS SCRIPT CALLS TRADES PARALLELISM FOR SERIALISM — MEASURE BOTH
   (8/5, XX-04).** Apps Script serialises concurrent /exec requests from one user
   past ~4-5, so "eight calls on page load" looks like the obvious problem and
