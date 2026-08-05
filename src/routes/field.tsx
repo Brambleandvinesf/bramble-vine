@@ -149,6 +149,12 @@ type GetFieldResponse = {
   /** Server's texted-today ledger as "client||kind" (TEXT_SENT). The real
    *  cross-device guard; the local set is only a mirror of it. */
   textSent?: string[];
+  /** XX-02: the visit timer, computed server-side from the client's Max Time
+   *  person-hour budget against the LIVE crew count. Null when there is no
+   *  budget to count down (Flexible / TBD / blank). */
+  visitTimer?: VisitTimerView | null;
+  /** XX-02: before/after/project photo counts for the CURRENT visit. */
+  visitPhotos?: VisitPhotoTally | null;
   /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
   vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
@@ -1547,6 +1553,8 @@ function FieldBody({
 
           {state === "visit" && !vendorStop && !isBreakStop && (
             <StateVisit
+              visitTimer={data.visitTimer ?? null}
+              visitPhotos={data.visitPhotos ?? null}
               skipSameDayTexts={skipSameDayTexts}
               textsSuppressed={textsSuppressed}
               departureTextsSuppressed={departureTextsSuppressed}
@@ -3163,7 +3171,14 @@ function StateVisit({
   onToggleTool,
   onVisitComplete,
   onNoShow,
+  visitTimer,
+  visitPhotos,
 }: {
+  /** XX-02: the client's Max Time budget measured against the LIVE crew count
+   *  (visitTimerView_). Null when there is no budget — Flexible, TBD or blank. */
+  visitTimer?: VisitTimerView | null;
+  /** XX-02: before/after/project photo counts for THIS visit. */
+  visitPhotos?: VisitPhotoTally | null;
   skipSameDayTexts: boolean;
   textsSuppressed: boolean;
   /** AG-derived: departure text suppressed (or vendor stop). */
@@ -3492,10 +3507,44 @@ function StateVisit({
         </button>
       )}
 
+      {/* XX-02: the reminder the visit timer never had.
+          visitTimerTick has computed T-20/T-5 against the client's Max Time
+          person-hour budget since v7.1.0 and announced them through
+          ntfyPushRoles_, which delivers nothing — so nobody ever saw one. This
+          banner is the delivery mechanism, and it PERSISTS rather than firing
+          once: visits routinely run past their budget, and a one-shot alert at a
+          moment already gone is no reminder at all. */}
+      <VisitPhotoReminder
+        timer={visitTimer}
+        tally={visitPhotos}
+        clientName={clientMatch ?? s(event?.title)}
+        eventId={s(event?.id)}
+        disabled={isPreview}
+      />
+
       {/* AD.3: camera + note, relocated from the top of the screen. */}
       <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "flex-start" }}>
-        <div style={{ flex: 1 }}>
-          <VisitCamera clientName={clientMatch ?? s(event?.title)} disabled={isPreview} />
+        <div style={{ flex: 1, display: "flex", gap: 8 }}>
+          {/* Explicit tagging, defaulted by route state: on arrival BEFORE is
+              the emphasised one, and once the budget is nearly spent AFTER is. */}
+          <div style={{ flex: 1 }}>
+            <VisitCamera
+              clientName={clientMatch ?? s(event?.title)}
+              disabled={isPreview}
+              kind="before"
+              eventId={s(event?.id)}
+              emphasis={(visitTimer?.remainMin ?? 999) > 20}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <VisitCamera
+              clientName={clientMatch ?? s(event?.title)}
+              disabled={isPreview}
+              kind="after"
+              eventId={s(event?.id)}
+              emphasis={(visitTimer?.remainMin ?? 999) <= 20}
+            />
+          </div>
         </div>
         <button
           type="button"
@@ -3599,7 +3648,124 @@ async function downscaleToJpegBase64(file: File, maxEdge = 2048, quality = 0.85)
   return { base64, dataUrl: out };
 }
 
-function VisitCamera({ clientName, disabled }: { clientName: string; disabled: boolean }) {
+/**
+ * XX-02: `kind` turns this into a BEFORE or AFTER capture.
+ *
+ * With a kind, the photo becomes a gallery item — the backend files a row and
+ * shares the Drive file so the client's gallery can show it. Without one the
+ * behaviour is exactly as before: Drive only, private, no gallery row. Tagging
+ * is EXPLICIT for a reason — inferring before/after from timestamps is wrong
+ * often enough to poison the data, because crews photograph a finished bed
+ * mid-visit and start the next one.
+ */
+
+/* ---- XX-02: the visit photo reminder banner ----------------------------
+ *
+ * Two prompts, both PERSISTENT until satisfied:
+ *   BEFORE — as soon as the visit starts, until a before photo exists
+ *   AFTER  — from T-5 onward (and through overtime), until an after photo exists
+ *
+ * Persistent rather than one-shot on purpose. Visits routinely run past their
+ * budget, so a single alert fired exactly at T-5 is a reminder you have already
+ * missed. This keeps asking, and stops the moment the photo is filed.
+ *
+ * The timing is NOT the calendar's scheduled end. It is remainMin from
+ * visitTimerView_, i.e. the client's Max Time person-hour budget measured
+ * against the live crew count — so a bigger crew reaches T-5 sooner, which is
+ * the correct behaviour and what a fixed end time could never express.
+ */
+type VisitTimerView = {
+  client: string;
+  crew: number;
+  budgetPh: number;
+  usedPh: number;
+  remainMin: number;
+  strict: boolean;
+  phase: "ok" | "t20" | "t5" | "over";
+};
+type VisitPhotoTally = { before: number; after: number; project: number };
+
+function VisitPhotoReminder({
+  timer,
+  tally,
+  clientName,
+  eventId,
+  disabled,
+}: {
+  timer: VisitTimerView | null | undefined;
+  tally: VisitPhotoTally | null | undefined;
+  clientName: string;
+  eventId: string;
+  disabled: boolean;
+}) {
+  const needBefore = (tally?.before ?? 0) === 0;
+  /* Ask for the after photo from T-5 onward. With no timer (Max Time blank,
+     Flexible, or TBD) there is no budget to count down, so only the before
+     prompt applies — inventing a deadline would be worse than none. */
+  const nearEnd = !!timer && (timer.phase === "t5" || timer.phase === "over");
+  const needAfter = nearEnd && (tally?.after ?? 0) === 0;
+
+  if (disabled || (!needBefore && !needAfter)) return null;
+
+  const rows: Array<{ kind: "before" | "after"; text: string; urgent: boolean }> = [];
+  if (needBefore) {
+    rows.push({ kind: "before", text: "Take a BEFORE photo for this visit.", urgent: false });
+  }
+  if (needAfter) {
+    const over = timer!.phase === "over";
+    rows.push({
+      kind: "after",
+      text: over
+        ? (timer!.strict
+            ? "Hard stop reached — take the AFTER photo now."
+            : "Over the visit budget — take the AFTER photo.")
+        : `About ${Math.max(0, timer!.remainMin)} min left — take the AFTER photo.`,
+      urgent: over,
+    });
+  }
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {rows.map((r) => (
+        <div
+          key={r.kind}
+          role="status"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            marginBottom: 6,
+            borderRadius: 8,
+            border: `1px solid ${r.urgent ? "#ff3b30" : r.kind === "after" ? "#c9a227" : LINE}`,
+            background: r.urgent ? "rgba(255,59,48,.10)" : "rgba(255,255,255,.03)",
+            color: r.urgent ? "#ff8a80" : MUTED,
+            fontSize: 12,
+            lineHeight: 1.4,
+          }}
+        >
+          <span style={{ flex: 1 }}>📷 {r.text}</span>
+        </div>
+      ))}
+      {/* The buttons themselves live directly below; the banner says WHAT and
+          WHEN rather than duplicating the capture control. */}
+    </div>
+  );
+}
+function VisitCamera({
+  clientName,
+  disabled,
+  kind,
+  eventId,
+  emphasis,
+}: {
+  clientName: string;
+  disabled: boolean;
+  kind?: "before" | "after";
+  eventId?: string;
+  /** Route state says this is the one they probably want next. */
+  emphasis?: boolean;
+}) {
   const [photos, setPhotos] = useState<VisitPhoto[]>([]);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -3609,10 +3775,25 @@ function VisitCamera({ clientName, disabled }: { clientName: string; disabled: b
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ action: "visitPhoto", data: base64, mime: "image/jpeg", client }),
+          body: JSON.stringify({
+            action: "visitPhoto",
+            data: base64,
+            mime: "image/jpeg",
+            client,
+            /* Only sent for a tagged capture; without these the backend keeps
+               today's private, non-gallery behaviour. */
+            ...(kind ? { kind, eventId: eventId ?? "" } : {}),
+          }),
         });
-        const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
-        if (json.ok) {
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          projectPhotoLogged?: unknown;
+        };
+        /* A tagged photo is only "done" once it is FILED. The upload can succeed
+           while the gallery row fails, and calling that ok would show a photo as
+           in the client's gallery when it is not. */
+        const filed = !kind || json.projectPhotoLogged === true;
+        if (json.ok && filed) {
           setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, status: "ok" } : p)));
         } else {
           throw new Error("upload failed");
@@ -3627,7 +3808,7 @@ function VisitCamera({ clientName, disabled }: { clientName: string; disabled: b
         );
       }
     },
-    [],
+    [kind, eventId],
   );
 
   const handleFiles = useCallback(
@@ -3655,12 +3836,14 @@ function VisitCamera({ clientName, disabled }: { clientName: string; disabled: b
         onClick={() => inputRef.current?.click()}
         disabled={disabled}
         style={{
-          ...PRIMARY_BTN,
+          ...(kind && !emphasis
+            ? { ...SMALL_BTN, width: "100%", minHeight: 44 }
+            : PRIMARY_BTN),
           opacity: disabled ? 0.4 : 1,
           cursor: disabled ? "not-allowed" : "pointer",
         }}
       >
-        📷 CAMERA
+        {kind === "before" ? "📷 BEFORE" : kind === "after" ? "📷 AFTER" : "📷 CAMERA"}
       </button>
       <input
         ref={inputRef}

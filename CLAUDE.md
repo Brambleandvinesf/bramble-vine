@@ -961,3 +961,40 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   no Project ID, so the original key could never unfile one. `projectId` remains
   an optional extra constraint. `trashFile:true` (opt-in, default OFF) also
   trashes the Drive original for the case where a photo should not exist at all.
+
+## VISIT PHOTOS + THE VISIT TIMER (XX-02, 8/4)
+- **THE VISIT TIMER WAS ALREADY BUILT, AND HAS BEEN SILENTLY DEAD SINCE v7.1.0.**
+  visitTimerTick (a 5-minute trigger) accrues PERSON-HOURS from the live
+  clocked-in crew count, reads Client Info col AH 'Max Time' via parseMaxTime_,
+  computes the budget with visitBudgetPH_, and fires T-20 / T-5 / overtime —
+  every one of them through ntfyPushRoles_, which delivers NOTHING. That is why
+  no T-20/T-5 warning has ever been seen, and why the sheet task
+  "observe first real T-20/T-5 during a visit" never closed.
+  **This IS the "smarter scheduled end" on the wish list — crew size x time vs
+  the client's own limit — and it already exists.** It was never a fixed
+  scheduled end. What was missing was delivery, not calculation.
+- **The banner is that delivery mechanism.** visitTimerView_ projects the stored
+  person-hours forward to NOW (visitTimerTick only runs every 5 min) WITHOUT
+  writing back — a GET must never advance the clock, or refreshing the screen
+  would burn the crew's own budget. Exposed on getField as `visitTimer`, with
+  `visitPhotos` (before/after/project counts for THIS event) alongside.
+  Consequence worth remembering: MORE CREW REACHES T-5 SOONER, because the
+  budget is person-hours. A fixed end time could never express that.
+- **Banner is PERSISTENT, not one-shot.** Visits routinely run past budget, so an
+  alert fired exactly at T-5 is a reminder you have already missed. BEFORE shows
+  until a before photo exists; AFTER shows from T-5 through overtime until an
+  after photo exists. No timer (Max Time blank/Flexible/TBD) = BEFORE prompt only;
+  no deadline is invented.
+- **Tagging is EXPLICIT (two buttons), never inferred from timestamps.** Crews
+  photograph a finished bed mid-visit and then start the next one, so timing is
+  wrong often enough to poison the data. Route state only chooses which button is
+  EMPHASISED.
+- **A tagged photo is only "ok" once it is FILED.** visitPhoto can put the file in
+  Drive and still fail to write the gallery row; the thumbnail stays dim unless
+  projectPhotoLogged comes back true, so a photo cannot look like it is in the
+  client's gallery when it is not.
+- **TESTING NOTE: read banners via `[role="status"]`, not innerText.** innerText
+  scraping on this page gave false positives AND false negatives during
+  verification. Also: a hidden/background browser pane THROTTLES the 10s getField
+  poll, so a stubbed payload can take 20s+ to appear — force a client-side
+  remount instead of waiting.
