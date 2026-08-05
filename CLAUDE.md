@@ -660,6 +660,25 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   fail silently. If QBT ever exposes a stable employee id in the places these
   lists are used, switch to it.
 
+- **TWO BADGE RULES NOW LIVE ON BOTH SIDES OF THE RUNTIME BOUNDARY (8/4, item
+  11).** The nav badges are count-only backend calls, so each rule exists once in
+  Code.js AND once in the frontend for the screen that needs the rows:
+    receiptsPendingCount_  <-> isPendingDesignation (src/lib/receipt-line.ts)
+    mqPending_             <-> (frontend copy DELETED — backend only now)
+  A rule cannot be literally shared across Apps Script and the browser, so the
+  receipts pair MUST be changed together. This is the same shape as CC-11, where
+  that rule was implemented twice, disagreed over one character of a header name
+  ("Final designation" vs "Final Designation"), and the badge read 30 against a
+  real 1. The verification that catches it is cheap: compare
+  `?action=getReceipts&countOnly=1` against the full payload filtered by the
+  frontend rule; they must be equal.
+- **AFTER ANY EXTRACTION IN Code.js, CHECK THE LIVE PAYLOAD, NOT JUST
+  node --check (8/4).** Extracting inboxFeed_ removed a const that was ALSO used
+  further down the same branch (`withGmail`, gating drafts). node --check cannot
+  see an unbound identifier, so getInbox deployed broken and returned an error
+  body — the Messages screen would have shown nothing. It was caught only by the
+  response SIZE (673B where ~21KB was expected). Compare payload shape and size
+  before and after, every time.
 - **A CLIENT'S JOBCODE MAY ONLY RESOLVE VIA ITS BILLING-GROUP ALIAS (8/4).**
   qbJobcode_ matches Client Info names against QBT jobcode names (exact, then
   substring either way) and then, since CC-05, retries with

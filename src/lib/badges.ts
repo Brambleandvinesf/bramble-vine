@@ -10,7 +10,6 @@
 import { useEffect, useState } from "react";
 import { sessionCache } from "./session-cache";
 import { SCRIPT_URL } from "../routes/confirm";
-import { countPendingDesignation } from "./receipt-line";
 
 export const BK = {
   inbox: "home:getInbox:count",
@@ -97,15 +96,13 @@ export function useBadgePoller({
 
     const countVisits = async () => {
       try {
-        const r = await fetch(`${SCRIPT_URL}?action=getQueue`);
-        const j = (await r.json()) as {
-          queue?: Array<{ status?: string; Status?: string }>;
-        };
-        const n = (j.queue ?? []).filter((row) => {
-          const s = String(row.status ?? row.Status ?? "").trim().toLowerCase();
-          return s === "" || s === "pending";
-        }).length;
-        if (!cancelled) setBadge(BK.visits, n);
+        /* item 11: was getQueue (20KB, 3.3s). queueRows_ already computed
+           "pending" server-side and this kept a second copy of the same rule —
+           the count now comes from the backend's mqPending_, so there is one
+           definition instead of two. */
+        const r = await fetch(`${SCRIPT_URL}?action=getQueue&countOnly=1`);
+        const j = (await r.json()) as { count?: number };
+        if (!cancelled && typeof j.count === "number") setBadge(BK.visits, j.count);
       } catch {
         /* keep last value */
       }
@@ -113,16 +110,16 @@ export function useBadgePoller({
 
     const countReceipts = async () => {
       try {
-        const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
-        const j = (await r.json()) as { lines?: Array<Record<string, unknown>> };
-        /* CC-11: this used to re-read the sheet headers itself and asked for
-           "Final designation" — lowercase d, a key that does not exist. The
-           designation half of the filter therefore never matched, so the badge
-           counted every un-invoiced line: 30 against the Designate tab's real 1.
-           It now runs the SAME normLine + predicate that screen does, so the two
-           numbers cannot disagree again. */
-        const n = countPendingDesignation(j.lines ?? []);
-        if (!cancelled) setBadge(BK.receipts, n);
+        /* item 11: was getReceipts — 167KB and ~14s, the worst call in the app,
+           fired on every page load and tab focus to produce one number.
+           The backend counts it now (receiptsPendingCount_).
+           CC-11 CAUTION: that backend predicate is the twin of
+           isPendingDesignation in lib/receipt-line.ts, which the Designate
+           screen still uses. They must agree — the 30-vs-1 bug was exactly this
+           rule implemented twice. If you change one, change both. */
+        const r = await fetch(`${SCRIPT_URL}?action=getReceipts&countOnly=1`);
+        const j = (await r.json()) as { count?: number };
+        if (!cancelled && typeof j.count === "number") setBadge(BK.receipts, j.count);
       } catch {
         /* keep last value */
       }

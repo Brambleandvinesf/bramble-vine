@@ -71,14 +71,12 @@ export function normLine(l: Record<string, unknown>): Line {
 /**
  * Is this line still waiting to be designated?
  *
- * THE definition — the Designate tab's list and the nav badge must be the same
- * number, so they ask the same function rather than each re-deriving it.
+ * BACKEND TWIN: receiptsPendingCount_ in Code.js applies the identical rule so
+ * the nav badge can be a cheap count-only call instead of a 167KB download
+ * (item 11). A rule cannot literally be shared across the Apps Script/browser
+ * boundary, so these two must be changed together — CC-11 was this exact rule
+ * implemented twice and disagreeing, and the badge read 30 against a real 1.
  */
 export function isPendingDesignation(l: Line): boolean {
   return !l.finalDesignation && !l.invoiced;
-}
-
-/** Convenience for callers holding raw rows (the badge poller). */
-export function countPendingDesignation(rows: Array<Record<string, unknown>>): number {
-  return rows.map(normLine).filter(isPendingDesignation).length;
 }
