@@ -923,3 +923,41 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   downgrade to free planned.
 - Pi password SSH broken (key-based only); diagnose via journalctl -u ssh.
 - Retroactive "I'm here" presence screen (Pass 2) not yet built.
+
+## CLIENT GALLERY (XX-01, 8/4)
+- **ONE table for every client photo: `Project Photos`.** Columns are read and
+  written BY NAME via photoEnsureCols_ (the tab predates half of them):
+  `Client | Date | Kind | Label | Project ID | Event ID | URL | File ID |
+  Timestamp | By`. Kind is `before | after | project | legacy`. Two tables were
+  rejected: CC-10's project photos and XX-02's before/after photos must appear in
+  the same gallery, so one table with a Kind column beats a join.
+- **GALLERY PHOTOS ARE `ANYONE_WITH_LINK`, DELIBERATELY (Brandon, 8/4).** An
+  anonymous client cannot read a private Drive file and Apps Script cannot serve
+  binary, so the alternative was base64-inlining every image on a page already
+  fighting a ~1.4s floor. THE COST: the Drive file URL is a capability of its own,
+  independent of the gallery token. Applied ONLY when a photo is a gallery item
+  (has a kind or a projectId) — an untagged visit photo stays private, exactly as
+  before. Gallery membership is explicit, never inferred.
+- **The token IS the credential.** `?g=<28 chars>` -> galleryClientForToken_.
+  Tokens live in `Gallery Tokens` (Client | Token | Created | Disabled), not a
+  Client Info column — Client Info's headers carry real trailing spaces and every
+  read of it is load-bearing. `galleryLink` mints/returns one, `revoke:true`
+  disables it; the next create mints a fresh one, which is how an
+  over-forwarded link is retired. Unknown OR revoked tokens render "not valid"
+  and leak no client name. The page is `noindex,nofollow,noarchive`.
+- **Ordering, decided:** visits NEWEST FIRST (the client's question is "what did
+  you do last time"), but WITHIN a visit before -> after -> project -> legacy,
+  because that is the narrative and reversing it destroys the labels' point.
+- **Verified anonymously on 8/4** (curl carries no Google cookies, so it IS a
+  logged-out visitor): the plain /exec?g= URL AND the /a/<domain> variant both
+  return 200 with no login wall, and all four Drive thumbnails returned
+  image/jpeg. Hand out the plain URL anyway — it is shorter and domain-neutral.
+- **VERIFYING THE PAGE BY curl IS A TRAP.** HtmlService serves the content inside
+  the userCodeAppPanel iframe, escaped into a JS string in the outer shell, so
+  `grep '>Before<'` finds nothing on a page that renders perfectly. The parent is
+  cross-origin so the iframe cannot be inspected from it either. Check the
+  ESCAPED payload, or the tab title, or fetch the thumbnails directly.
+- **deleteProjectPhoto keys on `fileId`,** not projectId — before/after rows have
+  no Project ID, so the original key could never unfile one. `projectId` remains
+  an optional extra constraint. `trashFile:true` (opt-in, default OFF) also
+  trashes the Drive original for the case where a photo should not exist at all.
