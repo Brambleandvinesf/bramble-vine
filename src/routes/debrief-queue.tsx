@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
+import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { RefreshDot } from "../components/RefreshDot";
 import { sessionCache } from "../lib/session-cache";
@@ -9,7 +10,8 @@ import { StateDebrief } from "./field";
 import { fetchPayrollDay, personSeconds } from "../lib/billing-hours";
 
 /* ============================================================
- * DEBRIEF QUEUE — lead / management only. THE FAILSAFE.
+ * DEBRIEF QUEUE — gated on the route_queues capability (lead, office,
+ * management; NOT assistant). See lib/permissions.ts. THE FAILSAFE.
  *
  * Reads:  GET  <SCRIPT_URL>?action=debriefQueue
  * Writes: POST { action: "saveDebrief", client, date, eventId, ...payload }
@@ -99,7 +101,8 @@ function DebriefQueuePage() {
   const { role } = useAuth();
   const { effectiveRole } = useViewAs();
   const who = effectiveRole ?? role;
-  const allowed = who === "lead" || who === "management";
+  /* XX-05: one capability for both queue screens — see permissions.ts. */
+  const allowed = canSee(who, "route_queues");
 
   const [upcoming, setUpcoming] = useState<QueueEntry[]>([]);
   const [queue, setQueue] = useState<QueueEntry[] | null>(
@@ -242,7 +245,7 @@ function DebriefQueuePage() {
   if (!allowed) {
     return (
       <div style={{ background: BG, color: TEXT, minHeight: "100vh", padding: 16, fontFamily: "monospace" }}>
-        <div style={{ color: FINE, fontSize: 12 }}>DEBRIEF QUEUE is lead / management only.</div>
+        <div style={{ color: FINE, fontSize: 12 }}>Debrief Queue is not available for your role.</div>
       </div>
     );
   }

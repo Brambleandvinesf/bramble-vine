@@ -201,8 +201,10 @@ function AppFrame() {
     canMessages: canSee(role, "messages"),
     canReceipts: canSee(role, "rcpt_designate") || canSee(role, "rcpt_invoice"),
     canVisits: canSee(role, "visits"),
-    // /approvals and /debrief-queue are lead/management only.
-    canApprovals: role === "lead" || role === "management",
+    /* XX-05: was an inline lead||management check. Both queue screens now gate
+       on one capability, so a role gaining access cannot end up with menu items
+       that have no badge counts. */
+    canApprovals: canSee(role, "route_queues"),
   });
 
 
@@ -385,8 +387,17 @@ import type { Role } from "../lib/auth";
 const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
   lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts","shopping","approvals","debriefq"] },
   assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts","shopping"] },
-  office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts","shopping"] },
+  office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts","shopping","approvals","debriefq"] },
   management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","shopping","approvals","debriefq","admin"] },
+};
+
+/* XX-05: which nav keys answer to a capability rather than to LAYOUTS alone.
+   LAYOUTS is a hand-maintained list, so listing a key there is necessary but not
+   sufficient — the capability decides. That way changing route_queues in
+   permissions.ts moves the nav too, instead of leaving a fifth place to forget. */
+const NAV_CAPABILITY: Record<string, ScreenId> = {
+  approvals: "route_queues",
+  debriefq: "route_queues",
 };
 
 const LIME_TAB = "#7cff00";
@@ -413,7 +424,13 @@ function HamburgerMenu() {
 
   const layout = LAYOUTS[effectiveRole];
   // All tabs the role can see, excluding messages (rendered as floating FAB).
-  const keys = [...layout.row, ...layout.more].filter((k) => k !== "messages");
+  // XX-05: a key with a NAV_CAPABILITY must also pass it, so permissions.ts is
+  // the single source of truth rather than one of several.
+  const keys = [...layout.row, ...layout.more].filter(
+    (k) =>
+      k !== "messages" &&
+      (!NAV_CAPABILITY[k] || canSee(effectiveRole, NAV_CAPABILITY[k])),
+  );
   const tabs = keys.map((k) => TABS[k]).filter(Boolean);
 
   const isActive = (to: string) =>

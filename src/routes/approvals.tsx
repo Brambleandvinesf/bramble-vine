@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
+import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "./confirm";
 import { RefreshDot } from "../components/RefreshDot";
 import { sessionCache } from "../lib/session-cache";
@@ -19,7 +20,9 @@ import {
 } from "../lib/punch-edit";
 
 /* ============================================================
- * APPROVAL QUEUE — lead / management only.
+ * APPROVAL QUEUE — gated on the route_queues capability (lead, office,
+ * management; NOT assistant). See lib/permissions.ts — do not re-add an inline
+ * role check here.
  * Reads:  GET  <SCRIPT_URL>?action=approvalQueue&days=30
  * Writes: POST { action: "payrollConfirm", by, person, ok }
  *         punch edits go through src/lib/punch-edit.ts (never hand-rolled)
@@ -641,7 +644,8 @@ function Timeline({
 function ApprovalsPage() {
   const { name } = useAuth();
   const { effectiveRole } = useViewAs();
-  const allowed = effectiveRole === "lead" || effectiveRole === "management";
+  /* XX-05: one capability for both queue screens — see permissions.ts. */
+  const allowed = canSee(effectiveRole, "route_queues");
 
   const [data, setData] = useState<QueueResponse | null>(
     () => sessionCache.get<QueueResponse>(CK) ?? null,
@@ -823,7 +827,7 @@ function ApprovalsPage() {
           fontFamily: "'Courier New', Courier, monospace",
         }}
       >
-        Approval Queue is limited to lead and management.
+        Approval Queue is not available for your role.
       </div>
     );
   }
