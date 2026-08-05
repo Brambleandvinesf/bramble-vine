@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { useViewAs } from "../lib/view-as";
@@ -291,6 +291,35 @@ export function PunchEditor({
     [build],
   );
 
+  /* (8/5) APPLY is gated on a server-verified plan, and the ONLY thing that
+     produced one was tapping PREVIEW. Editing START/END/CLIENT therefore left
+     APPLY dead with nothing on screen saying why — the reported bug.
+
+     Two things were wrong, and the second is worse than the first:
+       1. the plan step was invisible; nothing prompted you to press PREVIEW.
+       2. editing a field AFTER previewing did NOT clear the old plan, so APPLY
+          stayed enabled and would have written the NEW values while you were
+          looking at a preview of the OLD ones. On a payroll write.
+
+     So: any edit invalidates the plan immediately (closing hole 2), and a fresh
+     plan is then fetched automatically, debounced (closing hole 1). The
+     dry-run-then-apply invariant is untouched — nothing is ever applied that the
+     server has not just planned; you simply no longer have to know to ask. */
+  const planRef = useRef(doPlan);
+  planRef.current = doPlan;
+  const dirty =
+    start !== laHHMM(seg.start) || end !== laHHMM(seg.end) || client !== "";
+
+  useEffect(() => {
+    setPlan(null);
+    if (!dirty) return;
+    const t = window.setTimeout(() => void planRef.current(false), 450);
+    return () => window.clearTimeout(t);
+    /* optIn is deliberately absent: toggling it re-plans via its own handler,
+       and including it here would re-plan on every checkbox tick. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start, end, client, dirty]);
+
   const doApply = useCallback(async () => {
     const built = build(optIn);
     if (built.err || !built.args) {
@@ -435,7 +464,7 @@ export function PunchEditor({
             cursor: "pointer",
           }}
         >
-          {busy ? "…" : "PREVIEW"}
+          {busy ? "…" : dirty && !plan ? "CHECKING…" : "PREVIEW"}
         </button>
         <button
           type="button"
