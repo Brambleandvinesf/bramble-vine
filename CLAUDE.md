@@ -671,19 +671,40 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   invoice (a deposit, a scheduled invoice, an estimate converted to one) will
   absorb debrief lines the same way. Verify with the read-only qboInvoiceProbe
   before assuming that is a bug.
-- **INVOICE LINE DEDUPE IS BY EXACT DESCRIPTION, AND l.desc ENCODES THE HOURS
-  (8/4).** qboDebriefInvoice_ now stamps a hashed eventId into every line
-  Description and drops incoming lines whose exact Description is already on the
-  invoice — that fully fixes an identical repeat submission. But decomposeLabor_
-  builds `desc: 'Labor — 2 people × 4.5h'`, so if the HOURS CHANGE between two
-  saves the description differs, the dedupe does not match, and the new labour
-  line is appended ALONGSIDE the stale one. Harmless today (saveDebrief is
-  submitted once) and it is the safe direction — it never deletes from an
-  existing invoice. It becomes a DOUBLE-BILL the moment progressive mid-visit
-  saves ship. Progressive saves need replace-by-stamp semantics: drop every
-  existing line carrying this event's stamp, then add the current set. That means
-  sending a reduced Line array, which is how QBO deletes lines — so get it
-  wrong and you delete real invoice lines. Test that one hard.
+- **INVOICE IDEMPOTENCY LIVES IN THE SHEET, NOT IN QBO (8/4).** saveDebrief used
+  to invoice on EVERY call, and qboDebriefInvoice_ blind-concats onto today's (or
+  a future) invoice — so debriefing one visit twice appended the same labour and
+  item lines to the same real invoice and re-emailed the PDF. Real over-charge on
+  a real client.
+  The gate is now a DL_TAB `Invoice` column holding the QBO invoice id, keyed by
+  Event ID (debriefAlreadyInvoiced_ / ledgerInvoiceFor_ / dlInvoiceCol_).
+  An earlier attempt stamped a hashed eventId into each line's Description and
+  deduped on that; it was REVERTED after the read-only qboInvoiceProbe showed
+  that real invoices in these books carry NO Description on any line (including a
+  SubTotalLineDetail line). Do not rebuild that — the only per-line field QBO
+  exposes is Description, and it prints on the client's invoice.
+  Two properties worth keeping straight: the ledger is written ONLY after QBO
+  confirms, so the failure direction is "might re-invoice", never "silently
+  skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for
+  the same reason. Also: on a re-save the DL upsert must not blank that cell —
+  invoiceMark is '' whenever the gate skipped invoicing.
+- **saveDebrief's WRITES: WHICH ARE IDEMPOTENT (8/4).** billing (BH_TAB) upserts,
+  updates (CP_TAB) set-by-key, itemsUsed (IU_TAB) upserts on
+  Date+Client+EventID+Item refreshing Quantity, officeTasks (OT_TAB) dedupes on
+  today+Client+Item and LEAVES an existing row untouched (Status is the office's
+  column — a re-save must not reset a task they actioned), Debrief Log upserts on
+  EventID+Date. **newProjects (CP_TAB + TM_TAB) STILL APPENDS** — it needs a
+  stable per-row key from the UI and that decision was still open on 8/4. Until
+  then, calling saveDebrief twice with the same newProjects creates duplicate
+  projects AND duplicate tool rows.
+  OT_TAB is keyed WITHOUT Event ID on purpose: the tab has neither a Date nor an
+  Event ID column, only a Timestamp, and two visits to one client on one day
+  raising the same task really is one task. Add an Event ID column if per-visit
+  separation is ever wanted.
+- **INVOICING IS GATED ON `data.final !== false` (8/4).** Progressive mid-visit
+  saves pass final:false to record data without billing; the closing save bills.
+  Default TRUE so every existing caller is unchanged and a new one must opt OUT
+  explicitly — deliberately not the inverse, same reasoning as suppressInvoice.
 - **THE ROSTER IS A MIRROR, AND IT WAS ALREADY WRONG ON 8/4.** getField returns
   routeGet_().roster (Code.js 2218), not QBT. Observed live on 8/4: the roster
   was EMPTY while QBT held four completed timesheets for two people that day, so
