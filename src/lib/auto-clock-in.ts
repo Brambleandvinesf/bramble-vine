@@ -111,6 +111,27 @@ export function useAutoClockIn(opts: {
     // moment they sign in, even though the clock-in waits on fieldPhone.
     if (role === "assistant") presenceStamp();
 
+    /* XX-06(b): record the sign-in SERVER-SIDE too, whether or not fieldPhone
+       exists yet.
+       The localStorage stamp above only helps if this same device later performs
+       the clock-in. When fieldPhone is still null the device cannot resolve an
+       identity at all and this effect used to return silently — no record
+       anywhere, so the minutes between arrival and the phone assignment were
+       simply lost. The server record is what setFieldPhone reads to backdate the
+       clock-in to this instant instead of to the assignment.
+       Fire-and-forget: the backend keeps the FIRST sign-in of the crew day, so a
+       retry or a reload cannot push the recorded arrival later. */
+    void fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({
+        action: "recordSignIn",
+        role,
+        email: who,
+        at: new Date().toISOString(),
+      }),
+    }).catch(() => { /* the clock-in attempt below is unaffected */ });
+
     let cancelled = false;
     void (async () => {
       const employees = await loadEmployees();

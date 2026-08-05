@@ -274,9 +274,29 @@ export function useDayState(): DayState | null {
 }
 
 /**
- * Screen that owns each HQ_LOADING sub-step. Role landings and the field
- * screen's HQ gates use this so "where should I be right now" has exactly one
- * answer, derived from the polled day state instead of a hard-coded route.
+ * The HQ_LOADING ladder in order, mirroring the backend's subSteps.HQ_LOADING
+ * (Code.js: ['team_assign','dailyload_confirm','special_confirm','loading']).
+ * Exported so callers can ask "is this part of the morning?" and "is it past X?"
+ * without hard-coding the list a third time.
+ */
+export const HQ_SUBSTEPS: readonly string[] = [
+  "team_assign",
+  "dailyload_confirm",
+  "special_confirm",
+  "loading",
+];
+
+/**
+ * Screen that owns each HQ_LOADING sub-step. Role landings, the field screen's
+ * HQ gates and the spine's tap handler all use this, so "where should I be right
+ * now" has exactly one answer, derived from the polled day state instead of a
+ * hard-coded route.
+ *
+ * XX-06(c): DayStateSpine's routeFor kept a SECOND copy of this map and they had
+ * drifted — routeFor sent dailyload_confirm to /confirm, so tapping the "Confirm
+ * Daily Load" node opened the per-client special-loading review instead of the
+ * yes/no question, which lives on /schedule. routeFor delegates here now. Do not
+ * reintroduce a parallel mapping.
  */
 export function hqScreenFor(subStep: string): "/schedule" | "/confirm" | "/loading" {
   if (subStep === "special_confirm") return "/confirm";

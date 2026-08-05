@@ -677,7 +677,62 @@ Rules now:
   across components. A request-coalescing layer (share one in-flight promise per
   URL, hand each caller its own parsed copy) would fix it — not built yet.
 
+## ONE ACTION, ONE HANDLER (XX-06(a), 8/5)
+`getProducts` had TWO `else if` branches. The earlier one (v7.4.12, 'Product
+Master', added for the receipts matcher) won; the later one (v6.5.5,
+'Products & Services', the Add Item picker's catalog) was unreachable dead code.
+'Product Master' is created-on-demand and does not exist, so getSheetByName
+returned null and BOTH consumers got `[]` — which is why the item picker answered
+"No catalog match" for every search, and why CC-16(b)'s Add button looked broken.
+Measured at the time: getProducts 0 rows against getVendors 34 and getData 442.
+
+Now one handler reading 'Products & Services' (3310 rows verified). **Before
+adding a dispatch branch, grep for the action name** — the chain is ~1200 lines
+and a duplicate is silent. Note the doGet chain's terminal `else` IS getData.
+
+WATCH: getProducts now ships **1.4 MB**. products.ts caches it module-wide with a
+5-min refresh so it is not per-poll, but it is a lot for a field phone. It returns
+every QB column; the picker only uses name/category/subCategory. Trim server-side.
+
+## PENDING SIGN-IN / RETROACTIVE CLOCK-IN (XX-06(b), 8/5)
+The assistant device (thornsandtendrils@) is SHARED, so no email will ever match a
+QuickBooks Time person. Its only identity is `fieldPhone`, set solely by the
+explicit setFieldPhone assignment. Sign in before that assignment and
+useAutoClockIn found no userId and returned silently — no record, no toast, and
+the minutes from arrival to assignment were simply lost.
+
+- `recordSignIn` writes a durable record **server-side** in CONFIRM_STATE
+  (`pendingSignIns`), because the device that signs in and the device that assigns
+  the phone are DIFFERENT MACHINES. The old localStorage `bv.presenceAt` stamp
+  only ever worked because the same device later did the clock-in.
+- **Keyed by role.** The first cut used one slot and a live test caught it
+  immediately: a LEAD signing in wrote the only record, and setFieldPhone would
+  have backdated the ASSISTANT's clock-in to the lead's arrival. Two people, two
+  clocks, two records.
+- First sign-in of the crew day wins — reopening the app must never push the
+  recorded arrival later. Day-scoped, so yesterday cannot backdate today.
+- Reconciliation fires **inside the setFieldPhone write**, not on a client poll,
+  because the assistant's device may be asleep, offline, or handed to someone else.
+- `bvClockInUser_` is the ONE implementation of the QBT clock-in write. Do not
+  add a second — a duplicated payroll write is the twin-rule pattern that has
+  already cost real money here. It takes `dryRun` so the path can be exercised
+  without touching timesheets.
+- **This path is deliberately UNCAPPED** (`maxBackMin: null`). autoClockIn's own
+  retro start still caps at 45 min (v7.4.2); for the field-phone path that cap
+  would discard exactly what it exists to preserve (sign in 07:00, assigned 08:30
+  = 90 lost minutes). The day-scoped record is the only bound.
+- `recordSignIn {clear:true, role:'all'|<role>}` voids a pending record. Needed:
+  a wrong record silently backdates a real timesheet the moment the phone is
+  assigned.
+
 ## WATCH ITEMS (not bugs yet — they will become bugs quietly)
+- **A FRESH DEPLOY SERVES OLD AND NEW CODE FOR ~30s (8/5).** After
+  `clasp deploy` to an existing deployment id, requests land on either build for
+  roughly half a minute. Seen twice: a getData response with no `epoch` key when
+  the new code always sets one, and a role-keyed sign-in test failing (lead slot
+  vanishing, "first wins" not holding) that passed cleanly on re-run minutes
+  later with no code change. **Do not diagnose a logic bug from the first test
+  run after a deploy.** Re-run before believing a failure.
 - **"day state loading…" NO LONGER MEANS LOADING (8/5, CC-17).** DayStateSpine
   gated on `!state || anchors.length === 0` and printed the same sentence for
   both. `anchors` already falls back to per-phase labels when there are no stops,

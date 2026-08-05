@@ -1,7 +1,13 @@
 import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import { useDayState, useDayStateRefresh, type DayPhase } from "../lib/day-state";
+import {
+  useDayState,
+  useDayStateRefresh,
+  hqScreenFor,
+  HQ_SUBSTEPS,
+  type DayPhase,
+} from "../lib/day-state";
 import { useAuth, type Role } from "../lib/auth";
 import { canSee } from "../lib/permissions";
 import { SCRIPT_URL } from "../routes/confirm";
@@ -144,18 +150,26 @@ function routeFor(
   subStep: string,
   canAssignTeams: boolean,
 ): { to?: string; event?: string } | null {
+  /* XX-06(c): the HQ_LOADING sub-steps delegate to hqScreenFor, which is now the
+     ONLY answer to "which screen owns this sub-step".
+     This switch used to keep its own copy, and the two had drifted: routeFor sent
+     dailyload_confirm to /confirm while hqScreenFor sent it to /schedule. Tapping
+     the "Confirm Daily Load" node therefore opened the per-client special-loading
+     review, which is a different node's screen — the Daily Load yes/no question
+     actually lives on /schedule (submitBaseLoadYes/No). Two mappings for one
+     question is how that drift happened, so now there is one. */
+  if (HQ_SUBSTEPS.includes(subStep)) {
+    const to = hqScreenFor(subStep);
+    /* Team assignment also pops its modal, which is not a routing concern and so
+       has no business living in hqScreenFor. */
+    if (subStep === "team_assign" && canAssignTeams) {
+      return { event: "bv:open-team-setup", to };
+    }
+    return { to };
+  }
   switch (subStep) {
     case "signin":
       return { to: "/login" };
-    case "team_assign":
-      return canAssignTeams
-        ? { event: "bv:open-team-setup", to: "/schedule" }
-        : { to: "/schedule" };
-    case "dailyload_confirm":
-    case "special_confirm":
-      return { to: "/confirm" };
-    case "loading":
-      return { to: "/loading" };
     case "enroute":
     case "arrived":
     case "visit":

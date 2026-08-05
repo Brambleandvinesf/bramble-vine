@@ -7,7 +7,12 @@ import { ItemPicker } from "../components/ItemPicker";
 import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { useOptimistic } from "../lib/optimistic";
-import { useSubStepOverride } from "../lib/day-state";
+import {
+  useSubStepOverride,
+  useDayState,
+  hqScreenFor,
+  HQ_SUBSTEPS,
+} from "../lib/day-state";
 import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { Check, SkipForward, Trash2 } from "lucide-react";
@@ -19,8 +24,12 @@ const CK = "confirm:getConfirm";
 export const Route = createFileRoute("/confirm")({
   head: () => ({
     meta: [
-      { title: "Bramble & Vine — Confirm Day" },
-      { name: "description", content: "Confirm today's loading list and route notes." },
+      /* XX-06(c): the title now matches the spine node this screen IS
+         (special_confirm, the 3rd HQ_LOADING node). It said "Confirm Day",
+         which read as the whole morning and made this screen impossible to tell
+         apart from the Daily Load question and Load Vehicle. */
+      { title: "Bramble & Vine — Confirm Special Loading" },
+      { name: "description", content: "Per-client special loading review for today." },
     ],
   }),
   component: ConfirmPage,
@@ -274,6 +283,27 @@ function ConfirmPage() {
   useEffect(() => {
     if (!allowed) void navigate({ to: "/" });
   }, [allowed, navigate]);
+
+  /* XX-06(c): send the day where it actually is once it has moved PAST
+     special_confirm.
+     This screen only ever navigated forward after a successful submit
+     (navigate to /loading, below), so arriving any other way — a spine tap, back
+     navigation, a reload on a day already at 'loading' — left the crew looking at
+     the special-loading review while the spine highlighted Load Vehicle. That
+     mismatch is exactly what made the old "CONFIRM DAY" title so confusing.
+
+     Strictly PAST, by ladder position: dailyload_confirm is BEFORE
+     special_confirm and still legitimately renders here (the vacuous-gate path),
+     so it must not be redirected away. */
+  const daySubStep = useDayState()?.subStep ?? null;
+  useEffect(() => {
+    if (!daySubStep) return;
+    const here = HQ_SUBSTEPS.indexOf("special_confirm");
+    const now = HQ_SUBSTEPS.indexOf(daySubStep);
+    if (now < 0 || now <= here) return;
+    const to = hqScreenFor(daySubStep);
+    if (to !== "/confirm") void navigate({ to });
+  }, [daySubStep, navigate]);
 
   const cached = sessionCache.get<GetConfirmResponse>(CK);
   const [state, setState] = useState<ConfirmState | null>(() => cached?.state ?? null);
@@ -951,7 +981,7 @@ function ConfirmPage() {
       <header ref={headerRef} style={HEADER}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-            CONFIRM DAY
+            CONFIRM SPECIAL LOADING
           </div>
           <RefreshDot refreshing={refreshing} offline={offline} />
           {offline && <span style={{ color: MUTED, fontSize: 14 }}>offline — last data</span>}
