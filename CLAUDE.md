@@ -677,6 +677,52 @@ Rules now:
   across components. A request-coalescing layer (share one in-flight promise per
   URL, hand each caller its own parsed copy) would fix it — not built yet.
 
+## FUTURE / BACKLOG — NOT SCHEDULED, NOT STARTED
+### Possible migration off Sheets + Apps Script to Postgres (Supabase) + Edge Functions
+Raised 8/5 (Gemini's suggestion), discussed, and parked here deliberately.
+
+**Motivation.** Apps Script's ceilings are real and this codebase keeps meeting
+them: per-user request serialisation past ~4-5 concurrent, a ~1.4s floor per
+/exec call, endpoints measured at 3-23s, no real transactions (the reason
+LockService appears around every multi-step write), and quota-shaped limits on
+everything. Postgres would give real transactions, indexed reads, and predictable
+latency.
+
+**BE HONEST ABOUT WHAT IT WOULD NOT HAVE FIXED.** None of 8/5's bugs were
+platform bugs. XX-06(a) was a duplicate dispatch branch shadowing a live one.
+XX-06(b) was a role exclusion plus a null-fieldPhone path that returned silently,
+and its real blocker turned out to be a timestamp format QBT rejects. XX-06(c)
+was two disagreeing route maps. CC-17 was `setInterval` polling faster than the
+endpoints answer. Postgres would have changed none of them. Do not let a bad bug
+day be used as the argument for this migration -- that reasoning is how a
+multi-week rewrite gets started for the wrong reason.
+
+**Why it is not urgent.** After CC-17 the measured load is a fraction of what it
+was, and the remaining slowness is uncached full-sheet reads that can be fixed
+in place (getData's epoch handshake already did exactly that: 359,985B -> 66B).
+Most of the available win does not require leaving the platform.
+
+**Sequencing, if it is ever pursued.**
+1. The current bug queue finishes AND settles. Not "the queue is short" -- settled.
+2. A genuinely quiet stretch with nothing smouldering.
+3. ONE pilot slice, not a big-bang rewrite. **The product catalog + QuickBooks
+   sync is the natural pilot**: it is already being touched, it is read-mostly and
+   low-blast-radius, and the QBO OAuth plumbing plus field mapping is already
+   partly scoped (see the QBO sync notes -- auth already exists via qboService_,
+   and the 'Variant Name' / 'Single, parent or variant?' question is resolved).
+4. Expand table-by-table ONLY if the pilot earns it.
+
+**The unsolved design problem, and it is the important one.** Staff edit these
+sheets directly, by hand, every day. That is a real requirement, not a legacy
+habit to be waved away with "optional sync". Any migration must answer it
+concretely, because a sync-lag bug -- data correct in one store and stale in the
+other -- is a close cousin of exactly the class of bug this migration is supposed
+to escape. If the answer is "staff stop editing sheets", say so out loud and price
+that in; if it is bidirectional sync, design it before writing any of it.
+
+**Scale.** Multi-week in engineering time either way. It should be run as its own
+dedicated stretch, not interleaved with day-to-day fixes.
+
 ## ONE ACTION, ONE HANDLER (XX-06(a), 8/5)
 `getProducts` had TWO `else if` branches. The earlier one (v7.4.12, 'Product
 Master', added for the receipts matcher) won; the later one (v6.5.5,
@@ -694,7 +740,52 @@ WATCH: getProducts now ships **1.4 MB**. products.ts caches it module-wide with 
 5-min refresh so it is not per-poll, but it is a lot for a field phone. It returns
 every QB column; the picker only uses name/category/subCategory. Trim server-side.
 
+## QBO PRODUCT SYNC — FIELD MAPPING RESOLVED (8/5), SYNC NOT BUILT
+Auth already exists: `qboService_` (apps-script-oauth2), QBO_CLIENT_ID /
+QBO_CLIENT_SECRET / QBO_REALM_ID in Script Properties, `qboFetch_`, and
+qboAuthorize/qboCallback/qboStatus. Invoicing already uses it, so no new
+credentials are needed. QBO's `Item` entity IS Products and Services; queries cap
+at 1000 rows so ~4 paged calls for 3310 items.
+
+The export's real schema is 16 columns (`?action=getProducts&schema=1` reports it
+live). Proposed mapping:
+
+| Sheet column | QBO API source |
+|---|---|
+| Product/Service Name | `Item.Name`, or `FullyQualifiedName` for sub-items |
+| Category | `Item.ParentRef.name` — in QBO a product's category IS its parent |
+| Item type | `Item.Type` (Inventory / NonInventory / Service) |
+| Quantity on hand | `Item.QtyOnHand` (Inventory only) |
+| SKU | `Item.Sku` |
+| Price / Cost | `Item.UnitPrice` / `Item.PurchaseCost` |
+| Taxable | `Item.Taxable` |
+| Sales/Purchase Description | `Item.Description` / `PurchaseDesc` |
+| Income/Expense/Inventory account | `IncomeAccountRef` / `ExpenseAccountRef` / `AssetAccountRef` |
+| **Variant Name** | **NO EQUIVALENT — export-only** |
+| **Single,parent or variant?** | **partially derivable; see below** |
+
+**Variants are gone.** Intuit discontinued QBO product variants on **1 June
+2026**; existing variants became ordinary products/services. The API has no
+variant field and never will. Confirmed against the live sheet:
+`Single,parent or variant?` has exactly ONE distinct value across all 3310 rows —
+`'Single'` — so it carries no information here. Going forward derive it as
+single-vs-parent from `SubItem` / `ParentRef` / `Level`; 'variant' can no longer
+occur. `Variant Name` should be written blank.
+
+Also worth knowing before building: `SKU` is empty for all 3310 rows today, and
+`Category` is populated for only a minority of them.
+
 ## PENDING SIGN-IN / RETROACTIVE CLOCK-IN (XX-06(b), 8/5)
+**QuickBooks Time REJECTS 'Z' TIMESTAMPS — 417 Expectation Failed, empty body.**
+`qbNow_()` sends Pacific local time with a numeric offset
+(`yyyy-MM-dd'T'HH:mm:ssXXX`); browsers produce `new Date().toISOString()`, which
+is UTC with a `Z` and milliseconds. Sending the browser value verbatim fails every
+single time, and the old code collapsed the failure to the misleading message
+"user not found in QBT". This is almost certainly why the v7.4.2 retroactive
+clock-in never actually worked — `presenceStamp()` produces `toISOString()` too,
+so every backdate it ever attempted was rejected and swallowed. `bvClockInUser_`
+now normalises any incoming instant before the QBT call. **Never hand a browser
+timestamp straight to QBT.**
 The assistant device (thornsandtendrils@) is SHARED, so no email will ever match a
 QuickBooks Time person. Its only identity is `fieldPhone`, set solely by the
 explicit setFieldPhone assignment. Sign in before that assignment and
