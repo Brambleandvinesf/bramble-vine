@@ -78,3 +78,101 @@ export async function addCompletedProject(
 
   return { projectId, crossed: crossed.ok !== false };
 }
+
+/* ---------------------------------------------------------------------------
+ * Sections (CC-09).
+ *
+ * There is NO section model. A&G's eight sections are independent Client Info
+ * rows distinguished only by a name suffix — and in three spellings:
+ * "A&G Sec. 1", "A&G Sect 2".."A&G Sect 8", "A&G Sector 3". So a project's
+ * section IS its Client Name, and filing a follow-up against a different
+ * section means writing that section's name. No new column, no new concept.
+ *
+ * Matching strips the suffix and compares the base, rather than special-casing
+ * "A&G", so any client that later splits the same way works without a change.
+ * ------------------------------------------------------------------------- */
+
+const SECTION_SUFFIX =
+  /^(.*?)[\s\-–]*\b(sec|sect|section|sector)\b\.?\s*([0-9]+|[A-Za-z])\s*$/i;
+
+/** The part before a section suffix, or "" when the name has none. */
+export function sectionBase(client: string): string {
+  const m = SECTION_SUFFIX.exec(String(client || "").trim());
+  return m ? m[1].trim().replace(/[-–]+$/, "").trim() : "";
+}
+
+/** The section's own label, e.g. "Sect 7" — what the crew calls it. */
+export function sectionLabel(client: string): string {
+  const m = SECTION_SUFFIX.exec(String(client || "").trim());
+  return m ? `${m[2]} ${m[3]}`.replace(/\s+/g, " ").trim() : "";
+}
+
+/**
+ * Other sections of the same client, excluding the one being debriefed.
+ * Sorted by section number so the list reads 1,2,3… rather than alphabetically
+ * (which would put 10 before 2).
+ */
+export function siblingSections(client: string, allClients: string[]): string[] {
+  const base = sectionBase(client);
+  if (!base) return [];
+  const me = String(client || "").trim().toLowerCase();
+  const num = (n: string) => {
+    const m = SECTION_SUFFIX.exec(n);
+    const v = m ? parseInt(m[3], 10) : NaN;
+    return isNaN(v) ? Number.MAX_SAFE_INTEGER : v;
+  };
+  return (allClients || [])
+    .map((c) => String(c || "").trim())
+    .filter((c) => c && c.toLowerCase() !== me)
+    .filter((c) => sectionBase(c).toLowerCase() === base.toLowerCase())
+    .sort((a, b) => num(a) - num(b) || a.localeCompare(b));
+}
+
+/** Every Client Info name. Fetched at most once per session — the section
+ *  picker is the only caller and the list barely changes within a day. */
+let clientNamesCache: string[] | null = null;
+export async function fetchClientNames(): Promise<string[]> {
+  if (clientNamesCache) return clientNamesCache;
+  const res = await fetch(`${SCRIPT_URL}?action=getStopSuggest`);
+  const j = (await res.json().catch(() => ({}))) as { clients?: unknown };
+  const raw = j.clients;
+  let names: string[] = [];
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    names = Object.keys(raw as Record<string, unknown>);
+  } else if (Array.isArray(raw)) {
+    names = raw.map((c) => (typeof c === "string" ? c : String((c as { name?: string })?.name ?? "")));
+  }
+  clientNamesCache = names.map((n) => n.trim()).filter(Boolean);
+  return clientNamesCache;
+}
+
+/**
+ * Log a FOLLOW-UP raised during this visit, for a future visit.
+ *
+ * Same row-creation path as a completed entry, but deliberately NOT crossed —
+ * it is a pending to-do, which is the whole difference between the two kinds.
+ * `client` is the section it should land on, which is what the sector selector
+ * chooses.
+ */
+export async function addFollowUpProject(
+  p: NewCompletedProject,
+): Promise<{ projectId: string }> {
+  const action = p.projectAction.trim();
+  if (!p.client.trim()) throw new Error("client required");
+  if (!action) throw new Error("describe the follow-up");
+  const created = await post({
+    action: "createProject",
+    client: p.client.trim(),
+    projectAction: action,
+    garden: p.garden?.trim() || undefined,
+    category: p.category?.trim() || undefined,
+    type: p.type?.trim() || undefined,
+    notes: p.notes?.trim() || undefined,
+  });
+  if (created.ok === false) {
+    throw new Error(String(created.error || "could not add the follow-up"));
+  }
+  const projectId = String(created.projectId || "").trim();
+  if (!projectId) throw new Error("backend did not return a Project ID");
+  return { projectId };
+}

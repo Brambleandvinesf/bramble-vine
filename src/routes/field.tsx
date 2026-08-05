@@ -20,7 +20,14 @@ import {
   startOnsiteBreak,
   type OnsiteBreakMap,
 } from "../lib/onsite-break";
-import { addCompletedProject } from "../lib/add-project";
+import {
+  addCompletedProject,
+  addFollowUpProject,
+  fetchClientNames,
+  sectionBase,
+  sectionLabel,
+  siblingSections,
+} from "../lib/add-project";
 import {
   fetchPayrollDay,
   personOnClock,
@@ -4306,32 +4313,68 @@ export function StateDebrief({
   const [addDone, setAddDone] = useState<NewProject | null>(null);
   const [addBusy, setAddBusy] = useState(false);
   const [addErr, setAddErr] = useState<string | null>(null);
-  const [addedDone, setAddedDone] = useState<Array<{ id: string; action: string }>>([]);
+  const [addedDone, setAddedDone] = useState<
+    Array<{ id: string; action: string; kind: "completed" | "followup"; client: string }>
+  >([]);
+  /* COMPLETED = work done on this visit, crossed off immediately for the
+     record. FOLLOW-UP = something noticed now that belongs to a LATER visit, so
+     it stays pending — that difference is the whole reason for the toggle. */
+  const [addKind, setAddKind] = useState<"completed" | "followup">("completed");
+  /* Which section a follow-up lands on. Only meaningful for a client that is
+     split into sections; everyone else has exactly one place it can go. */
+  const [addTarget, setAddTarget] = useState<string>("");
+  const [sectionOpts, setSectionOpts] = useState<string[]>([]);
 
-  const saveCompletedProject = useCallback(async () => {
+  /* Load the sibling sections lazily, and only for a sectioned client — most
+     clients have none, and this must not cost a request on every debrief. */
+  useEffect(() => {
+    if (!addDone || addKind !== "followup" || !clientMatch) return;
+    if (!sectionBase(clientMatch)) { setSectionOpts([]); return; }
+    let gone = false;
+    void fetchClientNames()
+      .then((all) => { if (!gone) setSectionOpts(siblingSections(clientMatch, all)); })
+      .catch(() => { if (!gone) setSectionOpts([]); });
+    return () => { gone = true; };
+  }, [addDone, addKind, clientMatch]);
+
+  const saveAddedProject = useCallback(async () => {
     if (isPreview || !addDone) return;
-    const client = clientMatch ?? "";
-    if (!client) { setAddErr("no client for this visit"); return; }
+    const target = (addKind === "followup" && addTarget) || clientMatch || "";
+    if (!target) { setAddErr("no client for this visit"); return; }
     setAddBusy(true);
     setAddErr(null);
     try {
-      const { projectId, crossed } = await addCompletedProject({
-        client,
+      const common = {
+        client: target,
         projectAction: addDone.action,
         type: addDone.type,
         notes: addDone.notes,
-      });
-      setAddedDone((cur) => [...cur, { id: projectId, action: addDone.action.trim() }]);
+      };
+      if (addKind === "followup") {
+        /* NOT crossed: a follow-up is a pending to-do for a later visit. */
+        const { projectId } = await addFollowUpProject(common);
+        setAddedDone((cur) => [
+          ...cur,
+          { id: projectId, action: addDone.action.trim(), kind: "followup", client: target },
+        ]);
+      } else {
+        const { projectId, crossed } = await addCompletedProject(common);
+        setAddedDone((cur) => [
+          ...cur,
+          { id: projectId, action: addDone.action.trim(), kind: "completed", client: target },
+        ]);
+        /* The project exists either way; say so plainly rather than implying the
+           whole write failed and inviting a duplicate on retry. */
+        if (!crossed) setAddErr(`Added as ${projectId}, but could not mark it complete.`);
+      }
       setAddDone(null);
-      /* The project exists either way; say so plainly rather than implying the
-         whole write failed and inviting a duplicate on retry. */
-      if (!crossed) setAddErr(`Added as ${projectId}, but could not mark it complete.`);
+      setAddTarget("");
     } catch (e) {
       setAddErr(e instanceof Error ? e.message : "could not add the project");
     } finally {
       setAddBusy(false);
     }
-  }, [isPreview, addDone, clientMatch]);
+  }, [isPreview, addDone, addKind, addTarget, clientMatch]);
 
   const qbtStarted = useRef(false);
   /* Bumped by the re-check button so a failed clock read is recoverable
@@ -4849,9 +4892,17 @@ export function StateDebrief({
               {addedDone.map((a) => (
                 <div
                   key={a.id}
-                  style={{ color: DIM_GREEN, fontSize: 12, marginBottom: 6 }}
+                  style={{
+                    color: a.kind === "completed" ? DIM_GREEN : "#ffb020",
+                    fontSize: 12,
+                    marginBottom: 6,
+                  }}
                 >
-                  ✓ {a.action} <span style={{ color: MUTED }}>· logged as {a.id}</span>
+                  {a.kind === "completed" ? "✓" : "→"} {a.action}{" "}
+                  <span style={{ color: MUTED }}>
+                    · {a.kind === "completed" ? "logged as" : "follow-up on " + a.client + ","}{" "}
+                    {a.id}
+                  </span>
                 </div>
               ))}
               {addErr && (
@@ -4859,13 +4910,81 @@ export function StateDebrief({
               )}
               {addDone ? (
                 <>
+                  {/* Which KIND of entry. Completed work is crossed off now;
+                      a follow-up stays pending for a later visit. */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                    {(
+                      [
+                        ["completed", "DONE THIS VISIT"],
+                        ["followup", "FOLLOW-UP"],
+                      ] as const
+                    ).map(([k, label]) => {
+                      const on = addKind === k;
+                      return (
+                        <button
+                          key={k}
+                          onClick={() => { setAddKind(k); setAddTarget(""); }}
+                          style={{
+                            ...SMALL_BTN,
+                            flex: 1,
+                            background: on ? LIME : "transparent",
+                            color: on ? BG : LIME,
+                            borderColor: on ? LIME : LIME_DIM,
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Sector picker — follow-ups only, and only for a client that
+                      is actually split into sections. A section IS a Client Info
+                      row, so choosing one just changes which row this lands on. */}
+                  {addKind === "followup" && sectionOpts.length > 0 && (
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ color: MUTED, fontSize: 11, marginBottom: 4 }}>
+                        Which visit does this belong to?
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {[
+                          { v: "", label: "NEXT VISIT" },
+                          ...sectionOpts.map((c) => ({
+                            v: c,
+                            label: (sectionLabel(c) || c).toUpperCase(),
+                          })),
+                        ].map((o) => {
+                          const on = addTarget === o.v;
+                          return (
+                            <button
+                              key={o.v || "__same"}
+                              onClick={() => setAddTarget(o.v)}
+                              style={{
+                                ...SMALL_BTN,
+                                padding: "0 10px",
+                                background: on ? LIME : "transparent",
+                                color: on ? BG : LIME,
+                                borderColor: on ? LIME : LIME_DIM,
+                              }}
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>
+                        Filing on: {addTarget || clientMatch}
+                      </div>
+                    </div>
+                  )}
+
                   <NewProjectForm
                     value={addDone}
                     onChange={setAddDone}
-                    onRemove={() => { setAddDone(null); setAddErr(null); }}
+                    onRemove={() => { setAddDone(null); setAddErr(null); setAddTarget(""); }}
                   />
                   <button
-                    onClick={() => void saveCompletedProject()}
+                    onClick={() => void saveAddedProject()}
                     disabled={addBusy || isPreview || !addDone.action.trim()}
                     style={{
                       ...PRIMARY_BTN,
@@ -4874,12 +4993,21 @@ export function StateDebrief({
                       opacity: addBusy || isPreview || !addDone.action.trim() ? 0.5 : 1,
                     }}
                   >
-                    {addBusy ? "SAVING…" : "SAVE AS COMPLETED"}
+                    {addBusy
+                      ? "SAVING…"
+                      : addKind === "completed"
+                        ? "SAVE AS COMPLETED"
+                        : "SAVE FOLLOW-UP"}
                   </button>
                 </>
               ) : (
                 <button
-                  onClick={() => { setAddDone({ action: "", type: "SPECIAL" }); setAddErr(null); }}
+                  onClick={() => {
+                    setAddDone({ action: "", type: "SPECIAL" });
+                    setAddErr(null);
+                    setAddKind("completed");
+                    setAddTarget("");
+                  }}
                   disabled={isPreview}
                   style={{ ...SMALL_BTN, opacity: isPreview ? 0.5 : 1 }}
                 >
