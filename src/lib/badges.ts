@@ -52,15 +52,30 @@ type PollOpts = {
   canMessages: boolean;
   canReceipts: boolean;
   canVisits?: boolean;
-  /** lead/management only — the approvals + debrief-queue routes are gated. */
+  /** Approval Queue + Debrief Queue — the route_queues capability (XX-05). */
   canApprovals?: boolean;
 };
 
 
+/** Steady-state badge refresh. */
+const POLL_MS = 60_000;
 /**
- * Poll inbox + receipts counts every ~60s while the user is signed in.
- * Inbox count uses the same rule as the Messages screen's own badge:
- * items where `awaiting` is true.
+ * How soon to re-poll while the server still owes us counts.
+ *
+ * badgeCounts computes at most ONE uncached count per request, so it can never
+ * be the slow call that delays the day-state spine (XX-04). The counts it
+ * deferred come back named in `pending`, and this is how fast we come back for
+ * them — a few seconds each rather than a full 60s cycle, so a cold first load
+ * fills every badge in seconds instead of minutes.
+ */
+const PENDING_RETRY_MS = 4_000;
+
+/**
+ * Refresh every badge this role can see in ONE request (XX-04), every ~60s while
+ * signed in — faster while the server still owes us counts. The counts are
+ * computed server-side by the same helpers the individual screens use, so a
+ * badge cannot disagree with the screen it points at — that disagreement was a
+ * real bug once (CC-11, 30 vs 1).
  */
 export function useBadgePoller({
   email,
@@ -74,102 +89,60 @@ export function useBadgePoller({
     if (!email) return;
     let cancelled = false;
 
-    // These three counts are independent, but used to be awaited in sequence, so
-    // a role with all three paid three Apps Script round trips end to end - the
-    // slowest thing on first paint. They now run together. Each keeps its own
-    // try/catch, which also means one failure cannot cancel the others the way a
-    // bare Promise.all would.
-    const countInbox = async () => {
-      const e = email.trim().toLowerCase();
+    /** Did the last response defer any count? Drives the retry cadence only. */
+    const tick = async (): Promise<boolean> => {
+      const want: string[] = [];
+      if (canMessages) want.push("messages");
+      if (canVisits) want.push("visits");
+      if (canReceipts) want.push("receipts");
+      if (canApprovals) want.push("queues");
+      if (!want.length) return false;
+      const e = (email ?? "").trim().toLowerCase();
       try {
-        /* item 11: was getInbox, which shipped ~348KB so this could count
-           awaiting threads — on every page load and every tab focus. The
-           backend returns the integer now, from the same feed builder the
-           Messages screen uses. */
-        const r = await fetch(`${SCRIPT_URL}?action=inboxCount&email=${encodeURIComponent(e)}`);
-        const j = (await r.json()) as { count?: number };
-        if (!cancelled && typeof j.count === "number") setBadge(BK.inbox, j.count);
+        const r = await fetch(
+          `${SCRIPT_URL}?action=badgeCounts&email=${encodeURIComponent(e)}` +
+            `&want=${encodeURIComponent(want.join(","))}&days=30`,
+        );
+        const j = (await r.json()) as {
+          counts?: Partial<Record<"inbox" | "visits" | "receipts" | "approvals" | "debriefq", number>>;
+          pending?: string[];
+        };
+        if (cancelled) return false;
+        const c = j.counts ?? {};
+        /* A key the server did not send is "no answer yet", NOT zero — keep the
+           last known value. Writing 0 here would flash a wrong count on every
+           deferred badge, which is worse than showing a slightly stale one. */
+        const set = (key: string, v: number | undefined) => {
+          if (typeof v === "number") setBadge(key, v);
+        };
+        set(BK.inbox, c.inbox);
+        set(BK.visits, c.visits);
+        set(BK.receipts, c.receipts);
+        set(BK.approvals, c.approvals);
+        set(BK.debriefq, c.debriefq);
+        return Array.isArray(j.pending) && j.pending.length > 0;
       } catch {
-        /* keep last value */
+        /* keep last values */
+        return false;
       }
     };
 
-    const countVisits = async () => {
-      try {
-        /* item 11: was getQueue (20KB, 3.3s). queueRows_ already computed
-           "pending" server-side and this kept a second copy of the same rule —
-           the count now comes from the backend's mqPending_, so there is one
-           definition instead of two. */
-        const r = await fetch(`${SCRIPT_URL}?action=getQueue&countOnly=1`);
-        const j = (await r.json()) as { count?: number };
-        if (!cancelled && typeof j.count === "number") setBadge(BK.visits, j.count);
-      } catch {
-        /* keep last value */
-      }
+    /* Self-scheduling timeout rather than a fixed interval, so the delay can
+       depend on whether counts are still outstanding. */
+    let timer: number | undefined;
+    const run = async () => {
+      const stillPending = await tick();
+      if (cancelled) return;
+      timer = window.setTimeout(run, stillPending ? PENDING_RETRY_MS : POLL_MS);
     };
-
-    const countReceipts = async () => {
-      try {
-        /* item 11: was getReceipts — 167KB and ~14s, the worst call in the app,
-           fired on every page load and tab focus to produce one number.
-           The backend counts it now (receiptsPendingCount_).
-           CC-11 CAUTION: that backend predicate is the twin of
-           isPendingDesignation in lib/receipt-line.ts, which the Designate
-           screen still uses. They must agree — the 30-vs-1 bug was exactly this
-           rule implemented twice. If you change one, change both. */
-        const r = await fetch(`${SCRIPT_URL}?action=getReceipts&countOnly=1`);
-        const j = (await r.json()) as { count?: number };
-        if (!cancelled && typeof j.count === "number") setBadge(BK.receipts, j.count);
-      } catch {
-        /* keep last value */
-      }
-    };
-
-    const countApprovals = async () => {
-      try {
-        const r = await fetch(`${SCRIPT_URL}?action=approvalQueue&countOnly=1&days=30`);
-        const j = (await r.json()) as { unapprovedCount?: number };
-        if (!cancelled && typeof j.unapprovedCount === "number") {
-          setBadge(BK.approvals, j.unapprovedCount);
-        }
-      } catch {
-        /* keep last value */
-      }
-    };
-
-    /* readyCount, never count/upcomingCount: it exists precisely so a badge
-       cannot count visits that have not happened yet as needing action. */
-    const countDebriefQueue = async () => {
-      try {
-        const r = await fetch(`${SCRIPT_URL}?action=debriefQueue&countOnly=1`);
-        const j = (await r.json()) as { readyCount?: number };
-        if (!cancelled && typeof j.readyCount === "number") {
-          setBadge(BK.debriefq, j.readyCount);
-        }
-      } catch {
-        /* keep last value */
-      }
-    };
-
-    const tick = async () => {
-      const jobs: Array<Promise<void>> = [];
-      if (canMessages) jobs.push(countInbox());
-      if (canVisits) jobs.push(countVisits());
-      if (canReceipts) jobs.push(countReceipts());
-      if (canApprovals) jobs.push(countApprovals(), countDebriefQueue());
-      await Promise.all(jobs);
-    };
-
-
-    void tick();
-    const interval = window.setInterval(tick, 60_000);
+    void run();
     const onVis = () => {
       if (document.visibilityState === "visible") void tick();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      if (timer !== undefined) window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [email, canMessages, canReceipts, canVisits, canApprovals]);

@@ -638,6 +638,33 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   visitPhoto is visit-level). Not queued.
 
 ## WATCH ITEMS (not bugs yet — they will become bugs quietly)
+- **BATCHING APPS SCRIPT CALLS TRADES PARALLELISM FOR SERIALISM — MEASURE BOTH
+  (8/5, XX-04).** Apps Script serialises concurrent /exec requests from one user
+  past ~4-5, so "eight calls on page load" looks like the obvious problem and
+  "one call instead of five" looks like the obvious fix. It is not, and the first
+  version of badgeCounts proved it: five separate badge calls got partial
+  parallelism, one combined call computed all five IN SEQUENCE inside a single
+  execution, and cold-cache page loads got WORSE — 29043ms and 49752ms for the
+  combined call, against a 4-call page-load wall clock that was a wash with the
+  8-call shape (measured 6.9s avg vs 5.9s avg after the fix below, ~15%). A
+  batched endpoint is only a win if it does not also serialise expensive work.
+  What made it safe: badgeCounts serves unlimited cache HITS but computes at most
+  BC_MAX_COLD=1 MISS per request, names the deferred ones in `pending`, and the
+  client re-polls every 4s while pending is non-empty. Worst single call fell to
+  8681ms (approvals, the QBT-paginating one) and warm steady state is ~1.7-2.0s.
+  If you ever raise BC_MAX_COLD, re-measure the COLD path specifically — warm
+  numbers cannot see this failure mode at all, which is why the first version
+  looked fine.
+- **THE REAL FIX FOR "DAY STATE LOADING…" WAS THE RETRY CADENCE, NOT THE CALL
+  COUNT (8/5, XX-04).** DayStateProvider polled on a flat 30s setInterval and
+  every failure path in tick() returns silently, so one lost or queued first tick
+  meant 30s of "day state loading…" and two meant the full minute Brandon
+  reported. sessionCache is IN-MEMORY, so a real page load always starts with no
+  cached state and that first tick is the only thing standing between the crew
+  and a usable spine. It now retries every FIRST_LOAD_RETRY_MS=5s until the first
+  usable payload, then settles to POLL_MS=30s — steady-state cost unchanged.
+  getDayState itself measures ~2.3s even with the rest of the page load in
+  flight, so the minute was never the request being slow.
 - **/jobcodes?per_page=200 IS THE NEXT ONE TO TRIP (8/4).** TSheets hard-caps
   per_page at 200 and returns oldest-first, and NOTHING in Code.js paginates
   except approvalQueue_ (fixed 8/4). qbJobcodeNames_ / qbJobcode_ ask for exactly

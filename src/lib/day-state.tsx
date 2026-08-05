@@ -15,6 +15,13 @@ const SCRIPT_URL =
 
 const CK = "dayState:getState";
 const POLL_MS = 30_000;
+/* XX-04: how fast to retry while there is STILL NO day state at all.
+ * The spine is unusable until the first answer lands, and getDayState can be
+ * queued behind the rest of a cold page load (Apps Script serialises past ~4-5
+ * concurrent calls per user). At the old flat 30s, one lost first tick meant 30
+ * seconds of "day state loading…" and two meant a minute — the reported bug.
+ * Only applies before the first success; steady-state polling stays POLL_MS. */
+const FIRST_LOAD_RETRY_MS = 5_000;
 
 export type DayPhase = "HQ_LOADING" | "FIELD_VISIT" | "HQ_UNLOADING";
 export type FieldPhone = { id: string; name: string } | null;
@@ -106,6 +113,11 @@ export function DayStateProvider({
   const [nonce, setNonce] = useState(0);
   const [override, setOverride] = useState<SubStepOverride | null>(null);
   const sigRef = useRef<string>("");
+  /* XX-04: do we have ANY day state yet? Drives the retry cadence only.
+     Seeded from the session cache, so a warm in-tab navigation does not spend a
+     fast retry it does not need. Deliberately separate from sigRef, which exists
+     to suppress no-op re-renders and would conflate two questions. */
+  const haveStateRef = useRef<boolean>(!!cached);
   const overrideRef = useRef<SubStepOverride | null>(null);
   useEffect(() => {
     overrideRef.current = override;
@@ -121,6 +133,10 @@ export function DayStateProvider({
         const json = (await res.json()) as DayState;
         if (cancelled) return;
         if (!json || !json.phase || !json.subSteps) return;
+        /* XX-04: a usable answer arrived — stop retrying fast. Set HERE rather
+           than inside the change-signature check below, because a payload
+           identical to the cached one is still a successful answer. */
+        haveStateRef.current = true;
 
         // serverNow ticks on every poll, so it is excluded from the change
         // signature; including it would make every poll look like a change and
@@ -169,15 +185,36 @@ export function DayStateProvider({
         /* keep last known */
       }
     };
-    tick();
-    const id = setInterval(tick, POLL_MS);
+    /* XX-04: retry FAST until we have a first answer, then settle to POLL_MS.
+     *
+     * The spine renders "day state loading…" while state is null, and this used
+     * to be a flat 30s setInterval. On a cold load sessionCache is empty (it is
+     * in-memory), so the very first tick is the only thing standing between the
+     * crew and a usable spine — and every failure path in tick() silently
+     * returns, so a lost first tick meant 30 more seconds of "loading", and two
+     * meant a full minute. That is the reported symptom.
+     *
+     * A self-scheduling timeout rather than an interval, so the delay can differ
+     * before and after the first success. Steady-state cost is unchanged: once
+     * state exists it is POLL_MS exactly as before. */
+    let timer: number | undefined;
+    const schedule = () => {
+      const delay = haveStateRef.current ? POLL_MS : FIRST_LOAD_RETRY_MS;
+      timer = window.setTimeout(run, delay);
+    };
+    const run = async () => {
+      await tick();
+      if (cancelled) return;
+      schedule();
+    };
+    void run();
     const onVis = () => {
       if (document.visibilityState === "visible") tick();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
-      clearInterval(id);
+      if (timer !== undefined) window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [enabled, nonce]);
