@@ -137,6 +137,9 @@ type GetFieldResponse = {
   skipDepartureClients?: string[];
   /** Clients whose text is routed to someone other than themselves. */
   specialTextClients?: Array<{ client: string; arrival: boolean; departure: boolean }>;
+  /** Server's texted-today ledger as "client||kind" (TEXT_SENT). The real
+   *  cross-device guard; the local set is only a mirror of it. */
+  textSent?: string[];
   /** Canonical vendors — vendor stops are their own stop type (C, 8/2). */
   vendors?: FieldVendor[];
   visitNotes?: VisitNote[];
@@ -324,13 +327,33 @@ async function postScript(body: unknown): Promise<{ ok: boolean; raw: unknown; e
   }
 }
 
-/* ---------- client arrival/departure text ---------- */
+/* ---------- client arrival/departure text ----------
+ *
+ * WHAT ACTUALLY GUARDS AGAINST DOUBLE-TEXTING A CLIENT IS THE BACKEND.
+ * TEXT_SENT is a day-scoped Script Property keyed "client||kind" whose own
+ * comment says it "makes textClient idempotent across every device, not just
+ * one phone". This set is only the UI's picture of that, so the buttons can
+ * show what has already gone out.
+ *
+ * It used to live in sessionStorage, which meant the picture died with the tab
+ * and a second device started blank — looking as though nothing had been sent.
+ * Now: localStorage so it survives a tab close, and seeded from the server's
+ * ledger (getField.textSent) so a second device shows the truth.
+ *
+ * NOTE ON GRANULARITY. The local key includes stopIndex; the server's does not.
+ * Seeding therefore marks every stop for that client+kind, which is what the
+ * BACKEND will actually do — a second stop for the same client on the same day
+ * would have its text refused. Matching the server's granularity makes the UI
+ * honest rather than promising a send that will not happen.
+ */
 const TEXTED_KEY = "field:texted";
 const textedStops = new Set<string>(loadTextedStops());
+/** Server-side "client||kind" pairs already sent today. */
+const textedServer = new Set<string>();
 function loadTextedStops(): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.sessionStorage.getItem(TEXTED_KEY);
+    const raw = window.localStorage.getItem(TEXTED_KEY);
     return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
@@ -339,17 +362,31 @@ function loadTextedStops(): string[] {
 function saveTextedStops() {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(TEXTED_KEY, JSON.stringify(Array.from(textedStops)));
+    window.localStorage.setItem(TEXTED_KEY, JSON.stringify(Array.from(textedStops)));
   } catch { /* ignore */ }
+}
+function serverTextKey(client: string | null, kind: "arrived" | "done"): string {
+  return `${(client ?? "").trim().toLowerCase()}||${kind}`;
+}
+/** Fold the server's ledger in on every poll. Cheap, and it self-corrects a
+ *  device that was asleep while another phone sent the text. */
+function syncTextedFromServer(sent: string[] | undefined) {
+  if (!Array.isArray(sent)) return;
+  textedServer.clear();
+  for (const s of sent) textedServer.add(String(s).trim().toLowerCase());
 }
 function textStopKey(client: string | null, kind: "arrived" | "done", stopIndex: number): string {
   return `${stopIndex}:${kind}:${(client ?? "").toLowerCase()}`;
 }
 function hasTexted(client: string | null, kind: "arrived" | "done", stopIndex: number): boolean {
-  return textedStops.has(textStopKey(client, kind, stopIndex));
+  return (
+    textedStops.has(textStopKey(client, kind, stopIndex)) ||
+    textedServer.has(serverTextKey(client, kind))
+  );
 }
 function markTexted(client: string | null, kind: "arrived" | "done", stopIndex: number) {
   textedStops.add(textStopKey(client, kind, stopIndex));
+  textedServer.add(serverTextKey(client, kind));
   saveTextedStops();
 }
 async function textClient(
@@ -613,6 +650,9 @@ function FieldPage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as GetFieldResponse;
       sessionCache.set(CK, json);
+      /* Fold in the server's texted ledger before anything renders, so the
+         arrival/departure buttons reflect what another device already sent. */
+      syncTextedFromServer(json.textSent);
       const srvRoute = json.route ?? {};
       const abandoned = routeReconcile((r) => {
         if (r.kind === "route:state") return srvRoute.state === r.value;
