@@ -16,6 +16,7 @@ import { Pencil, Trash2 } from "lucide-react";
    rebuilt here — see the note on its export. Two editors would be two ways to
    write payroll. */
 import { PunchEditor } from "./approvals";
+import { ComboSelect } from "../components/ComboSelect";
 import { planPunchDelete, applyPunchDelete } from "../lib/punch-edit";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
@@ -4380,6 +4381,10 @@ type NewProject = {
   notes?: string;
   items?: NewProjectItem[];
   clientKey?: string;
+  /** Real Client Projects columns; the backend has always accepted both on
+      create. Added to this form 8/5 — see NewProjectForm. */
+  garden?: string;
+  category?: string;
 };
 
 /** A blank project row, carrying its stable key from birth. */
@@ -4875,6 +4880,34 @@ export function StateDebrief({
       void flushBilling();
     }, BILLING_WRITE_DELAY_MS);
   };
+
+  /* (8/5) Client-scoped Garden/Category suggestions for the Add Future Project
+     form — the same derivation confirm.tsx uses, from THIS client's existing
+     projects, deduped so a value used ten times is offered once. */
+  const gardenOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          projects
+            .filter((pr) => s(pr["Client Name"]).toLowerCase() === (clientMatch ?? "").toLowerCase())
+            .map((pr) => s(pr["Garden"]).trim())
+            .filter(Boolean),
+        ),
+      ).sort(),
+    [projects, clientMatch],
+  );
+  const categoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          projects
+            .filter((pr) => s(pr["Client Name"]).toLowerCase() === (clientMatch ?? "").toLowerCase())
+            .map((pr) => s(pr["Category"]).trim())
+            .filter(Boolean),
+        ),
+      ).sort(),
+    [projects, clientMatch],
+  );
 
   const qbtPerson = (name: string) =>
     (qbtDay?.people ?? []).find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
@@ -5527,6 +5560,10 @@ export function StateDebrief({
               <NewProjectForm
                 key={idx}
                 value={p}
+                clientName={clientMatch ?? ""}
+                gardenOptions={gardenOptions}
+                categoryOptions={categoryOptions}
+                cameraDisabled={busy || isPreview || !clientMatch}
                 onChange={(v) => setNewProjects((cur) => cur.map((x, i) => (i === idx ? v : x)))}
                 onRemove={() => setNewProjects((cur) => cur.filter((_, i) => i !== idx))}
               />
@@ -5841,10 +5878,20 @@ function NewProjectForm({
   value,
   onChange,
   onRemove,
+  clientName = "",
+  gardenOptions = [],
+  categoryOptions = [],
+  cameraDisabled = false,
 }: {
   value: NewProject;
   onChange: (v: NewProject) => void;
   onRemove: () => void;
+  /** Needed by the camera: photos are filed per client, per project. */
+  clientName?: string;
+  /** Client-scoped suggestions, same derivation Confirm Special Loading uses. */
+  gardenOptions?: string[];
+  categoryOptions?: string[];
+  cameraDisabled?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
@@ -5875,12 +5922,54 @@ function NewProjectForm({
           );
         })}
       </div>
+      {/* (8/5) Garden and Category. Real Client Projects columns the backend has
+          always accepted for new projects — they were simply never on this form,
+          so a future project was created without them and someone had to fill
+          them in on the sheet afterwards. Options are CLIENT-SCOPED, derived the
+          same way Confirm Special Loading derives them: from this client's own
+          existing projects, so the list stays the vocabulary of this garden
+          rather than every garden. Free text is still allowed — ComboSelect is a
+          combo, not a whitelist. */}
+      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 45%", minWidth: 130 }}>
+          <ComboSelect
+            value={value.garden ?? ""}
+            options={gardenOptions}
+            onChange={(v) => onChange({ ...value, garden: v })}
+            placeholder="Garden"
+            compact
+          />
+        </div>
+        <div style={{ flex: "1 1 45%", minWidth: 130 }}>
+          <ComboSelect
+            value={value.category ?? ""}
+            options={categoryOptions}
+            onChange={(v) => onChange({ ...value, category: v })}
+            placeholder="Category"
+            compact
+          />
+        </div>
+      </div>
       <textarea
         placeholder="Notes"
         value={value.notes ?? ""}
         onChange={(e) => onChange({ ...value, notes: e.target.value })}
         style={{ ...INPUT, minHeight: 60, resize: "vertical" }}
       />
+      {/* (8/5) The camera, keyed by clientKey rather than a Project ID, because
+          this project does not have one yet — saveDebrief assigns it, and
+          photoRekeyProject_ moves these rows onto it at that moment. Same
+          ProjectCamera and same upload path used for existing projects, so once
+          re-keyed the photo is indistinguishable from any other project photo
+          and surfaces wherever projects are shown. */}
+      {value.clientKey && clientName && (
+        <ProjectCamera
+          projectId={value.clientKey}
+          clientName={clientName}
+          disabled={cameraDisabled}
+          existing={0}
+        />
+      )}
       {(value.items ?? []).map((it, i) => (
         <div
           key={i}
