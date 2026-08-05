@@ -6,6 +6,8 @@ import { SCRIPT_URL } from "./confirm";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
+/* Shared with the nav badge — see lib/receipt-line.ts for why (CC-11). */
+import { type Line, normLine, isPendingDesignation } from "../lib/receipt-line";
 
 const CK = "receipts:getReceipts";
 
@@ -31,28 +33,9 @@ type Receipt = {
   photo: string;
 };
 
-type Line = {
-  row: number;
-  receiptId: string;
-  date: string;
-  vendor: string;
-  description: string;
-  quantity: string;
-  unitPrice: string;
-  total: string;
-  notes: string;
-  sentToOffice: string;
-  invoiced: string;
-  specificDesignation: string;
-  finalDesignation: string;
-  plantSize: string;
-  plantFloor: number | null;
-  plantAskBG: boolean;
-  costFlag: string;
-  multiplier: number;
-  productMatched: boolean;
-  masterPrice: number | null;
-};
+/* Line now lives in lib/receipt-line.ts, imported above. Kept out of this file
+   because the nav badge needs the identical shape AND the identical pending
+   rule; a second copy here is exactly what drifted (CC-11). */
 
 type GetReceiptsResponse = {
   receipts?: Array<Record<string, unknown>>;
@@ -87,30 +70,6 @@ function normReceipt(r: Record<string, unknown>): Receipt {
   };
 }
 
-function normLine(l: Record<string, unknown>): Line {
-  return {
-    row: Number(l.row ?? 0),
-    receiptId: s(l["Receipt_ID"]),
-    date: s(l["Date"]),
-    vendor: s(l["Vendor"]),
-    description: s(l["Item_Description"]),
-    quantity: s(l["Quantity"]),
-    unitPrice: s(l["Unit_Price"]),
-    total: s(l["Total_Amount"]),
-    notes: s(l["Notes"]),
-    sentToOffice: s(l["Sent to office"]),
-    invoiced: s(l["Invoiced"]),
-    specificDesignation: s(l["Specific_Designation"]),
-    finalDesignation: s(l["Final Designation"]),
-    plantSize: s(l["plantSize"]),
-    plantFloor: l["plantFloor"] == null ? null : Number(l["plantFloor"]),
-    plantAskBG: Boolean(l["plantAskBG"]),
-    costFlag: s(l["costFlag"]),
-    multiplier: Number(l["multiplier"] ?? 1.15) || 1.15,
-    productMatched: Boolean(l["productMatched"]),
-    masterPrice: l["masterPrice"] == null ? null : Number(l["masterPrice"]),
-  };
-}
 
 function fmtDate(v: string): string {
   if (!v) return "";
@@ -437,7 +396,8 @@ function DesignateTab({
   const initedRef = useRef(false);
 
   const pending = useMemo(
-    () => lines.filter((l) => !l.finalDesignation && !l.invoiced),
+    /* Same predicate the nav badge uses — see lib/receipt-line.ts (CC-11). */
+    () => lines.filter(isPendingDesignation),
     [lines],
   );
 

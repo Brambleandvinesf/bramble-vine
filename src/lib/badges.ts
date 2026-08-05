@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { sessionCache } from "./session-cache";
 import { SCRIPT_URL } from "../routes/confirm";
+import { countPendingDesignation } from "./receipt-line";
 
 export const BK = {
   inbox: "home:getInbox:count",
@@ -110,19 +111,14 @@ export function useBadgePoller({
     const countReceipts = async () => {
       try {
         const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
-        const j = (await r.json()) as {
-          lines?: Array<{
-            finalDesignation?: string;
-            ["Final designation"]?: string;
-            invoiced?: string;
-            Invoiced?: string;
-          }>;
-        };
-        const n = (j.lines ?? []).filter((l) => {
-          const fd = String(l.finalDesignation ?? l["Final designation"] ?? "").trim();
-          const inv = String(l.invoiced ?? l.Invoiced ?? "").trim();
-          return !fd && !inv;
-        }).length;
+        const j = (await r.json()) as { lines?: Array<Record<string, unknown>> };
+        /* CC-11: this used to re-read the sheet headers itself and asked for
+           "Final designation" — lowercase d, a key that does not exist. The
+           designation half of the filter therefore never matched, so the badge
+           counted every un-invoiced line: 30 against the Designate tab's real 1.
+           It now runs the SAME normLine + predicate that screen does, so the two
+           numbers cannot disagree again. */
+        const n = countPendingDesignation(j.lines ?? []);
         if (!cancelled) setBadge(BK.receipts, n);
       } catch {
         /* keep last value */
