@@ -83,10 +83,13 @@ export function useBadgePoller({
     const countInbox = async () => {
       const e = email.trim().toLowerCase();
       try {
-        const r = await fetch(`${SCRIPT_URL}?action=getInbox&email=${encodeURIComponent(e)}`);
-        const j = (await r.json()) as { inbox?: Array<{ awaiting?: boolean }> };
-        const n = (j.inbox ?? []).filter((i) => !!i.awaiting).length;
-        if (!cancelled) setBadge(BK.inbox, n);
+        /* item 11: was getInbox, which shipped ~348KB so this could count
+           awaiting threads — on every page load and every tab focus. The
+           backend returns the integer now, from the same feed builder the
+           Messages screen uses. */
+        const r = await fetch(`${SCRIPT_URL}?action=inboxCount&email=${encodeURIComponent(e)}`);
+        const j = (await r.json()) as { count?: number };
+        if (!cancelled && typeof j.count === "number") setBadge(BK.inbox, j.count);
       } catch {
         /* keep last value */
       }
@@ -127,7 +130,7 @@ export function useBadgePoller({
 
     const countApprovals = async () => {
       try {
-        const r = await fetch(`${SCRIPT_URL}?action=approvalQueue&days=30`);
+        const r = await fetch(`${SCRIPT_URL}?action=approvalQueue&countOnly=1&days=30`);
         const j = (await r.json()) as { unapprovedCount?: number };
         if (!cancelled && typeof j.unapprovedCount === "number") {
           setBadge(BK.approvals, j.unapprovedCount);
@@ -141,7 +144,7 @@ export function useBadgePoller({
        cannot count visits that have not happened yet as needing action. */
     const countDebriefQueue = async () => {
       try {
-        const r = await fetch(`${SCRIPT_URL}?action=debriefQueue`);
+        const r = await fetch(`${SCRIPT_URL}?action=debriefQueue&countOnly=1`);
         const j = (await r.json()) as { readyCount?: number };
         if (!cancelled && typeof j.readyCount === "number") {
           setBadge(BK.debriefq, j.readyCount);
