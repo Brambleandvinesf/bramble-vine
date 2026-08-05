@@ -998,3 +998,61 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   verification. Also: a hidden/background browser pane THROTTLES the 10s getField
   poll, so a stubbed payload can take 20s+ to appear — force a client-side
   remount instead of waiting.
+
+## XX-03: MIGRATING THE OLD GOOGLE PHOTOS ALBUMS (PARKED, 8/4)
+Parked waiting on Brandon's Takeout export. ~70 albums. Read this whole section
+before starting — the first step is manual and doing it wrong costs the export.
+
+### Why there is no API route (do not re-litigate this)
+Google Photos albums are readable/writable ONLY by the OAuth client that created
+them. Make's connection created these, so Apps Script cannot see them — the same
+constraint already noted at Code.js:1709 for why PHOTO_HOOK exists. Export is the
+only path. This is also why the gallery is self-hosted (XX-01) rather than
+leaning on Photos, which only sorts chronologically with no labelled sections.
+
+### STEP 1 — the export (BRANDON, manual)
+In Takeout choose **Google Photos**, and keep the **JSON metadata sidecars**
+(included by default — do not pick an option that strips them). They carry:
+  - `photoTakenTime` -> the visit DATE. Without it, dates fall back to file
+    mtime, which is wrong for anything re-uploaded or edited.
+  - album membership -> the CLIENT, via the album name.
+Takeout lays out one FOLDER PER ALBUM, usually with a `metadata.json`. That
+folder-name list is the single most valuable artefact here: it decides scope.
+
+### STEP 2 — the one fact that sets the plan
+Compare album folder names against Client Info `'Account Name '` (trailing space
+is real). How many map cleanly determines everything:
+  - clean match -> fully scriptable, Kind/date/client all derivable
+  - fuzzy/renamed/merged -> per-album human decision first, then scripted
+Do this BEFORE writing an ingest script; the answer may change the design.
+
+### STEP 3 — ingest (scriptable)
+Target is the EXISTING unified table — no new schema. Per photo write a
+`Project Photos` row via photoLogRow_:
+  Client=resolved client · Date=photoTakenTime (yyyy-MM-dd) · Kind=`legacy`
+  · Label=album name · URL/File ID=the Drive upload · By=`takeout-migration`
+`legacy` already renders in the gallery as "Earlier photos" (GAL_KIND_ORDER), so
+nothing in XX-01 needs changing.
+**DO NOT GUESS before/after.** Only classify as before/after where the album or
+filename literally says so; everything else stays `legacy`. A wrong before/after
+label is worse than an honest uncategorised one — that pairing is the whole
+point of the gallery.
+Each ingested photo must also be shared, or the client sees broken images:
+photoShare_ sets ANYONE_WITH_LINK (see the XX-01 section for that tradeoff).
+
+### KNOWN GAP: there is no bulk-ingest path yet
+`visitPhoto` takes ONE base64 image per call and pays the ~1.4s Apps Script
+floor, so it is unusable for thousands of photos. A migration needs either:
+  (a) a new bulk action taking many rows at once (Drive upload + one setValues), or
+  (b) upload to Drive by hand/rclone, then a sheet-only action that files rows
+      from a list of {fileId, client, date, album}.
+(b) is likely cheaper and keeps the slow part out of Apps Script entirely.
+
+### VERIFICATION (do not skip — this is a one-way import)
+1. Count photos per album at export time; keep that table.
+2. Count rows written per client after ingest.
+3. Reconcile 1 against 2 per album, and assert every exported file id appears
+   EXACTLY ONCE in Project Photos (duplicate ingest is the likely failure).
+4. Spot-check a few rendered galleries against the original albums.
+NOTHING is deleted from Google Photos until that reconciliation is clean — and
+the recommendation is never to delete the originals at all.
