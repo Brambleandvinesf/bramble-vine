@@ -660,6 +660,29 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   fail silently. If QBT ever exposes a stable employee id in the places these
   lists are used, switch to it.
 
+- **A CLIENT'S JOBCODE MAY ONLY RESOLVE VIA ITS BILLING-GROUP ALIAS (8/4).**
+  qbJobcode_ matches Client Info names against QBT jobcode names (exact, then
+  substring either way) and then, since CC-05, retries with
+  qboBillingCustomerName_(client). "A&G Sect 7" shares no substring with the
+  jobcode "Amita & Giuseppe", so it used to return null — and EVERY caller
+  degraded silently. Worst of them: payrollDayData_ filters with
+  `if (wantJc && jcId !== wantJc)`, so a null jobcode meant NO FILTER AT ALL and
+  a client got billed for unrelated internal time (measured 8/4: 7.75h billed
+  where 5.50h was owed, 2.25h of "Bramble & Vine" contamination). Also note
+  qbClock inherits the same resolver, so an unresolvable client cannot be clocked
+  into from the app at all.
+  All 8 A&G sections share ONE jobcode, so per-SECTION hours cannot be derived
+  from QBT — every section returns the same day total. Keep that in mind before
+  billing a section on QBT hours.
+- **THE ROSTER CAN NOW BE MADE TRUE — CALL reconcileRoster (8/4, CC-07).**
+  st.roster is the app's own mirror; item 6 reconciled clock-INs at app-open only,
+  and OUTs were never reconciled. Live on 8/4 it asserted Miguel was on the clock
+  since 13:00 on tsId 338035322 that QBT did not have, while another crew member
+  was missing from the roster entirely. `{action:'reconcileRoster', dryRun?}`
+  makes the roster agree with QBT for the whole crew in one QBT call (it reuses
+  payrollDayData_), in both directions, and adds anyone QBT knows about who is
+  missing. It NEVER writes to QBT — it only corrects the mirror. Anything gating
+  on "has this person clocked out" must run it first; do not trust the raw roster.
 - **A&G's FUTURE-DATED INVOICE IS INTENDED — DO NOT "FIX" IT (8/4, Brandon
   confirmed).** qboDebriefInvoice_ finds an invoice with `TxnDate >= today` and
   appends to it. For A&G that is a monthly invoice dated the 31st, so debrief
@@ -705,9 +728,14 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   saves pass final:false to record data without billing; the closing save bills.
   Default TRUE so every existing caller is unchanged and a new one must opt OUT
   explicitly — deliberately not the inverse, same reasoning as suppressInvoice.
-- **THE ROSTER IS A MIRROR, AND IT WAS ALREADY WRONG ON 8/4.** getField returns
-  routeGet_().roster (Code.js 2218), not QBT. Observed live on 8/4: the roster
-  was EMPTY while QBT held four completed timesheets for two people that day, so
+- **THE ROSTER IS A MIRROR, AND IT WAS ALREADY WRONG ON 8/4.** getField has NO
+  top-level `roster` key — it exposes the roster inside `route: routeGet_()`, and
+  field.tsx:931 reads `route.roster`. (Code.js:2218's `roster:` belongs to
+  getInbox; citing it as getField's was an error, and reading a non-existent
+  top-level key is what made the roster look "empty" in a first pass. The
+  conclusion below is unaffected: route.roster IS st.roster.) Observed live on
+  8/4: st.roster claimed Miguel was on the clock since 13:00 on tsId 338035322
+  while QBT had no such timesheet and nobody on the clock at all, so
   ClockCard's `open = !!row?.in && !row?.out` was false for someone who had
   actually worked — the app told a crew member they were not on the clock while
   they were. autoClockIn now reconciles the roster from the QBT entry it already
