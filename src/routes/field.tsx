@@ -17,6 +17,7 @@ import { Pencil, Trash2 } from "lucide-react";
    write payroll. */
 import { PunchEditor } from "./approvals";
 import { ComboSelect } from "../components/ComboSelect";
+import { invalidateProjectPhotos } from "../lib/project-photos";
 import { planPunchDelete, applyPunchDelete } from "../lib/punch-edit";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
@@ -31,6 +32,12 @@ import {
 } from "../lib/onsite-break";
 import {
   addCompletedProject,
+  saveFutureProject,
+  deleteFutureProject,
+  fetchClientNames,
+  sectionBase,
+  sectionLabel,
+  siblingSections,
 } from "../lib/add-project";
 import {
   fetchPayrollDay,
@@ -4380,6 +4387,14 @@ type NewProject = {
       create. Added to this form 8/5 — see NewProjectForm. */
   garden?: string;
   category?: string;
+  /** (8/5) File this project onto a DIFFERENT client than the one being
+      visited — a sibling section of a split client. Empty means the visit's own
+      client, which is what every project did before. */
+  client?: string;
+  /** (8/5) Set once this row has been written on its own, by the per-row SAVE.
+      Its presence is what turns REMOVE from a local discard into a real
+      deleteProject, and what stops SAVE offering to write it twice. */
+  savedId?: string;
 };
 
 /** A blank project row, carrying its stable key from birth. */
@@ -4854,6 +4869,95 @@ export function StateDebrief({
       void flushBilling();
     }, BILLING_WRITE_DELAY_MS);
   };
+
+  /* (8/5) Sibling sections of a split client, for the Future Projects sector
+     picker. Same lookup the old completed/follow-up toggle used — sectionBase /
+     siblingSections / fetchClientNames are unchanged in add-project.ts and
+     fetchClientNames is already session-cached, so this is a reuse, not a second
+     implementation. Loaded lazily and only for a client that HAS sections; most
+     have none and this must not cost a request on every debrief. */
+  const [sectionOpts, setSectionOpts] = useState<string[]>([]);
+  useEffect(() => {
+    if (!clientMatch || !sectionBase(clientMatch)) { setSectionOpts([]); return; }
+    let gone = false;
+    void fetchClientNames()
+      .then((all) => { if (!gone) setSectionOpts(siblingSections(clientMatch, all)); })
+      .catch(() => { if (!gone) setSectionOpts([]); });
+    return () => { gone = true; };
+  }, [clientMatch]);
+
+  /* (8/5) Per-row SAVE. Writes this one project now so a note survives an
+     abandoned debrief, without writing on every keystroke. Still sent again in
+     the closing saveDebrief — clientKey makes that an upsert, not a duplicate. */
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [rowErr, setRowErr] = useState<string | null>(null);
+
+  const saveOneProject = useCallback(
+    async (idx: number) => {
+      if (isPreview) return;
+      const p = newProjects[idx];
+      if (!p || !p.action.trim() || p.savedId) return;
+      const target = (p.client || "").trim() || clientMatch || "";
+      if (!target) { setRowErr("no client for this visit"); return; }
+      setRowBusy(p.clientKey ?? String(idx));
+      setRowErr(null);
+      try {
+        const { projectId } = await saveFutureProject({
+          client: target,
+          projectAction: p.action,
+          clientKey: p.clientKey,
+          garden: p.garden,
+          category: p.category,
+          type: p.type,
+          notes: p.notes,
+          items: p.items,
+        });
+        setNewProjects((cur) =>
+          cur.map((x, i) => (i === idx ? { ...x, savedId: projectId } : x)),
+        );
+        /* The re-key happened server-side; drop the cached photo map so the
+           count reappears under the real Project ID. */
+        invalidateProjectPhotos();
+      } catch (e) {
+        setRowErr(e instanceof Error ? e.message : "could not save that project");
+      } finally {
+        setRowBusy(null);
+      }
+    },
+    [isPreview, newProjects, clientMatch],
+  );
+
+  /* REMOVE. A row that was never written just disappears; one that WAS written
+     has to be deleted for real, or the crew would think it was gone while the
+     project quietly stayed on the sheet. */
+  const removeOneProject = useCallback(
+    async (idx: number) => {
+      const p = newProjects[idx];
+      if (!p) return;
+      if (p.savedId && !isPreview) {
+        const target = (p.client || "").trim() || clientMatch || "";
+        const ok = await confirmModal({
+          message:
+            `Delete this project?\n\n${p.action || "(no action)"}\n${target} · ${p.savedId}\n\n` +
+            "It has already been saved, so this removes it from Client Projects.",
+          destructive: true,
+          confirmLabel: "DELETE",
+        });
+        if (!ok) return;
+        setRowBusy(p.clientKey ?? String(idx));
+        try {
+          await deleteFutureProject(target, p.savedId);
+        } catch (e) {
+          setRowErr(e instanceof Error ? e.message : "could not delete that project");
+          setRowBusy(null);
+          return;
+        }
+        setRowBusy(null);
+      }
+      setNewProjects((cur) => cur.filter((_, i) => i !== idx));
+    },
+    [newProjects, isPreview, clientMatch],
+  );
 
   /* (8/5) Client-scoped Garden/Category suggestions for the Add Future Project
      form — the same derivation confirm.tsx uses, from THIS client's existing
@@ -5457,16 +5561,23 @@ export function StateDebrief({
 
         {currentKey === "new" && (
           <div>
+            {rowErr && (
+              <div style={{ color: "#ffb020", fontSize: 12, marginBottom: 6 }}>{rowErr}</div>
+            )}
             {newProjects.map((p, idx) => (
               <NewProjectForm
-                key={idx}
+                key={p.clientKey ?? idx}
                 value={p}
-                clientName={clientMatch ?? ""}
+                clientName={(p.client || "").trim() || clientMatch || ""}
                 gardenOptions={gardenOptions}
                 categoryOptions={categoryOptions}
                 cameraDisabled={busy || isPreview || !clientMatch}
+                sectionOpts={sectionOpts}
+                visitClient={clientMatch ?? ""}
+                saving={rowBusy === (p.clientKey ?? String(idx))}
+                onSave={() => void saveOneProject(idx)}
                 onChange={(v) => setNewProjects((cur) => cur.map((x, i) => (i === idx ? v : x)))}
-                onRemove={() => setNewProjects((cur) => cur.filter((_, i) => i !== idx))}
+                onRemove={() => void removeOneProject(idx)}
               />
             ))}
             <button
@@ -5783,6 +5894,10 @@ function NewProjectForm({
   gardenOptions = [],
   categoryOptions = [],
   cameraDisabled = false,
+  sectionOpts = [],
+  visitClient = "",
+  saving = false,
+  onSave,
 }: {
   value: NewProject;
   onChange: (v: NewProject) => void;
@@ -5793,6 +5908,13 @@ function NewProjectForm({
   gardenOptions?: string[];
   categoryOptions?: string[];
   cameraDisabled?: boolean;
+  /** Sibling sections of a split client. Empty for the vast majority. */
+  sectionOpts?: string[];
+  /** The client actually being visited — the default filing target. */
+  visitClient?: string;
+  saving?: boolean;
+  /** Present only where a row can be written on its own (Future Projects). */
+  onSave?: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   return (
@@ -5823,6 +5945,49 @@ function NewProjectForm({
           );
         })}
       </div>
+      {/* (8/5) Sector picker, restored. Only for a client that is actually split
+          into sections — a section IS its own Client Info row, so choosing one
+          just changes which row this project lands on. Same UX and the same
+          sectionLabel lookup the old completed/follow-up toggle used. */}
+      {sectionOpts.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ color: MUTED, fontSize: 11, marginBottom: 4 }}>
+            Which visit does this belong to?
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {[
+              { v: "", label: "THIS VISIT" },
+              ...sectionOpts.map((c) => ({
+                v: c,
+                label: (sectionLabel(c) || c).toUpperCase(),
+              })),
+            ].map((o) => {
+              const on = (value.client ?? "") === o.v;
+              return (
+                <button
+                  key={o.v || "__same"}
+                  type="button"
+                  disabled={!!value.savedId}
+                  onClick={() => onChange({ ...value, client: o.v || undefined })}
+                  style={{
+                    ...SMALL_BTN,
+                    padding: "0 10px",
+                    background: on ? LIME : "transparent",
+                    color: on ? BG : LIME,
+                    borderColor: on ? LIME : LIME_DIM,
+                    opacity: value.savedId ? 0.5 : 1,
+                  }}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>
+            Filing on: {value.client || visitClient}
+          </div>
+        </div>
+      )}
       {/* (8/5) Garden and Category. Real Client Projects columns the backend has
           always accepted for new projects — they were simply never on this form,
           so a future project was created without them and someone had to fill
@@ -5911,8 +6076,27 @@ function NewProjectForm({
         >
           + ADD ITEM
         </button>
+        {/* (8/5) Per-row SAVE, so a note written on site outlives an abandoned
+            debrief. Only offered where a row can stand on its own; the Projects
+            Completed form passes no onSave and is unchanged. Once saved the row
+            is still sent with the closing saveDebrief — clientKey makes that an
+            upsert, so saving early costs nothing and duplicates nothing. */}
+        {onSave && (
+          <button
+            onClick={onSave}
+            disabled={saving || !!value.savedId || !value.action.trim()}
+            style={{
+              ...SMALL_BTN,
+              color: value.savedId ? DIM_GREEN : LIME,
+              borderColor: value.savedId ? DIM_GREEN : LIME,
+              opacity: saving || !value.action.trim() ? 0.5 : 1,
+            }}
+          >
+            {saving ? "SAVING…" : value.savedId ? `✓ SAVED ${value.savedId}` : "SAVE"}
+          </button>
+        )}
         <button onClick={onRemove} style={{ ...SMALL_BTN, color: RED, borderColor: RED }}>
-          REMOVE
+          {value.savedId ? "DELETE" : "REMOVE"}
         </button>
       </div>
       {pickerOpen && (

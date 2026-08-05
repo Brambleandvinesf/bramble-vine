@@ -92,6 +92,60 @@ export async function addCompletedProject(
  * "A&G", so any client that later splits the same way works without a change.
  * ------------------------------------------------------------------------- */
 
+/**
+ * Write ONE staged Future Project immediately, rather than waiting for the whole
+ * debrief to finish (8/5).
+ *
+ * The point is survivability: a follow-up noticed on site should outlive an
+ * abandoned debrief. Saving early AND still sending the same project in the
+ * closing saveDebrief is safe because `clientKey` makes the two idempotent —
+ * createProject writes the key and saveDebrief's newProjects section upserts on
+ * it instead of appending. Without the key this would duplicate, which is why
+ * createProject had to learn about clientKey before this could exist.
+ *
+ * `client` may name a sibling section of a split client; the backend validates it
+ * against Client Info and falls back to the visit's own client if it does not
+ * resolve.
+ */
+export async function saveFutureProject(p: {
+  client: string;
+  projectAction: string;
+  clientKey?: string;
+  garden?: string;
+  category?: string;
+  type?: string;
+  notes?: string;
+  items?: Array<{ name: string; qty?: string; size?: string; notes?: string }>;
+}): Promise<{ projectId: string }> {
+  const action = p.projectAction.trim();
+  if (!p.client.trim()) throw new Error("client required");
+  if (!action) throw new Error("describe the project");
+  const created = await post({
+    action: "createProject",
+    client: p.client.trim(),
+    projectAction: action,
+    clientKey: p.clientKey?.trim() || undefined,
+    garden: p.garden?.trim() || undefined,
+    category: p.category?.trim() || undefined,
+    type: p.type?.trim() || undefined,
+    notes: p.notes?.trim() || undefined,
+    items: (p.items ?? []).filter((i) => i && String(i.name || "").trim()),
+  });
+  if (created.ok === false) {
+    throw new Error(String(created.error || "could not save the project"));
+  }
+  const projectId = String(created.projectId || "").trim();
+  if (!projectId) throw new Error("backend did not return a Project ID");
+  return { projectId };
+}
+
+/** Remove a Future Project that has already been written. Purely local rows
+ *  never come here — only a row with a real Project ID behind it. */
+export async function deleteFutureProject(client: string, projectId: string): Promise<void> {
+  const j = await post({ action: "deleteProject", projectId, client });
+  if (j.ok === false) throw new Error(String(j.error || "could not delete that project"));
+}
+
 const SECTION_SUFFIX =
   /^(.*?)[\s\-–]*\b(sec|sect|section|sector)\b\.?\s*([0-9]+|[A-Za-z])\s*$/i;
 
