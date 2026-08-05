@@ -10,6 +10,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { useReviewableToday } from "../lib/reviewable-today";
 import { appendTeamParam } from "../lib/team";
 import { usePoll } from "../lib/use-poll";
+import { useProjectPhotos } from "../lib/project-photos";
 import { makeGetData } from "../lib/get-data";
 import { confirmModal } from "../components/ConfirmModal";
 import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
@@ -336,6 +337,10 @@ function LoadingPage() {
     }
   }, []);
 
+  /* (8/5) Project photos, keyed by (client, projectId) — this screen spans
+     several clients and already keys its own status map the same way. */
+  const photos = useProjectPhotos();
+
   const grouped = useMemo(() => {
     const by: Record<string, Record<string, ToolRow[]>> = {};
     (items ?? []).forEach((it) => {
@@ -615,6 +620,26 @@ function LoadingPage() {
                               {open && (
                                 <div style={{ ...META, color: DIM_GREEN }}>
                                   {client} · {project}
+                                  {/* (8/5) Photos live with the project context,
+                                      which RR2 deliberately keeps behind a tap —
+                                      this screen dropped per-project headers on
+                                      purpose, so a photo chip on every row would
+                                      undo that. Shown only once the row is
+                                      opened, where the project is already named. */}
+                                  {photos.countFor(client, project) > 0 && (
+                                    <>
+                                      {" · "}
+                                      <a
+                                        href={photos.newestFor(client, project)?.url ?? "#"}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(ev) => ev.stopPropagation()}
+                                        style={{ color: LIME, textDecoration: "none" }}
+                                      >
+                                        📷 {photos.countFor(client, project)}
+                                      </a>
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>

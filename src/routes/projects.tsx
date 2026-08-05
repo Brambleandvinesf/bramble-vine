@@ -7,6 +7,7 @@ import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { confirmModal } from "../components/ConfirmModal";
+import { useProjectPhotos } from "../lib/project-photos";
 
 const CK = "projects:getProjects";
 
@@ -225,6 +226,9 @@ function ProjectsPage() {
     return m;
   }, [tools]);
 
+  /* (8/5) Project photos, one cached read shared with the other project
+     screens. Keyed by (client, projectId) — see project-photos.ts. */
+  const photos = useProjectPhotos();
   const gardenOptions = useMemo(
     () => projects.map((p) => p.garden).filter(Boolean),
     [projects],
@@ -561,6 +565,32 @@ function ProjectsPage() {
                               boxShadow: `0 0 6px ${LIME_DIM}`,
                             }}
                           />
+                        )}
+                        {/* (8/5) Photos on this project. Rendered at the CARD
+                            level rather than threaded through ProjectView and
+                            EditForm, so it appears in both states without either
+                            component gaining a prop it does not otherwise need.
+                            Keyed by (client, projectId): this list spans clients
+                            and Project ID repeats across them. */}
+                        {photos.countFor(p.client, p.projectId) > 0 && (
+                          <a
+                            href={photos.newestFor(p.client, p.projectId)?.url ?? "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              display: "inline-block",
+                              marginBottom: 8,
+                              color: LIME,
+                              fontSize: 11,
+                              letterSpacing: 1,
+                              textDecoration: "none",
+                              border: `1px solid ${LIME_DIM}`,
+                              borderRadius: 999,
+                              padding: "4px 10px",
+                            }}
+                          >
+                            📷 {photos.countFor(p.client, p.projectId)}
+                          </a>
                         )}
                         {draft ? (
                           <EditForm

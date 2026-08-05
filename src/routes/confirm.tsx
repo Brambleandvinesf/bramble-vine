@@ -5,6 +5,7 @@ import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { ItemPicker } from "../components/ItemPicker";
 import { ComboSelect } from "../components/ComboSelect";
+import { useProjectPhotos } from "../lib/project-photos";
 import { sessionCache } from "../lib/session-cache";
 import { useOptimistic } from "../lib/optimistic";
 import {
@@ -313,6 +314,9 @@ function ConfirmPage() {
   const [projects, setProjects] = useState<Project[]>(
     () => (cached?.projects ?? []).map(normProject),
   );
+  /* (8/5) Photos per project, one cached read shared with the other screens
+     that list projects. Keyed by (client, projectId) — see project-photos.ts. */
+  const photos = useProjectPhotos();
   const gardenOptions = useMemo(
     () => projects.map((p) => p.garden).filter(Boolean),
     [projects],
@@ -1127,6 +1131,29 @@ function ConfirmPage() {
                         flexWrap: "wrap",
                       }}
                     >
+                      {/* (8/5) Photos attached to this project. Sits in the
+                          Type/Garden/Category row because it is another
+                          attribute of the project, not an action. Keyed by
+                          (client, projectId): this screen maps over
+                          todaysClients, and Project ID repeats across clients. */}
+                      {photos.countFor(p.client, p.projectId) > 0 && (
+                        <a
+                          href={photos.newestFor(p.client, p.projectId)?.url ?? "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            color: LIME,
+                            fontSize: 11,
+                            letterSpacing: 1,
+                            textDecoration: "none",
+                            border: `1px solid ${LIME_DIM}`,
+                            borderRadius: 999,
+                            padding: "4px 10px",
+                          }}
+                        >
+                          📷 {photos.countFor(p.client, p.projectId)}
+                        </a>
+                      )}
                       <TypeSelect
                         value={e.type}
                         options={distinctTypes}
