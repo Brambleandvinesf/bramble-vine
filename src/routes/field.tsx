@@ -20,6 +20,7 @@ import {
   startOnsiteBreak,
   type OnsiteBreakMap,
 } from "../lib/onsite-break";
+import { addCompletedProject } from "../lib/add-project";
 import {
   fetchPayrollDay,
   personOnClock,
@@ -4292,6 +4293,46 @@ export function StateDebrief({
      unmounted component is a harmless no-op in React 18, whereas cancelling is
      what broke this. The ref also makes StrictMode's double-invoke a no-op
      instead of a second discarded request. */
+  /* ---- CC-09: log a project that was COMPLETED during this visit ----
+   *
+   * Separate from the "New projects" step, which stages work for LATER and goes
+   * out with saveDebrief. This writes immediately — createProject then
+   * crossProject(permanent) — so the record exists even if the debrief is never
+   * finished, which is the point of logging it for posterity.
+   *
+   * Reuses NewProjectForm so it is the same form as every other add-project
+   * screen. Items are not collected here: this records what was DONE, and the
+   * materials that went with it belong on the Items Used step. */
+  const [addDone, setAddDone] = useState<NewProject | null>(null);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addErr, setAddErr] = useState<string | null>(null);
+  const [addedDone, setAddedDone] = useState<Array<{ id: string; action: string }>>([]);
+
+  const saveCompletedProject = useCallback(async () => {
+    if (isPreview || !addDone) return;
+    const client = clientMatch ?? "";
+    if (!client) { setAddErr("no client for this visit"); return; }
+    setAddBusy(true);
+    setAddErr(null);
+    try {
+      const { projectId, crossed } = await addCompletedProject({
+        client,
+        projectAction: addDone.action,
+        type: addDone.type,
+        notes: addDone.notes,
+      });
+      setAddedDone((cur) => [...cur, { id: projectId, action: addDone.action.trim() }]);
+      setAddDone(null);
+      /* The project exists either way; say so plainly rather than implying the
+         whole write failed and inviting a duplicate on retry. */
+      if (!crossed) setAddErr(`Added as ${projectId}, but could not mark it complete.`);
+    } catch (e) {
+      setAddErr(e instanceof Error ? e.message : "could not add the project");
+    } finally {
+      setAddBusy(false);
+    }
+  }, [isPreview, addDone, clientMatch]);
+
   const qbtStarted = useRef(false);
   /* Bumped by the re-check button so a failed clock read is recoverable
      without leaving the debrief (CC-07). */
@@ -4800,6 +4841,52 @@ export function StateDebrief({
                 </div>
               );
             })}
+
+            {/* CC-09: log something completed that was not on the list. Writes
+                straight to Client Projects and marks it done — it is a record,
+                not a to-do. */}
+            <div style={{ marginTop: 14, borderTop: `1px solid ${LINE}`, paddingTop: 12 }}>
+              {addedDone.map((a) => (
+                <div
+                  key={a.id}
+                  style={{ color: DIM_GREEN, fontSize: 12, marginBottom: 6 }}
+                >
+                  ✓ {a.action} <span style={{ color: MUTED }}>· logged as {a.id}</span>
+                </div>
+              ))}
+              {addErr && (
+                <div style={{ color: "#ffb020", fontSize: 12, marginBottom: 6 }}>{addErr}</div>
+              )}
+              {addDone ? (
+                <>
+                  <NewProjectForm
+                    value={addDone}
+                    onChange={setAddDone}
+                    onRemove={() => { setAddDone(null); setAddErr(null); }}
+                  />
+                  <button
+                    onClick={() => void saveCompletedProject()}
+                    disabled={addBusy || isPreview || !addDone.action.trim()}
+                    style={{
+                      ...PRIMARY_BTN,
+                      marginTop: 8,
+                      minHeight: 44,
+                      opacity: addBusy || isPreview || !addDone.action.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    {addBusy ? "SAVING…" : "SAVE AS COMPLETED"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setAddDone({ action: "", type: "SPECIAL" }); setAddErr(null); }}
+                  disabled={isPreview}
+                  style={{ ...SMALL_BTN, opacity: isPreview ? 0.5 : 1 }}
+                >
+                  + ADD PROJECT
+                </button>
+              )}
+            </div>
           </div>
         )}
 
