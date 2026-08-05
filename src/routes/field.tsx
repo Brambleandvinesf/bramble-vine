@@ -24,6 +24,7 @@ import {
   fetchPayrollDay,
   personOnClock,
   personSeconds,
+  reconcileRoster,
   todayISODate,
   toQuarter,
   writeBillingHours,
@@ -4292,12 +4293,24 @@ export function StateDebrief({
      what broke this. The ref also makes StrictMode's double-invoke a no-op
      instead of a second discarded request. */
   const qbtStarted = useRef(false);
+  /* Bumped by the re-check button so a failed clock read is recoverable
+     without leaving the debrief (CC-07). */
+  const [clockRecheck, setClockRecheck] = useState(0);
+  const recheckClock = useCallback(() => {
+    qbtStarted.current = false;
+    setClockRecheck((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (currentKey !== "billing" || qbtStarted.current) return;
     qbtStarted.current = true;
     setQbtLoading(true);
     setQbtErr(null);
+    /* CC-07: correct the roster mirror while we are here. Not what the gate
+       below reads — that goes straight to QBT — but it keeps the clock card and
+       anything else roster-driven from contradicting this screen. Deliberately
+       not awaited: it must never delay or fail the payroll read. */
+    void reconcileRoster().catch(() => {});
     void (async () => {
       try {
         const j = await fetchPayrollDay(clientMatch ?? undefined, date);
@@ -4326,7 +4339,34 @@ export function StateDebrief({
         setQbtLoading(false);
       }
     })();
-  }, [currentKey, clientMatch, date]);
+  }, [currentKey, clientMatch, date, clockRecheck]);
+
+  /* ---- CC-07: Finish Debrief is gated on everyone having clocked OUT ----
+   *
+   * Read from QuickBooks Time directly (qbtDay), not from st.roster. The roster
+   * is the app's own mirror and on 8/4 it claimed someone was on the clock on a
+   * tsId QBT did not have; reconcileRoster above corrects that mirror, but the
+   * gate itself should not depend on a correction having succeeded when the
+   * authority is already in hand. payrollDay IS that authority, and since CC-05
+   * it is filtered to THIS client's jobcode, so "still on the clock" means still
+   * on the clock HERE — not on unrelated internal time.
+   *
+   * Blocks while the answer is unknown, on purpose: finishing a debrief decides
+   * billable hours, and "we could not check" is not the same as "everyone is
+   * out". A re-check is offered so a failed read is never a dead end. */
+  const stillOnClock = useMemo(
+    () => (qbtDay?.people ?? []).filter(personOnClock),
+    [qbtDay],
+  );
+  const finishBlockedReason: string | null = isPreview
+    ? null                       // preview is already read-only; no extra noise
+    : qbtLoading
+      ? "Checking who is still on the clock…"
+      : qbtErr || !qbtDay
+        ? "Can't confirm everyone has clocked out — QuickBooks Time did not answer."
+        : stillOnClock.length
+          ? `Still clocked in: ${stillOnClock.map((p) => p.name).join(", ")}`
+          : null;
 
   /* Absolute figure, never a delta — setBillingHours upserts on
      date+client+person, so sending the total means repeated taps leave ONE row.
@@ -4785,6 +4825,47 @@ export function StateDebrief({
         )}
       </div>
 
+      {/* CC-07: say WHY finishing is unavailable. A disabled button with no
+          reason reads as a broken app, and the fix is usually one tap away on
+          someone else's phone. */}
+      {isLast && finishBlockedReason && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginTop: 16,
+            padding: "10px 12px",
+            border: `1px solid ${LINE}`,
+            borderRadius: 8,
+            background: "rgba(255,255,255,.03)",
+            color: MUTED,
+            fontSize: 12,
+            lineHeight: 1.4,
+          }}
+        >
+          <span style={{ flex: 1 }}>⏱ {finishBlockedReason}</span>
+          {!qbtLoading && (
+            <button
+              type="button"
+              onClick={recheckClock}
+              style={{
+                ...SMALL_BTN,
+                flex: "0 0 auto",
+                minHeight: 32,
+                padding: "0 12px",
+                background: "transparent",
+                color: LIME,
+                borderColor: LIME_DIM,
+              }}
+            >
+              RE-CHECK
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Wizard nav */}
       <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
         <button
@@ -4806,8 +4887,15 @@ export function StateDebrief({
         {isLast ? (
           <button
             onClick={handleFinish}
-            disabled={busy || isPreview}
-            style={{ ...PRIMARY_BTN, flex: 1, minHeight: 56, opacity: isPreview ? 0.5 : 1 }}
+            disabled={busy || isPreview || !!finishBlockedReason}
+            title={finishBlockedReason ?? undefined}
+            style={{
+              ...PRIMARY_BTN,
+              flex: 1,
+              minHeight: 56,
+              opacity: isPreview || finishBlockedReason ? 0.5 : 1,
+              cursor: finishBlockedReason ? "not-allowed" : PRIMARY_BTN.cursor,
+            }}
           >
             FINISH DEBRIEF
           </button>

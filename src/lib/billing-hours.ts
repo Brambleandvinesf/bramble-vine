@@ -149,3 +149,26 @@ export async function writeBillingHours(opts: {
   }
   return { billingOnly: j.billingOnly };
 }
+
+/**
+ * Make st.roster agree with QuickBooks Time (CC-07).
+ *
+ * The roster is the app's own mirror and nothing reconciled clock-OUTS, so it
+ * could assert someone was on the clock hours after they went home — observed
+ * live on 8/4, with a tsId the roster held that QBT did not have. Anything that
+ * reads "is this person still clocked in" off the roster needs this to have run.
+ *
+ * Fire-and-forget by design: it corrects a mirror and never writes to QBT, so a
+ * failure leaves things exactly as they were. Callers that need the ANSWER
+ * rather than the correction should read QBT directly via fetchPayrollDay —
+ * that is what the Finish Debrief gate does.
+ */
+export async function reconcileRoster(): Promise<{ changed: number }> {
+  const res = await fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "reconcileRoster" }),
+  });
+  const j = (await res.json().catch(() => ({}))) as { ok?: boolean; changed?: number };
+  return { changed: typeof j.changed === "number" ? j.changed : 0 };
+}
