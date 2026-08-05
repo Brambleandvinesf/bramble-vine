@@ -4128,7 +4128,32 @@ function RosterClockStatus({ roster }: { roster: RosterMember[] }) {
 type DebriefBilling = { name: string; hours: number };
 type DebriefUpdate = { projectId: string; status?: string; notes?: string };
 type NewProjectItem = { name: string; qty?: string; size?: string; notes?: string };
-type NewProject = { action: string; type?: string; notes?: string; items?: NewProjectItem[] };
+/**
+ * `clientKey` is what makes saveDebrief's newProjects section idempotent
+ * (item 9). A brand-new project has no natural key — its Project ID is assigned
+ * BY the write and its action text is editable — so the UI mints a stable id at
+ * the moment the row is created and resends it unchanged. Saving twice then
+ * updates the same project instead of creating a second one.
+ *
+ * Minted once, in newProjectRow(). Never regenerate it on edit: a new key on
+ * the second save is exactly the duplicate this prevents.
+ */
+type NewProject = {
+  action: string;
+  type?: string;
+  notes?: string;
+  items?: NewProjectItem[];
+  clientKey?: string;
+};
+
+/** A blank project row, carrying its stable key from birth. */
+function newProjectRow(type = "RECURRING"): NewProject {
+  const rand =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return { action: "", type, clientKey: `np-${rand}` };
+}
 /**
  * `partial` = "Partially Used — Left Onsite". A plain Used marking makes the
  * backend drop the item from the client's Inventory; partial keeps/adds it.
@@ -5062,7 +5087,7 @@ export function StateDebrief({
               />
             ))}
             <button
-              onClick={() => setNewProjects((cur) => [...cur, { action: "", type: "RECURRING" }])}
+              onClick={() => setNewProjects((cur) => [...cur, newProjectRow()])}
               style={{ ...SMALL_BTN, marginTop: 8 }}
             >
               + ADD PROJECT

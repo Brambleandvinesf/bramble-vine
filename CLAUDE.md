@@ -679,6 +679,21 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   body — the Messages screen would have shown nothing. It was caught only by the
   response SIZE (673B where ~21KB was expected). Compare payload shape and size
   before and after, every time.
+- **THE @1 "Write-back for claude netlify" DEPLOYMENT: WHAT IT ACTUALLY IS
+  (8/4).** Investigated after a near-miss deleting version 1. It is the ORIGINAL
+  46-line prototype of this backend — "crew pages write-back endpoint" — with
+  exactly two actions, setLoaded (Project Tools & Materials 'Loaded Status') and
+  setStatus (Client Projects 'Status'). It is NOT the client questionnaire and
+  has nothing to do with Netlify beyond having been called by an early
+  Netlify-hosted crew page. Both actions still exist in today's backend and the
+  live app calls setLoaded through the PINNED deployment, so this one is a
+  legacy duplicate that is almost certainly orphaned.
+  IT STILL WRITES TO THE LIVE SHEET, so do not fire setLoaded/setStatus at it
+  casually. There IS a safe liveness probe: its doPost has no else-branch, so an
+  UNRECOGNISED action writes nothing and still returns {ok:true,action:...}.
+  It has no doGet at all, so a browser GET returns "Script function not found:
+  doGet" — that is expected, not breakage. Source backed up on the Pi at
+  ~/appsscript-v1-backup (clasp pull --versionNumber 1).
 - **A CLIENT NAME IS AN UNENFORCED FOREIGN KEY IN FIVE PLACES (8/4, rename).**
   Renaming one means updating, together: Client Info `'Account Name '` (trailing
   space REAL), Client Projects `Client Name`, **Project Tools & Materials**
@@ -759,10 +774,21 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   Date+Client+EventID+Item refreshing Quantity, officeTasks (OT_TAB) dedupes on
   today+Client+Item and LEAVES an existing row untouched (Status is the office's
   column — a re-save must not reset a task they actioned), Debrief Log upserts on
-  EventID+Date. **newProjects (CP_TAB + TM_TAB) STILL APPENDS** — it needs a
-  stable per-row key from the UI and that decision was still open on 8/4. Until
-  then, calling saveDebrief twice with the same newProjects creates duplicate
-  projects AND duplicate tool rows.
+  EventID+Date, and **newProjects (CP_TAB + TM_TAB) upserts on `Client Key`** —
+  ALL FIVE SECTIONS ARE NOW IDEMPOTENT.
+  Client Key exists because a brand-new project has no natural key: its Project
+  ID is assigned BY the write and its action text is editable, so neither can
+  identify it across two saves. The UI mints it in newProjectRow() when the row
+  is created and resends it unchanged; never regenerate it on edit, or the second
+  save duplicates. A payload with NO clientKey appends exactly as before, which
+  is what keeps confirmDay and any older caller working.
+  The child T&M rows are keyed only by Project ID, so the parent upsert alone
+  would still have duplicated every item — on an update this project's tool rows
+  are DELETED and rewritten. That also makes editing work: an item removed from
+  the form leaves the sheet instead of lingering.
+  On update only the four fields the form owns are written (Client Name, Project
+  Action, Type, Notes); Project ID, Client Key, Status, Crossed, Garden and
+  Category are never touched.
   OT_TAB is keyed WITHOUT Event ID on purpose: the tab has neither a Date nor an
   Event ID column, only a Timestamp, and two visits to one client on one day
   raising the same task really is one task. Add an Event ID column if per-visit
