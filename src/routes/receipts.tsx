@@ -1225,7 +1225,15 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
     setPickOpen(true);
     if (products === null) {
       try {
-        const res = await fetch(`${SCRIPT_URL}?action=getProducts`);
+        /* getProductMaster, NOT getProducts (8/5). This matcher keys on
+           'Product Key' / 'Canonical Name', which exist only on the Product
+           Master tab — the canonical registry built from confirmed receipt
+           matches. getProducts serves the QuickBooks 'Products & Services'
+           catalog, which has neither column, so this list was silently empty.
+           Expect it to stay empty until confirmations accumulate (matchProduct
+           suggests, assignProductKey commits); that is the normal starting
+           state, not a failure. */
+        const res = await fetch(`${SCRIPT_URL}?action=getProductMaster`);
         const json = (await res.json()) as { products?: ProductRow[] };
         setProducts(json.products ?? []);
       } catch {
