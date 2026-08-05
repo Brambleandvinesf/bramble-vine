@@ -45,6 +45,9 @@ import { KioskScreensaver } from "../components/KioskScreensaver";
 import { OfficeTeamSetup } from "../components/OfficeTeamSetup";
 import { DayStateSpine, SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 import { ReportButton } from "../components/ReportButton";
+/* Rendered inside the messages overlay below. Safe direction: messages.tsx
+   imports nothing from __root, so this is not a cycle. */
+import { MessagesPage } from "./messages";
 import { DayStateProvider } from "../lib/day-state";
 
 function NotFoundComponent() {
@@ -560,61 +563,137 @@ function HamburgerMenu() {
   );
 }
 
+/* The ONE messages control, for every role, on every signed-in page.
+ *
+ * There used to be two. This one sat top-right and NAVIGATED to /messages;
+ * components/MessagesFab.tsx sat bottom-right and opened Messages as an overlay
+ * so the page underneath kept its state. /schedule and /loading rendered the
+ * second one on top of this one, so those screens showed two message icons with
+ * two different behaviours.
+ *
+ * Consolidated (8/4): one icon, top-right, and it opens the OVERLAY — the
+ * state-preserving behaviour is the one worth keeping. Navigating away from a
+ * half-finished loading checklist to read a message, then having to find your
+ * place again, is exactly what the overlay existed to avoid.
+ *
+ * The /messages ROUTE still exists and is still linked from the home tiles, so
+ * the fab hides while you are on it: offering to open an overlay of the page you
+ * are already looking at is nonsense, and hiding it keeps "one behaviour"
+ * literally true.
+ */
 function MessagesFab() {
   const { effectiveRole } = useViewAs();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const inboxCount = useBadge(BK.inbox) ?? 0;
+  const [open, setOpen] = useState(false);
 
-  if (!effectiveRole) return null;
-  const active = pathname === "/messages" || pathname.startsWith("/messages/");
+  /* Escape closes it, as with every other overlay in the app. */
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const onMessagesRoute = pathname === "/messages" || pathname.startsWith("/messages/");
+  if (!effectiveRole || onMessagesRoute) return null;
 
   return (
-    <Link
-      to="/messages"
-      aria-label="Messages"
-      style={{
-        position: "fixed",
-        top: 52,
-        right: 10,
-        zIndex: 110,
-        width: 44,
-        height: 44,
-        borderRadius: 999,
-        background: active ? LIME_TAB : "#121212",
-        border: `1px solid ${active ? LIME_TAB : "#2a2a2a"}`,
-        color: active ? "#0a0a0a" : LIME_TAB,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        textDecoration: "none",
-        boxShadow: "0 2px 8px rgba(0,0,0,.5)",
-      }}
-    >
-      <MessageSquare size={22} color={active ? "#0a0a0a" : LIME_TAB} strokeWidth={2} />
-      {inboxCount >= 1 && (
-        <span
-          aria-label={`${inboxCount} awaiting`}
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={inboxCount >= 1 ? `Messages, ${inboxCount} awaiting` : "Messages"}
+        aria-expanded={open}
+        style={{
+          position: "fixed",
+          top: 52,
+          right: 10,
+          zIndex: 110,
+          width: 44,
+          height: 44,
+          borderRadius: 999,
+          background: open ? LIME_TAB : "#121212",
+          border: `1px solid ${open ? LIME_TAB : "#2a2a2a"}`,
+          color: open ? "#0a0a0a" : LIME_TAB,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 0,
+          cursor: "pointer",
+          boxShadow: "0 2px 8px rgba(0,0,0,.5)",
+        }}
+      >
+        <MessageSquare size={22} color={open ? "#0a0a0a" : LIME_TAB} strokeWidth={2} />
+        {inboxCount >= 1 && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              minWidth: 18,
+              height: 18,
+              padding: "0 5px",
+              borderRadius: 999,
+              background: LIME_TAB,
+              color: "#0a0a0a",
+              fontSize: 11,
+              lineHeight: "18px",
+              fontWeight: 700,
+              textAlign: "center",
+              border: "1px solid #0a0a0a",
+            }}
+          >
+            {inboxCount}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Messages"
           style={{
-            position: "absolute",
-            top: -4,
-            right: -4,
-            minWidth: 18,
-            height: 18,
-            padding: "0 5px",
-            borderRadius: 999,
-            background: LIME_TAB,
-            color: "#0a0a0a",
-            fontSize: 11,
-            lineHeight: "18px",
-            fontWeight: 700,
-            textAlign: "center",
-            border: "1px solid #0a0a0a",
+            position: "fixed",
+            inset: 0,
+            /* Above the fab (110) and the menu, below the kiosk screensaver
+               (99000) — the wall display must still be able to cover this. */
+            zIndex: 300,
+            background: "#0a0a0a",
+            overflowY: "auto",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
           }}
         >
-          {inboxCount}
-        </span>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close messages"
+            style={{
+              position: "fixed",
+              top: 10,
+              right: 10,
+              zIndex: 310,
+              width: 40,
+              height: 40,
+              borderRadius: 999,
+              background: "#121212",
+              color: LIME_TAB,
+              border: "1px solid #2a2a2a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <X size={20} strokeWidth={2.2} />
+          </button>
+          <MessagesPage />
+        </div>
       )}
-    </Link>
+    </>
   );
 }
 
