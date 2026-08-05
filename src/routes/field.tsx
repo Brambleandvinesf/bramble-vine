@@ -4600,12 +4600,40 @@ export function StateDebrief({
                         (neighborPlan_/neighborProbe are planners only). */}
                     {p && p.entries.length > 0 && (
                       <div style={{ marginTop: 8, color: MUTED, fontSize: 10, lineHeight: 1.5 }}>
-                        {p.entries.map((en) => (
-                          <div key={en.id}>
-                            {fmtTime(en.start)}–{en.end ? fmtTime(en.end) : "now"}
-                            {en.jobcode ? ` · ${en.jobcode}` : ""}
-                          </div>
-                        ))}
+                        {p.entries.map((en) => {
+                          /* CC-08: each segment's own hours, so the rounding is
+                             visible per line instead of only in the total.
+                             DECIMAL, not "5h": the QBT figure above is quarter-
+                             rounded, and 4.95 + 3.20 = 8.15 -> 8.25 is only
+                             checkable if the parts are shown as they actually
+                             are. Rounding "4h57m" to "5h" here would hide the
+                             very thing this is meant to expose.
+                             An open segment counts up to now, matching how
+                             personSeconds totals it. */
+                          const secs = en.onClock
+                            ? (Date.now() - new Date(en.start).getTime()) / 1000
+                            : en.seconds || 0;
+                          return (
+                            <div
+                              key={en.id}
+                              style={{ display: "flex", alignItems: "baseline", gap: 8 }}
+                            >
+                              <span style={{ flex: 1, minWidth: 0 }}>
+                                {fmtTime(en.start)}–{en.end ? fmtTime(en.end) : "now"}
+                                {en.jobcode ? ` · ${en.jobcode}` : ""}
+                              </span>
+                              <span
+                                style={{
+                                  flex: "0 0 auto",
+                                  fontVariantNumeric: "tabular-nums",
+                                  color: en.onClock ? "#ffb020" : MUTED,
+                                }}
+                              >
+                                {(secs / 3600).toFixed(2)}h
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
