@@ -4325,6 +4325,26 @@ export function StateDebrief({
   const [addTarget, setAddTarget] = useState<string>("");
   const [sectionOpts, setSectionOpts] = useState<string[]>([]);
 
+  /* CC-10: how many photos each project already carries, so each button can say
+     so without a request per card. One read when the step opens. */
+  const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (currentKey !== "updates" || !clientMatch) return;
+    let gone = false;
+    void fetch(`${SCRIPT_URL}?action=projectPhotos&client=${encodeURIComponent(clientMatch)}`)
+      .then((r) => r.json())
+      .then((j: { photos?: Record<string, unknown[]> }) => {
+        if (gone) return;
+        const out: Record<string, number> = {};
+        for (const [pid, list] of Object.entries(j.photos ?? {})) {
+          out[pid] = Array.isArray(list) ? list.length : 0;
+        }
+        setPhotoCounts(out);
+      })
+      .catch(() => { /* no photos yet is the normal case, not an error */ });
+    return () => { gone = true; };
+  }, [currentKey, clientMatch]);
+
   /* Load the sibling sections lazily, and only for a sectioned client — most
      clients have none, and this must not cost a request on every debrief. */
   useEffect(() => {
@@ -4881,6 +4901,14 @@ export function StateDebrief({
                     }
                     style={{ ...INPUT, minHeight: 56, marginTop: 8, resize: "vertical" }}
                   />
+                  {/* CC-10: photos for THIS project. Record-keeping; nothing
+                      here sends anything to the client. */}
+                  <ProjectCamera
+                    projectId={id}
+                    clientName={clientMatch ?? ""}
+                    disabled={busy || isPreview || !clientMatch}
+                    existing={photoCounts[id] ?? 0}
+                  />
                 </div>
               );
             })}
@@ -5182,6 +5210,163 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
+
+/* ---- CC-10: photos attached to ONE project -------------------------------
+ *
+ * Same pipeline as VisitCamera above — downscale, base64, visitPhoto, Drive via
+ * PHOTO_FOLDER_ID, PHOTO_HOOK — with a projectId so the backend can file it
+ * against the project rather than the day. Deliberately NOT the visit-notes
+ * photos[] array: that store self-resets at the crew-day rollover, and these
+ * are records.
+ *
+ * Sharing with the client is a SEPARATE, deliberate action and is not built
+ * here. Nothing on this screen sends anything to a client.
+ */
+function ProjectCamera({
+  projectId,
+  clientName,
+  disabled,
+  existing,
+}: {
+  projectId: string;
+  clientName: string;
+  disabled: boolean;
+  existing: number;
+}) {
+  const [photos, setPhotos] = useState<VisitPhoto[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const upload = useCallback(
+    async (id: string, base64: string) => {
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "visitPhoto",
+            data: base64,
+            mime: "image/jpeg",
+            client: clientName,
+            projectId,
+          }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          projectPhotoLogged?: unknown;
+        };
+        /* The upload can succeed while the project link fails — the photo is in
+           Drive either way, but calling that "ok" would misreport it as attached
+           to this project. */
+        if (json.ok && json.projectPhotoLogged === true) {
+          setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, status: "ok" } : p)));
+        } else {
+          throw new Error("upload failed");
+        }
+      } catch {
+        setPhotos((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, status: "error", retry: () => void upload(id, base64) } : p,
+          ),
+        );
+      }
+    },
+    [clientName, projectId],
+  );
+
+  const handleFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || disabled) return;
+      for (const file of Array.from(files)) {
+        try {
+          const { base64, dataUrl } = await downscaleToJpegBase64(file);
+          const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+          setPhotos((prev) => [...prev, { id, thumb: dataUrl, status: "uploading" }]);
+          void upload(id, base64);
+        } catch {
+          /* an unreadable file must not take the others down with it */
+        }
+      }
+    },
+    [disabled, upload],
+  );
+
+  const shown = existing + photos.filter((p) => p.status === "ok").length;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled}
+          style={{
+            ...SMALL_BTN,
+            opacity: disabled ? 0.4 : 1,
+            cursor: disabled ? "not-allowed" : "pointer",
+          }}
+        >
+          📷 PHOTO
+        </button>
+        {shown > 0 && (
+          <span style={{ color: MUTED, fontSize: 11 }}>
+            {shown} photo{shown === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple
+        style={{ display: "none" }}
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      {photos.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+          {photos.map((p) => (
+            <div key={p.id} style={{ position: "relative" }}>
+              <img
+                src={p.thumb}
+                alt=""
+                style={{
+                  width: 44,
+                  height: 44,
+                  objectFit: "cover",
+                  borderRadius: 6,
+                  opacity: p.status === "ok" ? 1 : 0.45,
+                  border: `1px solid ${p.status === "error" ? "#ff3b30" : LINE}`,
+                }}
+              />
+              {p.status === "error" && (
+                <button
+                  type="button"
+                  onClick={() => p.retry?.()}
+                  title="Retry"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "rgba(0,0,0,.55)",
+                    color: "#ff3b30",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 10,
+                    cursor: "pointer",
+                  }}
+                >
+                  RETRY
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function NewProjectForm({
   value,
   onChange,
