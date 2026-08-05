@@ -215,15 +215,22 @@ function laHHMM(iso?: string): string {
 
 /* ---------------- the pencil editor ---------------- */
 
-function PunchEditor({
+/**
+ * (8/5) EXPORTED, and typed structurally rather than against this screen's Row /
+ * WorkRow, so the Debrief Hours screen can render this very editor instead of
+ * growing a second one. It only ever needed a person, a date, and a segment's
+ * id/start/end — approvals' own Row and WorkRow still satisfy that, so nothing
+ * on this screen changes. Two punch editors would be two ways to write payroll.
+ */
+export function PunchEditor({
   row,
   seg,
   clients,
   onClose,
   onApplied,
 }: {
-  row: Row;
-  seg: WorkRow;
+  row: { person: string; date: string };
+  seg: { id: string; start?: string; end?: string; jobcode?: string };
   clients: string[];
   onClose: () => void;
   onApplied: () => void;

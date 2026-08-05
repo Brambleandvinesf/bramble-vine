@@ -11,6 +11,12 @@ import { RefreshDot } from "../components/RefreshDot";
 import { appendTeamParam, resolveTeam } from "../lib/team";
 import { usePoll } from "../lib/use-poll";
 import { makeGetData } from "../lib/get-data";
+import { Pencil, Trash2 } from "lucide-react";
+/* (8/5) The punch editor is imported from the Payroll Approval screen, not
+   rebuilt here — see the note on its export. Two editors would be two ways to
+   write payroll. */
+import { PunchEditor } from "./approvals";
+import { planPunchDelete, applyPunchDelete } from "../lib/punch-edit";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
@@ -88,6 +94,16 @@ const LIME_DIM = "rgba(124,255,0,.35)";
 const DIM_GREEN = "#4a7a1e";
 const TEXT = "#e8e8e8";
 const MUTED = "#8f8f8f";
+/* Small icon button for the per-segment pencil/trash on Debrief Hours. */
+const PUNCH_ICON_BTN: React.CSSProperties = {
+  flex: "0 0 auto",
+  background: "transparent",
+  border: "none",
+  color: MUTED,
+  cursor: "pointer",
+  padding: 2,
+  lineHeight: 0,
+};
 const LINE = "#2a2a2a";
 const RED = "#ff3b30";
 
@@ -1578,6 +1594,7 @@ function FieldBody({
               roster={roster}
               isLead={isLead}
               delegated={!!route.delegated}
+              debriefStarted={route.state === "debrief"}
               onDelegate={(v) => void send({ action: "setRoute", delegated: v })}
               projects={data.projects ?? []}
               tools={data.tools ?? []}
@@ -1621,6 +1638,7 @@ function FieldBody({
             <>
               {canDebrief || isPreview ? (
                 <StateDebrief
+                  canDebrief={canDebrief}
                   clientMatch={clientMatch}
                   event={currentEvent}
                   roster={roster}
@@ -3164,6 +3182,7 @@ function StateVisit({
   roster,
   isLead,
   delegated,
+  debriefStarted,
   onDelegate,
   projects,
   tools,
@@ -3204,6 +3223,8 @@ function StateVisit({
   roster: RosterMember[];
   isLead: boolean;
   delegated: boolean;
+  /** Server truth: this visit has already advanced to the debrief step. */
+  debriefStarted: boolean;
   onDelegate: (v: boolean) => void;
   projects: ProjectRow[];
   tools: ToolRowRaw[];
@@ -3252,6 +3273,17 @@ function StateVisit({
   );
 
   const [showOut, setShowOut] = useState(false);
+  /* (8/5) Delegation-aware. isLead is role only; `delegated` is this visit's
+     own hand-off, already polled from the server. */
+  const canDebriefHere = isLead || delegated;
+  /* (8/5) showOut was component state ONLY, so a reload mid-visit lost the
+     CLOCK OUT section entirely — the crew's way off the clock vanished until
+     someone pressed DEBRIEF again. Derived from the SERVER's route state
+     instead of a new local store: pressing DEBRIEF calls onEndVisit, which
+     advances the route to 'debrief', and that survives a reload, a different
+     device, and a handover. Local state still covers the instant between the
+     tap and the next poll. */
+  const showOutEffective = showOut || debriefStarted;
   const [noteComposerOpen, setNoteComposerOpen] = useState(false);
 
   /* AD.8 (8/2): which cards are struck through. Seeded from the server's
@@ -3490,7 +3522,12 @@ function StateVisit({
       {/* AD.5: the person actually on the visit needs their OWN debrief
           action — previously only "delegate" existed, which was an
           oversight. */}
-      {isLead && !showOut && (
+      {/* (8/5) canDebriefHere, NOT isLead. `delegated` was already a prop and
+          already computed into canDebrief upstream, but this gate read isLead
+          alone — so delegating a debrief let an assistant SEE the debrief step
+          while leaving this button, and therefore CLOCK OUT below, unreachable.
+          Delegation only half-worked. */}
+      {canDebriefHere && !showOutEffective && (
         <button
           onClick={() => {
             onVisitComplete?.();
@@ -3594,7 +3631,7 @@ function StateVisit({
           block under its real name. LL.1's route-advance fix is
           preserved there. */}
 
-      {showOut && (
+      {showOutEffective && (
         <>
           <div style={{ ...SECTION_HEAD, marginTop: 16 }}>CLOCK OUT</div>
           {clockSlot}
@@ -4318,7 +4355,13 @@ function RosterClockStatus({ roster }: { roster: RosterMember[] }) {
 }
 
 /* ============================================================ */
-type DebriefBilling = { name: string; hours: number };
+type DebriefBilling = {
+  name: string;
+  hours: number;
+  /** Added by hand via "+ ADD PERSON" rather than derived from the clock roster.
+      Manual rows are never hidden by the QBT filter (see hoursVisible). */
+  manual?: boolean;
+};
 type DebriefUpdate = { projectId: string; status?: string; notes?: string };
 type NewProjectItem = { name: string; qty?: string; size?: string; notes?: string };
 /**
@@ -4368,6 +4411,10 @@ export function StateDebrief({
   previewStep,
   employees = [],
   notes = [],
+  /* (8/5) Gates the QBT punch editor. Same delegation-aware capability the
+     visit card's debrief button uses, so the two cannot disagree about who may
+     touch payroll. */
+  canDebrief = false,
   /* (8/4) Which DAY this debrief is for. The live flow omits it, so payrollDay
      defaults to today exactly as before; the queue passes the visit's own date so
      a next-morning debrief reads that visit's hours rather than today's. */
@@ -4390,6 +4437,7 @@ export function StateDebrief({
   employees?: Employee[];
   notes?: VisitNote[];
   date?: string;
+  canDebrief?: boolean;
 }) {
   const clocked = roster.filter((m) => m.in);
   const { effectiveRole } = useViewAs();
@@ -4474,7 +4522,11 @@ export function StateDebrief({
       ...officeTasks.filter(Boolean),
     ];
     await onFinish({
-      billing,
+      /* (8/5) hoursVisible, not billing. A row hidden from the screen must not
+         be submitted either — its roster-derived figure is non-zero, so
+         finishing would silently bill a client for someone whose only time
+         today was internal overhead. Hide and bill have to agree. */
+      billing: hoursVisible,
       updates,
       newProjects,
       itemsUsed,
@@ -4622,6 +4674,61 @@ export function StateDebrief({
     qbtStarted.current = false;
     setClockRecheck((n) => n + 1);
   }, []);
+  /* Re-read QBT after a punch edit lands, so the figures on screen are the
+     server's and not our guess at them. */
+  const refreshQbtDay = recheckClock;
+
+  /* (8/5) THE PENCIL, on this screen at last. The editor itself is imported
+     from the Payroll Approval screen rather than rebuilt — one implementation of
+     "write to a real timesheet" is the whole point. Which segment is open. */
+  const [punchEdit, setPunchEdit] = useState<string | null>(null);
+  const [punchBusy, setPunchBusy] = useState<string | null>(null);
+  /* Reassignment targets for the editor's client dropdown: whatever jobcodes
+     today's own timesheets already reference, so it cannot offer nonsense. */
+  const punchClients = useMemo(() => {
+    const names = new Set<string>();
+    (qbtDay?.people ?? []).forEach((pp) =>
+      (pp.entries ?? []).forEach((en) => {
+        if (en.jobcode) names.add(en.jobcode);
+      }),
+    );
+    if (clientMatch) names.add(clientMatch);
+    return Array.from(names).sort();
+  }, [qbtDay, clientMatch]);
+
+  const deletePunch = useCallback(
+    async (person: string, id: string) => {
+      if (isPreview) return;
+      setPunchBusy(id);
+      setQbtErr(null);
+      try {
+        /* Plan first and show the SERVER's description of what it will remove —
+           never a summary built here from what we think the row is. */
+        const plan = await planPunchDelete({ person, id, date: qbtDay?.day });
+        const r = plan.removing;
+        const what = r
+          ? `${r.person} · ${r.client || "no client"} · ${fmtTime(r.start)}–${
+              r.end ? fmtTime(r.end) : "open"
+            }`
+          : `${person} · punch ${id}`;
+        const ok = await confirmModal({
+          message:
+            `Delete this QuickBooks Time punch?\n\n${what}\n\n` +
+            "This removes real clocked time and affects pay. It cannot be undone from here.",
+          destructive: true,
+          confirmLabel: "DELETE PUNCH",
+        });
+        if (!ok) return;
+        await applyPunchDelete({ person, id, date: qbtDay?.day });
+        refreshQbtDay();
+      } catch (e) {
+        setQbtErr(e instanceof Error ? e.message : "could not delete that punch");
+      } finally {
+        setPunchBusy(null);
+      }
+    },
+    [isPreview, qbtDay?.day, refreshQbtDay],
+  );
 
   useEffect(() => {
     if (currentKey !== "billing" || qbtStarted.current) return;
@@ -4695,41 +4802,108 @@ export function StateDebrief({
      writeBillingHours sends dryRun:false and throws on a dryRun response; see
      lib/billing-hours.ts for why that guard exists. BILLING ONLY: this cannot
      touch QuickBooks Time or anyone's pay. */
-  const adjustBilling = async (name: string, delta: number) => {
-    /* (8/4) The debrief preview badge promises "PREVIEW — READ ONLY", and this
-       write was not honouring it: tapping ± from a management preview would have
-       written a real Billing Hours row for a real employee against the live
-       client and today's date. Found while trying to verify the stepper from
-       preview mode. A screen that says read-only must be read-only. */
+  /* (8/5) THE ± LAG. Every tap awaited a full Apps Script round trip — a ~1.4s
+     floor, measured 3-20s under load today — and the handler opened with
+     `if (!row || billingBusy) return`, so every tap during that trip was
+     SILENTLY DROPPED. Five taps did not mean +1.25h; it meant one write and four
+     discarded taps, which is what "major lag" actually was. Nothing here was
+     slow to render.
+
+     Coalesced instead. The optimistic figure updates immediately and the buttons
+     never block, while the write is debounced to the last value. That is safe
+     precisely because this payload is an ABSOLUTE figure and setBillingHours
+     upserts on date+client+person (see the note above) — sending only the final
+     total is the same end state as sending every intermediate one, minus the
+     round trips. */
+  const billingTimer = useRef<number | undefined>(undefined);
+  const billingPending = useRef<Map<string, { next: number; prev: number }>>(new Map());
+  const BILLING_WRITE_DELAY_MS = 700;
+
+  const flushBilling = useCallback(async () => {
+    const pending = billingPending.current;
+    if (!pending.size) return;
+    const batch = Array.from(pending.entries());
+    pending.clear();
+    for (const [name, { next, prev }] of batch) {
+      setBillingBusy(name);
+      try {
+        const client = (clientMatch ?? "").trim();
+        if (!client) throw new Error("no client on this visit — cannot bill hours");
+        const j = await writeBillingHours({
+          client,
+          rows: [{ person: name, hours: next }],
+          date: qbtDay?.day || todayISODate(),
+          eventId: event?.id,
+        });
+        if (j.billingOnly) setBillingNote(j.billingOnly);
+      } catch (e) {
+        /* Roll back to the figure held BEFORE this burst of taps, not to the
+           previous tap — the whole burst is one write and one failure. */
+        setBilling((cur) => cur.map((r) => (r.name === name ? { ...r, hours: prev } : r)));
+        setQbtErr(e instanceof Error ? e.message : "billing update failed");
+      } finally {
+        setBillingBusy(null);
+      }
+    }
+  }, [clientMatch, qbtDay?.day, event?.id]);
+
+  /* A pending figure must never be lost to a step change or unmount. */
+  useEffect(() => {
+    return () => {
+      if (billingTimer.current !== undefined) {
+        window.clearTimeout(billingTimer.current);
+        void flushBilling();
+      }
+    };
+  }, [flushBilling]);
+
+  const adjustBilling = (name: string, delta: number) => {
     if (isPreview) return;
     const row = billing.find((b) => b.name === name);
-    if (!row || billingBusy) return;
+    if (!row) return;
     const prev = row.hours;
     const next = Math.min(16, toQuarter(prev + delta));
     if (next === prev) return;
     setBilling((cur) => cur.map((r) => (r.name === name ? { ...r, hours: next } : r)));
-    setBillingBusy(name);
     setQbtErr(null);
-    try {
-      const client = (clientMatch ?? "").trim();
-      if (!client) throw new Error("no client on this visit — cannot bill hours");
-      const j = await writeBillingHours({
-        client,
-        rows: [{ person: name, hours: next }],
-        date: qbtDay?.day || todayISODate(),
-        eventId: event?.id,
-      });
-      if (j.billingOnly) setBillingNote(j.billingOnly);
-    } catch (e) {
-      setBilling((cur) => cur.map((r) => (r.name === name ? { ...r, hours: prev } : r)));
-      setQbtErr(e instanceof Error ? e.message : "billing update failed");
-    } finally {
-      setBillingBusy(null);
-    }
+    /* Keep the ORIGINAL pre-burst figure for rollback across repeated taps. */
+    const existing = billingPending.current.get(name);
+    billingPending.current.set(name, { next, prev: existing ? existing.prev : prev });
+    if (billingTimer.current !== undefined) window.clearTimeout(billingTimer.current);
+    billingTimer.current = window.setTimeout(() => {
+      billingTimer.current = undefined;
+      void flushBilling();
+    }, BILLING_WRITE_DELAY_MS);
   };
 
   const qbtPerson = (name: string) =>
     (qbtDay?.people ?? []).find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
+
+  /* (8/5) Who actually belongs on this screen.
+     `billing` is seeded from the clock roster, which is JOBCODE-BLIND: anyone who
+     clocked in anywhere today lands here, so someone whose only time is internal
+     overhead showed up on a client's Hours screen with a billable figure. The
+     payrollDay read IS client-filtered, but it could only ever add or re-seed —
+     it never removed anyone, so the roster row survived.
+
+     Drop roster rows with no time under THIS client's jobcode. Two deliberate
+     exemptions:
+       - manual rows ("+ ADD PERSON") always stay, whatever QBT says. Someone
+         chose them on purpose and their figure is the point.
+       - if qbtDay has not loaded, or came back with a warning (no jobcode match,
+         so the figures span every client), filter NOTHING. Hiding people based
+         on data we know is unfiltered would drop real billable time, which is
+         far worse than showing an extra row. */
+  const hoursVisible = useMemo(() => {
+    if (!qbtDay || qbtDay.warning) return billing;
+    return billing.filter((b) => {
+      if (b.manual) return true;
+      const p = (qbtDay.people ?? []).find(
+        (x) => x.name.toLowerCase() === b.name.toLowerCase(),
+      );
+      return !!p && personSeconds(p) > 0;
+    });
+  }, [billing, qbtDay]);
 
   const goNext = () => {
     setCompleted((c) => new Set(c).add(current));
@@ -4825,29 +4999,53 @@ export function StateDebrief({
             )}
 
             <div style={{ display: "grid", gap: 10 }}>
-              {billing.map((b, i) => {
+              {hoursVisible.map((b, i) => {
                 const p = qbtPerson(b.name);
-                const qbtHours = p ? toQuarter(personSeconds(p) / 3600) : null;
+                /* (8/5) EXACT, not quarter-rounded. This is labelled as what
+                   QuickBooks Time recorded, so it has to be that: rounding it
+                   made Miguel's real 1.42h read "QBT 1.50" and invented a
+                   discrepancy against a number that was never wrong. The BIG
+                   billing figure below stays quarter-rounded — that one is what
+                   the client is charged, and toQuarter is deliberate there. */
+                const qbtHours = p ? personSeconds(p) / 3600 : null;
                 const onClock = p ? personOnClock(p) : false;
                 const delta = qbtHours === null ? 0 : +(b.hours - qbtHours).toFixed(2);
                 const busy = billingBusy === b.name;
                 return (
                   <div key={`${b.name}-${i}`} style={{ ...PANEL_BOX, textAlign: "center" }}>
-                    <div style={{ color: TEXT, fontSize: 14, letterSpacing: 1, marginBottom: 4 }}>
-                      {b.name.toUpperCase()}
+                    {/* Name and the QBT figure share a row — the raw clock time
+                        reads as an attribute of the person, not as a competing
+                        headline above the billing number. */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "baseline",
+                        justifyContent: "center",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span style={{ color: TEXT, fontSize: 14, letterSpacing: 1 }}>
+                        {b.name.toUpperCase()}
+                      </span>
+                      <span style={{ color: MUTED, fontSize: 11 }}>
+                        {qbtHours === null ? "billing only" : `QBT ${qbtHours.toFixed(2)}`}
+                      </span>
                     </div>
-                    {/* What QuickBooks Time actually recorded, versus what the
-                        client is billed. Two different numbers on purpose. */}
-                    <div style={{ color: MUTED, fontSize: 11, marginBottom: 10 }}>
+                    {/* The QBT figure itself now sits beside the name; what is
+                        left here is the commentary on it — still-on-the-clock,
+                        and how far the billed figure has been moved from it. */}
+                    <div style={{ color: MUTED, fontSize: 11, marginBottom: 10, minHeight: 14 }}>
                       {qbtHours === null ? (
                         <>not in QuickBooks Time · billing only</>
                       ) : (
                         <>
-                          QBT {qbtHours.toFixed(2)}
-                          {onClock && <span style={{ color: "#ffb020" }}> · still on the clock</span>}
+                          {onClock && <span style={{ color: "#ffb020" }}>still on the clock</span>}
+                          {onClock && delta !== 0 && " · "}
                           {delta !== 0 && (
                             <>
-                              {" · billing "}
+                              {"billing "}
                               {delta > 0 ? "+" : ""}
                               {delta.toFixed(2)}
                             </>
@@ -4916,10 +5114,10 @@ export function StateDebrief({
                         reset to QBT
                       </button>
                     )}
-                    {/* Segments are reference, so the lead can see what the
-                        number is made of. Read-only: editing the actual QBT
-                        times needs a backend write action that does not exist
-                        (neighborPlan_/neighborProbe are planners only). */}
+                    {/* Segments show what the number is made of — and, since
+                        8/5, are editable in place. The backend write DOES exist
+                        (punchEdit, "the pencil", dry-run by default); the note
+                        that said otherwise predated it and was simply stale. */}
                     {p && p.entries.length > 0 && (
                       <div style={{ marginTop: 8, color: MUTED, fontSize: 10, lineHeight: 1.5 }}>
                         {p.entries.map((en) => {
@@ -4953,9 +5151,60 @@ export function StateDebrief({
                               >
                                 {(secs / 3600).toFixed(2)}h
                               </span>
+                              {/* (8/5) The pencil, on THIS screen at last. An
+                                  open segment has no end to edit, so it is not
+                                  offered until they clock out. */}
+                              {canDebrief && !isPreview && !en.onClock && (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      setPunchEdit(punchEdit === en.id ? null : en.id)
+                                    }
+                                    aria-label={`Edit ${b.name} ${fmtTime(en.start)} punch`}
+                                    style={PUNCH_ICON_BTN}
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    onClick={() => void deletePunch(b.name, en.id)}
+                                    disabled={punchBusy === en.id}
+                                    aria-label={`Delete ${b.name} ${fmtTime(en.start)} punch`}
+                                    style={{
+                                      ...PUNCH_ICON_BTN,
+                                      opacity: punchBusy === en.id ? 0.4 : 1,
+                                    }}
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </>
+                              )}
                             </div>
                           );
                         })}
+                        {/* Same editor component the Payroll Approval screen
+                            uses — imported, not reimplemented. */}
+                        {canDebrief &&
+                          !isPreview &&
+                          p.entries.some((en) => en.id === punchEdit) && (
+                            <div style={{ textAlign: "left", marginTop: 6 }}>
+                              <PunchEditor
+                                row={{ person: b.name, date: qbtDay?.day || todayISODate() }}
+                                seg={
+                                  p.entries.find((en) => en.id === punchEdit) as {
+                                    id: string;
+                                    start?: string;
+                                    end?: string;
+                                  }
+                                }
+                                clients={punchClients}
+                                onClose={() => setPunchEdit(null)}
+                                onApplied={() => {
+                                  setPunchEdit(null);
+                                  refreshQbtDay();
+                                }}
+                              />
+                            </div>
+                          )}
                       </div>
                     )}
                   </div>
@@ -4992,7 +5241,10 @@ export function StateDebrief({
                       <button
                         key={e.id}
                         onClick={() => {
-                          setBilling((cur) => [...cur, { name: e.name, hours: 0 }]);
+                          /* manual: this person is here because someone chose
+                             them, not because they clocked in. They stay on the
+                             screen regardless of QBT (see hoursVisible). */
+                          setBilling((cur) => [...cur, { name: e.name, hours: 0, manual: true }]);
                           setShowAddPerson(false);
                         }}
                         style={{
