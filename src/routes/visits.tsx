@@ -200,7 +200,27 @@ function VisitsPage() {
 
   const pending = useMemo(() => (rows ?? []).filter(isPending), [rows]);
 
-  const gateOpen = !yesThisWeek(lastYes);
+  /* (8/6) "Said yes this week" and "has drafts to show for it" are two separate
+     facts, and treating them as one locked the crew out for the rest of the week.
+
+     LAST_YES is stamped server-side by clearQueue — the FIRST step of the
+     Make.com drafting scenario. A run that clears the queue and then fails
+     before writing any drafts still sets the stamp. Gating on the stamp alone
+     therefore meant: press YES, lose the queue, get nothing back, and lose the
+     retry button until next week. Observed live — lastYes stamped today against
+     an empty tab.
+
+     The discriminator is TOTAL rows, not pending ones. An empty tab means
+     nothing was ever drafted, so offer the retry. Rows that exist but are all
+     handled mean the week WAS drafted and worked through — that must not
+     re-offer the gate, because pressing YES again would clear the tab and
+     re-draft a week already dealt with.
+
+     While the first read is still in flight this stays false, so the gate cannot
+     flash up and disappear. */
+  const anyRows = (rows ?? []).length > 0;
+  const draftingProducedNothing = rows !== null && !anyRows;
+  const gateOpen = !yesThisWeek(lastYes) || draftingProducedNothing;
 
   const onReload = useCallback(async () => {
     setReloading(true);
