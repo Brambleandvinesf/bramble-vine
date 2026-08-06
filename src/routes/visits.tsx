@@ -20,21 +20,21 @@ export const Route = createFileRoute("/visits")({
 
 /* ============================================================
  * Backend contract — DO NOT modify without confirmation.
- * Apps Script is the ONLY read backend. Make.com webhooks are
- * the ONLY write destinations for this screen. No other network
- * destinations, no direct Google API calls.
+ * Apps Script is now the ONLY backend for this screen, read AND write.
+ * No other network destinations, no direct Google API calls.
  * Reads:  GET  <SCRIPT_URL>?action=getQueue -> { queue, clients, lastYes }
- * Writes: POST <ACTION_URL> JSON { token, eventId, action, text }
- *         POST <SCRIPT_URL>  JSON { action: "draftVisitQueue" }
+ * Writes: POST <SCRIPT_URL>  JSON { action: "draftVisitQueue" }
+ *         POST <SCRIPT_URL>  JSON { action: "queueAction", eventId, do, text }
  *
- * (8/6) Drafting is NATIVE now. It used to POST a Make.com webhook
- * ("Visit Confirmations-Draft"), which is superseded — see CLAUDE.md. Sending
- * still goes to ACTION_URL and is deliberately untouched.
+ * (8/6) BOTH Make.com webhooks are gone from this file. "Visit
+ * Confirmations-Draft" filtered on a mis-named Sheets column so it drafted
+ * nothing; "Visit Confirmations-Send" never worked at all. Both answered
+ * opaquely across origins, so the app could not tell success from failure —
+ * which is why a dead send button looked exactly like a working one. Apps
+ * Script returns real JSON. See CLAUDE.md.
  * ============================================================ */
 const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
-const ACTION_URL = "https://hook.us2.make.com/f63ii4kvvdbqjrl8ze9ceblnd8gfbb4i";
-const TOKEN = "bv7x2K9mQe4TpW8rLzV3";
 
 type QueueRow = {
   eventId: string;
@@ -326,12 +326,30 @@ function VisitsPage() {
         [row.eventId]: { ...prev[row.eventId], busy: true, flash: null },
       }));
       try {
-        const res = await fetch(ACTION_URL, {
+        /* (8/6) Native, not the Make.com "Visit Confirmations-Send" webhook.
+           That scenario never worked and was deactivated, and because it
+           answered opaquely across origins the app could not tell success from
+           failure — a send looked identical either way. Apps Script returns real
+           JSON, so ok:false is now a reportable error instead of a guess. */
+        const res = await fetch(SCRIPT_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: TOKEN, eventId: row.eventId, action, text }),
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "queueAction",
+            eventId: row.eventId,
+            do: action,
+            text,
+            dryRun: false,
+          }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          alreadySent?: boolean;
+        };
+        if (j.ok === false) throw new Error(j.error || "Action failed");
+
         if (action === "save") {
           setCards((prev) => ({
             ...prev,
@@ -339,20 +357,35 @@ function VisitsPage() {
           }));
           flash(row.eventId, "Saved.", false);
         } else {
+          /* Previously this left the card busy:true FOREVER with no message —
+             a successful send was indistinguishable from nothing happening,
+             which is exactly how the dead webhook went unnoticed. Confirm it,
+             clear the spinner, and re-read so the row's real Status (written by
+             the backend now, not by an external scenario) reaches the screen. */
           setCards((prev) => ({
             ...prev,
-            [row.eventId]: { ...prev[row.eventId], busy: true, sent: true },
+            [row.eventId]: { ...prev[row.eventId], busy: false, sent: true },
           }));
+          flash(
+            row.eventId,
+            action === "skip"
+              ? "Skipped."
+              : j.alreadySent
+                ? "Already texted today — not sent again."
+                : "Sent ✓",
+            false,
+          );
+          void loadQueue();
         }
-      } catch {
+      } catch (e) {
         setCards((prev) => ({
           ...prev,
           [row.eventId]: { ...prev[row.eventId], busy: false },
         }));
-        flash(row.eventId, "Action failed — try again.", true);
+        flash(row.eventId, e instanceof Error ? e.message : "Action failed — try again.", true);
       }
     },
-    [cards, flash],
+    [cards, flash, loadQueue],
   );
 
   const onAdd = useCallback(async () => {
