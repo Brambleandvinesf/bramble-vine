@@ -25,12 +25,15 @@ export const Route = createFileRoute("/visits")({
  * destinations, no direct Google API calls.
  * Reads:  GET  <SCRIPT_URL>?action=getQueue -> { queue, clients, lastYes }
  * Writes: POST <ACTION_URL> JSON { token, eventId, action, text }
- *         POST <DRAFT_URL>  JSON { token, source: "visits-yes" }
+ *         POST <SCRIPT_URL>  JSON { action: "draftVisitQueue" }
+ *
+ * (8/6) Drafting is NATIVE now. It used to POST a Make.com webhook
+ * ("Visit Confirmations-Draft"), which is superseded — see CLAUDE.md. Sending
+ * still goes to ACTION_URL and is deliberately untouched.
  * ============================================================ */
 const SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec";
 const ACTION_URL = "https://hook.us2.make.com/f63ii4kvvdbqjrl8ze9ceblnd8gfbb4i";
-const DRAFT_URL = "https://hook.us2.make.com/qd58recowfo5knfojgkxuldhqrvhk128";
 const TOKEN = "bv7x2K9mQe4TpW8rLzV3";
 
 type QueueRow = {
@@ -240,13 +243,33 @@ function VisitsPage() {
     setYesBusy(true);
     setYesStatus("Drafting messages…");
     try {
-      await fetch(DRAFT_URL, {
+      /* (8/6) Native drafter, not the Make.com webhook. The Make scenario
+         "Visit Confirmations-Draft" filtered on a Sheets column called
+         "Account Name" while the real Client Info header is 'Account Name '
+         with a trailing space, so every event failed its filter — and because
+         it called clearQueue FIRST, each press emptied the queue and wrote
+         nothing back. draftVisitQueue does the same job in Apps Script with
+         header-based lookups, and only clears prior rows AFTER new drafts land.
+         Unlike the webhook this answers with real JSON, so a failure is
+         reportable instead of being swallowed as a CORS error. */
+      const res = await fetch(SCRIPT_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: TOKEN, source: "visits-yes" }),
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "draftVisitQueue", dryRun: false }),
       });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        drafted?: number;
+        error?: string;
+      };
+      if (j.ok === false) {
+        setYesStatus(j.error || "Drafting failed — nothing was changed.");
+        setYesBusy(false);
+        return;
+      }
     } catch {
-      // webhook blocks CORS reads — ignore
+      /* Network/parse failure. The poll below still runs: the write may have
+         landed even if the response did not come back. */
     }
     // Poll for pending rows
     let tries = 0;

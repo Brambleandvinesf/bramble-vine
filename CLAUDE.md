@@ -677,7 +677,59 @@ Rules now:
   across components. A request-coalescing layer (share one in-flight promise per
   URL, hand each caller its own parsed copy) would fix it — not built yet.
 
+## VISIT CONFIRMATIONS ARE NATIVE NOW (8/6) — MAKE.COM SUPERSEDED
+`draftVisitQueue` (doPost, dryRun-by-default) drafts next week's confirmation
+messages into the Message Queue. It replaces the Make.com scenario
+**"Visit Confirmations-Draft"**.
+
+**Why Make failed, and it is a bug class we keep hitting.** Its Google Sheets
+filter tested a column called `Account Name`. The real Client Info header is
+`'Account Name '` — WITH A TRAILING SPACE, flagged four times in Code.js as real
+and not to be "fixed". Every event failed the filter. And because the scenario
+called `clearQueue` as its FIRST step, each press emptied the queue and wrote
+nothing back — which then tripped the YES-gate lockout (see visits.tsx) and hid
+the retry for the rest of the week. Same shape as projectPhotos reading the photo
+tab positionally: **match sheet columns BY HEADER, never by position or a guessed
+name.**
+
+Rules the native drafter follows, all of which cost something to learn:
+- **Mon–Fri of the COMING week.** Not a rolling 7 days, no weekend. Reuses the
+  next-Monday arithmetic already in `addMessage` (on a Monday it means the
+  following Monday).
+- **Only an explicit "None" opts an account out.** A BLANK Confirm Method is not
+  an opt-out — house convention (`lookupContact_`, `addMessage`) is blank → Text
+  + `Phone Number(s)`, and Make's own filter said `!= None`. Skipping blanks
+  drafted ZERO messages in the first dry run; five of that week's clients simply
+  had the column empty.
+- **A&G is excluded by name** (`A&G Sect N`). Deliberately NOT `etaSkipClient_`,
+  whose `ETA_SKIP_CLIENTS` list also carries HSM and belongs to the ETA feature.
+- **Draft first, clear afterwards.** Prior rows are deleted only once new drafts
+  have landed; if nothing drafts it returns `ok:false` and touches nothing. Never
+  reintroduce clear-then-draft.
+- Reuses `timedEvents_`, `clientDirectory_`, `lookupContact_`, calendar
+  `'1. Client Visits'`. Sending is untouched — visits.tsx's per-row
+  send/save/skip still goes to `ACTION_URL`.
+
+**MAKE.COM SCENARIOS — SUPERSEDED, SAFE TO TURN OFF ONCE A REAL WEEK LANDS.**
+Both are still switched on deliberately, as a fallback until Brandon has watched
+one full week go out end to end:
+- *Visit Confirmations-Draft* — replaced by `draftVisitQueue`. Nothing calls its
+  webhook any more; visits.tsx's YES button posts to Apps Script.
+- *Visit Confirmations-Send* — never worked. Sending has always gone through
+  `ACTION_URL`.
+Turn both off after a clean week. Leaving them on is harmless (nothing triggers
+Draft now) but confusing to the next person reading this.
+
 ## FUTURE / BACKLOG — NOT SCHEDULED, NOT STARTED
+### Confirm Method needs a real dropdown in the Client Info screen
+`Confirm Method` is free text and silently blank for most accounts. Blank is
+*handled* — it falls back to Text + `Phone Number(s)` — but it is handled by
+convention buried in `lookupContact_`, not by anything visible, and it cost a
+whole dry-run cycle to rediscover on 8/6. Give it a proper dropdown (Text /
+Email / None) with a sensible default so the column stops being silently empty,
+and so "None" becomes a deliberate choice rather than indistinguishable from
+"nobody filled this in". Not urgent; recorded so it is not lost.
+
 ### Possible migration off Sheets + Apps Script to Postgres (Supabase) + Edge Functions
 Raised 8/5 (Gemini's suggestion), discussed, and parked here deliberately.
 
