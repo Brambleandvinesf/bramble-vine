@@ -559,21 +559,27 @@ function VisitsPage() {
                   onClick={() => void doAction(row, "send")}
                   disabled={c.busy || c.sent}
                 >
-                  SEND
+                  {/* (8/7, CC-01 item 2) Explicit in-progress labels. The wait
+                      here is the PLATFORM, not our code: Apps Script's own round
+                      trip measured 2277–4792ms today, plus a synchronous Quo call
+                      on send. Deliberately NOT fire-and-forget — losing real-time
+                      failure reporting on a client text is the wrong trade — so
+                      the fix is making the wait read as "working" not "stuck". */}
+                  {c.busy ? "SENDING…" : "SEND"}
                 </button>
                 <button
                   style={GHOST_BTN}
                   onClick={() => void doAction(row, "save")}
                   disabled={c.busy || c.sent}
                 >
-                  SAVE EDIT
+                  {c.busy ? "SAVING…" : "SAVE EDIT"}
                 </button>
                 <button
                   style={GHOST_BTN}
                   onClick={() => void doAction(row, "skip")}
                   disabled={c.busy || c.sent}
                 >
-                  SKIP
+                  {c.busy ? "SKIPPING…" : "SKIP"}
                 </button>
                 {c.flash && (
                   <span
