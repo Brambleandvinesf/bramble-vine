@@ -7,8 +7,6 @@ const LIME = "#7cff00";
 const MONO = "'Courier New', Courier, monospace";
 const TZ = "America/Los_Angeles";
 
-/** Keep a break on screen this long after it starts, so "NOW" is not a blink. */
-const BREAK_GRACE_MS = 60_000;
 /** How early the first warning fires. */
 const WARN_MS = 60_000;
 
@@ -92,6 +90,24 @@ function breakTitle(label: string): string {
   return `${mins}-MINUTE BREAK`;
 }
 
+/**
+ * How LONG a break runs, in minutes (CC-02 item 10, 8/7).
+ *
+ * The SAME label parsing breakTitle already does — deliberately not a second
+ * break configuration. The sheet carries only a time and a label, so duration has
+ * always been inferred from the label; this returns the number rather than a
+ * display string, so a countdown can reach a break's END and not only its start.
+ *
+ * Lunch is the one fixed value: 1:15–2:15, therefore 60. Its label names no
+ * duration, so before this it had none at all — which is why nothing could count
+ * down to the end of lunch.
+ */
+function breakMinutes(label: string): number {
+  if (/lunch/i.test((label || "").trim())) return 60;
+  const named = (label || "").match(/(\d+)\s*-?\s*(?:min|minute)/i);
+  return named ? parseInt(named[1], 10) || 10 : 10;
+}
+
 const CHIP_BASE: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -145,11 +161,22 @@ export function CountdownChips({
     .map((b) => ({ ...b, at: parseBreakTime(b.time) }))
     .filter((b): b is BreakItem & { at: number } => b.at !== null)
     .sort((a, b) => a.at - b.at);
-  // Hold the current break past its start so "NOW" is actually readable.
-  const nextBreak = parsedBreaks.find((b) => b.at - now > -BREAK_GRACE_MS);
+  /* (CC-02 item 10) Hold a break for its whole DURATION, not 60s past its start.
+     The old 60s BREAK_GRACE_MS existed only to stop "NOW" being a blink, so after
+     one minute the current break was dropped and the chip jumped to the NEXT — with a
+     ten-minute break nine minutes still to run, and an hour of lunch. That is why
+     nothing could count down to a break ending: the break stopped being current
+     almost immediately. Now a break stays current until it is actually over. */
+  const nextBreak = parsedBreaks.find(
+    (b) => now < b.at + breakMinutes(b.label) * 60_000,
+  );
   const breakDiff = nextBreak ? nextBreak.at - now : 0;
   const breakStarted = !!nextBreak && breakDiff <= 0;
   const breakWarning = !!nextBreak && breakDiff > 0 && breakDiff <= WARN_MS;
+  /* Time left until this break TERMINATES — what the in-progress display counts. */
+  const breakEndsAt = nextBreak ? nextBreak.at + breakMinutes(nextBreak.label) * 60_000 : 0;
+  const breakRemainMs = nextBreak ? breakEndsAt - now : 0;
+  const breakInProgress = !!nextBreak && breakStarted && breakRemainMs > 0;
 
   // Alerts fire once per break per threshold. Keyed by the break's own start
   // time: a re-render, a poll, or a remount must not re-trigger them.
@@ -195,6 +222,48 @@ export function CountdownChips({
         }
       `}</style>
       {flash && <div className="bv-screen-flash" aria-hidden="true" />}
+      {/* (CC-02 item 10) BREAK IN PROGRESS. Full-green screen, huge black number
+          counting down to the break's TERMINATION. Rendered above everything so
+          it reads across the room — this is the office kiosk, not a phone.
+          Deliberately takes over from the departure chip: once departure has
+          passed there is nothing useful in counting elapsed time, and a break
+          that is actually running is the thing anyone looking at this needs. */}
+      {breakInProgress && nextBreak && (
+        <div
+          role="timer"
+          aria-live="off"
+          aria-label={`${breakTitle(nextBreak.label)} ends in ${fmtMMSS(breakRemainMs)}`}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9998,
+            background: LIME,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: MONO,
+            color: "#000",
+          }}
+        >
+          <div style={{ fontSize: "clamp(18px, 4vw, 34px)", letterSpacing: 4, fontWeight: 700 }}>
+            {breakTitle(nextBreak.label)}
+          </div>
+          <div
+            style={{
+              fontSize: "clamp(96px, 30vw, 460px)",
+              fontWeight: 900,
+              lineHeight: 1,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {fmtMMSS(breakRemainMs)}
+          </div>
+          <div style={{ fontSize: "clamp(14px, 2.5vw, 24px)", letterSpacing: 3, opacity: 0.75 }}>
+            UNTIL {fmtHM(breakEndsAt)}
+          </div>
+        </div>
+      )}
       <div
         style={{
           display: "flex",
@@ -233,7 +302,7 @@ export function CountdownChips({
             role={breakStarted || breakWarning ? "alert" : undefined}
           >
             {breakStarted
-              ? `${breakTitle(nextBreak.label)} NOW`
+              ? `${breakTitle(nextBreak.label)} · ${fmtMMSS(breakRemainMs)} LEFT`
               : `${breakTitle(nextBreak.label)} IN ${fmtHMS(breakDiff)}`}
           </div>
         )}
