@@ -1,7 +1,57 @@
 # BRAMBLE & VINE — PROJECT MEMORY (auto-loaded)
 *Successor to MASTERPLAN.md. Loaded automatically at session start; deep
 reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
-*Last updated: 2026-08-02 (backend v7.4.29 @162; property snapshots, guarded config setter, QBO billing-name fixes)*
+*Last updated: 2026-08-07 (backend @268; native visit drafting + sending, CC0x process rules)*
+
+> ### 👉 START HERE: [CC-LOG.md](CC-LOG.md)
+> The running record of Brandon's CC0x work batches and their responses. Check it
+> **first** in any new session — it is how a fresh conversation reconstructs what
+> has been asked and answered without Brandon re-pasting anything. The rules for
+> how these batches work are in "HOW BRANDON BRIEFS THIS PROJECT" below.
+
+> ### ⚠️ THE WORKING CLONE IS DISPOSABLE — COMMIT AND PUSH EARLY
+> On 8/7 the working clone lived in the session scratchpad under
+> `AppData\Local\Temp\claude\…` and was **reclaimed by temp cleanup mid-session**:
+> `.gitignore` and `.env` physically vanished, the git index cache-tree corrupted,
+> and even the `origin` remote became unreadable. Uncommitted work was nearly lost.
+> - **Commit and push as soon as a unit of work is coherent.** Never batch a whole
+>   session's edits and push at the end.
+> - Cloning needs the deploy key EXPLICITLY — the default ssh identity is not
+>   authorised for this repo:
+>   `git clone --config core.sshCommand="ssh -i ~/.ssh/bramble_vine_deploy" git@github.com:Brambleandvinesf/bramble-vine.git`
+> - Note there are two checkouts: this disposable one, and `/home/info/bv-check`
+>   on the Pi (192.168.4.106) which the dev server serves on :5178. They are NOT
+>   the same clone and their git histories differ.
+
+## HOW BRANDON BRIEFS THIS PROJECT (process, not code — CC-01 item 11, CC-02 item 3)
+- **CC-labelled prompts are cumulative and self-contained.** Brandon uses
+  alphanumeric labels ("CC01", "CC02") for a running prompt built up across a
+  Cowork conversation. When he references a label, that label IS the source of
+  truth for that batch: items are added or amended *within* it.
+- **Every send is the FULL prompt, never a delta.** When an item is added or
+  corrected, the whole prompt is regenerated in order and re-sent. Any CC-labelled
+  prompt received here is complete and **supersedes any earlier version of the
+  same label**. Do not treat a later send as "just the new bits", and do not carry
+  forward items that have quietly disappeared from it.
+- **Two assistants, different jobs.** A Cowork/office-team assistant talks to
+  Brandon first and drafts/labels these prompts; Claude Code (this one) receives
+  them and does the implementation. Neither should assume the other has context —
+  state your role and what you know plainly when it matters, so a fresh brief on
+  either side stands alone and Brandon never re-explains the setup.
+- **"A new convo brief" is a real request** — be ready to produce one on demand.
+- **New conventions arrive the same way.** When Brandon establishes a working
+  convention, it comes in a future CC-labelled prompt with an explicit instruction
+  to persist it here. Conventions accumulate in this file rather than in chat
+  history — if a rule matters, it belongs in this section.
+
+### Response format (CC-02)
+- **Title every response "Response to CC-0x"**, matching the label it answers, so
+  prompt/response pairing stays unambiguous as these accumulate.
+- **Deliver the full response inside a single copiable code block** — the same
+  convention Brandon uses for the prompts — so nothing is lost or reformatted
+  when copied between the two chat interfaces.
+- **Log every pair in [CC-LOG.md](CC-LOG.md)**, newest first, so a brand-new
+  conversation can find the full CC0x history without Brandon re-pasting.
 
 ## STANDING INSTRUCTION — keep this file true
 After completing any task that changes the architecture, adds a feature,
