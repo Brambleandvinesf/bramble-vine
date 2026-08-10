@@ -20,6 +20,11 @@ whole history from here without Brandon re-pasting anything.
 rule for response titling + this log.
 
 **Response to CC-02:** see session record. Key outcomes:
+- Backend @269: `enrichCalendarEvents` (client + vendor event enrichment), plus
+  `setupCalendarEnrichTrigger` — **Brandon must run that installer once from the
+  Apps Script editor**; triggers cannot be installed from a web-app request.
+- Break countdown fixed in place in CountdownChips (CC-02 item 10).
+- CC-01 item 2 in-progress button labels landed.
 - Fresh clone taken — the previous working clone was destroyed by temp-directory
   reclamation mid-session (see the WORKING CLONE warning in CLAUDE.md).
 - CC-01 item 11 process rules re-applied to CLAUDE.md; this log created.
