@@ -14,6 +14,40 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-09 — 2026-08-11
+**Sent:** go-ahead for both halves of the Item 5 — QuickBooks Payroll Approval
+Sync fix; continue with Item 9 UI wiring then Items 3, 4, 12; correct the stale
+CC-04 403 claim.
+
+**Response to CC-09 — and Brandon has since CONFIRMED the queue behaves correctly
+in the live app.**
+- **Item 5(a) — deployed @271.** `approvalQueueCached_` caches the whole payload
+  (180s) under the same `approvals` key family, so `badgeCountBust_('approval')`
+  — already called by approveThrough on a confirmed watermark write — clears the
+  count and the payload together. `badgeApprovalCount_` reads through it too, so
+  badge and screen share ONE QBT pagination. 90KB guard for CacheService's ~100KB
+  ceiling; over it, skip the put and return fresh data rather than throw.
+  Measured: **23.8s / 36.0s-404 / 24.1s → 6.8 / 5.8 / 5.8 / 9.8s**, no 404s,
+  payload byte-identical (7736B, both people present).
+- **Item 5(b) — the screen.** Root cause was worse than "renders 0 on error":
+  `data` inits from an IN-MEMORY sessionCache, so EVERY page load started null
+  and, for the whole 24-36s read, showed a lime **0** over "person-days
+  unapproved" plus "Nothing awaiting approval" — the normal loading path lying,
+  not an error path. Now three states that never collapse: READING / UNREAD (with
+  RETRY, and explicit that it is NOT the same as nothing pending) / EMPTY only
+  against a received payload. Counters show "—" until data arrives.
+- **A scope bug caught pre-ship:** the first draft of that RETRY button used
+  `SMALL_BTN`, which exists in field.tsx but NOT in approvals.tsx. It would not
+  have compiled. Same shape as the sed-across-file incident already in CLAUDE.md.
+- **TYPECHECKING IS NOW POSSIBLE AND SHOULD BE ROUTINE.** CLAUDE.md recorded that
+  no Node toolchain existed for frontend checks and that Lovable's build was the
+  first real typecheck. Closed: tar the repo to `/tmp/bvtc` on the Pi, symlink
+  `~/bv-check/node_modules`, run `npx tsc --noEmit -p tsconfig.json`. Passes clean.
+  Do this on every frontend change.
+- **CC-04's 403 claim retracted in place** (see that entry).
+
+---
+
 ## CC-04 — 2026-08-11
 **Sent:** soft gate confirmed for Item 5 — QuickBooks Payroll Approval Sync, with a
 blast-radius fact-find required BEFORE the fix; Item 8 — Quo/App Inbox Parity
