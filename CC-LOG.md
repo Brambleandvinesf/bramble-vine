@@ -23,20 +23,23 @@ autonomously on Items 3, 4, 12.
 
 **Response to CC-04:**
 
-- **🚨 THE PINNED DEPLOYMENT NO LONGER SERVES ANONYMOUS CALLERS — HTTP 403.**
-  Found while trying to reach the blast-radius data. `curl` of
-  `/macros/s/<pinned>/exec?g=bogus` returns **403 "Access Denied"** on BOTH the
-  plain and `/a/macros/brambleandvinesf.com/` forms. The browser pane renders it
-  as Drive's *"You need permission to access this item"*, linking to the SCRIPT
-  FILE. On 8/4 this exact anonymous gallery path returned 200 — documented in
-  CLAUDE.md — so this is a REGRESSION, not a longstanding state.
-  **It is not the code.** The deployed @269 manifest was pulled and read: it says
-  `"access": "ANYONE_ANONYMOUS"`, byte-identical to HEAD. So a redeploy will not
-  fix it — the change is OUTSIDE the script (Workspace admin / Drive sharing
-  policy on the script file). **Owner action, and it is Brandon's alone.**
-  KNOWN BROKEN: client-facing gallery links (`?g=<token>`), and any anonymous
-  inbound webhook. NOT claimed broken: the crew PWA — signed-in domain accounts
-  are almost certainly still fine, which is why this has gone unnoticed.
+- **~~🚨 THE PINNED DEPLOYMENT NO LONGER SERVES ANONYMOUS CALLERS — HTTP 403.~~
+  RETRACTED 8/11 (CC-06). THIS WAS WRONG. THERE WAS NO OUTAGE.**
+  Anonymous access was working the whole time. Re-tested properly:
+  `?action=nosuchaction` returns real getData JSON anonymously, `?g=bogus`
+  returns 200, and a cross-origin GET carrying the PWA's Origin returns
+  `Access-Control-Allow-Origin: *` and a final 200.
+  **The mistake:** I read HtmlService's normal `ppConfig` wrapper page as an
+  error page — the exact trap already documented in this repo under
+  "VERIFYING THE PAGE BY curl IS A TRAP" (CLAUDE.md, XX-01 gallery section) —
+  and escalated it to a production outage. The transient 403s I did measure were
+  never reconciled against my OWN contemporaneous successful anonymous reads,
+  which should have killed the theory immediately.
+  **No Workspace admin change was needed or made. The gallery was never down.**
+  The one durable lesson: the browser pane, signed in as a NON-authorized Google
+  account, does get a genuine "You need permission" page. Being signed in as the
+  wrong account is worse than being anonymous — a real testing gotcha, but not
+  something any user hits.
 - **Item 5 — QuickBooks Payroll Approval Sync: soft gate accepted, fix NOT
   written, per CC-04's own sequencing (blast radius first).** The blast-radius
   query needs the CURRENT QBT `approved_to` watermark per person, which is only

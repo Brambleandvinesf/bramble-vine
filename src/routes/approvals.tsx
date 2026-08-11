@@ -734,6 +734,18 @@ function ApprovalsPage() {
   );
   const remainingHours = remaining.reduce((s, r) => s + (Number(r.hours) || 0), 0);
 
+  /* CC-09 Item 5 - QuickBooks Payroll Approval Sync.
+     ZERO AND UNKNOWN ARE DIFFERENT ANSWERS, AND ON THIS SCREEN THE DIFFERENCE IS
+     PAYROLL. `data` starts null (sessionCache is in-memory, so every real page
+     load starts empty), and the endpoint measured 24-36s with intermittent 404s
+     before it was cached. For that whole window this page rendered a big lime "0"
+     over "person-days unapproved" and the words "Nothing awaiting approval" -
+     while two people really were awaiting approval. Nobody would re-check a queue
+     that just told them it was empty.
+     So: every count and empty-state below is gated on actually HAVING a payload.
+     Unread renders as "-", never as 0. */
+  const haveData = data !== null;
+
   const submit = useCallback(
     async (r: Row, ok: boolean, note?: string) => {
       const key = rowKey(r);
@@ -915,14 +927,28 @@ function ApprovalsPage() {
       >
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           <div>
-            <div style={{ color: LIME, fontSize: 26, fontWeight: 900, lineHeight: 1 }}>
-              {remaining.length}
+            <div
+              style={{
+                color: haveData ? LIME : FINE,
+                fontSize: 26,
+                fontWeight: 900,
+                lineHeight: 1,
+              }}
+            >
+              {haveData ? remaining.length : "—"}
             </div>
             <div style={{ color: FINE, fontSize: 14 }}>person-days unapproved</div>
           </div>
           <div>
-            <div style={{ color: LIME, fontSize: 26, fontWeight: 900, lineHeight: 1 }}>
-              {remainingHours.toFixed(2)}
+            <div
+              style={{
+                color: haveData ? LIME : FINE,
+                fontSize: 26,
+                fontWeight: 900,
+                lineHeight: 1,
+              }}
+            >
+              {haveData ? remainingHours.toFixed(2) : "—"}
             </div>
             <div style={{ color: FINE, fontSize: 14 }}>hours awaiting approval</div>
           </div>
@@ -961,7 +987,49 @@ function ApprovalsPage() {
         </div>
       ) : null}
 
-      {groups.length === 0 && !loading ? (
+      {/* Three distinct states, never collapsed into one another.
+          READING — a slow read is not an empty queue.
+          UNREAD  — the read failed, so the queue is UNKNOWN. Never claim it is
+                    clear, and always offer the retry, because the natural
+                    reaction to "nothing to approve" is to walk away.
+          EMPTY   — only ever shown against a payload we actually received. */}
+      {!haveData && loading ? (
+        <div style={{ color: FINE, fontSize: 15, padding: "18px 4px" }}>
+          Reading the approval queue from QuickBooks Time…
+        </div>
+      ) : null}
+
+      {!haveData && !loading ? (
+        <div style={{ color: FINE, fontSize: 15, padding: "18px 4px" }}>
+          <div style={{ color: LIME, marginBottom: 8 }}>
+            The approval queue could not be read.
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            This is <strong>not</strong> the same as nothing awaiting approval —
+            hours may still be pending. Retry before closing out payroll.
+          </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            style={{
+              background: "transparent",
+              color: LIME,
+              border: `1px solid ${LIME_DIM}`,
+              borderRadius: 6,
+              minHeight: 36,
+              padding: "0 12px",
+              fontFamily: "inherit",
+              fontSize: 12,
+              letterSpacing: 1,
+              cursor: "pointer",
+            }}
+          >
+            RETRY
+          </button>
+        </div>
+      ) : null}
+
+      {haveData && groups.length === 0 && !loading ? (
         <div style={{ color: FINE, fontSize: 15, padding: "18px 4px" }}>
           Nothing awaiting approval in this window.
         </div>
