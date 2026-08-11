@@ -14,6 +14,80 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-04 — 2026-08-11
+**Sent:** soft gate confirmed for Item 5 — QuickBooks Payroll Approval Sync, with a
+blast-radius fact-find required BEFORE the fix; Item 8 — Quo/App Inbox Parity
+decided (keep filters, fix pagination); Item 9 — Call Feature directed at Quo dial
+intent with Twilio explicitly ruled out; two new standing rules; proceed
+autonomously on Items 3, 4, 12.
+
+**Response to CC-04:**
+
+- **🚨 THE PINNED DEPLOYMENT NO LONGER SERVES ANONYMOUS CALLERS — HTTP 403.**
+  Found while trying to reach the blast-radius data. `curl` of
+  `/macros/s/<pinned>/exec?g=bogus` returns **403 "Access Denied"** on BOTH the
+  plain and `/a/macros/brambleandvinesf.com/` forms. The browser pane renders it
+  as Drive's *"You need permission to access this item"*, linking to the SCRIPT
+  FILE. On 8/4 this exact anonymous gallery path returned 200 — documented in
+  CLAUDE.md — so this is a REGRESSION, not a longstanding state.
+  **It is not the code.** The deployed @269 manifest was pulled and read: it says
+  `"access": "ANYONE_ANONYMOUS"`, byte-identical to HEAD. So a redeploy will not
+  fix it — the change is OUTSIDE the script (Workspace admin / Drive sharing
+  policy on the script file). **Owner action, and it is Brandon's alone.**
+  KNOWN BROKEN: client-facing gallery links (`?g=<token>`), and any anonymous
+  inbound webhook. NOT claimed broken: the crew PWA — signed-in domain accounts
+  are almost certainly still fine, which is why this has gone unnoticed.
+- **Item 5 — QuickBooks Payroll Approval Sync: soft gate accepted, fix NOT
+  written, per CC-04's own sequencing (blast radius first).** The blast-radius
+  query needs the CURRENT QBT `approved_to` watermark per person, which is only
+  reachable through `/exec` — i.e. blocked by the 403 above. Method is defined and
+  ready: `?action=approvalQueue&days=60`, which since 8/4 reads the authoritative
+  watermark and carries `appConfirmed` per row; the blast radius is every row
+  where `appConfirmed` is true and the day sits beyond that person's watermark.
+  30-SECOND ALTERNATIVE THAT NEEDS NO ADMIN WORK: Brandon opens the Approval Queue
+  screen (he is signed in, so it works for him) and reads the count.
+  Known anchor from 8/4: all three crew were at `approved_to = 2026-07-26`. If
+  nothing has moved them since — and the only writer that CAN, `approveThrough`,
+  only reached the Approval Queue screen — then everything from 7/27 onward that
+  the app marked CONFIRMED is unapproved in QuickBooks.
+- **Item 8 — Quo/App Inbox Parity: FIXED, STAGED ON THE PI, NOT DEPLOYED.**
+  New `quoConversationsPaged_(extraQuery, cutoffIso, maxPages)` walks
+  `pageToken`/`nextPageToken` (public OpenAPI spec: `maxResults` max 100). Both
+  unpaged callers now use it — `quoFeed_` (stops at the 7-day cutoff, safe because
+  ordering is newest-first) and `syncQuoDoneStatus` (no cutoff; the ledger wants
+  every done thread). Filters deliberately untouched, per CC-04.
+  `node --check` passes; `node scripts/audit-actions.mjs` reports no new problems
+  (its single finding, placesDetails/sessionToken, is pre-existing and unrelated).
+  **THIS MAY ALSO BE Item 6 — Info Quo Feed.** `/conversations` is ORG-WIDE and
+  newest-first, so a quiet line's threads get pushed off page one by busier lines.
+  A feed scoped to one number can read completely empty while the messages exist
+  fine in Quo. That is a better fit for the info-line symptom than the QUO_FEEDS
+  theory, and it needs no Script Property to be wrong.
+  Held for deploy go-ahead because I cannot behaviourally verify it while `/exec`
+  is 403 — Brandon can, in one screen, the moment it ships.
+- **Item 9 — Call Feature: THE DIAL INTENT EXISTS. No new vendor needed.**
+  `openphone://dial?number=<n>&from=<quo number>&action=call` — `number` required,
+  `from` sets the Quo caller ID, `action=call` dials automatically instead of just
+  pre-filling. Mobile only (web/desktop unsupported); falls back to the App/Play
+  Store if the app is not installed; user may be prompted to pick a number if
+  `from` is omitted. Whether the call lands in Quo's own call log is NOT stated in
+  the docs — flagged as the one thing to confirm on first real use.
+  This satisfies the anti-sprawl principle exactly: business caller ID, no second
+  telephony vendor, no new number estate.
+- **Standing rules added to CLAUDE.md** (be6fb0c): descriptive item titles, and
+  minimize app/tool sprawl (with the dial-link-over-Twilio call as the model case,
+  and the single prompt/voice interface recorded as future direction only).
+
+**Still needed from Brandon:** (a) restore anonymous access to the deployment;
+(b) the GCP Project ID string (`clasp logs` still blocked); (c) the QUO_FEEDS value
+— now lower priority, since pagination is the better Item 6 explanation;
+(d) deploy go-ahead for the staged Item 8 fix.
+
+**Still open from CC-01:** Item 3 — Debrief Queue, Item 4 — Add Item Button,
+Item 6 — Info Quo Feed, Item 7 — Blocked Contacts, Item 12 — "!" Note Capture.
+
+---
+
 ## CC-03 — 2026-08-11
 **Sent:** approvals of the CC-02 work (calendar enrichment, break countdown, this
 log), confirmation that all three Apps Script editor actions were run, and
