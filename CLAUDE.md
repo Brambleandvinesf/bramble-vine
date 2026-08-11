@@ -44,6 +44,15 @@ reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
   to persist it here. Conventions accumulate in this file rather than in chat
   history — if a rule matters, it belongs in this section.
 
+### Item references always carry a descriptive title (CC-04)
+- **Never cite an item by bare number.** Brandon does not track these by number —
+  "item 5" on its own is meaningless to him mid-conversation. Every reference, in
+  prompts, responses AND [CC-LOG.md](CC-LOG.md) entries, pairs the number with a
+  short descriptive title: **"Item 5 — QuickBooks Payroll Approval Sync"**,
+  "Item 8 — Quo/App Inbox Parity", "Item 12 — '!' Note Capture".
+- Applies going forward without exception. Apply it retroactively to older
+  CC-LOG entries opportunistically — whenever one is being edited anyway.
+
 ### Response format (CC-02)
 - **Title every response "Response to CC-0x"**, matching the label it answers, so
   prompt/response pairing stays unambiguous as these accumulate.
@@ -69,6 +78,24 @@ countdown on the garage wall clock. Office runs from schedule + messages.
 Management sees everything. Minimal apps on crew phones (B&V app,
 Pushover→retiring, MacroDroid, Zello). Voice = Zello PTT via headset/badge
 button. Someday: native app, Zello SDK embed, irrigation APIs.
+
+## STANDING PRINCIPLE — MINIMIZE APP/TOOL SPRAWL (CC-04)
+**Weigh this in every technical decision; it is not a task.** The goal is reducing
+the number of separate apps/tools any worker has to use, trending toward ONE. When
+a choice is "add a new external vendor/service" versus "extend what is already in
+place", **prefer extension** — and say out loud that that is why.
+
+The model case, decided 8/11: Quo's API cannot place calls, so an in-app call
+button needed either a second telephony vendor (Twilio — new number estate, new
+billing, new integration) or Quo's own `openphone://dial` deep link. Twilio was
+ruled out SPECIFICALLY because it adds a vendor stack, which is the opposite of
+this principle. A worse-on-paper option that adds no vendor beats a better-on-paper
+one that does.
+
+FUTURE DIRECTION ONLY, NOT SCOPED WORK: Brandon's longer-term aspiration is a
+single prompt/voice-driven interface that can act on the current screen directly,
+collapsing today's multi-screen navigation. Recorded so it informs design
+instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
