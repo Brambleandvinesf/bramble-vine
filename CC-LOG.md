@@ -14,6 +14,68 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-22 — 2026-08-12
+
+**Sent:** Item 25 deploy now. Item 26.1/26.2 REVISED — Size and Notes stay free
+text, just hidden behind one collapsed "extra details" arrow. 26.3 lift
+QuarterButton. 26.4 REVISED — full rubric price + explicit dollar discount to $0,
+NOT a zeroed price (tax paper trail); findings first on what QBO supports. Item 27
+confirmed as the debrief step. Item 28 — explain what ADD does on the debrief
+message fields. Item 29 URGENT — Items Used posting to QBO at $0. Item 30 — pull the
+labor line's description text.
+
+**Response to CC-22:** v7.4.91 DEPLOYED @278. Items 29, 28, 30 fully diagnosed.
+26.4 partially — the QBO structural question is NOT answered and I did not guess.
+26.1/26.3/27 not built this batch.
+
+- **Item 29 — ROOT CAUSE FOUND, AND IT IS NOT A PRICING FAILURE.**
+  `qboDebriefInvoice_`'s items branch hardcodes **`Amount: 0`** and never sets
+  `UnitPrice`. The labor branch immediately above it sets both
+  (`UnitPrice: l.rate, Amount: l.amount`). So the pricing rubric, Product Master
+  and matchProduct were never involved — **every Items Used line on every debrief
+  invoice ever created has posted at $0.** Far wider than the two items reported.
+  Both reported items resolve correctly in QBO — confirmed in the catalog:
+  `Yard Bag, single`, and `Bonide Captain Jack's Insecticidal Soap RTU, 32oz` under
+  category `Pest Control` (which is why the invoice rendered it as
+  "Pest Control: Bonide…" — QBO's FullyQualifiedName is Parent: Child). Lookup was
+  never the problem.
+  **The requested fallback needs TWO changes, not one:** `qboItem_` runs
+  `select Id, Name from Item` — it does not even FETCH a price, so the query must
+  be widened to include `UnitPrice` before it can be used. Fix shape reported, not
+  written (invoicing-critical).
+- **Item 28 — ANSWERED: nothing is sent to the client. Ever.** Both fields converge
+  into ONE array in field.tsx's `handleFinish`: "Messages for the Client"
+  (`clientUpdates`) is prefixed `"Client update: "` and concatenated with
+  "Messages for the Office" (`officeTasks`), then submitted as the single
+  `officeTasks` key. The backend writes them all as rows to the **'Office Tasks'**
+  sheet tab (Timestamp | Client | Item | Source | Status). No SMS, no email, no Quo
+  message to the client.
+  ADD itself does nothing outbound — both lists are local React state until the
+  debrief is SUBMITTED.
+  The only place client-facing text appears is `haikuClientMsg_`, an AI summary
+  built from those same entries, which is pasted into the invoice notification
+  email sent to **info@brambleandvinesf.com** — i.e. to Brandon, not the client.
+  The office "notification" is `ntfyPushRoles_`, already documented as a complete
+  no-op, and `report.officePush = 'sent'` remains the known lie.
+- **Item 30 — exact current text:**
+  `'Labor — ' + k + (k===1 ? ' person' : ' people') + ' × ' + hours + 'h'`
+  e.g. **"Labor — 2 people × 3.5h"**, on a line whose QBO ITEM is already named
+  "Labor Hours, 2 people", with Qty = hours and Rate = the crew rate. So the crew
+  size appears twice and the hours appear twice. Reported for Brandon to choose the
+  trim; not guessed at.
+- **Item 26.4 — NOT ANSWERED, and I am not asserting from memory.** The Intuit doc
+  page truncated before the Line/DetailType table. I probed the real books with the
+  read-only `qboInvoiceProbe` instead; it returned ok but its payload does not
+  expose the full Line array, so I could confirm only that no `Discount` key
+  appears anywhere in what it returns. The structural question — whether QBO
+  supports a per-line discount or only an invoice/subtotal-level
+  `DiscountLineDetail` — is still open and matters a lot to the design. Next step
+  proposed in the response.
+- Items 26.1 / 26.3 / 27 not built — out of room this batch, and said so rather
+  than half-shipping six UI changes.
+
+---
+
 ## CC-21 — 2026-08-12
 
 **Sent:** Item 25 — matchClient_ longest-match fix approved, Carol Breslin scope
