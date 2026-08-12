@@ -14,6 +14,53 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-18 — 2026-08-12
+
+**Sent:** Item 22 REVISED — revert brandon@ and angel@ to Quo-only; Gmail stays
+scoped to info@ alone. Update CLAUDE.md's canonical map, note the drafts capability
+is withdrawn with the token, and record that lead/management Gmail was tried and
+deliberately reverted. Deploy after the stale-copy check. Item 23 — Visit
+Confirmations overlay persists after YES, hiding the generated texts, only a sliver
+visible; is it the Item 19 overlay class or something else; report findings first.
+
+**Response to CC-18:** v7.4.89 @276 deployed (Item 22). Item 23 root-caused, no fix
+written.
+
+- **Item 22 REVERTED and verified on @276:** angel@ 1 Quo + **0 Gmail**, brandon@
+  4 Quo + **0 Gmail**, info@ 4 Quo + 3 Gmail. Stale-copy check first (clasp pull
+  identical). CLAUDE.md's canonical map updated, with the reversal recorded as a
+  DECISION and an explicit "read this before reintroducing it" so a future session
+  cannot re-add the token from the CC-17 history alone. The drafts capability
+  (edit/send from the shared mailbox) is withdrawn with it, as it rode on the same
+  token.
+- **Item 23 ROOT-CAUSED — `lastYes` IS ORPHANED, a leftover of the Make.com
+  migration.** `gateOpen = !yesThisWeek(lastYes) || draftingProducedNothing`, and
+  `lastYes` is written in exactly ONE place in Code.js: inside the **`clearQueue`**
+  action. `clearQueue` has been in every action-audit run's "HANDLERS THE APP NEVER
+  CALLS" list — Make used to call it as its FIRST step, and `draftVisitQueue`
+  replaced Make on 8/6 with deliberate draft-first-clear-after ordering. So nothing
+  has stamped `lastYes` since. Live value: **2026-08-06T22:30:07.036Z**, last
+  week. `yesThisWeek()` is therefore permanently false and the overlay can never
+  dismiss, however many times YES is pressed.
+  **WHAT IT IS BLOCKING, measured:** getQueue returns **7 Pending rows** — the
+  confirmation texts were drafted successfully and are sitting behind the overlay.
+  So next week's client confirmations cannot be sent from the app at all.
+  **SECOND, STACKED DEFECT:** `suppressGate` and `forceGate` in visits.tsx are set
+  (onReload, onYes) but **never read** — `gateOpen` ignores them entirely. They
+  were plainly meant to be the local optimistic dismissal that would have masked
+  the orphaned stamp. Dead state hiding a dead stamp.
+  **NOT caused by Item 19's fix, and I checked because it is the same file and the
+  same screen.** That change only altered geometry (`bottom: SPINE_RESERVE_CSS`
+  instead of `inset: 0`), which is exactly why a SLIVER of the texts is now visible
+  at the bottom edge; before it, the identical bug rendered as a blank panel. It
+  made this diagnosable rather than causing it.
+  Fix shape proposed in the response; not written, comms path.
+- **The post-deploy 404 happened again** on the first getQueue call and produced
+  misleading empties (`lastYes=''`, `rows=0`) from a failed request. Re-ran and got
+  the real values. Third batch running that the propagation rule has mattered.
+
+---
+
 ## CC-17 — 2026-08-12
 
 **Sent:** Item 22 — unified feed. Add the `gmail` token to lead + management only;

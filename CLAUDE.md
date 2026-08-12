@@ -835,13 +835,22 @@ One feed: **Quo conversations AND Gmail threads together.** `inboxFeed_` compose
 them — `(withGmail ? gmailFeed_() : []).concat(quoFeed_(lineNums))`.
 
 ### 👉 THE CANONICAL FEED MAP — mirror of `quoFeedTokens_`'s DEFAULTS
+*(current as of v7.4.89 @276, CC-18)*
 ```
-  brandon@brambleandvinesf.com            '+14152343695,gmail'   mgmt line + mailbox
-  angel@brambleandvinesf.com              '+16507105061,gmail'   lead line + mailbox
+  brandon@brambleandvinesf.com            '+14152343695'         Quo line ONLY
+  angel@brambleandvinesf.com              '+16507105061'         Quo line ONLY
   thornsandtendrils@brambleandvinesf.com  '+14152343696'         SHARED DEVICE — NO gmail
-  info@brambleandvinesf.com               '+14152343083,gmail'
+  info@brambleandvinesf.com               '+14152343083,gmail'   the ONLY real mailbox holder
   default                                 '+14152343083,gmail'
 ```
+**⚠ GMAIL FOR LEAD/MANAGEMENT WAS TRIED AND DELIBERATELY REVERTED — READ THIS
+BEFORE REINTRODUCING IT.** v7.4.88 (8/12) gave brandon@ and angel@ `,gmail`;
+Brandon reconsidered the same afternoon and v7.4.89 scoped the shared business
+mailbox back to info@ alone. **Gmail is office-only by decision, not by omission.**
+The revert also withdrew the drafts capability that rode on the same token (see
+the consequences below) — which was part of the reason to withdraw it.
+Verified on @276: angel@ 1 Quo + **0 Gmail** · brandon@ 4 Quo + **0 Gmail** ·
+info@ 4 Quo + 3 Gmail.
 Token grammar: comma-separated E.164 Quo lines, plus literal `gmail` for the
 shared business mailbox, plus `*` for every workspace line (viewAll).
 
@@ -856,7 +865,40 @@ thornsandtendrils@ is a SHARED phone passed between crew mid-shift, and the Gmai
 half is the company mailbox — client threads, invoices, business correspondence.
 Do not "tidy" this into symmetry.
 
-**TWO NON-OBVIOUS CONSEQUENCES OF THE `gmail` TOKEN**, both accepted:
+## `lastYes` IS ORPHANED — THE VISIT-CONFIRMATION GATE CAN NEVER CLOSE
+## (CC-18, 8/12 — FOUND, NOT YET FIXED)
+`visits.tsx`'s weekly gate ("Is next week's schedule ready?") is
+`gateOpen = !yesThisWeek(lastYes) || draftingProducedNothing`.
+**`lastYes` is written in exactly ONE place in Code.js: inside the `clearQueue`
+action (≈4696). And `clearQueue` is in every action-audit run's "HANDLERS THE APP
+NEVER CALLS" list.** The Make.com scenario used to call it as its FIRST step;
+`draftVisitQueue` replaced Make on 8/6 and deliberately drafts first and clears
+afterwards ("Never reintroduce clear-then-draft"). So the stamp was simply left
+behind by that migration and **nothing updates it any more** — the live value is
+still `2026-08-06T22:30:07.036Z`, i.e. the last Make-era run.
+Consequence: `yesThisWeek()` is permanently false, `gateOpen` is permanently true,
+and the overlay never dismisses no matter how many times YES is pressed. Measured
+8/12: 7 Pending confirmation rows drafted and sitting in the Message Queue,
+completely covered by the gate. Nobody can send next week's client confirmations
+from the app.
+**SECOND, STACKED DEFECT:** `suppressGate` and `forceGate` in visits.tsx are
+declared and SET (onReload, onYes) but **never READ** — `gateOpen` ignores them.
+They were clearly meant to be the local optimistic dismissal that would have
+masked the orphaned stamp. Dead state hiding a dead stamp.
+FIX SHAPE (not written; comms path): stamp `lastYes` inside `draftVisitQueue` on a
+confirmed non-dry draft — semantically that IS the weekly YES now — and either
+wire suppressGate/forceGate into `gateOpen` per the VV optimistic rule or delete
+them. Note stamping on a SUCCESSFUL draft is strictly safer than Make's
+behaviour, which stamped before drafting and so could stamp against an empty tab
+(the 8/6 lockout).
+**NOT caused by Item 19's z-index change.** That change only altered the overlay's
+geometry (`bottom: SPINE_RESERVE_CSS` instead of `inset: 0`), which is why a
+SLIVER of the drafted texts is now visible at the bottom edge. Before it, the same
+bug would have rendered as a completely blank screen. It made this visible, not
+worse.
+
+**TWO NON-OBVIOUS CONSEQUENCES OF THE `gmail` TOKEN** (recorded for the history;
+both are WITHDRAWN as of the v7.4.89 revert and apply only to info@):
 1. `withGmail` also gates `drafts: draftsList_()`, so lead + management receive the
    mailbox's DRAFTS and the Messages screen can edit/send them (updateDraft /
    sendDraft / discardDraft). A real capability increase for the lead.
