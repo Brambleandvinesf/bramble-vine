@@ -495,6 +495,19 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
+> ⚠ **HEAD IS CURRENTLY AHEAD OF THE LIVE DEPLOYMENT (CC-15, 8/12).**
+> `clasp push` put **v7.4.87** in the Apps Script project, but the pinned
+> deployment still serves **v7.4.86 @273**. This was deliberate: pushing makes
+> `quoMessagesProbe()` runnable in the editor without changing what the crew's
+> app serves. So until v7.4.87 is deployed:
+> - Code you can READ in the editor (quoMessagesQuery_, the Half B fail-open,
+>   quoThread_'s `detail`) is **NOT what /exec is running**.
+> - The live tell: v7.4.87 adds a `detail` field to quoThread_'s error. If
+>   `?action=getQuoThread` returns an error with NO `detail`, you are on v7.4.86.
+> - **Do not diagnose the /messages 400 as "the fix didn't work" while this split
+>   exists.** The fix is not live yet.
+> Deploy with `bv-deploy.sh`; that is the only step outstanding.
+
 Backend is LIVE at **v7.4.85 @272** (8/11, CC-10) — ranged debrief queue
 (Item 3), the App TODO note sink (Item 12) and `getField.clientPhones` (Item 9).
 Verified live after deploy: `clientPhones` present with 43 clients, every value

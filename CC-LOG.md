@@ -14,6 +14,44 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-15 — 2026-08-12
+
+**Sent:** run the probe first, per my own recommendation. Push v7.4.87 to the
+Apps Script editor via clasp — PUSH ONLY, do not deploy, @273 stays live. Then
+tell Brandon exactly which function to run (quoMessagesProbe) and restate plainly
+what the two outcomes mean. Also: frontend 5426a84 (sw.js fix) is PUBLISHED and
+the freeze appears improved, still monitoring.
+
+**Response to CC-15:** pushed, not deployed. Nothing else changed.
+
+- **`clasp push -f` only** (line 10 of bv-deploy.sh; line 12's
+  `clasp deploy --deploymentId` deliberately NOT run). HEAD now holds v7.4.87 and
+  `quoMessagesProbe`; a `clasp pull` into a temp dir confirms HEAD == the staged
+  file byte-for-byte.
+- **Stale-copy check ran first:** remote HEAD diffed byte-identical to the
+  pre-CC-14 backup, so no other writer had touched the project between batches.
+- **PROVED the live app is unaffected, rather than assuming it.** v7.4.87 adds a
+  `detail` field to quoThread_'s error object, which makes a clean live marker:
+  before push, after push run 1, and after push run 2 all returned
+  `error: 'Quo fetch failed (400)'` with NO `detail` field — so /exec is still
+  serving v7.4.86. Also confirmed healthy on @273: getField returns 43
+  clientPhones and 4 events, badgeCounts returns approvals 4 / debriefq 15.
+- **Recorded the split state at the top of CLAUDE.md's WHERE THINGS STAND**, with
+  the `detail`-field tell, because code readable in the editor is now NOT what the
+  crew's app runs — and the specific trap is diagnosing the /messages 400 as "the
+  fix didn't work" when the fix simply is not deployed.
+- Handed Brandon the editor steps for `quoMessagesProbe()` and the two readings of
+  its output: a body naming `participants` confirms Half A; a body saying "A2P
+  Registration Not Approved" puts the fix on Quo's side and makes the deploy
+  harmless tidying. Half B ships either way.
+- **sw.js noted as PUBLISHED and the freeze improved.** Not closing Item 20 yet —
+  the fix removes a failure amplifier, so "improved" is the expected shape of a
+  real fix, but a burst needs a bad network moment to reproduce and absence of a
+  freeze over a few hours is weak evidence. Watch for the sw.js:32 console error
+  specifically: it should now be impossible, since the line no longer exists.
+
+---
+
 ## CC-14 — 2026-08-12
 
 **Sent:** Item 21 both halves. Half A — repair the GET /messages call (400 while
