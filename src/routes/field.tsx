@@ -4651,25 +4651,9 @@ export function StateDebrief({
      step, which is the one place that owns work for a later visit. The sector
      picker went with it — it only ever applied to the follow-up branch. */
 
-  /* CC-10: how many photos each project already carries, so each button can say
-     so without a request per card. One read when the step opens. */
-  const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
-  useEffect(() => {
-    if (currentKey !== "updates" || !clientMatch) return;
-    let gone = false;
-    void fetch(`${SCRIPT_URL}?action=projectPhotos&client=${encodeURIComponent(clientMatch)}`)
-      .then((r) => r.json())
-      .then((j: { photos?: Record<string, unknown[]> }) => {
-        if (gone) return;
-        const out: Record<string, number> = {};
-        for (const [pid, list] of Object.entries(j.photos ?? {})) {
-          out[pid] = Array.isArray(list) ? list.length : 0;
-        }
-        setPhotoCounts(out);
-      })
-      .catch(() => { /* no photos yet is the normal case, not an error */ });
-    return () => { gone = true; };
-  }, [currentKey, clientMatch]);
+  /* Lv01: the per-project photo button is gone from this step, so the photo
+     count read that fed it went with it. */
+
 
   const saveAddedProject = useCallback(async () => {
     if (isPreview || !addDone) return;
