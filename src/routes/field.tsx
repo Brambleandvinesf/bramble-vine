@@ -4519,7 +4519,7 @@ export function StateDebrief({
     [projects, clientMatch],
   );
 
-  const updateNotes = useMemo(() => notes.filter((n) => n.type === "update"), [notes]);
+  /* Lv01: `update` notes no longer have a destination on this step. */
   const itemNotes = useMemo(() => notes.filter((n) => n.type === "item"), [notes]);
   const futureNotes = useMemo(() => notes.filter((n) => n.type === "future"), [notes]);
   const officeNotes = useMemo(() => notes.filter((n) => n.type === "office"), [notes]);
