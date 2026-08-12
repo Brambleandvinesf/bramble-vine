@@ -854,6 +854,21 @@ Fixing the spec means giving every role the `gmail` token (and, if the QUO_FEEDS
 Script Property is ever set, carrying it forward there too — that property
 REPLACES the whole map, the same trap as QBO_BILLING_GROUPS).
 
+## QUO IS OPENPHONE, REBRANDED (CC-14, 8/12)
+`openphone.com/docs` 301-redirects to `quo.com/docs`. Same company, same API, same
+`openphone://dial` deep link. So the API reference to consult is **quo.com/docs**.
+GET /v1/messages, from that reference: `phoneNumberId` (required, `^PN`),
+**`participants` (REQUIRED, array of E.164, maxItems 10)**, `maxResults`
+(required, 1..100, default 10), `userId`, `createdAfter`, `createdBefore`,
+`pageToken`. The array's **query-string serialisation is NOT documented** — that
+ambiguity is what `quoMessagesProbe()` exists to settle.
+Note the documented 400 for that endpoint is titled **"A2P Registration Not
+Approved"**, which is an account/registration matter no code change can fix. Keep
+it on the candidate list for any /messages 400.
+**POST /messages (sending) passes participants in a JSON BODY, not the query
+string** — all five send sites. Outbound client texting is therefore NOT affected
+by any of the GET-side param trouble. Do not conflate the two.
+
 ## THE EMPTY QUO FEED: `/messages` 400s, SO THE DONE-LEDGER CAN NEVER RE-OPEN
 ## ANYTHING (CC-13, 8/12 — SUPERSEDES THE CC-12 CONCLUSION BELOW)
 **The CC-12 theory below ("quoLines_() is returning []") is WRONG and is kept only

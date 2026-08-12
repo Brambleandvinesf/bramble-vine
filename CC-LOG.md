@@ -14,6 +14,63 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-14 — 2026-08-12
+
+**Sent:** Item 21 both halves. Half A — repair the GET /messages call (400 while
+/conversations and /phone-numbers work on the same key; check Quo's docs for
+/messages specifically rather than assuming it mirrors /conversations). Half B —
+make the re-open check fail OPEN when the /messages read fails, same principle as
+debriefAlreadyInvoiced_; ship even if Half A needs more digging. Comms path:
+report findings and the exact diff for both halves BEFORE deploying.
+
+**Response to CC-14:** v7.4.87 written, syntax-checked, action-audited, **STAGED
+on the Pi and NOT DEPLOYED**. Diff delivered in the response. Outcomes:
+
+- **OpenPhone IS Quo — they rebranded.** openphone.com/docs 301-redirects to
+  quo.com/docs. That is why the codebase calls it Quo and the deep link is still
+  `openphone://dial`. Worth knowing: an API tightening around a rebrand is a very
+  plausible trigger for a param shape that used to be tolerated.
+- **Half A — the docs name the parameter `participants`, NOT `participants[]`.**
+  GET /v1/messages: phoneNumberId (required, ^PN), **participants (REQUIRED,
+  array of E.164, maxItems 10)**, maxResults (required, 1..100, default 10),
+  plus userId / createdAfter / createdBefore / pageToken. So `maxResults=1` was
+  never the problem.
+  All three GET readers in Code.js sent `participants[]=`. If that name is not
+  recognised then a REQUIRED parameter is absent — which is a 400.
+  **AND IT EXPLAINS WHY /conversations SURVIVES THE SAME MISTAKE:** there the
+  equivalent filter (`phoneNumbers`) is OPTIONAL, so a bracketed name is silently
+  IGNORED rather than fatal. That is exactly why quoDebug's /conversations call
+  returns 200 *and* returns conversations belonging to other lines. One latent
+  bug, two different outcomes.
+  **HONEST LIMIT:** the docs do NOT specify the array's query-string
+  serialisation, and the documented 400 for this endpoint is titled **"A2P
+  Registration Not Approved"** — a second, live candidate cause that no code
+  change can fix. So Half A is a well-founded fix, not a proven one. Added
+  editor-only `quoMessagesProbe()` which sends the read three ways
+  (`participants=`, `participants[]=`, none at all) and logs code + body, to
+  settle it by evidence.
+- **POST /messages IS NOT IMPLICATED.** All five send sites pass participants in
+  a JSON BODY with no query string, so client texting never depended on this.
+- **Half B — the fail-open, and it is the load-bearing half.** `last` was set to
+  null on any non-200, and the re-open check treated "no messages" and "could not
+  ask" identically, so one broken endpoint silently suppressed every done-stamped
+  conversation with no error anywhere. Now `readOk` tracks the read's success
+  separately from its result, and the suppression only fires when we could
+  actually ask. `readOk &&` is the entire behavioural change.
+  Consequence stated up front: while /messages stays broken, done threads will
+  REAPPEAR in the feed. That is the intended trade — a visible, self-correcting
+  annoyance beats an invisible empty inbox.
+- Also collapsed the three duplicated query builders into one
+  `quoMessagesQuery_`, since one wrong guess duplicated three times is what made
+  this cost four batches; and `quoThread_` now returns the response BODY
+  alongside the code, because a bare "(400)" is what hid the cause.
+- Verified: node --check clean, action audit clean (same single pre-existing
+  placesDetails/sessionToken finding), no `participants[]` left outside comments
+  and the probe's deliberate comparison. Stale-copy check ran first — clasp pull
+  diffed identical to local.
+
+---
+
 ## CC-13 — 2026-08-12
 
 **Sent:** Item 17 CLOSED. Item 15 Parts A (routing leak) + B (post-decision
