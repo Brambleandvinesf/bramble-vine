@@ -14,6 +14,54 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-23 (SECOND SEND — Item 32 added) — 2026-08-12
+
+**Sent:** the same CC-23, regenerated in full per the cumulative-prompt convention,
+plus **Item 32 — Projects Completed full redesign** (item pills with ×, four icons
+trash/check/pencil/camera, and a Phase-2 photo auto-titling idea, findings only).
+Its state header read v7.4.91 @278 / d1521cb published — **stale by one batch.**
+
+**Response:** state corrected; Item 32 findings delivered; three premises in Item 32
+turned out to be wrong in our favour. No code this pass.
+
+- **STATE CORRECTION.** Items 29, 28 and 26.3's lift already landed on the FIRST
+  CC-23 send: backend is **v7.4.92 @279** (verified via `clasp deployments`), and
+  a005fd6 + 40139a4 are pushed. Not redone.
+- **Item 32 — THREE PREMISES CORRECTED:**
+  1. **`ProjectCamera` was never deleted.** It is live at field.tsx:5705 and is
+     reused by the Add Future Project flow. The camera needs RE-WIRING to the card,
+     not rebuilding.
+  2. **`ProjectCard` already supports item pills.** It takes `items` and renders
+     `ItemPill`; the Projects Completed step simply passes `items={[]}`. So 32.1 is
+     mostly "pass the real items and add an × handler", not new UI.
+  3. **`deleteProject` already does exactly what the trash icon needs** — project
+     row PLUS child T&M rows, client-scoped, via `deleteProjectRows_`.
+- **THE DELETE-CONFIRMATION ANSWER: yes, and the pattern already exists.** That
+  delete is real, non-recoverable (no soft-flag, unlike `deleteLine`), and it also
+  triggers a deterministic calendar-event rebuild. `confirmModal({ message,
+  destructive: true })` is the house pattern and projects.tsx already guards its
+  delete with it. Recommended addition: name the ITEM COUNT in the message, since
+  the items go too and the existing wording does not say so.
+- **PENCIL → RECURRING FALL-THROUGH: happens naturally, no new logic.** The list is
+  `specialProjects`, filtered `Type === "SPECIAL"` (field.tsx:4516), so a project
+  retyped to Recurring simply stops matching. Caveat: it disappears on the next
+  getField poll (~20s) unless the edit also patches local state.
+- **⚠ THE REAL DESIGN PROBLEM I FLAGGED BACK:** this screen is deliberately
+  **STAGED-ONLY** today — its own comment says "the debrief submit stays the single
+  writer, so nothing here posts crossProject live." Trash, pencil, the pill × and
+  the camera are all LIVE, immediate writes. Shipping them makes four of five card
+  actions fire instantly while the check alone waits for submit — the same
+  two-behaviours-one-surface shape as the APPROVE button incident already in
+  CLAUDE.md. Needs Brandon's call before building.
+- **Phase 2 (photo auto-titling) proposal delivered**, with the recommendation of a
+  curated verb map over a suffix rule or an LLM call, and the real limitation named:
+  project actions are often phrases, not verbs ("Move rug away from work area",
+  "Trim/remove dead leaves of calla lilies").
+- **STILL OWED, and now sliding across batches:** Item 26.4's exact diff, Item 26.1,
+  Item 26.3's Items Used wiring, Item 27. Named as a pattern rather than buried.
+
+---
+
 ## CC-23 — 2026-08-12
 
 **Sent:** Item 29 deploy the fix. Item 28 relabel only. Item 31 REVISED to high
