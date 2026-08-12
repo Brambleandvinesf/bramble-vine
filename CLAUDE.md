@@ -865,6 +865,54 @@ thornsandtendrils@ is a SHARED phone passed between crew mid-shift, and the Gmai
 half is the company mailbox — client threads, invoices, business correspondence.
 Do not "tidy" this into symmetry.
 
+## PROJECT ID IS NOT UNIQUE — THIRD OCCURRENCE (CC-20, 8/12, projects.tsx)
+**`projects.tsx`'s `toolsByProject` is keyed by BARE `t.projectId`.** Project IDs
+are unique only PER CLIENT — `proj-N` exists for almost every client — so every
+client's items collapse onto one key and render under whichever project shares that
+number. Same bug as loading.tsx's PP2(a) and the 7/27 Confirm Day join (643 phantom
+rows). **The fix is the same composite key: Client Name + Project ID.**
+Measured 8/12: A&G Sect 1's "Driveway" is `proj-4` and has **ZERO** items of its
+own, yet the edit screen renders 11 items belonging to SEVEN other clients under it
+— Erica Lee's `Sluggo`, Jean Steadman's `Iron`, Mrs. & Mr. Kennedy's `Vinegar`, and
+so on. `proj-10` likewise belongs to both 'Carol Breslin - Mini Spray visit' and
+'Mariana & Freddie'.
+**WHY IT SURFACED AS AN ERROR ONLY ON 8/12:** the mis-keyed items had always been
+DISPLAYED harmlessly (ProjectView just lists them). CC-13's Item 4 added a `×` to
+the EDIT form, which posts `removeItem` scoped to the CURRENT project's client — so
+it correctly finds no such row and refuses: *"Couldn't remove 'Sluggo' — put back."*
+**The backend is right; the list it was given is wrong.**
+Also affected by the same key: the **HAS ITEMS** filter chip
+(`toolsByProject[p.projectId]?.length`).
+**THE FAILURE IS SAFE, and that is worth knowing before fixing:** `removeItem`
+matches client + projectId + name, so it can only ever delete a row genuinely
+belonging to that client and project. A mis-keyed `×` FAILS; it never deletes
+another client's item. `addItems` posts the real client + projectId too, so adds
+land correctly — they just then appear under every project sharing the number.
+
+## `matchClient_` RETURNS THE FIRST SUBSTRING MATCH — SO SUFFIXED CLIENTS LOSE
+## (CC-20, 8/12)
+`matchClient_(title, clients)` walks the client list and returns the FIRST name
+that appears as a SUBSTRING of the event title. Client Info contains BOTH
+`'Carol Breslin'` and `'Carol Breslin - Mini Spray visit'`, and the tab is sorted,
+so the shorter name comes first and **wins for both visit types**. A
+"Carol Breslin - Mini Spray visit" event therefore resolves to `'Carol Breslin'`.
+Consequence in the Debrief Queue: the entry carries `client: 'Carol Breslin'`, and
+StateDebrief exact-matches that, so the Mini Spray visit is populated with her
+REGULAR visit's 22 projects instead of Mini Spray's own 11.
+**NOT caused by CC-19's Item 18 change** — that only widened the projects SOURCE.
+Before it, past-dated entries had no projects at all, so nothing could be
+wrong-populated; widening the source is what made the misresolution visible. Same
+relationship as Item 19 → Item 23.
+**⚠ SCOPE THIS BEFORE FIXING — `matchClient_` IS NOT ONLY THE QUEUE'S.** It also
+resolves stops on the live route, so the same first-match-wins behaviour plausibly
+mis-attributes a live Mini Spray visit, which would put Billing Hours and invoice
+lines against the wrong client name. Confirm the live path before assuming the
+queue is the only victim. Any fix must prefer the LONGEST matching client name (or
+match on the whole title), not the first.
+Related and already known: QBO_BILLING_GROUPS carries a dedicated "Carol Breslin
+rule" so the Mini Spray visit resolves for billing — evidence these two are
+deliberately distinct accounts, not a naming accident.
+
 ## THE WEEKLY YES GATE WROTE `LAST_YES` AND READ `lastYes` (CC-19, 8/12)
 **One word. Script Property keys are CASE-SENSITIVE.** `draftVisitQueue` stamped
 `LAST_YES`; both readers — getQueue and getInbox — read `lastYes`. So the stamp

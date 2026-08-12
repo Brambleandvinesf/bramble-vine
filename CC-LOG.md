@@ -14,6 +14,64 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-20 — 2026-08-12
+
+**Sent:** Item 23 — confirm whether the frontend optimistic close is actually
+firing, since the overlay "vanishes after a while" rather than instantly. Item 24 —
+"Couldn't remove 'Sluggo' — put back" on A&G Sect 1 / Driveway; check client+project
+matching and look for an exact-match/spelling mismatch first. Item 25 — Debrief
+Queue conflating "Carol Breslin" and "Carol Breslin - Mini Spray"; check Item 18's
+client matching first. Findings first on 24 and 25.
+
+**Response to CC-20:** diagnosis batch, NO code written, nothing deployed. All three
+confirmed with live data. Two are consequences of my own recent changes, one is my
+own design claim being wrong.
+
+- **Item 23 — MY CC-19 DESIGN CLAIM WAS WRONG. It is not an optimistic close.**
+  I said the tap closes the gate "immediately on that device". It does not.
+  `setSuppressGate(true)` sits inside the POLL success path, and the poll's first
+  run is `setTimeout(() => void poll(), 5000)` — five seconds after the tap, plus a
+  loadQueue round trip. So the earliest possible close is ~5-8s. "Vanishes after a
+  while" IS the implemented behaviour.
+  Worse for diagnosis: the same poll calls `loadQueue`, which refreshes `lastYes`
+  too — so the frontend and backend paths close the gate at the SAME moment and are
+  indistinguishable by timing. Brandon cannot tell which fired, and neither can I.
+  A genuine optimistic close pins on the TAP and rolls back on failure. Fix shape
+  in the response; not written.
+- **Item 24 — PROJECT ID IS NOT UNIQUE. Third occurrence of a documented trap, and
+  my Item 4 change is what turned it into a visible error.**
+  `projects.tsx`'s `toolsByProject` is keyed by BARE `projectId`. Proven live:
+  A&G Sect 1's "Driveway" is `proj-4` and has **ZERO items of its own**, yet the
+  edit screen renders 11 items from SEVEN other clients under it — including
+  Erica Lee's `Sluggo`. `proj-10` similarly belongs to both
+  'Carol Breslin - Mini Spray visit' and 'Mariana & Freddie'.
+  Those items had always been mis-DISPLAYED; CC-13's Item 4 added the `×`, which
+  posts removeItem scoped to the current project's client, correctly finds no such
+  row, and refuses — hence "put back". **The backend is right; the list it was given
+  is wrong.** Same composite-key fix as loading.tsx PP2(a) and the 7/27 join.
+  The failure is SAFE: removeItem can only ever delete a row genuinely belonging to
+  that client+project, so a mis-keyed × fails rather than deleting someone else's
+  item. The HAS ITEMS filter chip is wrong for the same reason.
+  Not a spelling/whitespace mismatch, so Brandon's exact-match lead did not apply
+  here — though it was the right first thing to check.
+- **Item 25 — `matchClient_` RETURNS THE FIRST SUBSTRING MATCH, and the shorter
+  name wins.** Client Info holds BOTH 'Carol Breslin' (22 projects) and
+  'Carol Breslin - Mini Spray visit' (11 projects). matchClient_ returns the first
+  client name found as a substring of the title; the tab is sorted, so
+  'Carol Breslin' precedes and wins for BOTH visit types. The queue entry therefore
+  carries client 'Carol Breslin', StateDebrief exact-matches it, and the Mini Spray
+  visit gets her regular 22 projects.
+  **NOT caused by Item 18's change** — that only widened the projects SOURCE. Before
+  it, past entries had NO projects, so nothing could be wrong-populated; widening
+  the source made an upstream misresolution visible. Same relationship as
+  Item 19 → Item 23.
+  **⚠ BIGGER THAN THE QUEUE:** matchClient_ also resolves stops on the LIVE route,
+  so a live Mini Spray visit plausibly mis-attributes Billing Hours and invoice
+  lines to 'Carol Breslin'. Flagged for confirmation before any fix; a fix must
+  prefer the LONGEST match, not the first.
+
+---
+
 ## CC-19 — 2026-08-12
 
 **Sent:** Item 23 both halves approved. Backend — stamp `lastYes` inside
