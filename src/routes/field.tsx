@@ -25,6 +25,7 @@ import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
 import { ClientRefPanel } from "../components/ClientRefPanel";
 import { CallButton } from "../components/CallButton";
+import { StepperButton } from "../components/StepperButton";
 import {
   breakElapsed,
   endOnsiteBreak,
@@ -4455,7 +4456,11 @@ function newProjectRow(type = "RECURRING"): NewProject {
  * backend drop the item from the client's Inventory; partial keeps/adds it.
  * That consequence is server-side — never reimplemented here.
  */
-type ItemUsed = { name: string; qty?: string; partial?: boolean };
+/* CC-24 26.4: `comp` marks an item given free. Absent means false — the backend
+   reads `i.comp === true`, so an older payload is unchanged. The item still posts at
+   FULL price; a single invoice-level discount equal to the sum of all comped items
+   nets them out, so the market value survives on the document for the deduction. */
+type ItemUsed = { name: string; qty?: string; partial?: boolean; comp?: boolean };
 
 /* (8/4) EXPORTED so the failsafe DEBRIEF QUEUE route can render these very same
    steps for a visit that already happened. A second entry point, NOT a rebuild -
@@ -5878,8 +5883,61 @@ function NewProjectForm({
   onSave?: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  /* CC-24 Item 27.1/27.2: a row that has been SAVED collapses to Action + Type.
+     Reopened on demand via EDIT. Only ever collapses a saved row — an unsaved one
+     has nothing to collapse to and would hide the form the crew is mid-way through
+     filling in. `reopened` is local because it is a view preference, not data: it
+     must not survive into the payload or across a remount. */
+  const [reopened, setReopened] = useState(false);
+  const collapsed = !!value.savedId && !reopened;
+
+  /* CC-24 Item 27.4: bold #7cff00 on EVERY card, saved or editing. LIME is that
+     exact value; using the token rather than the literal keeps it with the rest of
+     the palette. */
+  const CARD_BOX: React.CSSProperties = {
+    ...PANEL_BOX,
+    marginTop: 8,
+    background: PANEL_2,
+    border: `2px solid ${LIME}`,
+  };
+
+  if (collapsed) {
+    return (
+      <div style={CARD_BOX}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                color: TEXT,
+                fontSize: 14,
+                fontWeight: "bold",
+                lineHeight: 1.3,
+                wordBreak: "break-word",
+              }}
+            >
+              {value.action || "(no action)"}
+            </div>
+            <div style={{ color: DIM_GREEN, fontSize: 11, letterSpacing: 1.5, marginTop: 4 }}>
+              {value.type}
+              {value.savedId ? ` · ✓ SAVED ${value.savedId}` : ""}
+            </div>
+          </div>
+          {/* CC-24 27.2: back into the full form. Not a second save path — the row
+              is already written, and clientKey makes the closing saveDebrief an
+              upsert, so editing after saving costs nothing and duplicates nothing. */}
+          <button
+            onClick={() => setReopened(true)}
+            style={{ ...SMALL_BTN, flex: "0 0 auto" }}
+          >
+            EDIT
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ ...PANEL_BOX, marginTop: 8, background: PANEL_2 }}>
+    <div style={CARD_BOX}>
       <input
         placeholder="Project action (required)"
         value={value.action}
@@ -6048,7 +6106,16 @@ function NewProjectForm({
             disabled={saving || !!value.savedId || !value.action.trim()}
             style={{
               ...SMALL_BTN,
-              color: value.savedId ? DIM_GREEN : LIME,
+              /* CC-24 Item 27.3: INVERTED. It was transparent fill with lime text
+                 and a lime border; it is now lime fill with black text, keeping the
+                 lime border — the same treatment PRIMARY_BTN already uses, so this
+                 is the palette's existing "this is the action" state rather than a
+                 new colour. Nothing outside lime/black.
+                 The already-saved state stays DIM_GREEN-on-transparent: it is
+                 disabled and reporting a fact, not offering an action, and filling
+                 it would make a dead control the loudest thing on the card. */
+              background: value.savedId ? "transparent" : LIME,
+              color: value.savedId ? DIM_GREEN : BG,
               borderColor: value.savedId ? DIM_GREEN : LIME,
               opacity: saving || !value.action.trim() ? 0.5 : 1,
             }}
@@ -6096,6 +6163,31 @@ function ItemsUsedPicker({
             <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
               {i.name}
             </div>
+            {/* CC-24 Item 26.3: − / + around the quantity, using the SAME
+                StepperButton the Hours screen uses (it steps 0.25 there, 1 here).
+                The field stays a text input so an odd value can still be typed —
+                the steppers are the fast path, not the only path.
+                Qty is stored as a STRING on ItemUsed and goes to the backend as
+                one, so the arithmetic normalises through Number() and writes back a
+                string. Blank reads as 1, which is also what the backend assumes
+                (`parseFloat(i.qty) || 1`), so the displayed default and the billed
+                default finally agree. Never goes below 1: a zero-quantity item used
+                is not a thing, and 0 × unit price would post a $0 line — the exact
+                shape of Item 29. */}
+            <StepperButton
+              dir="down"
+              disabled={disabled}
+              unitLabel="1 from the quantity"
+              onClick={() =>
+                onChange(
+                  items.map((x, j) =>
+                    j === idx
+                      ? { ...x, qty: String(Math.max(1, (Number(x.qty) || 1) - 1)) }
+                      : x,
+                  ),
+                )
+              }
+            />
             <input
               placeholder="Qty"
               value={i.qty ?? ""}
@@ -6103,7 +6195,22 @@ function ItemsUsedPicker({
                 onChange(items.map((x, j) => (j === idx ? { ...x, qty: e.target.value } : x)))
               }
               disabled={disabled}
-              style={{ ...INPUT, width: 72, marginTop: 0 }}
+              inputMode="decimal"
+              style={{ ...INPUT, width: 56, marginTop: 0, textAlign: "center" }}
+            />
+            <StepperButton
+              dir="up"
+              disabled={disabled}
+              unitLabel="1 to the quantity"
+              onClick={() =>
+                onChange(
+                  items.map((x, j) =>
+                    j === idx
+                      ? { ...x, qty: String((Number(x.qty) || 1) + 1) }
+                      : x,
+                  ),
+                )
+              }
             />
             <button
               onClick={() => onChange(items.filter((_, j) => j !== idx))}
@@ -6139,6 +6246,38 @@ function ItemsUsedPicker({
           >
             {i.partial ? "☑" : "☐"} partially used — left onsite
           </button>
+          {/* CC-24 26.4: COMPLIMENTARY. Same quiet toggle treatment as "partially
+              used" — it sits next to it because both are exceptions to a normal
+              line, and neither should compete with the item name.
+              ⚠ THIS BILLS. The item still posts at full price and a single
+              invoice-level discount nets it out, so the copy says "no charge"
+              rather than "free" — the client is shown the value and the discount,
+              which is the whole point of doing it this way. */}
+          <button
+            onClick={() =>
+              onChange(
+                items.map((x, j) =>
+                  // Off means absent, so the payload only ever carries comp: true.
+                  j === idx ? { ...x, comp: x.comp ? undefined : true } : x,
+                ),
+              )
+            }
+            disabled={disabled}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: "2px 0 0 12px",
+              fontFamily: "inherit",
+              fontSize: 11,
+              letterSpacing: 0.5,
+              color: i.comp ? LIME : MUTED,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+            aria-pressed={!!i.comp}
+          >
+            {i.comp ? "☑" : "☐"} complimentary — no charge
+          </button>
         </div>
       ))}
       <button
@@ -6153,7 +6292,12 @@ function ItemsUsedPicker({
         <ItemPicker
           onCancel={() => setPickerOpen(false)}
           onAdd={(picked) => {
-            onChange([...items, { name: picked.name, qty: picked.qty || undefined }]);
+            /* CC-24 26.3: qty DEFAULTS TO "1" rather than undefined. It was blank
+               unless typed, while the backend already treated blank as 1
+               (`parseFloat(i.qty) || 1`) — so the screen showed nothing and the
+               invoice billed one. Now the visible value and the billed value are the
+               same number, and the steppers have something to step from. */
+            onChange([...items, { name: picked.name, qty: picked.qty || "1" }]);
             setPickerOpen(false);
           }}
         />

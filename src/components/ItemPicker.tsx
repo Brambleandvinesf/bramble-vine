@@ -581,15 +581,20 @@ function ItemDetail({
         <label style={LABEL}>Quantity</label>
         <input value={qty} onChange={(e) => setQty(e.target.value)} style={INPUT} inputMode="decimal" />
 
-        <label style={LABEL}>Size</label>
-        <input value={size} onChange={(e) => setSize(e.target.value)} style={INPUT} />
+        {/* CC-24 26.1: Size + Notes behind ONE arrow, closed by default. Applied to
+            both the catalog-pick path and the custom-item path so the modal behaves
+            the same either way. */}
+        <ExtraDetails>
+          <label style={LABEL}>Size</label>
+          <input value={size} onChange={(e) => setSize(e.target.value)} style={INPUT} />
 
-        <label style={LABEL}>Notes</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          style={{ ...INPUT, minHeight: 72, resize: "vertical" }}
-        />
+          <label style={LABEL}>Notes</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            style={{ ...INPUT, minHeight: 72, resize: "vertical" }}
+          />
+        </ExtraDetails>
       </div>
       <div
         style={{
@@ -611,6 +616,67 @@ function ItemDetail({
         </button>
       </div>
     </>
+  );
+}
+
+/**
+ * CC-24 Item 26.1 — ONE collapsed disclosure over Size AND Notes together.
+ *
+ * Both stay FREE TEXT and unchanged; this is purely visibility. Size and Notes are
+ * empty on the overwhelming majority of entries (every Sluggo row in the live sheet
+ * has both blank), so they were two fields of vertical space a crew member scrolled
+ * past on a phone to reach ADD ITEM.
+ *
+ * ONE arrow over both, per the stated assumption — not one each. They are the same
+ * kind of thing (optional detail about this line) and two arrows would be two
+ * decisions where one will do.
+ *
+ * SCOPE WORTH KNOWING: this lives in ItemPicker, which is the SHARED add-item modal
+ * used by Projects, Confirm Load, the debrief's Future Projects items AND Items
+ * Used. So the collapse applies everywhere, not only on Items Used. That is
+ * deliberate — one modal, one behaviour — but if it should be Items-Used-only it
+ * needs a prop, not a second component.
+ */
+function ExtraDetails({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ marginTop: 12 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "transparent",
+          border: "none",
+          padding: "4px 0",
+          color: MUTED,
+          fontFamily: "inherit",
+          fontSize: 11,
+          letterSpacing: 1.5,
+          textTransform: "uppercase",
+          cursor: "pointer",
+        }}
+      >
+        {/* Rotates rather than swapping glyphs, so the control reads as one thing
+            in two states instead of two different controls. */}
+        <span
+          style={{
+            display: "inline-block",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform .12s",
+            fontSize: 13,
+            lineHeight: 1,
+          }}
+        >
+          ▸
+        </span>
+        Extra details
+      </button>
+      {open && <div>{children}</div>}
+    </div>
   );
 }
 
@@ -648,15 +714,20 @@ function CustomItemForm({
         <label style={LABEL}>Quantity</label>
         <input value={qty} onChange={(e) => setQty(e.target.value)} style={INPUT} inputMode="decimal" />
 
-        <label style={LABEL}>Size</label>
-        <input value={size} onChange={(e) => setSize(e.target.value)} style={INPUT} />
+        {/* CC-24 26.1: Size + Notes behind ONE arrow, closed by default. Applied to
+            both the catalog-pick path and the custom-item path so the modal behaves
+            the same either way. */}
+        <ExtraDetails>
+          <label style={LABEL}>Size</label>
+          <input value={size} onChange={(e) => setSize(e.target.value)} style={INPUT} />
 
-        <label style={LABEL}>Notes</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          style={{ ...INPUT, minHeight: 72, resize: "vertical" }}
-        />
+          <label style={LABEL}>Notes</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            style={{ ...INPUT, minHeight: 72, resize: "vertical" }}
+          />
+        </ExtraDetails>
       </div>
       <div
         style={{
