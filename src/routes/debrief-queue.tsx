@@ -8,6 +8,7 @@ import { RefreshDot } from "../components/RefreshDot";
 import { sessionCache } from "../lib/session-cache";
 import { StateDebrief } from "./field";
 import { fetchPayrollDay, personSeconds } from "../lib/billing-hours";
+import { fetchClientNames } from "../lib/add-project";
 
 /* ============================================================
  * DEBRIEF QUEUE — gated on the route_queues capability (lead, office,
@@ -72,6 +73,13 @@ type QueueEntry = {
   end: string;
   date: string;
   location?: string;
+  /* CC-10 Item 3: hours already on Billing Hours for this client+date. A HINT,
+     never a filter — visits from before the Debrief Log tab existed (8/4) carry
+     no log row even when they were properly debriefed, and this is the only
+     evidence of that era that survives. */
+  billedHours?: number;
+  /* Client-side only: minted by ADD DEBRIEF, never returned by the backend. */
+  manual?: boolean;
 };
 
 type RosterLike = {
@@ -90,11 +98,18 @@ type Fieldish = {
   employees?: { id: string; name: string }[];
 };
 
-function fmtWhen(startIso: string, endIso: string): string {
+function fmtWhen(e: QueueEntry): string {
   const t = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const d = new Date(startIso).toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${d} · ${t(startIso)}–${t(endIso)}`;
+  const d = new Date(e.start).toLocaleDateString([], { month: "short", day: "numeric" });
+  /* A manual entry has no calendar event, so it has no real window — printing
+     an invented one would look like evidence. */
+  return e.manual ? `${d} · added by hand` : `${d} · ${t(e.start)}–${t(e.end)}`;
+}
+
+/** Today in the crew's timezone, as the yyyy-MM-dd the backend keys rows by. */
+function todayLA(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Los_Angeles" });
 }
 
 function DebriefQueuePage() {
@@ -115,6 +130,11 @@ function DebriefQueuePage() {
   const [fieldish, setFieldish] = useState<Fieldish>({});
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /* CC-10 Item 3: the window the backend actually read, echoed back. Before
+     v7.4.85 the queue only ever saw today, and "nothing waiting" and "we only
+     looked at today" were the same answer on screen. */
+  const [window, setWindow] = useState<{ since?: string; through?: string } | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -124,12 +144,15 @@ function DebriefQueuePage() {
       const j = (await r.json().catch(() => ({}))) as {
         queue?: QueueEntry[];
         upcoming?: QueueEntry[];
+        since?: string;
+        through?: string;
         error?: string;
       };
       if (j.error) throw new Error(j.error);
       const q = Array.isArray(j.queue) ? j.queue : [];
       setQueue(q);
       setUpcoming(Array.isArray(j.upcoming) ? j.upcoming : []);
+      setWindow(j.since ? { since: j.since, through: j.through } : null);
       sessionCache.set(CK, q);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "could not read the queue");
@@ -269,9 +292,12 @@ function DebriefQueuePage() {
           <div style={{ fontSize: 12, letterSpacing: 1, color: LIME }}>
             {open.client.toUpperCase()}
           </div>
-          <div style={{ fontSize: 11, color: FINE }}>{fmtWhen(open.start, open.end)}</div>
+          <div style={{ fontSize: 11, color: FINE }}>{fmtWhen(open)}</div>
         </div>
-        {note && <div style={{ color: "#ffb020", fontSize: 11, marginBottom: 8 }}>{note}</div>}
+        {/* Was orange. Red means failure here and nothing else, and this is an
+            advisory ("no timesheets — add people by hand"), so it takes the
+            app's ordinary fine-print treatment. */}
+        {note && <div style={{ color: FINE, fontSize: 11, marginBottom: 8 }}>{note}</div>}
         {err && <div style={{ color: "#ff6b6b", fontSize: 11, marginBottom: 8 }}>{err}</div>}
         {roster === null ? (
           <div style={{ color: FINE, fontSize: 12 }}>READING QUICKBOOKS TIME…</div>
@@ -310,9 +336,27 @@ function DebriefQueuePage() {
           REFRESH
         </button>
       </div>
-      <div style={{ color: FINE, fontSize: 11, marginBottom: 14 }}>
-        Visits that have finished and have no debrief logged. Today onward only.
+      <div style={{ color: FINE, fontSize: 11, marginBottom: 10 }}>
+        Visits that have finished and have no debrief logged
+        {window?.since ? `, ${window.since} through ${window.through ?? "today"}` : ""}.
       </div>
+
+      {/* CC-10 Item 3 — THE FAILSAFE'S OWN FAILSAFE. Everything above is
+          derived from calendar evidence, so a visit with no event on
+          '1. Client Visits' — a call-out squeezed in, an event deleted, a
+          client the calendar never knew about — is invisible to it. This is the
+          way in that depends on nothing at all. */}
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        style={{
+          background: "transparent", border: `1px solid ${LIME_DIM}`, color: LIME,
+          fontFamily: "inherit", fontSize: 11, letterSpacing: 2, fontWeight: "bold",
+          padding: "8px 14px", borderRadius: 999, cursor: "pointer", marginBottom: 14,
+        }}
+      >
+        + ADD DEBRIEF
+      </button>
 
       {err && <div style={{ color: "#ff6b6b", fontSize: 11, marginBottom: 10 }}>{err}</div>}
       {note && <div style={{ color: LIME, fontSize: 11, marginBottom: 10 }}>{note}</div>}
@@ -340,9 +384,21 @@ function DebriefQueuePage() {
             }}
           >
             <div style={{ color: LIME, fontSize: 14, fontWeight: "bold" }}>{e.client}</div>
-            <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>{fmtWhen(e.start, e.end)}</div>
+            <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>{fmtWhen(e)}</div>
             {e.location && (
               <div style={{ color: FINE, fontSize: 10, marginTop: 2 }}>{e.location}</div>
+            )}
+            {/* CC-10 Item 3: the restored backlog reaches back before the
+                Debrief Log tab existed, so some of these WERE debriefed and
+                simply left no log row. Billed hours is the surviving evidence.
+                Stated, never acted on — it does not remove the row, because a
+                debrief writes four things besides billing and a zero-hour
+                visit is real. */}
+            {typeof e.billedHours === "number" && e.billedHours > 0 && (
+              <div style={{ color: FINE, fontSize: 10, marginTop: 4 }}>
+                {e.billedHours}h already on Billing Hours — may have been debriefed
+                before the log existed
+              </div>
             )}
             <div style={{ color: LIME_DIM, fontSize: 10, marginTop: 6, letterSpacing: 1 }}>
               TAP TO DEBRIEF →
@@ -363,9 +419,7 @@ function DebriefQueuePage() {
             {upcoming.map((e) => (
               <div key={e.eventId} style={{ ...panel, opacity: 0.55 }}>
                 <div style={{ color: FINE, fontSize: 14, fontWeight: "bold" }}>{e.client}</div>
-                <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>
-                  {fmtWhen(e.start, e.end)}
-                </div>
+                <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>{fmtWhen(e)}</div>
                 {e.location && (
                   <div style={{ color: FINE, fontSize: 10, marginTop: 2 }}>{e.location}</div>
                 )}
@@ -378,6 +432,197 @@ function DebriefQueuePage() {
           </div>
         </div>
       )}
+
+      {addOpen && (
+        <AddDebriefSheet
+          onCancel={() => setAddOpen(false)}
+          onPick={(client, date) => {
+            setAddOpen(false);
+            const noon = `${date}T12:00:00`;
+            void openEntry({
+              /* A synthetic id, not a blank one. The Debrief Log upserts on
+                 Event ID + Date and the invoice gate keys on Event ID, so two
+                 manual debriefs for one client on one day with an EMPTY id
+                 would collide — the second would overwrite the first's log row
+                 and be treated as already invoiced. saveDebrief takes any
+                 string; the ad-hoc project path already mints 'ADHOC-<ms>' the
+                 same way. */
+              eventId: `MANUAL-${Date.now()}`,
+              title: `${client} — manual debrief`,
+              client,
+              date,
+              start: noon,
+              end: noon,
+              manual: true,
+            });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * CC-10 Item 3 — ADD DEBRIEF. Client and date, nothing else: everything a
+ * debrief needs beyond those two comes from the debrief steps themselves, and
+ * the hours come from QuickBooks Time for that client+date exactly as they do
+ * for a calendar-derived entry.
+ *
+ * The client list is getStopSuggest's, via the shared fetchClientNames() that
+ * Add Stop and the debrief's new-project flow already use — the FULL roster,
+ * not today's route, since the whole point is reaching a visit the route never
+ * knew about. PICK ONLY, no free text: the client name is an unenforced foreign
+ * key across five places (see CLAUDE.md), and a hand-typed near-miss would
+ * write billing hours and an invoice against a client that does not exist.
+ */
+function AddDebriefSheet({
+  onCancel,
+  onPick,
+}: {
+  onCancel: () => void;
+  onPick: (client: string, date: string) => void;
+}) {
+  const [clients, setClients] = useState<string[] | null>(null);
+  const [q, setQ] = useState("");
+  const [client, setClient] = useState("");
+  const [date, setDate] = useState(todayLA);
+  const [loadErr, setLoadErr] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setClients(await fetchClientNames());
+      } catch {
+        setClients([]);
+        setLoadErr(true);
+      }
+    })();
+  }, []);
+
+  const matches = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const all = clients ?? [];
+    return (needle ? all.filter((c) => c.toLowerCase().includes(needle)) : all).slice(0, 60);
+  }, [clients, q]);
+
+  const input: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    background: BG,
+    color: TEXT,
+    border: `1px solid ${LINE}`,
+    borderRadius: 6,
+    padding: 10,
+    fontFamily: "inherit",
+    fontSize: 14,
+  };
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 320,
+        display: "flex", alignItems: "stretch", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: BG, width: "100%", maxWidth: 560, height: "100%",
+          display: "flex", flexDirection: "column", fontFamily: "inherit",
+        }}
+      >
+        <div
+          style={{
+            padding: "12px 14px", borderBottom: `1px solid ${LINE}`,
+            display: "flex", alignItems: "center", gap: 10,
+          }}
+        >
+          <div style={{ color: LIME, fontSize: 13, letterSpacing: 2, fontWeight: "bold", flex: 1 }}>
+            ADD DEBRIEF
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Close"
+            style={{
+              background: "transparent", border: "none", color: FINE,
+              fontFamily: "inherit", fontSize: 22, cursor: "pointer",
+              minWidth: 40, minHeight: 40, padding: 4,
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ padding: "12px 14px", borderBottom: `1px solid ${LINE}` }}>
+          <div style={{ color: FINE, fontSize: 11, marginBottom: 8 }}>
+            For a visit with no calendar event, or one the queue cannot see.
+          </div>
+          <label style={{ color: FINE, fontSize: 10, letterSpacing: 1 }}>DATE OF THE VISIT</label>
+          <input
+            type="date"
+            value={date}
+            max={todayLA()}
+            onChange={(e) => setDate(e.target.value)}
+            style={{ ...input, marginTop: 4, marginBottom: 10 }}
+          />
+          <label style={{ color: FINE, fontSize: 10, letterSpacing: 1 }}>CLIENT</label>
+          <input
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setClient(""); }}
+            placeholder={clients === null ? "Loading clients…" : "Type to filter…"}
+            style={{ ...input, marginTop: 4 }}
+          />
+          {loadErr && (
+            <div style={{ color: "#ff6b6b", fontSize: 11, marginTop: 6 }}>
+              Couldn't read the client list — close and try again.
+            </div>
+          )}
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto" }}>
+          {matches.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setClient(c)}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                background: client === c ? PANEL : "transparent",
+                color: client === c ? LIME : TEXT,
+                border: "none", borderBottom: `1px solid ${LINE}`,
+                padding: "12px 14px", fontFamily: "inherit", fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              {c}
+            </button>
+          ))}
+          {clients !== null && matches.length === 0 && (
+            <div style={{ color: FINE, fontSize: 12, padding: "20px 14px", textAlign: "center" }}>
+              No client matches.
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: "12px 14px", borderTop: `1px solid ${LINE}` }}>
+          <button
+            type="button"
+            disabled={!client || !date}
+            onClick={() => onPick(client, date)}
+            style={{
+              width: "100%", minHeight: 48, background: LIME, color: BG,
+              border: "none", borderRadius: 6, fontFamily: "inherit", fontSize: 13,
+              letterSpacing: 2, fontWeight: "bold",
+              cursor: client && date ? "pointer" : "default",
+              opacity: client && date ? 1 : 0.4,
+            }}
+          >
+            {client ? `DEBRIEF ${client.toUpperCase()}` : "PICK A CLIENT"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,22 @@ reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
 > has been asked and answered without Brandon re-pasting anything. The rules for
 > how these batches work are in "HOW BRANDON BRIEFS THIS PROJECT" below.
 
+> ### 👉 ALSO AT SESSION START: READ THE CREW'S "!" NOTES (CC-10 Item 12)
+> One anonymous GET, ~4KB, no credentials:
+> `<SCRIPT_URL>?action=getTodo` → `groups.now / .soon / .someday`.
+> Crew reports filed from the app's "!" button land there as
+> **Category: `Crew report`** with the screen, who filed it and a Drive
+> screenshot link in Details. Read them BEFORE starting work — they are the
+> field's own bug list and nothing else surfaces them to a session.
+> Two things worth knowing about that path:
+> - **Every "!" note typed before 8/11 was LOST.** reportIssue only ever filed a
+>   GitHub issue, GITHUB_PAT has never been set, and with no PAT it returned
+>   ok:false and discarded the text. Verified against the public repo's own API:
+>   zero issues, ever. v7.4.85 writes the App TODO row FIRST and independently.
+> - GitHub is still wired and still fires if a PAT is ever set. It stays OFF by
+>   default deliberately — that repo is PUBLIC and the issue body carries the
+>   screen, the signed-in user's email and the current client.
+
 > ### ⚠️ THE WORKING CLONE IS DISPOSABLE — COMMIT AND PUSH EARLY
 > On 8/7 the working clone lived in the session scratchpad under
 > `AppData\Local\Temp\claude\…` and was **reclaimed by temp cleanup mid-session**:
@@ -99,7 +115,7 @@ instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
-- Backend: Google Apps Script "chron order" (v7.4.29), single web-app
+- Backend: Google Apps Script "chron order" (LIVE v7.4.84 @271), single web-app
   deployment — URL MUST NEVER CHANGE. Source is NOT in this repo; edited
   via clasp on the Pi (see CLASP below and ARCHITECTURE §12).
 - Source of truth: Google Sheets "Field Receipts 2.0" (tabs: Receipts,
@@ -128,7 +144,13 @@ instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
   Deploy → pencil on EXISTING deployment → New version.)
   AFTER ANY DEPLOY: new actions return "unknown action" for up to ~60s
   while it propagates — wait before testing, or a good deploy looks failed.
-- Backend versions sequential (current: v7.4.29); full changelog in Code.js header.
+- Backend versions sequential (LIVE v7.4.84 @271; v7.4.85 STAGED on the Pi,
+  not deployed); full changelog in Code.js header. **KEEP THE HEADER TRUE:**
+  v7.4.83 and v7.4.84 shipped on 8/11 with NO changelog entry at all, so the
+  header read v7.4.82 while the deployment ran two versions ahead — exactly the
+  signal the "diff the changelog block" rule depends on. Both were written back
+  in retroactively on 8/11 (CC-10). A version that ships without its entry
+  disarms the stale-copy check for everyone after you.
 - CLIENT PROJECTS COLUMN ROLES — do not overload:
     Status  = 'Confirmed' (Load Vehicle/PP2) | 'SKIP' (buildTasks_) | ''
     Crossed = 'DAY <date>' (recurring, self-expiring) | 'DONE <date>'
@@ -473,7 +495,10 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
-Backend is CURRENT at **v7.4.82 @221**.
+Backend is LIVE at **v7.4.84 @271** (8/11). **v7.4.85 is written, syntax-checked
+and action-audited on the Pi but NOT DEPLOYED** — it carries CC-10's Item 3
+(ranged debrief queue), Item 12 (the App TODO note sink) and Item 9's
+`getField.clientPhones`, and is waiting on Brandon's go-ahead.
 
 PAYROLL ACCURACY — TWO REAL BUGS, BOTH FIXED 8/4. Read this before touching
 approvals; both failed SILENTLY and both affected real payroll.
@@ -540,10 +565,31 @@ debrief through exactly ONE gate — route.state === 'debrief' — so when the
 early-day gates misbehave the screen is unreachable and debriefs routinely did not
 happen at all, while billing hours / items used / projects completed are the input
 to invoicing. The queue reaches the SAME screens from EVIDENCE instead: a
-dayEvents_ client stop whose end time has passed with no Debrief Log entry. Today
-onward by construction — dayEvents_ reads today's window, so it cannot reconstruct
-a historical backlog even by accident. Vendor stops and breaks excluded: neither
-has a debrief in the live flow.
+client stop whose end time has passed with no Debrief Log entry. Vendor stops and
+breaks excluded: neither has a debrief in the live flow.
+**RANGED SINCE v7.4.85 (CC-10 Item 3).** It used to call `dayEvents_(null)`,
+which hardcodes TODAY, so it could not see the backlog it exists to catch. It now
+uses its own reader, `debriefRangeEvents_(d0, d1)`. **dayEvents_ MUST NOT be
+widened to do this** — `stops[]`, the field screen's `events[]`, `addStop`'s
+insertAt, `shiftFrom_`'s fromIdx and `route.stopIndex` are all index-aligned to
+that one list, so an extra day in it silently repoints the crew's live route.
+Window start = `?since=YYYY-MM-DD`, else the `DEBRIEF_QUEUE_SINCE` Script
+Property, else 2026-07-30; end = end of today; capped at `DEBRIEF_QUEUE_MAX_DAYS`
+(120). The reader deliberately does NOT read OFV_CAL: the queue discards every
+break anyway, so fetching a second calendar across weeks to filter all of it back
+out would be the most expensive no-op in the file.
+Ready rows carry `billedHours` — hours already on Billing Hours for that
+client+date. It is a HINT and never a filter: visits from before the Debrief Log
+tab existed (8/4) have no log row even when they were properly debriefed, and
+that is the only evidence of them that survives. The Debrief Log is still the
+only thing that removes a row.
+**ADD DEBRIEF** (frontend) is the failsafe's own failsafe: pick a client and a
+date and debrief a visit the calendar never knew about. It mints a synthetic
+`MANUAL-<ms>` Event ID — NOT a blank one, because the Debrief Log upserts on
+Event ID + Date and the invoice gate keys on Event ID, so two blank-id manual
+debriefs for one client on one day would collide. Client is PICK-ONLY from
+getStopSuggest; a hand-typed near-miss would bill and invoice a client that does
+not exist (see the five-place foreign key below).
 StateDebrief is now EXPORTED from field.tsx and rendered as-is — a second entry
 point, not a rebuild. What the route object normally supplies is substituted:
 route.roster -> payrollDay people for that client+date (timesheets are evidence;
@@ -713,6 +759,37 @@ inside a scheduled break window (12:00–1:00 PM) at the moment of testing.
   line item. Confirmed unbuilt — Name-from-Photo never persists its image and
   nothing attaches a photo to a Line items row (attachPhoto is receipt-level,
   visitPhoto is visit-level). Not queued.
+
+## THE CALL BUTTON (CC-10 Item 9, 8/11)
+`src/lib/quo-call.ts` builds the link; `src/components/CallButton.tsx` is the ONE
+component both call sites render, so a crew phone cannot show "CALL ON THE B&V
+LINE" while handing back a `tel:` href. Sites: the client-name tap panel
+(ClientRefPanel, first section) and the Visit In Progress ACTIONS block.
+- `openphone://dial?number=&from=&action=call`. `from` is ALWAYS sent — omit it
+  and Quo prompts for a line on every call, which on a field phone mid-visit is
+  exactly the friction this removes. Mobile only; desktop falls back to `tel:`
+  with the personal caller ID, and the button SAYS which of the two it is.
+- The number comes from **getField.clientPhones** (v7.4.85), read from the same
+  Client Info `Phone Number(s)` column `textClient` sends to, through the same
+  `normPhones_`. Do not source it anywhere else: a call button and a text button
+  disagreeing about who a client is would be worse than no call button.
+  Rejected alternative: `contactResolve`, which needs no deploy but matches
+  Google Contacts by loose name substring — dialling the wrong person from the
+  business line is not a tradeoff worth making to save one property.
+- **No number, no button.** `openphone://dial?number=` with nothing after it
+  opens Quo on a blank dialler and reads as a bug. Never render a dead one.
+- STILL UNVERIFIED, on the record: whether a call placed this way appears in
+  Quo's own call log. Quo's docs do not say. Confirm on the first real call.
+- Never on a vendor or break stop — there is no client to call.
+
+## TYPECHECKING: THE BASELINE IS 6 ERRORS, NOT ZERO (8/11)
+CC-09 recorded "passes clean". Measured on 8/11 against pristine `main`, the
+`npx tsc --noEmit` baseline is **6 pre-existing `TS2591 Cannot find name
+'process'` errors**, all in `src/integrations/supabase/*` (missing @types/node in
+the shared node_modules). Compare against that baseline, not against zero, or a
+clean change looks broken. Procedure unchanged: tar `src scripts tsconfig.json
+package.json components.json` to `/tmp/bvtc` on the Pi, `ln -s
+~/bv-check/node_modules node_modules`, `npx tsc --noEmit -p tsconfig.json`.
 
 ## POLLING (CC-17, 8/5) — READ THIS BEFORE ADDING ANY POLL
 Three screens were reported "stuck loading" on the same day (day-state spine,

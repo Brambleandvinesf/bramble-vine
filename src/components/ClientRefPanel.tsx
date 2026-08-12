@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { CallButton } from "./CallButton";
 
 /**
  * CLIENT REFERENCE PANEL (AY-adjacent, but NOT the access-sensitive one).
@@ -145,6 +146,7 @@ export function ClientRefPanel({
   knownInventory,
   zoneMap = "",
   specialMessage = "",
+  phone = "",
   send,
   onClose,
   readOnly = false,
@@ -158,6 +160,9 @@ export function ClientRefPanel({
   zoneMap?: string;
   /** Client Info AB. Plain text, never edited here. */
   specialMessage?: string;
+  /** CC-10 Item 9: getField.clientPhones[client]. Blank hides the call button
+   *  entirely — see CallButton. */
+  phone?: string;
   send: InventoryPost;
   onClose: () => void;
   readOnly?: boolean;
@@ -255,6 +260,20 @@ export function ClientRefPanel({
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 24px" }}>
+          {/* ---- SECTION: Call — CC-10 Item 9 ----
+               First, and above Inventory, on purpose: the reasons this panel
+               gets opened mid-visit in a hurry are a locked gate, nobody home,
+               or something on site that needs asking about — all of which end
+               in a phone call. Renders nothing at all when Client Info has no
+               number, so a client without one loses no space to an empty
+               heading (see CallButton). */}
+          <CallButton
+            to={phone}
+            label={client}
+            disabled={readOnly}
+            style={{ marginTop: 14 }}
+          />
+
           {/* ---- SECTION: Inventory ---- */}
           <div style={SECTION_HEAD}>Inventory — on site</div>
           {err && (

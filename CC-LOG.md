@@ -14,6 +14,123 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-10 — 2026-08-11
+
+**Sent (full prompt text, verbatim):**
+
+```
+CC-10 — PROMPT FOR CLAUDE CODE
+
+BEFORE ANYTHING ELSE: Read these three files at the root of
+github.com/Brambleandvinesf/bramble-vine, in this order:
+  1. CC-LOG.md      — running record of every prior CC prompt/response, newest
+                       first. Reconstructs full project history.
+  2. CLAUDE.md       — project memory, iron rules, standing rules, watch items.
+  3. ARCHITECTURE.md — deep reference detail.
+Do not start implementation until you've loaded context from all three.
+
+CURRENT STATE: Backend v7.4.84 @271, deployed and confirmed live as of
+2026-08-11. Item 5 (Payroll Approval Sync) and Item 8 (Quo/Inbox Pagination)
+both closed today — Item 8's fix may already resolve Item 6 below, check
+before investigating further.
+
+WORK FOR THIS BATCH:
+
+Item 9 — Call Feature (UI Wiring)
+  Foundation already shipped in main (src/lib/quo-call.ts), typechecked.
+  Remaining: wire the call button into (a) the client-name tap panel and
+  (b) the visit screen. Design direction: emulate Quo's calling conventions
+  but re-skinned in Bramble & Vine's visual style — not Quo's branding or
+  colors. Frontend only. No backend deploy required.
+
+Item 3 — Debrief Queue Restore
+  Restore debrief queue for ALL accounts since 7/30; entries persist until
+  marked complete. Spine-independence is already satisfied — the real gap
+  is that it currently reads only today's calendar window. Build a SEPARATE
+  ranged reader for this. Do NOT widen dayEvents_ — stops[], events[],
+  addStop, and route.stopIndex are all index-aligned to it, and widening
+  will break that alignment. Also add a manual "Add debrief" failsafe button.
+
+Item 4 — Add Item Button
+  Add an "Add Item" button on the project edit screen.
+
+Item 12 — "!" Note Capture Wiring
+  Finish wiring so notes captured via "!" are read automatically at session
+  start.
+
+STANDING RULES TO CARRY FORWARD:
+  - Every item reference pairs the number with its descriptive title
+    ("Item 9 — Call Feature UI Wiring", never a bare "item 9").
+  - Lovable prompts must be labelled with an ID (Lv01, Lv02...) and state
+    "Backend deploy required first: YES/NO".
+  - Pause for Brandon's go-ahead before any deploy. Report payroll/invoicing
+    findings BEFORE writing code.
+  - Genuine judgment calls come back as numbered options in plain text, not
+    permission dialogs.
+  - No yellow/orange/red in the UI (red = failure only). "Daily Load" never
+    "Base Load". Overhead jobcode is exactly "Bramble & Vine".
+  - MINIMIZE APP/TOOL SPRAWL — extend what exists over adding a vendor.
+
+TRAPS — do not relearn these the expensive way:
+  - Verifying an Apps Script page with curl is a TRAP (HtmlService wraps
+    content in a shell that looks exactly like an error page).
+  - Write actions are dry-run BY DEFAULT — omitting `dryRun` silently
+    SKIPS the write while still returning ok:true.
+  - QuickBooks Time buries per-record rejections inside HTTP 200, and caps
+    per_page at 200 with no auto-paging.
+  - Match sheet columns BY HEADER, never by position — one real header is
+    'Account Name ' WITH a trailing space.
+
+Reply with "Response to CC-10" in one copiable code block, and log this
+pair in CC-LOG.md (paste the full prompt text above into the log, not
+just a summary).
+```
+
+**Response to CC-10:** all four items built. Frontend pushed to main (needs
+PUBLISH). Backend v7.4.85 staged on the Pi, syntax-checked and action-audited,
+**NOT deployed** — waiting on go-ahead. Key outcomes:
+
+- **Item 9 — Call Feature UI Wiring: BUILT, but "no backend deploy required"
+  was not true.** Nothing in any frontend payload carries a client's phone
+  number — getField has `clientAddresses` and no phones, and `clientCredentials`
+  is AP/AQ/AR only. v7.4.85 adds `getField.clientPhones` (one map, built from
+  the `dir` getField already reads) so the call button and the text button can
+  never disagree about who a client is. `contactResolve` would have needed no
+  deploy but matches Google Contacts by loose name substring — rejected;
+  dialling the wrong person from the business line is not worth saving one
+  property. New `src/components/CallButton.tsx` is the ONE component both sites
+  render. No number → no button at all.
+- **Item 3 — Debrief Queue Restore: `debriefRangeEvents_(d0, d1)`, its own
+  reader.** dayEvents_ untouched, for the index-alignment reason in the prompt.
+  Window = `?since` / `DEBRIEF_QUEUE_SINCE` / 2026-07-30 → end of today, capped
+  at 120 days. It does NOT read OFV_CAL — the queue discards every break anyway.
+  Ready rows carry `billedHours` as a HINT: 7/30–8/3 predates the Debrief Log
+  tab, so those visits have no log row even if they WERE debriefed, and without
+  it the restored backlog is unreadable. **ADD DEBRIEF** manual failsafe is
+  frontend-only, mints a synthetic `MANUAL-<ms>` Event ID (a blank one would
+  collide in the Debrief Log and the invoice gate), client pick-only.
+- **Item 4 — Add Item Button: frontend only, done.** `addItems` / `removeItem`
+  already exist and are deployed. Items are saved IMMEDIATELY, deliberately not
+  folded into the edit draft — the section says so on screen.
+- **Item 12 — "!" Note Capture: EVERY NOTE EVER TYPED HAS BEEN LOST.**
+  `reportIssue` only ever filed a GitHub issue; `GITHUB_PAT` has never been set;
+  with no PAT it returned `ok:false` and **discarded the text**. Verified against
+  the public repo's own API: zero issues, ever. v7.4.85 writes the note to the
+  **'App TODO'** tab FIRST and independently — no PAT, nothing published to a
+  PUBLIC repo, already renders on the Admin screen, and already readable at
+  `?action=getTodo`, which is what makes "read at session start" possible.
+  The read half is a standing rule now at the top of CLAUDE.md.
+- **THE CHANGELOG HEADER WAS TWO VERSIONS STALE.** v7.4.83 and v7.4.84 shipped
+  on 8/11 with no entry, so Code.js read v7.4.82 while @271 ran ahead of it —
+  which disarms the "diff the changelog block" stale-copy check for everyone
+  after. Both written back in retroactively.
+- **CC-09's "typecheck passes clean" is not the baseline.** Measured against
+  pristine main: **6 pre-existing `TS2591 'process'` errors** in
+  `src/integrations/supabase/*`. This batch adds zero new ones. Recorded in
+  CLAUDE.md so a clean change is not read as broken.
+
+---
+
 ## CC-09 — 2026-08-11
 **Sent:** go-ahead for both halves of the Item 5 — QuickBooks Payroll Approval
 Sync fix; continue with Item 9 UI wiring then Items 3, 4, 12; correct the stale

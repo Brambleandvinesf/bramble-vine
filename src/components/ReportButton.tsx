@@ -68,10 +68,25 @@ export function ReportButton() {
           mime: "image/png",
         }),
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string; issueNumber?: number };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        issueNumber?: number;
+        /* CC-10 Item 12: the sheet the note landed in. Present from v7.4.85 on;
+           before that a report with no GITHUB_PAT came back ok:false and the
+           typed note was thrown away, which is why nothing was ever filed. */
+        todo?: string;
+      };
       if (res.ok && json.ok !== false) {
+        /* Name the destination. "Report filed" with no object was true of a
+           GitHub issue and is now true of a sheet row, and the crew member
+           deserves to know which one so they can go look at it. */
         toast.success(
-          json.issueNumber ? `Report filed — #${json.issueNumber}` : "Report filed",
+          json.issueNumber
+            ? `Report filed — #${json.issueNumber}`
+            : json.todo
+              ? `Report filed to ${json.todo}`
+              : "Report filed",
         );
         setNote("");
       } else {

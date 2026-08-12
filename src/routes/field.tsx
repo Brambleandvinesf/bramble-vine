@@ -24,6 +24,7 @@ import { confirmModal } from "../components/ConfirmModal";
 import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
 import { ClientRefPanel } from "../components/ClientRefPanel";
+import { CallButton } from "../components/CallButton";
 import {
   breakElapsed,
   endOnsiteBreak,
@@ -190,6 +191,11 @@ type GetFieldResponse = {
   knownInventory?: string[];
   /** Client name -> irrigation zone map (text mapping OR Drive image URL). */
   zoneMaps?: Record<string, string>;
+  /** CC-10 Item 9: client name -> first dialable number, from the same Client
+   *  Info column textClient sends to. Absent until the v7.4.85 backend ships —
+   *  every consumer treats a missing number as "no call button", so the UI is
+   *  correct against both the current and the new backend. */
+  clientPhones?: Record<string, string>;
   /* ONSITE BREAK (8/4): name -> {since, source, client}. Server-held so ON BREAK
      survives a reload and shows on a second phone. */
   onsiteBreaks?: OnsiteBreakMap;
@@ -1018,6 +1024,17 @@ function FieldBody({
     return hit ? (map[hit] ?? "") : "";
   }, [data.zoneMaps, clientMatch]);
 
+  /* CC-10 Item 9: same case-insensitive lookup as inventory and the zone map —
+     Client Info casing is not guaranteed and a near-miss here would silently
+     mean "no number on file" for a client who has one. */
+  const clientPhone = useMemo(() => {
+    const map = data.clientPhones ?? {};
+    if (!clientMatch) return "";
+    const want = clientMatch.trim().toLowerCase();
+    const hit = Object.keys(map).find((k) => k.trim().toLowerCase() === want);
+    return hit ? (map[hit] ?? "") : "";
+  }, [data.clientPhones, clientMatch]);
+
   const clientSpecialMessage = useMemo(() => {
     if (!clientMatch) return "";
     const want = clientMatch.trim().toLowerCase();
@@ -1478,6 +1495,7 @@ function FieldBody({
               knownInventory={data.knownInventory ?? []}
               zoneMap={clientZoneMap}
               specialMessage={clientSpecialMessage}
+              phone={clientPhone}
               send={send}
               /* Vendor/break stops aren't clients — no inventory reference. */
               panelDisabled={!!vendorStop || isBreakStop || isPreview}
@@ -1590,6 +1608,7 @@ function FieldBody({
               departureToContact={departureToContact}
               event={currentEvent}
               clientMatch={clientMatch}
+              clientPhone={clientPhone}
               vendorStop={vendorStop}
               stopIndex={stopIndex}
               arrivedAt={route.arrivedAt}
@@ -2283,6 +2302,7 @@ function ClientHeader({
   knownInventory = [],
   zoneMap = "",
   specialMessage = "",
+  phone = "",
   send,
   panelDisabled = false,
 }: {
@@ -2293,6 +2313,8 @@ function ClientHeader({
   knownInventory?: string[];
   zoneMap?: string;
   specialMessage?: string;
+  /** CC-10 Item 9: this client's dialable number, or '' for no call button. */
+  phone?: string;
   send?: (b: unknown, o?: { silent?: boolean }) => Promise<{ ok: boolean; raw: unknown }>;
   panelDisabled?: boolean;
 }) {
@@ -2343,6 +2365,7 @@ function ClientHeader({
           knownInventory={knownInventory}
           zoneMap={zoneMap}
           specialMessage={specialMessage}
+          phone={phone}
           send={send}
           onClose={() => setPanelOpen(false)}
         />
@@ -3178,6 +3201,7 @@ function StateVisit({
   departureToContact,
   event,
   clientMatch,
+  clientPhone,
   vendorStop,
   stopIndex,
   arrivedAt,
@@ -3219,6 +3243,8 @@ function StateVisit({
   departureToContact?: boolean;
   event?: EventItem;
   clientMatch: string | null;
+  /** CC-10 Item 9: getField.clientPhones for THIS client, '' when none. */
+  clientPhone?: string;
   vendorStop?: FieldVendor | null;
   stopIndex: number;
   arrivedAt?: string | null;
@@ -3605,6 +3631,25 @@ function StateVisit({
           + NOTE
         </button>
       </div>
+
+      {/* CC-10 Item 9: call the client from here as well as from the tap panel.
+          Two entry points on purpose — the panel is a reference sheet you go
+          looking in, this is the action list you are already standing on when
+          the gate is locked or nobody answers the door.
+          BELOW the camera/note row, not beside it: a call leaves the app and
+          hands the phone to Quo, so it must not sit at thumb height next to
+          controls the crew taps by muscle memory mid-visit.
+          NEVER on a vendor or break stop — those have no client to call, and
+          vendorStop already means clientMatch is the vendor's name. Renders
+          nothing when Client Info has no number. */}
+      {!vendorStop && clientMatch && (
+        <CallButton
+          to={clientPhone}
+          label={clientMatch}
+          disabled={isPreview}
+          style={{ marginTop: 10 }}
+        />
+      )}
 
       {/* AD.4: delegation is a rare exception, not a headline action —
           fine print, least prominent thing on the screen. */}

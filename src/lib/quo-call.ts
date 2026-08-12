@@ -92,6 +92,22 @@ export function telHref(to: string | null | undefined): string {
 }
 
 /**
+ * Display form. Lives here rather than in a screen because the ONE place that
+ * decides what will be dialled should also be the one place that says so out
+ * loud — a button reading "(415) 234-3083" while the href carries a different
+ * number is the exact failure this module is shaped to prevent.
+ *
+ * Mirrors the backend's fmtPhone_. Anything that is not a +1 ten-digit number
+ * is returned as it came in: an unexpected shape is better shown raw than
+ * reformatted into something that looks authoritative and is wrong.
+ */
+export function prettyNumber(to: string | null | undefined): string {
+  const n = normalizeNumber(to);
+  const m = n.match(/^\+1(\d{3})(\d{3})(\d{4})$/);
+  return m ? `(${m[1]}) ${m[2]}-${m[3]}` : n;
+}
+
+/**
  * Deep links are mobile-only. On desktop the scheme silently does nothing, which
  * reads as a dead button — so callers show the `tel:` fallback there instead.
  * Coarse on purpose: a false negative costs the business caller ID, a false

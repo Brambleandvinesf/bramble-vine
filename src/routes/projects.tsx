@@ -357,6 +357,89 @@ function ProjectsPage() {
     [editing, cancelEdit, enqueue, firePost, markSync, showToast],
   );
 
+  /* CC-10 Item 4 — ADD ITEM ON THE PROJECT EDIT SCREEN.
+     The New Project modal has had "+ ADD ITEM" since it was built; the EDIT
+     form never did, so the only way to put an item on an existing project was
+     to delete it and recreate it, or hand-edit Project Tools & Materials.
+
+     Deliberately NOT part of the edit DRAFT. Everything else in EditForm is
+     staged locally and written on SAVE via one editProject call; items go
+     through their own already-deployed addItems / removeItem actions and are
+     therefore written IMMEDIATELY. Folding them into the draft would mean
+     inventing a per-item diff on save and would make CANCEL silently discard
+     items the user watched appear — the confusing half of both worlds. The
+     header on the section says so on screen.
+
+     OPTIMISTIC-WRITE RULE (VV): the list updates before the server answers and
+     rolls back on failure, exactly like createProject and deleteProject above.
+     There is no poll on this screen to fight, so no cache seeding is needed. */
+  const addItemToProject = useCallback(
+    (p: Project, picked: NewItem) => {
+      const name = picked.name.trim();
+      if (!name) return;
+      /* Real rows carry a Material ID from the sheet; this temporary one only
+         has to be unique within the list so React keys and the rollback filter
+         can find it again. */
+      const tempId = `__item__${Date.now()}`;
+      const optimistic: ToolRow = {
+        row: 0,
+        client: p.client,
+        projectId: p.projectId,
+        name,
+        qty: picked.qty.trim(),
+        size: picked.size.trim(),
+        notes: picked.notes.trim(),
+        loaded: "",
+        materialId: tempId,
+      };
+      setTools((prev) => [...prev, optimistic]);
+      markSync(p.projectId, true);
+      void enqueue(p.projectId, async () => {
+        try {
+          await firePost({
+            action: "addItems",
+            client: p.client,
+            projectId: p.projectId,
+            items: [{ name, qty: optimistic.qty, size: optimistic.size, notes: optimistic.notes }],
+          });
+        } catch {
+          setTools((prev) => prev.filter((t) => t.materialId !== tempId));
+          showToast(`Couldn't add "${name}" — removed again`, true);
+        } finally {
+          markSync(p.projectId, false);
+        }
+      });
+    },
+    [enqueue, firePost, markSync, showToast],
+  );
+
+  const removeItemFromProject = useCallback(
+    (p: Project, item: ToolRow) => {
+      const snapshot = item;
+      setTools((prev) => prev.filter((t) => t !== item));
+      markSync(p.projectId, true);
+      void enqueue(p.projectId, async () => {
+        try {
+          /* Client-scoped, and qty/size sent so two different pills with the
+             same name delete the right row — removeItem narrows on exactly
+             these and deletes ONE row per call. */
+          await firePost({
+            action: "removeItem",
+            client: p.client,
+            projectId: p.projectId,
+            item: { name: item.name, qty: item.qty, size: item.size },
+          });
+        } catch {
+          setTools((prev) => [...prev, snapshot]);
+          showToast(`Couldn't remove "${item.name}" — put back`, true);
+        } finally {
+          markSync(p.projectId, false);
+        }
+      });
+    },
+    [enqueue, firePost, markSync, showToast],
+  );
+
   const deleteProject = useCallback(
     async (p: Project) => {
       if (!p.projectId) return;
@@ -597,6 +680,9 @@ function ProjectsPage() {
                             draft={draft}
                             gardenOptions={gardenOptions}
                             categoryOptions={categoryOptions}
+                            items={items}
+                            onAddItem={(picked) => addItemToProject(p, picked)}
+                            onRemoveItem={(item) => removeItemFromProject(p, item)}
                             onChange={(patch) => patchEdit(p.projectId, patch)}
                             onSave={() => saveEdit(p)}
                             onCancel={() => cancelEdit(p.projectId)}
@@ -745,6 +831,9 @@ function EditForm({
   draft,
   gardenOptions,
   categoryOptions,
+  items,
+  onAddItem,
+  onRemoveItem,
   onChange,
   onSave,
   onCancel,
@@ -753,11 +842,16 @@ function EditForm({
   draft: EditDraft;
   gardenOptions: string[];
   categoryOptions: string[];
+  /** CC-10 Item 4: this project's existing Tools & Materials rows. */
+  items: ToolRow[];
+  onAddItem: (picked: NewItem) => void;
+  onRemoveItem: (item: ToolRow) => void;
   onChange: (patch: Partial<EditDraft>) => void;
   onSave: () => void;
   onCancel: () => void;
   saving: boolean;
 }) {
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
   return (
     <div>
       <label style={LABEL}>Action</label>
@@ -803,6 +897,68 @@ function EditForm({
         onChange={(e) => onChange({ notes: e.target.value })}
         style={{ ...INPUT, minHeight: 60, resize: "vertical" }}
       />
+
+      {/* CC-10 Item 4 — ADD ITEM, the thing this form has never had. Same
+          ItemPicker as the New Project modal and the Confirm Load screen, so
+          names still come verbatim from the catalog and the vocabulary cannot
+          fragment. */}
+      <label style={LABEL}>Items</label>
+      <div style={{ color: MUTED, fontSize: 10, marginTop: -4, marginBottom: 6 }}>
+        saved immediately — not part of SAVE or CANCEL
+      </div>
+      {items.length === 0 && (
+        <div style={{ color: MUTED, fontSize: 11, marginBottom: 6 }}>No items on this project.</div>
+      )}
+      {items.map((it) => (
+        <div
+          key={it.materialId || it.row}
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "flex-start",
+            marginBottom: 6,
+            padding: "8px 10px",
+            border: `1px solid ${LINE}`,
+            borderRadius: 6,
+            background: "#0a0a0a",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: LIME, fontSize: 12, fontWeight: "bold", wordBreak: "break-word" }}>
+              {it.name}
+            </div>
+            <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+              {[it.qty && `Qty ${it.qty}`, it.size, it.notes].filter(Boolean).join(" · ") || "—"}
+            </div>
+          </div>
+          <button
+            style={{ ...GHOST_BTN_SM, color: RED, borderColor: RED, minWidth: 44 }}
+            onClick={() => onRemoveItem(it)}
+            disabled={saving}
+            aria-label={`Remove ${it.name}`}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <button
+        style={{ ...GHOST_BTN_SM, marginTop: 4 }}
+        onClick={() => setItemPickerOpen(true)}
+        disabled={saving}
+      >
+        + ADD ITEM
+      </button>
+
+      {itemPickerOpen && (
+        <ItemPicker
+          onCancel={() => setItemPickerOpen(false)}
+          onAdd={(picked) => {
+            onAddItem(picked);
+            setItemPickerOpen(false);
+          }}
+        />
+      )}
+
       <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
         <button style={SOLID_BTN_SM} onClick={onSave} disabled={saving}>
           {saving ? "SAVING…" : "SAVE"}
