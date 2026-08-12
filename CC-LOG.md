@@ -14,6 +14,71 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-13 — 2026-08-12
+
+**Sent:** Item 17 CLOSED. Item 15 Parts A (routing leak) + B (post-decision
+state), read the spine's node-tap resolution first. Item 16 GO AHEAD (bust the
+approval cache, deploy). Item 18 GO AHEAD (getProjects source, confirm Crossed
+first). Item 21 — resolveLineDebug ALREADY RUN, quoLines_() returns the full
+5-line array, so CC-12's leading theory is ruled out; move to ledger/spam.
+Items 20/21 possible shared cause — 29× `Failed to fetch at sw.js:32:21` plus a
+live Chrome "Page Unresponsive" on Confirm Daily Load; read sw.js:32.
+
+**Response to CC-13:** v7.4.86 @273 deployed. Frontend pushed. Outcomes:
+
+- **Items 20 + 21 ARE ONE BUG, and it is sw.js. FIXED.**
+  `public/sw.js` had `event.respondWith(fetch(event.request))` — column 21 of
+  line 32 is exactly `fetch(event.request)`, matching the reported error to the
+  character. A blanket intercept of every request with no catch. When that fetch
+  rejects, respondWith hands the PAGE a network error, so the app's own fetch
+  rejects even when the server answered 200 — `loadInbox()` throws, `safeLoad()`
+  catches, `setFeedError(true)`, and the screen prints "Couldn't reach the inbox".
+  That is why getInbox measured HTTP 200 with valid JSON while the app said it
+  could not be reached. With five pollers, one network blip produced the burst of
+  29, and the rejected-promise churn is what Chrome's Page Unresponsive dialog
+  reacted to. Fix: the handler stays (installability) but no longer calls
+  respondWith. A `.catch()` was rejected — it would silence the console and still
+  hand the page a failed response.
+- **Item 21 SERVER HALF — CC-12's theory was WRONG; the real chain is `/messages`
+  400 + the done-ledger.** quoLines_ is healthy (your 5-line array). What is
+  actually happening: `GET /messages` returns **HTTP 400** (proved via
+  getQuoThread → "Quo fetch failed (400)"), so quoFeed_'s per-conversation fetch
+  leaves `last = null`; the re-open rule requires a non-null INCOMING `last`
+  newer than the stamp, so it can never be satisfied; and **10 of 10 recent
+  conversations are stamped done — 6 of 6 on info@'s own line PN3jOsOBcd**,
+  several stamped BEFORE their latest activity. Every conversation is therefore
+  dropped unconditionally. getSearch still shows Quo because it reads
+  `c.messages` off the LIST payload and never calls `/messages` — which is also
+  why all its snippets were empty, a clue that was visible in CC-12 and not
+  followed up. No fix written (comms path, not approved).
+- **Item 16 — DEPLOYED v7.4.86 @273.** `badgeCountBust_('approval')` added at the
+  two other points that move the same numbers, on the same condition
+  approveThrough uses: punchEdit's confirmed-and-not-partial branch (which is
+  where the `jobcode_id` client-switch write lands) and punchDelete's past-the-
+  read-back branch. Stale-copy check ran first — clasp pull diffed identical.
+  Three real call sites now (5405/5563/5704). Dry runs of both actions answer
+  correctly post-deploy; the bust itself needs a real write to exercise.
+- **Item 18 — FIXED, frontend only.** getProjects DOES carry raw `Crossed` and
+  `Type`. It does not carry derived `crossedActive` — but that is read in exactly
+  ONE frontend place (StateVisit's struck-through cards) and StateDebrief never
+  touches it, so nothing was lost and no client-side copy of `crossActive_` was
+  needed. Projects/tools now come from getProjects (all clients) with employees
+  still from getField, fired together via Promise.allSettled so each degrades
+  independently.
+- **Item 15 — PART A WAS ALREADY CORRECT; Part B built.** The spine passes the
+  TAPPED node's subStep (`onTap(subStep)` → `routeFor` → `hqScreenFor`), and
+  hqScreenFor maps dailyload_confirm → /schedule. XX-06(c) already fixed the
+  two-disagreeing-route-maps bug. So the node always resolves to /schedule
+  and needed no change; the two navigate-to-/confirm calls are legitimate forward
+  motion after answering, not the node's resolution. The real gap was Part B: with
+  `confirmed === true` the gate card stops rendering and the assistant's waiting
+  card is gated `confirmed === false`, so there was NO post-decision state on the
+  screen for anyone. Added a resolved card reading CONFIRM_STATE.needsLoad via
+  getConfirm — the existing flag, not a new one — showing "✓ Yes — Daily Load" or
+  "✓ No — Daily Load", steady lime, not tappable.
+
+---
+
 ## CC-12 — 2026-08-12
 
 **Sent:** Item 17 CLOSED (route-driven by design, confirmed). Item 21 narrowed —

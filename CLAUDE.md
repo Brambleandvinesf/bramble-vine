@@ -804,6 +804,29 @@ LINE" while handing back a `tel:` href. Sites: the client-name tap panel
   `tel:` branch. The openphone:// path needs a phone.
 - Never on a vendor or break stop — there is no client to call.
 
+## sw.js MUST NOT CALL respondWith (CC-13, 8/12) — IT BROKE THE APP FOR MONTHS
+`public/sw.js` had `event.respondWith(fetch(event.request))` — a blanket intercept
+of every request, no catch. It is the single cause of BOTH:
+- `Uncaught (in promise) TypeError: Failed to fetch at sw.js:32:21` (column 21 of
+  that line was exactly `fetch(event.request)`), seen 29 times in a burst; and
+- **"Couldn't reach the inbox — check connection and Reload" while getInbox was
+  measurably returning HTTP 200.** respondWith answers the PAGE with a network
+  error when its fetch rejects, so `loadInbox()` threw, `safeLoad()` caught, and
+  `setFeedError(true)` fired. The failure was never server-side.
+With five pollers via usePoll, one bad network moment produced a burst of rejected
+promises — which is what Chrome's "Page Unresponsive" dialog was reacting to. So
+the freeze and the inbox error were ONE bug, not two.
+**The handler now exists but does NOT call respondWith.** Presence alone satisfies
+Chrome's installability requirement — respondWith was never needed for it. Not
+intercepting means the browser does its own default networking, as if no service
+worker existed. A `.catch()` was deliberately rejected: it would silence the
+console but still hand the page a failed response, so the inbox would keep
+reporting it could not be reached. **The interception is the defect.** Do not
+reintroduce respondWith without a real caching strategy, a catch AND a fallback
+Response. Bumped to `v4-2026-08-12`; skipWaiting + clients.claim were already
+there, so it self-activates. **A service worker is cached hard — this only takes
+effect after a PUBLISH plus a reload.**
+
 ## THE MESSAGE INBOX IS A UNIFIED FEED — SPEC, NOT A PREFERENCE (CC-11, 8/11)
 **Brandon's clarification, recorded because the code currently contradicts it.**
 The Message Center was ALWAYS meant to show **Quo conversations AND Gmail threads
@@ -831,7 +854,44 @@ Fixing the spec means giving every role the `gmail` token (and, if the QUO_FEEDS
 Script Property is ever set, carrying it forward there too — that property
 REPLACES the whole map, the same trap as QBO_BILLING_GROUPS).
 
-## THE EMPTY QUO FEED IS `quoLines_()`, NOT THE KEY OR THE LINE MAP (CC-12, 8/12)
+## THE EMPTY QUO FEED: `/messages` 400s, SO THE DONE-LEDGER CAN NEVER RE-OPEN
+## ANYTHING (CC-13, 8/12 — SUPERSEDES THE CC-12 CONCLUSION BELOW)
+**The CC-12 theory below ("quoLines_() is returning []") is WRONG and is kept only
+so nobody re-derives it.** `resolveLineDebug()` printed the full 5-line array,
+including `PNlPSiCQj9 -> +16507105061`. quoLines_ is healthy.
+
+THE ACTUAL CHAIN, every link measured:
+1. **`GET /messages` returns HTTP 400.** Proved via `getQuoThread`, which answered
+   `Quo fetch failed (400)`. `/conversations` (200, real data) and
+   `/phone-numbers` (5 lines) both work — so this is ONE broken endpoint, not the
+   key, the scope, the account or the balance.
+2. `quoFeed_` fetches the newest message per conversation from `/messages`
+   (`?phoneNumberId=…&maxResults=1&participants[]=…`) via `UrlFetchApp.fetchAll`.
+   On a non-200 it sets `last = null` — silently, by design.
+3. The re-open rule is
+   `if (doneAt && !(last && last.direction === 'incoming' && last.createdAt > doneAt)) return null;`
+   With `last` permanently null, **that condition can never be satisfied**, so
+   every conversation carrying a done-stamp is dropped unconditionally.
+4. **Every conversation is stamped.** Cross-referenced live: 10 of 10 recent
+   conversations are in `QUO_DONE_IDS` (135 stamps), including **6 of 6 on
+   PN3jOsOBcd**, info@'s own line — several stamped BEFORE their latest activity
+   (one active 8/11 17:22Z, stamped 8/10 18:46Z), i.e. exactly the conversations
+   the re-open rule exists to bring back.
+5. Net: the Quo half of the inbox is empty for every role, including `viewAll=1`.
+
+WHY getSearch STILL SHOWS QUO DATA (the tell, once again): it reads
+`(c.messages || [])` off the `/conversations` LIST payload and never calls
+`/messages` — which is also why every getSearch snippet is `''`. Empty snippets
+were visible in CC-12 and were the clue that `/messages` was already broken.
+FIX HAS TWO INDEPENDENT HALVES, neither written yet:
+- Repair the `/messages` call (suspect the param shape — `participants[]` with
+  `phoneNumberId`; `maxResults` is fine on `/conversations`).
+- **Make the re-open check FAIL OPEN when `last` is null.** A thread must not be
+  hidden because a secondary read failed — same principle as
+  `debriefAlreadyInvoiced_` failing open. This is the load-bearing half: it makes
+  the feed robust to `/messages` breaking again.
+
+## (SUPERSEDED, KEPT FOR THE RULED-OUT LIST) CC-12's quoLines_ theory (8/12)
 Narrowed by elimination against live data. **Do not re-litigate the ruled-out
 theories.**
 RULED OUT, with evidence:

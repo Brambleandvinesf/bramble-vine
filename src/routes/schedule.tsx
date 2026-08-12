@@ -239,6 +239,14 @@ function SchedulePage() {
     void navigate({ to: "/confirm" });
   }, [effectiveRole, dayState?.subStep, dayState?.crewCount, navigate]);
   const [confirmed, setConfirmed] = useState<boolean | null>(null);
+  /* CC-13 Item 15 Part B: WHICH way the Daily Load question was answered.
+     Read from CONFIRM_STATE.needsLoad via getConfirm — the flag confirmDay and
+     confirmBaseLoad already write. Deliberately NOT a new flag: the decision is
+     already recorded server-side and cross-device, and a second local copy could
+     disagree with it. Note the backend's own caveat — needsLoad is only
+     MEANINGFUL when confirmed === true (confirmGet_ defaults it to true when
+     absent), so it is never read unless confirmed. */
+  const [needsLoad, setNeedsLoad] = useState<boolean | null>(null);
   const confirmSeenRef = useRef(false);
   const [baseLoadDismissed, setBaseLoadDismissed] = useState(false);
   const [baseLoadSubmitting, setBaseLoadSubmitting] = useState(false);
@@ -250,9 +258,12 @@ function SchedulePage() {
       try {
         const r = await fetch(`${SCRIPT_URL}?action=getConfirm`);
         if (!r.ok) return;
-        const j = (await r.json()) as { state?: { confirmed?: boolean } };
+        const j = (await r.json()) as {
+          state?: { confirmed?: boolean; needsLoad?: boolean };
+        };
         if (cancelled) return;
         setConfirmed(!!j.state?.confirmed);
+        if (typeof j.state?.needsLoad === "boolean") setNeedsLoad(j.state.needsLoad);
       } catch { /* noop */ }
     };
     tick();
@@ -284,6 +295,9 @@ function SchedulePage() {
       const j = (await res.json()) as { ok?: boolean; error?: string; state?: { confirmed?: boolean } };
       if (!j.ok) throw new Error(j.error || "not ok");
       if (j.state?.confirmed) setConfirmed(true);
+      /* Part B: pin the answer locally so the resolved card is right immediately
+         rather than after the next 10s getConfirm tick. The poll reconciles it. */
+      setNeedsLoad(true);
       setBaseLoadFlash("DAILY LOAD CONFIRMED — CREW NOTIFIED");
       if (reviewable === false) {
         // Nothing to review today — the special gate is vacuous, and since
@@ -330,6 +344,8 @@ function SchedulePage() {
       const j = (await res.json()) as { ok?: boolean; error?: string };
       if (!j.ok) throw new Error(j.error || "not ok");
       setConfirmed(true);
+      /* Part B: same as the yes path — pin the answer for the resolved card. */
+      setNeedsLoad(false);
 
       /* Crew notification is best-effort — the decision is already recorded,
          so a failed text can no longer strand anyone on the waiting screen. */
@@ -654,6 +670,61 @@ function SchedulePage() {
           >
             REVIEW TODAY'S PROJECTS →
           </Link>
+        </div>
+      )}
+
+      {/* CC-13 Item 15 Part B — THE RESOLVED STATE.
+          Until now, once the Y/N was answered `confirmed` flipped true, the gate
+          card above stopped rendering, and Lead/management navigating BACK to the
+          Confirm Daily Load node saw nothing at all about it — the assistant's
+          waiting card below is gated `confirmed === false`, so there was simply
+          no post-decision state on this screen for anyone. That absence is what
+          made the node feel like it had fallen through to the wrong screen.
+          Reads CONFIRM_STATE.needsLoad (via getConfirm), never a new flag, so
+          every device shows the same answer. Steady lime = a settled, completed
+          state, matching the spine's own vocabulary; no re-prompt, and nothing
+          here is tappable, because the decision has already been recorded and
+          re-answering it is not this card's job. */}
+      {isLeadOrMgmt && confirmed === true && needsLoad !== null && (
+        <div
+          style={{
+            background: PANEL,
+            border: `1px solid ${LIME}`,
+            borderRadius: 12,
+            padding: "16px 18px",
+            marginBottom: 16,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ color: DIM_GREEN, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" }}>
+            Daily Load — answered
+          </div>
+          <div
+            style={{
+              color: LIME,
+              fontSize: 18,
+              fontWeight: "bold",
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              marginTop: 8,
+            }}
+          >
+            {needsLoad ? "✓ Yes — Daily Load" : "✓ No — Daily Load"}
+          </div>
+          <div
+            style={{
+              color: DIM_GREEN,
+              fontSize: 12,
+              marginTop: 8,
+              letterSpacing: 1,
+              fontWeight: "normal",
+              textTransform: "none",
+            }}
+          >
+            {needsLoad
+              ? "The usual daily load is going out today. Crew notified."
+              : "Loading is different today — crew told to see the lead. Crew notified."}
+          </div>
         </div>
       )}
 

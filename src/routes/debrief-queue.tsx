@@ -165,18 +165,53 @@ function DebriefQueuePage() {
     if (allowed) void load();
   }, [allowed, load]);
 
-  /* Projects/tools/employees come from getField exactly as the live flow gets
-     them — one read, reused for whichever entry is opened. */
+  /* CC-13 Item 18 — PROJECTS MUST NOT COME FROM getField HERE.
+     getField TRIMS projects and tools to TODAY'S clients:
+         projs = CP_TAB.filter(p => todays.indexOf(p['Client Name']) >= 0)
+     That is right for the live flow, which only ever stands on today's route,
+     and wrong for this screen, whose entire purpose is reaching visits that
+     ALREADY HAPPENED. Any queue entry for a client not on today's route arrived
+     at StateDebrief with an empty projects list, so "Projects Completed" —
+     including the Special projects — rendered blank. Measured: 14 of the 15 rows
+     currently in the queue are past dates, so this was nearly the whole screen.
+
+     getProjects returns EVERY client's rows from the same two tabs, so the
+     Projects Completed step behaves as it does in visit mode.
+
+     WHAT IS NOT LOST: getField also computes `crossedActive` per response, which
+     getProjects does not carry. Checked before switching — crossedActive is read
+     in exactly ONE place in the frontend (StateVisit's struck-through cards) and
+     StateDebrief never touches it. So nothing here needs it, and deriving it
+     client-side would have meant a second copy of the backend's crossActive_
+     rule — the twin-rule trap that produced the 30-vs-1 receipts badge.
+
+     employees STILL comes from getField: getProjects does not return it, and the
+     Hours step's person picker needs it. Both reads are fired together and the
+     screen degrades independently — a failed getProjects loses the project
+     pickers, a failed getField loses the employee list, and neither blocks the
+     debrief itself. */
   useEffect(() => {
     if (!allowed) return;
     void (async () => {
-      try {
-        const r = await fetch(`${SCRIPT_URL}?action=getField`);
-        const j = (await r.json().catch(() => ({}))) as Fieldish;
-        setFieldish(j ?? {});
-      } catch {
-        /* the debrief still works without the pickers pre-filled */
+      const [projRes, fieldRes] = await Promise.allSettled([
+        fetch(`${SCRIPT_URL}?action=getProjects`).then((r) => r.json()),
+        fetch(`${SCRIPT_URL}?action=getField`).then((r) => r.json()),
+      ]);
+      const next: Fieldish = {};
+      if (projRes.status === "fulfilled") {
+        const p = (projRes.value ?? {}) as Fieldish;
+        if (Array.isArray(p.projects)) next.projects = p.projects;
+        if (Array.isArray(p.tools)) next.tools = p.tools;
       }
+      if (fieldRes.status === "fulfilled") {
+        const f = (fieldRes.value ?? {}) as Fieldish;
+        if (Array.isArray(f.employees)) next.employees = f.employees;
+        /* Fallback only: if getProjects failed, today's trimmed set still beats
+           nothing at all for a queue entry that IS on today's route. */
+        if (!next.projects && Array.isArray(f.projects)) next.projects = f.projects;
+        if (!next.tools && Array.isArray(f.tools)) next.tools = f.tools;
+      }
+      setFieldish(next);
     })();
   }, [allowed]);
 
