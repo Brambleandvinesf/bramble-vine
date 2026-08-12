@@ -224,12 +224,31 @@ function VisitsPage() {
      flash up and disappear. */
   const anyRows = (rows ?? []).length > 0;
   const draftingProducedNothing = rows !== null && !anyRows;
-  const gateOpen = !yesThisWeek(lastYes) || draftingProducedNothing;
+  /* CC-19 Item 23: `suppressGate` and `forceGate` were SET in three places and
+     never READ — gateOpen ignored both, so the local dismissal this screen was
+     built to have simply did not exist. Now wired, per the VV optimistic-write
+     rule: the tap closes the gate on THIS device immediately, and the server
+     stamp reconciles it on the next poll for every other device.
+     ORDER MATTERS. `forceGate` (the ?gate=1 URL override) wins outright — it is
+     the manual way back IN, and a suppressed gate must not be able to lock it
+     out. Otherwise a local suppression closes the gate, and failing that the two
+     server-derived facts decide as before.
+     WHAT suppressGate MUST NOT DO, and this is why it is not simply set
+     everywhere it used to be: it is now only raised on the path where pending
+     rows were actually OBSERVED. Raising it when drafting produced NOTHING would
+     close the gate and take the retry button with it — precisely the 8/6 lockout
+     that `draftingProducedNothing` exists to prevent. See onYes. */
+  const gateOpen =
+    forceGate || (!suppressGate && (!yesThisWeek(lastYes) || draftingProducedNothing));
 
   const onReload = useCallback(async () => {
     setReloading(true);
     setLoadErr(null);
-    setSuppressGate(true);
+    /* CC-19: does NOT suppress the gate any more. That was harmless while
+       suppressGate was unread, but now that it is wired it would mean a manual
+       RELOAD closes a legitimately-open gate — hiding the YES button for the rest
+       of the week on a device that has not confirmed anything. Clearing forceGate
+       stays: an explicit reload should drop the ?gate=1 override. */
     setForceGate(false);
     try {
       await loadQueue();
@@ -283,6 +302,10 @@ function VisitsPage() {
           setYesBusy(false);
           setYesStatus("");
           setForceGate(false);
+          /* CC-19: THE optimistic close, and the only place that raises this.
+             Pending rows were actually observed, so the draft demonstrably landed
+             and the gate has done its job on this device. The server's lastYes
+             stamp closes it everywhere else on the next poll. */
           setSuppressGate(true);
           return;
         }
@@ -293,7 +316,11 @@ function VisitsPage() {
         setYesStatus("Still drafting — tap Reload in a moment.");
         setYesBusy(false);
         setForceGate(false);
-        setSuppressGate(true);
+        /* CC-19: deliberately does NOT suppress the gate. Reaching here means
+           three minutes passed with NO pending rows, i.e. drafting produced
+           nothing — the exact case the retry must survive. Closing the gate here
+           would recreate the 8/6 lockout: queue emptied, nothing drafted, and the
+           way to try again gone until next week. The gate stays up on purpose. */
         return;
       }
       setTimeout(() => void poll(), 5000);

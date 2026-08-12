@@ -865,8 +865,33 @@ thornsandtendrils@ is a SHARED phone passed between crew mid-shift, and the Gmai
 half is the company mailbox — client threads, invoices, business correspondence.
 Do not "tidy" this into symmetry.
 
-## `lastYes` IS ORPHANED — THE VISIT-CONFIRMATION GATE CAN NEVER CLOSE
-## (CC-18, 8/12 — FOUND, NOT YET FIXED)
+## THE WEEKLY YES GATE WROTE `LAST_YES` AND READ `lastYes` (CC-19, 8/12)
+**One word. Script Property keys are CASE-SENSITIVE.** `draftVisitQueue` stamped
+`LAST_YES`; both readers — getQueue and getInbox — read `lastYes`. So the stamp
+landed in a key nothing consults, and `lastYes` stayed frozen at the last
+Make-era value. PROVEN from live properties on 8/12:
+```
+  lastYes  = 2026-08-06T22:30:07.036Z   <- last clearQueue-era run
+  LAST_YES = 2026-08-12T18:48:04.688Z   <- Brandon's YES that afternoon
+```
+`gateOpen = !yesThisWeek(lastYes) || …` was therefore permanently TRUE, the
+overlay could never dismiss, and it covered **7 successfully drafted client
+confirmation texts**. The drafting was never broken — only the acknowledgement.
+Fixed in v7.4.90 (key renamed; position unchanged, so it still cannot stamp
+against an empty tab the way Make's stamp-first ordering could).
+**⚠ THE ACTION AUDIT CANNOT SEE THIS CLASS.** `scripts/audit-actions.mjs` checks
+that POSTED KEYS are read by a handler. Nothing checks that a Script Property
+WRITTEN by one action is spelled the same as the one READ by another. Same shape
+as the receipts badge disagreeing over 'Final designation' vs
+'Final Designation', and as `participants[]` vs `participants`. **When a feature
+"does nothing", compare the exact spelling of the key on both sides before
+theorising about logic.**
+Also: `clearQueue` is the OTHER `lastYes` writer and is DEAD — nothing in the app
+calls it (it is in every audit run's "handlers the app never calls" list). It was
+Make's first step. Do not read it as the current source; it is annotated in place.
+
+## (SUPERSEDED by the above — the mechanism was a key typo, not a missing stamp)
+## CC-18's "`lastYes` is orphaned" reading
 `visits.tsx`'s weekly gate ("Is next week's schedule ready?") is
 `gateOpen = !yesThisWeek(lastYes) || draftingProducedNothing`.
 **`lastYes` is written in exactly ONE place in Code.js: inside the `clearQueue`

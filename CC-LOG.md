@@ -14,6 +14,60 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-19 — 2026-08-12
+
+**Sent:** Item 23 both halves approved. Backend — stamp `lastYes` inside
+draftVisitQueue on a confirmed non-dry draft, after rows land, and annotate
+clearQueue's dead stamp. Frontend — wire suppressGate/forceGate into gateOpen per
+the VV rule. Report the exact backend diff before deploying, then pause. After
+deploy, remind Brandon the 7 pending rows may target a stale week.
+
+**Response to CC-19:** frontend FIXED and pushed. Backend v7.4.90 STAGED, diff
+reported, **NOT deployed** — paused for go-ahead per the standing rule.
+
+- **MY CC-18 DIAGNOSIS WAS RIGHT ABOUT THE EFFECT AND WRONG ABOUT THE MECHANISM,
+  and the mechanism changed the fix.** I said nothing stamps `lastYes` any more.
+  In fact `draftVisitQueue` ALREADY stamps it — in exactly the right place, after
+  the rows land and the prior ones are cleared, with the comment "Same stamp
+  clearQueue sets, so the YES gate reflects a real draft." **It just writes
+  `LAST_YES` while both readers read `lastYes`.** Script Property keys are
+  case-sensitive.
+  PROVEN from live properties rather than inferred:
+      lastYes  = 2026-08-06T22:30:07.036Z   (last Make-era run)
+      LAST_YES = 2026-08-12T18:48:04.688Z   (Brandon's YES that afternoon)
+  So the YES press worked, the 7 texts drafted, and the acknowledgement went into
+  a key nothing consults. The fix is ONE WORD, not a new stamp.
+- **Backend diff (staged):** `setProperty('LAST_YES', …)` -> `setProperty('lastYes', …)`,
+  position unchanged so it still cannot stamp against an empty tab (the protection
+  Make lacked); the new timestamp is also echoed as `result.lastYes` so a caller
+  can see what landed. Plus the clearQueue annotation marking it as no longer the
+  live writer. All four `lastYes` sites now agree; no `LAST_YES` remains.
+- **Frontend (pushed):** wired both flags. `gateOpen = forceGate || (!suppressGate
+  && (!yesThisWeek(lastYes) || draftingProducedNothing))`. `forceGate` turns out
+  NOT to be vestigial — it is set by a `?gate=1` URL override, so it wins outright
+  as the manual way back in.
+  **Two of the three old setSuppressGate(true) calls had to GO, or wiring them
+  would have introduced a worse bug than it fixed:**
+    · onReload — would close a legitimately-open gate on any manual reload,
+      hiding YES for the rest of the week on a device that confirmed nothing.
+    · the 36-try timeout — reaching it means drafting produced NOTHING, which is
+      exactly the case the retry must survive. Suppressing there recreates the 8/6
+      lockout that `draftingProducedNothing` exists to prevent.
+  Kept only on the observed-rows success path, which is the genuine optimistic
+  close. Also note my CC-18 grep missed the setters because they are spelled
+  `setSuppressGate` (capital S) — the finding held, but the grep was luckier than
+  it was careful.
+- **Recorded a real gap in our tooling:** `scripts/audit-actions.mjs` checks that
+  POSTED keys are read by a handler, but nothing checks that a Script Property
+  written by one action is spelled the same as the one read by another. Third bug
+  of this exact shape now (this, the receipts badge's 'Final designation' vs
+  'Final Designation', and `participants[]` vs `participants`). CLAUDE.md now says:
+  when a feature "does nothing", compare the exact spelling on both sides before
+  theorising about logic.
+- Verified: node --check clean, tsc 0 errors, vite build exit 0.
+
+---
+
 ## CC-18 — 2026-08-12
 
 **Sent:** Item 22 REVISED — revert brandon@ and angel@ to Quo-only; Gmail stays
