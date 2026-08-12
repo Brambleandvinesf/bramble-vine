@@ -22,8 +22,31 @@ clearQueue's dead stamp. Frontend — wire suppressGate/forceGate into gateOpen 
 the VV rule. Report the exact backend diff before deploying, then pause. After
 deploy, remind Brandon the 7 pending rows may target a stale week.
 
-**Response to CC-19:** frontend FIXED and pushed. Backend v7.4.90 STAGED, diff
-reported, **NOT deployed** — paused for go-ahead per the standing rule.
+**Response to CC-19:** frontend FIXED and pushed. Backend v7.4.90 staged, diff
+reported, then **DEPLOYED @277 on Brandon's go-ahead** later in the same batch.
+
+**Deploy addendum (@277):**
+- **My own stale-copy check caught a flaw in itself.** Comparing remote HEAD to
+  LOCAL after staging always "differs" — the staged patch is the difference. It
+  aborted the deploy correctly but for the wrong reason. The right comparison is
+  HEAD against the PRE-PATCH BACKUP, which came back identical: no other writer,
+  the only delta was my patch. Worth remembering: after staging, diff HEAD against
+  `Code.js.bak.<batch>.*`, never against the working copy.
+- **Verified with a DRY RUN** (dryRun defaults true — wrote nothing, cleared
+  nothing; the 7 existing rows were still there afterwards):
+  `ok=true dryRun=true weekOf=2026-08-17 through=2026-08-21`, eventsFound 14,
+  wouldDraft 7, skipped 7 — Susan Cox, Susan Brilliant, Jim Heard, Lyne & Peter,
+  Karen Pak Oppenheimer, Jason & Ashley, Jill Backer.
+- **THE STALE-WEEK WORRY IS RESOLVED, not just flagged.** The 7 rows already in the
+  queue were drafted today, and a fresh dry run today targets the same
+  Mon 8/17–Fri 8/21. They are current, not stale.
+- **`lastYes` is STILL 2026-08-06 — the deploy does not retro-stamp.** The gate
+  stays open until the next YES press, which will now write the lowercase key and
+  close it everywhere.
+- **Caught a live YES press mid-batch:** `LAST_YES` moved 18:48:04Z -> 19:11:55Z
+  between two reads, while `lastYes` stayed at 8/06. So someone pressed YES at
+  ~12:11 PDT and it STILL wrote the orphaned key — i.e. it beat the deploy and ran
+  on @276. Not a new bug; useful confirmation of both the mechanism and the timing.
 
 - **MY CC-18 DIAGNOSIS WAS RIGHT ABOUT THE EFFECT AND WRONG ABOUT THE MECHANISM,
   and the mechanism changed the fix.** I said nothing stamps `lastYes` any more.
