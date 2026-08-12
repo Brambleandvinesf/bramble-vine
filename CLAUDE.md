@@ -831,6 +831,51 @@ Fixing the spec means giving every role the `gmail` token (and, if the QUO_FEEDS
 Script Property is ever set, carrying it forward there too — that property
 REPLACES the whole map, the same trap as QBO_BILLING_GROUPS).
 
+## THE EMPTY QUO FEED IS `quoLines_()`, NOT THE KEY OR THE LINE MAP (CC-12, 8/12)
+Narrowed by elimination against live data. **Do not re-litigate the ruled-out
+theories.**
+RULED OUT, with evidence:
+- Dead key / revoked scope / transport — `quoDebug()` returned HTTP 200 with real
+  conversation data.
+- **Line-ID mapping** (the leading theory going in) — `?viewAll=1` for brandon@
+  returned `viewingAll:true` and STILL 0 Quo items. viewAll sets tokens to
+  `['*','gmail']` so `wantAll` is true and per-line matching is bypassed
+  entirely. A wrong line id cannot survive that test.
+- The 7-day cutoff — 10 real conversations dated 2026-08-05 → 08-11, all inside it.
+- "No messages exist" — 10 conversations, **6 of them on PN3jOsOBcd**, which is
+  the office line info@ is configured for. info@ still got 0 Quo.
+- The done-ledger, as the whole story — QUO_DONE_IDS holds ~130 stamps whose
+  NEWEST is 2026-08-10T21:51Z, while the newest live conversation is
+  2026-08-11T17:22Z. That one is unstamped and still absent, so the ledger cannot
+  explain it. (It may still be over-suppressing older threads — see below.)
+WHAT IS LEFT, and it explains every observation at once: **`quoLines_()` is
+returning `[]`**, so `quoFeed_` hits `if (!lines.length) return [];` before line
+matching, the ledger, or anything else. That kills the Quo half for EVERY role
+including viewAll — which is exactly what is measured.
+**THE TWO TRAPS THAT HID THIS:**
+1. `quoPnId_()` returns the **QUO_PN_ID Script Property** when set (it is set:
+   `PN3jOsOBcd`) and only falls back to `/phone-numbers`. So `quoDebug`'s
+   "pnId resolved" proves the PROPERTY exists and says NOTHING about whether
+   `/phone-numbers` works. quoDebug never tested the failing endpoint.
+2. **`getSearch` works while `getInbox` does not, and that is the tell, not a
+   contradiction.** getSearch calls `quoFetch_('/conversations')` directly and
+   reads `phoneNumberId` raw — it never touches `quoLines_()`. getInbox goes
+   through `quoFeed_`, which does. Two different Quo endpoints:
+   `/conversations` (working) and `/phone-numbers` (suspect).
+CONFIRM IT IN ONE RUN: `resolveLineDebug()` in the editor busts the
+`quoLinesV1` cache and `Logger.log`s the whole `quoLines_()` array. **If it prints
+`[]`, that is the bug.** Then check `/phone-numbers` scope on the Quo API page.
+ALSO SETTLED, and it closes a question open since CC-03: **`QUO_FEEDS` is UNSET**
+(read via `snapshotProps`). So the DEFAULTS map in `quoFeedTokens_` is what is
+live, which confirms angel@/brandon@ get no `gmail` token by built-in default —
+not by a bad property. `VIEW_ALL_EMAILS` is also unset (brandon@ is the hardcoded
+default).
+WATCH, not yet a bug: v7.4.83 made `syncQuoDoneStatus` walk ALL pages of
+`status=done` with no cutoff (was page one only), every 5 minutes, so it can now
+stamp up to 1000 conversations where it previously saw ≤100 — capped to the 300
+newest. If Quo threads are routinely marked done, that suppresses far more from
+the app inbox than before. Re-check once `quoLines_()` is fixed.
+
 ## quoFeed_ RETURNS [] FIVE DIFFERENT WAYS, ALL SILENT (CC-11, 8/11)
 Read this before diagnosing an empty Quo feed again. `quoFeed_` answers `[]` for:
 1. `!quoKey_()` — no QUO_API_KEY Script Property

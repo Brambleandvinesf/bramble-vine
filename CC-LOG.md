@@ -14,6 +14,66 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-12 — 2026-08-12
+
+**Sent:** Item 17 CLOSED (route-driven by design, confirmed). Item 21 narrowed —
+quoDebug showed keyPresent true, pnId PN3jOsOBcd, /conversations HTTP 200 with
+real data; next step resolveLineDebug for Angel's and Brandon's line IDs, leading
+theory a stale/wrong line-ID mapping. Item 20 still blocked on the console error.
+Item 15 — build the "Get the Daily Load today?" Y/N gate for all roles except
+assistant and gate Special Loading to the 3rd HQ node only. Item 16 — check
+whether the client-switch write busts the 180s approval cache. Item 18 — confirm
+whether untrimmed `fieldish.projects` is the cause.
+
+**Response to CC-12:** diagnosis batch, NOTHING deployed, no code shipped. Three
+items root-caused decisively; Item 15's premise corrected rather than built. Key
+outcomes:
+
+- **Item 21 — THE LEADING THEORY IS WRONG, and the real one explains everything.**
+  Ruled out line-ID mapping with a single decisive test: `?viewAll=1` for brandon@
+  returned `viewingAll:true` and still **0 Quo items**. viewAll sets tokens to
+  `['*','gmail']`, so per-line matching is bypassed — a wrong line id cannot
+  survive that. Also ruled out: the 7-day cutoff (10 real conversations dated
+  8/05–8/11), "no messages exist" (6 of those 10 are on PN3jOsOBcd, info@'s own
+  configured line, and info@ still got 0 Quo), and the done-ledger as the whole
+  story (newest stamp 8/10 21:51Z vs newest conversation 8/11 17:22Z — unstamped
+  and still absent).
+  **What is left is `quoLines_()` returning `[]`**, which trips
+  `if (!lines.length) return [];` before anything else and kills the Quo half for
+  every role including viewAll.
+  TWO TRAPS HID THIS: (1) `quoPnId_()` returns the QUO_PN_ID **property** when set
+  — it is set — so quoDebug's "pnId resolved" never tested `/phone-numbers` at
+  all; (2) getSearch works while getInbox does not because getSearch calls
+  `/conversations` directly and never touches `quoLines_()`. Two different Quo
+  endpoints, only one of them suspect.
+  `resolveLineDebug()` confirms it in one run — it busts the cache and dumps the
+  array. If it prints `[]`, that is the bug.
+  ALSO SETTLED via snapshotProps, closing a question open since CC-03:
+  **QUO_FEEDS is UNSET**, so the DEFAULTS map is live and angel@/brandon@ really
+  do get no `gmail` token by built-in default. VIEW_ALL_EMAILS also unset.
+- **Item 16 — CONFIRMED, and it is exactly the missing cache bust.** The client
+  switch posts `punchEdit` (punch-edit.ts:78). `badgeCountBust_('approval')` is
+  called in exactly ONE place in Code.js — inside `approveThrough`. `punchEdit`
+  and `punchDelete` never call it, so after a successful save the screen re-reads
+  an `approvalQueueCached_` payload up to **180 seconds stale**. Not latency, not
+  a missing optimistic update: a missing invalidation. One-line backend fix each.
+- **Item 18 — CONFIRMED.** The queue passes `projects={fieldish.projects}` from a
+  plain getField call, and getField TRIMS projects to **today's clients**
+  (`todays.indexOf(p['Client Name']) >= 0`). The queue exists to reach PAST
+  visits, so any entry whose client is not on today's route gets an empty Projects
+  Completed — currently 14 of the 15 queue rows. getField also computes
+  `crossedActive` per response, which an untrimmed source would lack.
+- **Item 15 — THE GATE ALREADY EXISTS; building a second one would be a
+  duplicate.** schedule.tsx:540 already renders a Daily Load Y/N card — "Do we
+  need the usual daily load today?" — gated
+  `isLeadOrMgmt && teamsOk && confirmed === false && !baseLoadDismissed`, wired to
+  confirmDay / confirmBaseLoad. Lead is already included. The bug is that the card
+  is suppressed once `confirmed === true`, and both `submitBaseLoadNo` (line 366)
+  and the solo auto-nav (line 239) then `navigate({ to: "/confirm" })` — the
+  Special Loading screen. Reported instead of built, per ONE ACTION ONE HANDLER.
+
+---
+
 ## CC-11 — 2026-08-12
 
 **Sent:** Items 15 (Confirm Daily Load wrong screen for non-assistant roles),
