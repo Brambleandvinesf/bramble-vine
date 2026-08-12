@@ -4538,19 +4538,10 @@ export function StateDebrief({
       return [...rest, { projectId, status, notes }];
     });
   };
-  const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
-  const appendToProjectNotes = (text: string) => {
-    const pid = focusedProjectId;
-    if (!pid || !text.trim()) return;
-    setUpdates((cur) => {
-      const existing = cur.find((u) => u.projectId === pid);
-      const status = existing?.status ?? "IN PROGRESS";
-      const prev = existing?.notes ?? "";
-      const merged = prev ? `${prev}\n${text}` : text;
-      const rest = cur.filter((u) => u.projectId !== pid);
-      return [...rest, { projectId: pid, status, notes: merged }];
-    });
-  };
+  /* Lv01: focusedProjectId / appendToProjectNotes existed only to append a field
+     note into a project's Notes textarea. Both the textarea and the
+     "FIELD NOTES — TAP TO APPEND" panel are gone from this step. */
+
 
   const [itemsUsed, setItemsUsed] = useState<ItemUsed[]>(() =>
     itemNotes
