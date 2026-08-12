@@ -4519,7 +4519,7 @@ export function StateDebrief({
     [projects, clientMatch],
   );
 
-  const updateNotes = useMemo(() => notes.filter((n) => n.type === "update"), [notes]);
+  /* Lv01: `update` notes no longer have a destination on this step. */
   const itemNotes = useMemo(() => notes.filter((n) => n.type === "item"), [notes]);
   const futureNotes = useMemo(() => notes.filter((n) => n.type === "future"), [notes]);
   const officeNotes = useMemo(() => notes.filter((n) => n.type === "office"), [notes]);
@@ -4538,19 +4538,10 @@ export function StateDebrief({
       return [...rest, { projectId, status, notes }];
     });
   };
-  const [focusedProjectId, setFocusedProjectId] = useState<string | null>(null);
-  const appendToProjectNotes = (text: string) => {
-    const pid = focusedProjectId;
-    if (!pid || !text.trim()) return;
-    setUpdates((cur) => {
-      const existing = cur.find((u) => u.projectId === pid);
-      const status = existing?.status ?? "IN PROGRESS";
-      const prev = existing?.notes ?? "";
-      const merged = prev ? `${prev}\n${text}` : text;
-      const rest = cur.filter((u) => u.projectId !== pid);
-      return [...rest, { projectId: pid, status, notes: merged }];
-    });
-  };
+  /* Lv01: focusedProjectId / appendToProjectNotes existed only to append a field
+     note into a project's Notes textarea. Both the textarea and the
+     "FIELD NOTES — TAP TO APPEND" panel are gone from this step. */
+
 
   const [itemsUsed, setItemsUsed] = useState<ItemUsed[]>(() =>
     itemNotes
@@ -4651,25 +4642,9 @@ export function StateDebrief({
      step, which is the one place that owns work for a later visit. The sector
      picker went with it — it only ever applied to the follow-up branch. */
 
-  /* CC-10: how many photos each project already carries, so each button can say
-     so without a request per card. One read when the step opens. */
-  const [photoCounts, setPhotoCounts] = useState<Record<string, number>>({});
-  useEffect(() => {
-    if (currentKey !== "updates" || !clientMatch) return;
-    let gone = false;
-    void fetch(`${SCRIPT_URL}?action=projectPhotos&client=${encodeURIComponent(clientMatch)}`)
-      .then((r) => r.json())
-      .then((j: { photos?: Record<string, unknown[]> }) => {
-        if (gone) return;
-        const out: Record<string, number> = {};
-        for (const [pid, list] of Object.entries(j.photos ?? {})) {
-          out[pid] = Array.isArray(list) ? list.length : 0;
-        }
-        setPhotoCounts(out);
-      })
-      .catch(() => { /* no photos yet is the normal case, not an error */ });
-    return () => { gone = true; };
-  }, [currentKey, clientMatch]);
+  /* Lv01: the per-project photo button is gone from this step, so the photo
+     count read that fed it went with it. */
+
 
   const saveAddedProject = useCallback(async () => {
     if (isPreview || !addDone) return;
@@ -5444,100 +5419,31 @@ export function StateDebrief({
 
         {currentKey === "updates" && (
           <div>
-            {updateNotes.length > 0 && (
-              <div style={{ ...PANEL_BOX, marginBottom: 10 }}>
-                <div style={{ color: DIM_GREEN, fontSize: 10, letterSpacing: 2 }}>
-                  FIELD NOTES — TAP TO APPEND TO FOCUSED PROJECT
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-                  {updateNotes.map((n) => (
-                    <button
-                      key={n.id}
-                      type="button"
-                      onClick={() => appendToProjectNotes(appendPhotos(n.text ?? "", n.photos))}
-                      disabled={!focusedProjectId}
-                      style={{
-                        textAlign: "left",
-                        background: "transparent",
-                        border: `1px solid ${LIME_DIM}`,
-                        borderRadius: 6,
-                        color: focusedProjectId ? LIME : DIM_GREEN,
-                        padding: "6px 8px",
-                        fontFamily: "inherit",
-                        fontSize: 12,
-                        cursor: focusedProjectId ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {n.text}
-                      {n.photos?.length ? ` · 📷 ${n.photos.length}` : ""}
-                    </button>
-                  ))}
-                </div>
-                {!focusedProjectId && (
-                  <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>
-                    Focus a project's Notes field below to enable.
-                  </div>
-                )}
-              </div>
-            )}
             {specialProjects.length === 0 && (
               <div style={{ color: MUTED, fontSize: 12 }}>No projects to update.</div>
             )}
+            {/* Lv01: the SAME ProjectCard the Visit In Progress screen renders —
+                one tap toggles complete, nothing else. Staged only: the tap
+                writes to `updates` and the debrief submit stays the single
+                writer, so nothing here posts crossProject live. Recurring
+                projects never appear — specialProjects is Type === SPECIAL. */}
             {specialProjects.map((p) => {
               const id = s(p["Project ID"]);
-              const cur = updates.find((u) => u.projectId === id);
-              const action = s(p["Project Action"]) || s(p["Action"]);
-              const notes = s(p["Notes"]);
+              const done = updates.some((u) => u.projectId === id && u.status === "DONE");
               return (
-                <div key={id} style={{ ...PANEL_BOX, marginTop: 8 }}>
-                  <div style={{ color: TEXT, fontSize: 14 }}>{action || id}</div>
-                  {notes && <div style={{ color: DIM_GREEN, fontSize: 12, marginTop: 4 }}>{notes}</div>}
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    {(["DONE", "NOT_DONE", "SKIP"] as const).map((k) => {
-                      const label = k === "DONE" ? "Done" : k === "NOT_DONE" ? "Not done" : "Skip";
-                      const active =
-                        (k === "DONE" && cur?.status === "DONE") ||
-                        (k === "NOT_DONE" && cur?.status === "") ||
-                        (k === "SKIP" && !cur);
-                      return (
-                        <button
-                          key={k}
-                          onClick={() =>
-                            setSpecial(id, k === "DONE" ? "DONE" : k === "NOT_DONE" ? "" : "SKIP")
-                          }
-                          style={{
-                            ...SMALL_BTN,
-                            flex: 1,
-                            background: active ? LIME : "transparent",
-                            color: active ? BG : LIME,
-                            borderColor: active ? LIME : LIME_DIM,
-                          }}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <textarea
-                    placeholder={cur?.status === "" ? "Why not?" : "Notes (optional)"}
-                    value={cur?.notes ?? ""}
-                    onFocus={() => setFocusedProjectId(id)}
-                    onChange={(e) =>
-                      setSpecial(id, cur?.status ?? "DONE", e.target.value)
-                    }
-                    style={{ ...INPUT, minHeight: 56, marginTop: 8, resize: "vertical" }}
-                  />
-                  {/* CC-10: photos for THIS project. Record-keeping; nothing
-                      here sends anything to the client. */}
-                  <ProjectCamera
-                    projectId={id}
-                    clientName={clientMatch ?? ""}
-                    disabled={busy || isPreview || !clientMatch}
-                    existing={photoCounts[id] ?? 0}
-                  />
-                </div>
+                <ProjectCard
+                  key={id}
+                  p={p}
+                  items={[]}
+                  busy={busy}
+                  crossed={done}
+                  onToggleCrossed={
+                    isPreview ? undefined : () => setSpecial(id, done ? "SKIP" : "DONE")
+                  }
+                />
               );
             })}
+
 
             {/* CC-09: log something completed that was not on the list. Writes
                 straight to Client Projects and marks it done — it is a record,
