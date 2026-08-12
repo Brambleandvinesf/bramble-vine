@@ -14,6 +14,50 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-16 — 2026-08-12
+
+**Sent:** Outcome 1 confirmed by quoMessagesProbe() — `participants=` returns 200
+with real message data; `participants[]=` and no-participants both return 400 with
+`{path: /participants, message: Expected array / Expected required property}`. Not
+A2P. Deploy v7.4.87, stale-check first, verify getInbox for angel@/brandon@ and
+that opening a Quo thread works. Then flag the unified-feed work as unblocked.
+
+**Response to CC-16:** deployed **v7.4.87 @274**. Item 21 CLOSED, verified live.
+
+- **Stale-copy check first:** clasp pull diffed HEAD byte-identical to local, so
+  nobody had edited since CC-15's push. `clasp push` reported "Script is already up
+  to date" (expected — CC-15 pushed the same bytes), then deployed to the pinned id.
+- **VERIFIED LIVE ON @274 — real data, not just non-empty arrays:**
+    angel@   -> 1 Quo item on +16507105061 (the lead line)
+    brandon@ -> 4 Quo items on +14152343695
+    info@    -> 4 Quo + 3 Gmail = 7
+  Client names resolve (Michael Smith, Miguel Olvera, Marieke, Ben Jacobs, Roger,
+  J. Garcia) with real snippets, so contactDir_/nameDir is healthy too.
+- **quoThread_ fixed by the same change, as predicted:** `getQuoThread` now
+  returns a full **10-message history** (incoming/outgoing, real text) where it
+  previously returned `Quo fetch failed (400)`. Opening a Quo thread in the app had
+  been broken for exactly as long as the feed was.
+  Note the version marker changed meaning once the fix worked: `detail` only
+  exists on quoThread_'s ERROR branch, so its absence now means SUCCESS, not
+  v7.4.86. The real tell was `error: ''` replacing `error: 'Quo fetch failed (400)'`.
+- **One prediction I got wrong, on the record:** I expected angel@ might still be
+  empty because none of the 10 conversations in my earlier getSearch sample were on
+  PNlPSiCQj9. It returned an item. The sample was search-filtered (`q=1`), so it was
+  never the full recent set — I over-read a filtered sample as a complete one.
+- **The done-ledger now suppresses correctly again**, since `readOk` is true and
+  `last` is populated: threads appear because they genuinely re-opened on a newer
+  incoming message. The Half B fail-open is now dormant, which is its intended
+  resting state — insurance, not a workaround.
+- **UNIFIED FEED IS UNBLOCKED and quantified:** angel@ and brandon@ returned
+  **0 Gmail**, because quoFeedTokens_'s DEFAULTS give the `gmail` token only to
+  info@ and `default`. info@ gets both. Flagged as ready to open (see response).
+- CLAUDE.md: the /messages section rewritten as RESOLVED with the confirmed cause,
+  the CC-15 HEAD-ahead warning removed as stale, and the two transferable lessons
+  recorded — surface the response BODY on a third-party failure, and a working
+  endpoint beside a broken one does not prove the caller is correct.
+
+---
+
 ## CC-15 — 2026-08-12
 
 **Sent:** run the probe first, per my own recommendation. Push v7.4.87 to the

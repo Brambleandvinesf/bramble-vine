@@ -495,18 +495,8 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
-> ⚠ **HEAD IS CURRENTLY AHEAD OF THE LIVE DEPLOYMENT (CC-15, 8/12).**
-> `clasp push` put **v7.4.87** in the Apps Script project, but the pinned
-> deployment still serves **v7.4.86 @273**. This was deliberate: pushing makes
-> `quoMessagesProbe()` runnable in the editor without changing what the crew's
-> app serves. So until v7.4.87 is deployed:
-> - Code you can READ in the editor (quoMessagesQuery_, the Half B fail-open,
->   quoThread_'s `detail`) is **NOT what /exec is running**.
-> - The live tell: v7.4.87 adds a `detail` field to quoThread_'s error. If
->   `?action=getQuoThread` returns an error with NO `detail`, you are on v7.4.86.
-> - **Do not diagnose the /messages 400 as "the fix didn't work" while this split
->   exists.** The fix is not live yet.
-> Deploy with `bv-deploy.sh`; that is the only step outstanding.
+> ✅ **HEAD AND THE DEPLOYMENT ARE BACK IN SYNC (CC-16, 8/12).** v7.4.87 is
+> deployed at **@274**. The CC-15 push-ahead split is closed.
 
 Backend is LIVE at **v7.4.85 @272** (8/11, CC-10) — ranged debrief queue
 (Item 3), the App TODO note sink (Item 12) and `getField.clientPhones` (Item 9).
@@ -882,8 +872,31 @@ it on the candidate list for any /messages 400.
 string** — all five send sites. Outbound client texting is therefore NOT affected
 by any of the GET-side param trouble. Do not conflate the two.
 
-## THE EMPTY QUO FEED: `/messages` 400s, SO THE DONE-LEDGER CAN NEVER RE-OPEN
-## ANYTHING (CC-13, 8/12 — SUPERSEDES THE CC-12 CONCLUSION BELOW)
+## ✅ RESOLVED (CC-16, 8/12, v7.4.87 @274) — THE MESSAGE INBOX WORKS
+**Root cause, confirmed by `quoMessagesProbe()` and not by inference:** every
+GET /v1/messages sent the array as `participants[]=`. Quo answered 400 with
+`{path: /participants, message: Expected array / Expected required property}` —
+i.e. the bracketed name was not recognised, so a REQUIRED parameter was missing.
+`participants=` returned 200 with real data on the same key. **Not A2P**, not
+auth, not balance, not the line map, not quoLines_. The parameter name was the
+entire bug.
+Fixed by routing all three GET readers through `quoMessagesQuery_` (which sends
+`participants=` and caps at the documented maxItems 10), plus the Half B
+fail-open so a future secondary-read failure can never silently empty the feed
+again.
+**Verified live on @274:** angel@ 1 Quo item on +16507105061, brandon@ 4 on
++14152343695, info@ 4 Quo + 3 Gmail — real client names resolving (Michael Smith,
+Miguel Olvera, Marieke, Ben Jacobs) with real snippets. `getQuoThread` returns a
+full 10-message history where it previously returned `Quo fetch failed (400)`.
+**KEEP THE LESSON, NOT JUST THE FIX:** four batches were spent on theories that a
+single line of response BODY would have killed on day one. `quoThread_` reported
+only `'Quo fetch failed (' + r.code + ')'` and threw the body away. When a
+third-party call fails, surface the body — it now does. And the reason
+/conversations survived the identical mistake while /messages died is that the
+equivalent param there is OPTIONAL, so a bad name is ignored rather than fatal:
+**a working endpoint next to a broken one does not prove the caller is correct.**
+
+## (SUPERSEDED — kept for the ruled-out list) CC-13's `/messages` + ledger chain
 **The CC-12 theory below ("quoLines_() is returning []") is WRONG and is kept only
 so nobody re-derives it.** `resolveLineDebug()` printed the full 5-line array,
 including `PNlPSiCQj9 -> +16507105061`. quoLines_ is healthy.
