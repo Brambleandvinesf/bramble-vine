@@ -830,32 +830,51 @@ Response. Bumped to `v4-2026-08-12`; skipWaiting + clients.claim were already
 there, so it self-activates. **A service worker is cached hard — this only takes
 effect after a PUBLISH plus a reload.**
 
-## THE MESSAGE INBOX IS A UNIFIED FEED — SPEC, NOT A PREFERENCE (CC-11, 8/11)
-**Brandon's clarification, recorded because the code currently contradicts it.**
-The Message Center was ALWAYS meant to show **Quo conversations AND Gmail threads
-together**, in one feed. Not either/or, not per-role one-or-the-other. Build and
-fix toward that.
+## THE MESSAGE INBOX IS A UNIFIED FEED — ✅ BUILT (CC-17, 8/12, v7.4.88 @275)
+One feed: **Quo conversations AND Gmail threads together.** `inboxFeed_` composes
+them — `(withGmail ? gmailFeed_() : []).concat(quoFeed_(lineNums))`.
 
-`inboxFeed_` already composes both correctly — `(withGmail ? gmailFeed_() : [])
-.concat(quoFeed_())`. The violation is upstream in **`quoFeedTokens_`'s DEFAULTS
-map**, which hands the `gmail` token to only TWO keys:
+### 👉 THE CANONICAL FEED MAP — mirror of `quoFeedTokens_`'s DEFAULTS
 ```
-  brandon@ -> '+14152343695'              <- Quo line only, NO gmail
-  angel@   -> '+16507105061'              <- Quo line only, NO gmail
-  thornsandtendrils@ -> '+14152343696'    <- Quo line only, NO gmail
-  info@    -> '+14152343083,gmail'        <- both
-  default  -> '+14152343083,gmail'        <- both
+  brandon@brambleandvinesf.com            '+14152343695,gmail'   mgmt line + mailbox
+  angel@brambleandvinesf.com              '+16507105061,gmail'   lead line + mailbox
+  thornsandtendrils@brambleandvinesf.com  '+14152343696'         SHARED DEVICE — NO gmail
+  info@brambleandvinesf.com               '+14152343083,gmail'
+  default                                 '+14152343083,gmail'
 ```
-So for Angel and Brandon, `withGmail` is false, `gmailFeed_` is never called, and
-the feed is Quo-only BY CONSTRUCTION. With Quo returning nothing (see below) their
-inbox is necessarily empty — and that is a config-shaped bug, not an outage.
+Token grammar: comma-separated E.164 Quo lines, plus literal `gmail` for the
+shared business mailbox, plus `*` for every workspace line (viewAll).
+
+**⚠ WHY THIS COPY EXISTS.** Setting the **QUO_FEEDS** Script Property REPLACES
+THE WHOLE MAP (`if (raw) map = JSON.parse(raw)`) — the same trap as
+QBO_BILLING_GROUPS. It is currently UNSET, so the defaults above are live.
+Anyone who sets it must carry every line forward, **especially the assistant NOT
+having `gmail`**, or the exclusion silently reverts.
+
+**THE ASSISTANT'S EXCLUSION IS A DECISION, NOT AN OVERSIGHT (Brandon, 8/12).**
+thornsandtendrils@ is a SHARED phone passed between crew mid-shift, and the Gmail
+half is the company mailbox — client threads, invoices, business correspondence.
+Do not "tidy" this into symmetry.
+
+**TWO NON-OBVIOUS CONSEQUENCES OF THE `gmail` TOKEN**, both accepted:
+1. `withGmail` also gates `drafts: draftsList_()`, so lead + management receive the
+   mailbox's DRAFTS and the Messages screen can edit/send them (updateDraft /
+   sendDraft / discardDraft). A real capability increase for the lead.
+2. `gmailFeed_` hardcodes `me = 'info@brambleandvinesf.com'` and runs as the
+   script account, so this is NEVER anyone's personal mail — it is the one shared
+   business mailbox, which is what makes a single unified feed coherent.
+`inboxCount`/`badgeCounts` share `inboxFeed_`, so the Messages badge for lead and
+management now counts Gmail too.
+
 **A CAUTION ON MEASURING THIS:** a probe with `?role=` and no `email=` resolves to
 the `default` token and DOES include Gmail. CC-10 measured exactly that and
 reported "Gmail works, Quo empty", which was true of nobody's actual session.
 Always probe the URL the app builds: `?action=getInbox&email=<signed-in email>`.
-Fixing the spec means giving every role the `gmail` token (and, if the QUO_FEEDS
-Script Property is ever set, carrying it forward there too — that property
-REPLACES the whole map, the same trap as QBO_BILLING_GROUPS).
+
+**Verified live on @275:** angel@ 1 Quo + 3 Gmail · brandon@ 4 Quo + 3 Gmail ·
+thornsandtendrils@ 3 Quo + **0 Gmail** · info@ 5 Quo + 3 Gmail. Note the FIRST
+post-deploy run still showed 0 Gmail for all three — propagation, exactly as the
+iron rule warns. Re-run before believing a deploy failed.
 
 ## QUO IS OPENPHONE, REBRANDED (CC-14, 8/12)
 `openphone.com/docs` 301-redirects to `quo.com/docs`. Same company, same API, same

@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-17 — 2026-08-12
+
+**Sent:** Item 22 — unified feed. Add the `gmail` token to lead + management only;
+the shared assistant device (thornsandtendrils@) does NOT get it, because business
+email/invoices/client threads should not sit on a phone passed between crew. Exact
+map specified. Write it into CLAUDE.md as the canonical copy, since setting
+QUO_FEEDS replaces the whole map. Verify live after deploy.
+
+**Response to CC-17:** deployed **v7.4.88 @275**. Item 22 done, verified live.
+
+- **Read "verify live after deploy" as the deploy authorisation**, since the exact
+  diff was specified in the prompt. Stale-copy check first: clasp pull diffed HEAD
+  byte-identical to local.
+- **TWO CONSEQUENCES SURFACED BEFORE CHANGING ANYTHING**, neither visible from the
+  one-word edit, both accepted:
+  (a) `withGmail` gates `drafts: draftsList_()` as well as the feed, so lead and
+      management now receive the mailbox's DRAFTS and can edit/send them via
+      updateDraft / sendDraft / discardDraft. A real capability increase for the
+      lead, not just a read change.
+  (b) `gmailFeed_` hardcodes `me = 'info@brambleandvinesf.com'` and runs as the
+      script account, so this is never anyone's PERSONAL mail — it is the one
+      shared business mailbox. That is what makes a single unified feed coherent.
+  Also noted: inboxCount/badgeCounts share inboxFeed_, so the Messages badge for
+  those two roles now counts Gmail.
+- **VERIFIED LIVE ON @275:**
+    angel@              1 Quo + 3 Gmail
+    brandon@            4 Quo + 3 Gmail
+    thornsandtendrils@  3 Quo + **0 Gmail**  ← exclusion holding
+    info@               5 Quo + 3 Gmail      ← unchanged
+  drafts=0 everywhere, because the mailbox currently holds none — consequence (a)
+  is real in principle and simply has nothing to show yet.
+- **THE FIRST POST-DEPLOY RUN SHOWED 0 GMAIL FOR ALL THREE.** Propagation, exactly
+  as the iron rule warns ("a fresh deploy serves old and new code for ~30s — do not
+  diagnose a logic bug from the first test run"). Re-ran unchanged and it was
+  correct. Recorded in CLAUDE.md next to the verification numbers, because this is
+  the second batch running where the rule earned its place.
+- **Canonical map written into CLAUDE.md** with the QUO_FEEDS replacement warning,
+  the assistant-exclusion rationale marked as a decision rather than an oversight,
+  and both consequences — so whoever sets that property later has the reference
+  needed not to silently revert it.
+
+---
+
 ## CC-16 — 2026-08-12
 
 **Sent:** Outcome 1 confirmed by quoMessagesProbe() — `participants=` returns 200
