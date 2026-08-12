@@ -262,6 +262,17 @@ function VisitsPage() {
   const onYes = useCallback(async () => {
     setYesBusy(true);
     setYesStatus("Drafting messages…");
+    /* CC-21 Item 23 — THE ACTUAL OPTIMISTIC CLOSE, pinned on the TAP.
+       CC-19 raised this inside the poll's success branch instead, and the poll's
+       first run is 5s out plus a loadQueue round trip — so the gate took 5-8s to
+       clear on the very device that had just tapped, which is what Brandon saw
+       ("vanishes after a while"). Worse, the same poll refreshes `lastYes`, so the
+       local close and the server stamp landed at the same instant and could not be
+       told apart: the "optimistic" path was doing no work at all.
+       Raised here, the overlay clears on the press. Both failure paths below put it
+       back — a rollback, per the VV rule — and the server's stamp is what keeps it
+       closed for every OTHER device on their next poll. */
+    setSuppressGate(true);
     try {
       /* (8/6) Native drafter, not the Make.com webhook. The Make scenario
          "Visit Confirmations-Draft" filtered on a Sheets column called
@@ -285,6 +296,11 @@ function VisitsPage() {
       if (j.ok === false) {
         setYesStatus(j.error || "Drafting failed — nothing was changed.");
         setYesBusy(false);
+        /* CC-21: ROLL BACK the optimistic close. The drafter reported failure and
+           says it touched nothing, so the week is still unconfirmed and the crew
+           needs the YES button back — leaving the gate shut here would hide the
+           only way to retry. */
+        setSuppressGate(false);
         return;
       }
     } catch {
@@ -302,10 +318,11 @@ function VisitsPage() {
           setYesBusy(false);
           setYesStatus("");
           setForceGate(false);
-          /* CC-19: THE optimistic close, and the only place that raises this.
-             Pending rows were actually observed, so the draft demonstrably landed
-             and the gate has done its job on this device. The server's lastYes
-             stamp closes it everywhere else on the next poll. */
+          /* CC-21: now a CONFIRMATION, not the close itself — the tap already
+             raised this. Re-asserted here because rows were actually observed, so
+             if anything cleared it in between (a slow ok:false landing late) the
+             demonstrated truth wins. The server's lastYes stamp closes it on every
+             other device at its next poll. */
           setSuppressGate(true);
           return;
         }
@@ -316,11 +333,12 @@ function VisitsPage() {
         setYesStatus("Still drafting — tap Reload in a moment.");
         setYesBusy(false);
         setForceGate(false);
-        /* CC-19: deliberately does NOT suppress the gate. Reaching here means
-           three minutes passed with NO pending rows, i.e. drafting produced
-           nothing — the exact case the retry must survive. Closing the gate here
-           would recreate the 8/6 lockout: queue emptied, nothing drafted, and the
-           way to try again gone until next week. The gate stays up on purpose. */
+        /* CC-21: ROLL BACK, for the reason CC-19 already gave for not setting it.
+           Three minutes passed with NO pending rows, i.e. drafting produced
+           nothing — the exact case the retry must survive. Leaving the optimistic
+           close in place here would recreate the 8/6 lockout: queue emptied,
+           nothing drafted, and the way to try again gone until next week. */
+        setSuppressGate(false);
         return;
       }
       setTimeout(() => void poll(), 5000);

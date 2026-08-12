@@ -14,6 +14,67 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-21 — 2026-08-12
+
+**Sent:** Item 25 — matchClient_ longest-match fix approved, Carol Breslin scope
+only, wider suffixed-name survey DEFERRED; confirm real financial exposure before
+writing it; pause for deploy. Item 24 — composite key in projects.tsx, audit for
+other bare-Project-ID keying. Item 23 — real optimistic close on the tap. Item 26 —
+Items Used: Size dropdown, Notes dropdown (findings first), qty stepper reusing the
+Hours one, Complimentary checkbox (BILLING-CRITICAL, do not build). Item 27 — Future
+Projects: collapse-on-save, Edit button, inverted Save colours, lime border.
+
+**Response to CC-21:** Items 24 + 23 FIXED and pushed. Item 25 written and STAGED,
+**not deployed**. Items 26 + 27 findings only, nothing built.
+
+- **Item 25 — NO FINANCIAL EXPOSURE. Measured, not assumed.** Queried debriefQueue
+  over the full 120-day window: **all FOUR** Mini Spray visits (2026-04-27, 05-27,
+  06-25, 07-30) are still sitting in the ready queue, i.e. **never debriefed**, and
+  every one carries `billedHours: 0`. No Carol account in that window has ANY
+  billed hours. So the misresolution never reached an invoice.
+  The bug itself is reproduced directly: every Mini Spray title resolves to
+  `'Carol Breslin'`. **The exposure is PROSPECTIVE and imminent** — those four sit
+  in the queue now, and debriefing any of them before the fix bills the wrong
+  account. That is the argument for deploying before touching the queue.
+  Fix staged as v7.4.91: longest match wins. With one matching name — every other
+  client — the result is byte-identical, so it is a tie-breaker, not a new rule.
+  Wider suffixed-name survey deliberately NOT done, per scope.
+  Incidental: two of the four titles carry a TRAILING SPACE
+  ('Carol Breslin - Mini Spray visit '). Harmless to indexOf matching, noted only
+  because trailing spaces have bitten this project before.
+- **Item 24 — FIXED, and the audit found THREE more instances than I flagged in
+  CC-20.** Not one map but four things keyed by bare Project ID:
+  `toolsByProject`, `editing`, `syncing`, and the per-project write queue — plus
+  the optimistic row comparisons (`pp.projectId === p.projectId`) used by save,
+  rollback and delete. So editing A&G Sect 1's proj-4 also opened the form on every
+  other client's proj-4 sharing one draft, the syncing dot lit on all of them, and
+  an optimistic delete removed every client's proj-4 row from the list.
+  All now go through `pKey(p)`, which **reuses `photoKey` from
+  lib/project-photos** rather than inventing a fourth spelling of the same
+  convention. POST payloads keep the BARE id — that is what the sheet stores.
+  **I broke and then caught one thing mid-fix:** `patchEdit(p.projectId, patch)`
+  was left passing a bare id after I changed the signature to take a key, which
+  would have silently written drafts under the wrong key. Found by re-grepping
+  every remaining `p.projectId` rather than trusting the replacements.
+- **Item 23 — FIXED properly this time.** `setSuppressGate(true)` now fires on the
+  TAP, before the POST. Both failure paths roll it back: `ok:false` (drafting
+  failed, nothing changed) and the 36-try timeout (nothing drafted — the 8/6
+  lockout case). The poll's set is now a re-assert on demonstrated rows, not the
+  close itself.
+- **Item 26 — FINDINGS, nothing built.** 26.1: there is NO size vocabulary in the
+  frontend; it lives backend-side (Product Master's Size Class, and the
+  Plants/Retail floors). 26.3: the stepper to reuse is **`QuarterButton`** in
+  components/PayrollConfirm.tsx — currently local to that file, so it needs
+  exporting or extracting. 26.2 and 26.4 need Brandon's answers; 26.4 presented as
+  numbered options, unbuilt as instructed.
+- **Item 27 — FINDINGS, nothing built.** Future Projects is a DEBRIEF STEP
+  (`{ key: "new", label: "Future Projects" }`, field.tsx:857) writing through
+  `saveFutureProject`, not a standalone screen. Current Save colours to be
+  confirmed before inverting, per the prompt.
+- Verified: node --check clean (staged backend), tsc 0 errors, vite build exit 0.
+
+---
+
 ## CC-20 — 2026-08-12
 
 **Sent:** Item 23 — confirm whether the frontend optimistic close is actually

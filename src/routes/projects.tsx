@@ -7,7 +7,7 @@ import { ComboSelect } from "../components/ComboSelect";
 import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { confirmModal } from "../components/ConfirmModal";
-import { useProjectPhotos } from "../lib/project-photos";
+import { useProjectPhotos, photoKey } from "../lib/project-photos";
 
 const CK = "projects:getProjects";
 
@@ -98,6 +98,21 @@ type EditDraft = {
 };
 
 type NewItem = { name: string; qty: string; size: string; notes: string };
+
+/**
+ * CC-21 Item 24: the local-state key for one project.
+ *
+ * "Project ID" is unique only WITHIN a client — `proj-N` exists for almost every
+ * client — so every client-spanning map on this screen has to be composite.
+ * `photoKey` already encodes that convention (lib/project-photos), and
+ * loading.tsx keys its status map the same way (PP2a); this is the third place to
+ * need it, so it reuses rather than invents a fourth spelling.
+ *
+ * ONLY for LOCAL maps — `toolsByProject`, `editing`, `syncing`, the write queue.
+ * The BARE `projectId` is still what goes into every POST payload, because that
+ * is what the sheet stores and what the backend matches on alongside client.
+ */
+const pKey = (p: { client: string; projectId: string }) => photoKey(p.client, p.projectId);
 
 function ProjectsPage() {
   const { role } = useAuth();
@@ -217,11 +232,23 @@ function ProjectsPage() {
   }, [load, denied]);
 
   // Tools grouped by projectId.
+  /* CC-21 Item 24 — COMPOSITE KEY. "Project ID" is unique only WITHIN a client:
+     `proj-N` exists for almost every client, and getProjects returns every
+     client's rows. Keyed by the bare id, all of them collapsed together and each
+     project rendered the union.
+     MEASURED 8/12: A&G Sect 1's "Driveway" is proj-4 and has ZERO items of its
+     own, yet the card showed 11 items belonging to SEVEN other clients — which is
+     how "Sluggo" (Erica Lee's) appeared under it, and why removing it failed:
+     removeItem is correctly scoped to client+projectId and found no such row.
+     Reuses `photoKey` from lib/project-photos rather than inventing a second
+     convention — that module already exists to solve exactly this, and
+     loading.tsx keys its status map the same way (PP2a). Third occurrence of this
+     trap; a fourth convention would be the actual bug. */
   const toolsByProject = useMemo(() => {
     const m: Record<string, ToolRow[]> = {};
     for (const t of tools) {
       if (!t.projectId) continue;
-      (m[t.projectId] ??= []).push(t);
+      (m[photoKey(t.client, t.projectId)] ??= []).push(t);
     }
     return m;
   }, [tools]);
@@ -248,7 +275,7 @@ function ProjectsPage() {
     return projects.filter((p) => {
       if (typeFilter && p.type.toUpperCase() !== typeFilter) return false;
       if (todayOnly && !todaySet.has(p.client.toLowerCase())) return false;
-      if (hasItemsOnly && (toolsByProject[p.projectId]?.length ?? 0) === 0) return false;
+      if (hasItemsOnly && (toolsByProject[pKey(p)]?.length ?? 0) === 0) return false;
       if (q) {
         const hay = `${p.client} ${p.action}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -289,10 +316,15 @@ function ProjectsPage() {
     });
   }, []);
 
+  /* CC-21 Item 24: `editing` and `syncing` were keyed by bare Project ID too, so
+     the collision was not only cosmetic — opening the edit form on A&G Sect 1's
+     proj-4 also opened it on every OTHER client's proj-4, sharing one draft
+     between them, and the "syncing" dot lit on all of them at once. Both now take
+     the same composite key as the items map. */
   const startEdit = useCallback((p: Project) => {
     setEditing((prev) => ({
       ...prev,
-      [p.projectId]: {
+      [pKey(p)]: {
         action: p.action,
         garden: p.garden,
         type: p.type,
@@ -302,20 +334,20 @@ function ProjectsPage() {
       },
     }));
   }, []);
-  const cancelEdit = useCallback((projectId: string) => {
+  const cancelEdit = useCallback((key: string) => {
     setEditing((prev) => {
       const n = { ...prev };
-      delete n[projectId];
+      delete n[key];
       return n;
     });
   }, []);
-  const patchEdit = useCallback((projectId: string, patch: Partial<EditDraft>) => {
-    setEditing((prev) => ({ ...prev, [projectId]: { ...prev[projectId], ...patch } }));
+  const patchEdit = useCallback((key: string, patch: Partial<EditDraft>) => {
+    setEditing((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }, []);
 
   const saveEdit = useCallback(
     (p: Project) => {
-      const e = editing[p.projectId];
+      const e = editing[pKey(p)];
       if (!e) return;
       const diff: Record<string, unknown> = { action: "editProject", projectId: p.projectId, client: p.client };
       const patch: Partial<Project> = {};
@@ -326,22 +358,22 @@ function ProjectsPage() {
       if (e.notes !== p.notes) { diff.notes = e.notes; patch.notes = e.notes; }
       if (e.status !== p.status) { diff.status = e.status; patch.status = e.status; }
       if (Object.keys(diff).length <= 3) {
-        cancelEdit(p.projectId);
+        cancelEdit(pKey(p));
         return;
       }
       // Optimistic: apply patch locally, close edit form, dispatch in background.
       const snapshot = p;
       setProjects((prev) =>
-        prev.map((pp) => (pp.projectId === p.projectId ? { ...pp, ...patch } : pp)),
+        prev.map((pp) => (pKey(pp) === pKey(p) ? { ...pp, ...patch } : pp)),
       );
-      cancelEdit(p.projectId);
-      markSync(p.projectId, true);
-      void enqueue(p.projectId, async () => {
+      cancelEdit(pKey(p));
+      markSync(pKey(p), true);
+      void enqueue(pKey(p), async () => {
         try {
           await firePost(diff);
         } catch (err) {
           setProjects((prev) =>
-            prev.map((pp) => (pp.projectId === p.projectId ? snapshot : pp)),
+            prev.map((pp) => (pKey(pp) === pKey(p) ? snapshot : pp)),
           );
           showToast(
             err instanceof Error
@@ -350,7 +382,7 @@ function ProjectsPage() {
             true,
           );
         } finally {
-          markSync(p.projectId, false);
+          markSync(pKey(p), false);
         }
       });
     },
@@ -393,8 +425,8 @@ function ProjectsPage() {
         materialId: tempId,
       };
       setTools((prev) => [...prev, optimistic]);
-      markSync(p.projectId, true);
-      void enqueue(p.projectId, async () => {
+      markSync(pKey(p), true);
+      void enqueue(pKey(p), async () => {
         try {
           await firePost({
             action: "addItems",
@@ -406,7 +438,7 @@ function ProjectsPage() {
           setTools((prev) => prev.filter((t) => t.materialId !== tempId));
           showToast(`Couldn't add "${name}" — removed again`, true);
         } finally {
-          markSync(p.projectId, false);
+          markSync(pKey(p), false);
         }
       });
     },
@@ -417,8 +449,8 @@ function ProjectsPage() {
     (p: Project, item: ToolRow) => {
       const snapshot = item;
       setTools((prev) => prev.filter((t) => t !== item));
-      markSync(p.projectId, true);
-      void enqueue(p.projectId, async () => {
+      markSync(pKey(p), true);
+      void enqueue(pKey(p), async () => {
         try {
           /* Client-scoped, and qty/size sent so two different pills with the
              same name delete the right row — removeItem narrows on exactly
@@ -433,7 +465,7 @@ function ProjectsPage() {
           setTools((prev) => [...prev, snapshot]);
           showToast(`Couldn't remove "${item.name}" — put back`, true);
         } finally {
-          markSync(p.projectId, false);
+          markSync(pKey(p), false);
         }
       });
     },
@@ -445,12 +477,12 @@ function ProjectsPage() {
       if (!p.projectId) return;
       if (!(await confirmModal({ message: `Delete this project?\n\n${p.action || "(no action)"}`, destructive: true }))) return;
       const snapshot = p;
-      const snapshotTools = tools.filter((t) => t.projectId === p.projectId);
+      const snapshotTools = tools.filter((t) => pKey(t) === pKey(p));
       // Optimistic remove.
-      setProjects((prev) => prev.filter((pp) => pp.projectId !== p.projectId));
-      setTools((prev) => prev.filter((t) => t.projectId !== p.projectId));
-      markSync(p.projectId, true);
-      void enqueue(p.projectId, async () => {
+      setProjects((prev) => prev.filter((pp) => pKey(pp) !== pKey(p)));
+      setTools((prev) => prev.filter((t) => pKey(t) !== pKey(p)));
+      markSync(pKey(p), true);
+      void enqueue(pKey(p), async () => {
         try {
           await firePost({ action: "deleteProject", projectId: p.projectId, client: p.client });
         } catch (err) {
@@ -463,7 +495,7 @@ function ProjectsPage() {
             true,
           );
         } finally {
-          markSync(p.projectId, false);
+          markSync(pKey(p), false);
         }
       });
     },
@@ -629,9 +661,9 @@ function ProjectsPage() {
               {open && (
                 <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                   {list.map((p) => {
-                    const isBusy = !!syncing[p.projectId];
-                    const draft = editing[p.projectId];
-                    const items = toolsByProject[p.projectId] ?? [];
+                    const isBusy = !!syncing[pKey(p)];
+                    const draft = editing[pKey(p)];
+                    const items = toolsByProject[pKey(p)] ?? [];
                     return (
                       <div key={p.projectId || p.row} style={{ ...CARD, position: "relative", opacity: isBusy ? 0.85 : 1 }}>
                         {isBusy && (
@@ -683,9 +715,9 @@ function ProjectsPage() {
                             items={items}
                             onAddItem={(picked) => addItemToProject(p, picked)}
                             onRemoveItem={(item) => removeItemFromProject(p, item)}
-                            onChange={(patch) => patchEdit(p.projectId, patch)}
+                            onChange={(patch) => patchEdit(pKey(p), patch)}
                             onSave={() => saveEdit(p)}
-                            onCancel={() => cancelEdit(p.projectId)}
+                            onCancel={() => cancelEdit(pKey(p))}
                             saving={isBusy}
                           />
                         ) : (
