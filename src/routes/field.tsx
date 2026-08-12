@@ -5512,8 +5512,10 @@ export function StateDebrief({
 
         {currentKey === "new" && (
           <div>
+            {/* CC-23: was #ffb020. Orange is outside the palette (red = failure
+                only), and a row-save error IS a failure, so it takes RED. */}
             {rowErr && (
-              <div style={{ color: "#ffb020", fontSize: 12, marginBottom: 6 }}>{rowErr}</div>
+              <div style={{ color: RED, fontSize: 12, marginBottom: 6 }}>{rowErr}</div>
             )}
             {newProjects.map((p, idx) => (
               <NewProjectForm
@@ -5543,13 +5545,21 @@ export function StateDebrief({
         {currentKey === "office" && (
           <div style={{ display: "grid", gap: 14 }}>
             <div>
+              {/* CC-23 Item 28 — LABEL ONLY, mechanism deliberately unchanged.
+                  "MESSAGES FOR THE CLIENT" promised something the code does not
+                  do: these entries are prefixed "Client update: ", merged with the
+                  office list, and written as rows to the 'Office Tasks' tab. NOTHING
+                  is sent to the client — no SMS, no email, no Quo message, and no
+                  send step exists for that tab. The wording now says what actually
+                  happens: the office relays it. Item 31 is the work that would make
+                  the original promise true. */}
               <div style={{ color: LIME, fontSize: 12, letterSpacing: 2, marginBottom: 6 }}>
-                MESSAGES FOR THE CLIENT
+                ANYTHING YOU'D LIKE THE OFFICE TO PASS ON TO THE CLIENT?
               </div>
               <TextList
                 items={clientUpdates}
                 onChange={setClientUpdates}
-                placeholder="Something to tell the client…"
+                placeholder="Something for the office to pass on…"
               />
             </div>
             <div>

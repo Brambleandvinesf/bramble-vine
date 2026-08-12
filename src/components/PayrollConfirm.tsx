@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { writeBillingHours } from "../lib/billing-hours";
+import { StepperButton } from "./StepperButton";
 
 /* Palette (mirrors field.tsx) */
 const BG = "#0a0a0a";
@@ -918,7 +919,7 @@ function PersonRow({
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ color: MUTED, fontSize: 14, letterSpacing: 1 }}>BILLING</div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-            <QuarterButton label="−" onClick={() => onAdjust(-0.25)} disabled={billingBusy} />
+            <StepperButton dir="down" onClick={() => onAdjust(-0.25)} disabled={billingBusy} unitLabel="15 minutes from billing" />
             <div
               style={{
                 color: LIME,
@@ -931,7 +932,7 @@ function PersonRow({
             >
               {fmtHours(billingHours)} h
             </div>
-            <QuarterButton label="+" onClick={() => onAdjust(0.25)} disabled={billingBusy} />
+            <StepperButton dir="up" onClick={() => onAdjust(0.25)} disabled={billingBusy} unitLabel="15 minutes to billing" />
           </div>
         </div>
         <div style={{ color: MUTED, fontSize: 14, marginTop: 6, lineHeight: 1.35 }}>
@@ -1045,38 +1046,11 @@ function PersonRow({
   );
 }
 
-function QuarterButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label === "+" ? "add 15 minutes to billing" : "remove 15 minutes from billing"}
-      style={{
-        width: 44,
-        height: 44,
-        background: "transparent",
-        color: LIME,
-        border: `1px dashed ${LIME}`,
-        borderRadius: 8,
-        fontFamily: "inherit",
-        fontSize: 20,
-        lineHeight: 1,
-        cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
+/* CC-23 26.3: QuarterButton lived here, hardcoded to the quarter-hour increment
+   right down to its aria-label. It is now components/StepperButton.tsx with the
+   direction and the unit as props, so Items Used reuses the same control at a step
+   of 1 instead of carrying a second copy that would drift out of step with this
+   one. Nothing else in this file changed. */
 
 function PencilButton({ onClick, title }: { onClick: () => void; title?: string }) {
   return (
