@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-23 — 2026-08-12
+
+**Sent:** Item 29 deploy the fix. Item 28 relabel only. Item 31 REVISED to high
+priority — scope the invoice-completion client text now, reusing the Message Queue
+draft→review→send pattern. Item 26.4 REVISED — QBO discounts confirmed invoice-level
+only; multiple comped items combine into ONE dollar discount equal to their sum;
+report the exact diff first. Items 26.1 / 26.3 / 27 proceed as scoped.
+
+**Response to CC-23:** v7.4.92 DEPLOYED @279 (Item 29). Item 28 + 26.3's lift pushed
+(a005fd6). Item 31 design delivered. **26.4's diff, 26.1, 26.3's Items Used wiring
+and 27 NOT done** — said so rather than half-shipping.
+
+- **Item 29 — DEPLOYED @279.** `qboItem_`'s projection widened to
+  `select Id, Name, UnitPrice, Type` (it was Id+Name only, so there was no price to
+  fall back TO). The items branch prices from the QBO item's own UnitPrice and
+  computes Amount from qty, replacing the hardcoded `Amount: 0`. No usable price →
+  `skipped[]`, never $0; skipped[] already surfaces in the invoice email. Also
+  switched to `itemByName` so it shares the labor branch's per-request cache.
+  **SURFACED TO BRANDON:** only newly-posted lines are affected. The two existing $0
+  lines need fixing by hand in QBO, or delete them and re-run the debrief.
+  **UNVERIFIED AND IMPORTANT:** whether those two items actually carry a UnitPrice in
+  QBO. If not, the fix converts $0 lines into SKIPPED lines — safer, but they still
+  will not bill. The tell is the "Skipped:" line in the next invoice email.
+- **Item 28 — relabelled only.** "MESSAGES FOR THE CLIENT" →
+  "ANYTHING YOU'D LIKE THE OFFICE TO PASS ON TO THE CLIENT?", placeholder to match.
+  Mechanism untouched.
+- **Item 26.3 — `QuarterButton` lifted** to `components/StepperButton.tsx` with
+  direction and unit as props; it had been hardcoded to the quarter-hour increment
+  down to its aria-label. PayrollConfirm consumes it. Items Used side NOT wired yet.
+- Also fixed an `#ffb020` orange on the Future Projects row error (outside the
+  palette; a save failure takes RED). **Broke JSX doing it** — a `{/* comment */}`
+  cannot sit inside a `&& ( … )` expression position; tsc reported it as an
+  unbalanced brace 300 lines away. Fixed, and worth remembering as a comment-
+  placement rule in this file.
+- Verified: node --check clean, tsc 0 errors, vite build exit 0.
+- **Item 31 design delivered in the response** — reuse the Message Queue, one new
+  `Kind` column, trigger on confirmed invoice creation, and a real finding on the
+  invoice link (QBO's own invoice URL is an internal QBO app link, not client-safe;
+  a shareable link needs either the PDF or Intuit's payment link). Bitly judged
+  unnecessary sprawl.
+
+---
+
 ## CC-22 — 2026-08-12
 
 **Sent:** Item 25 deploy now. Item 26.1/26.2 REVISED — Size and Notes stay free
