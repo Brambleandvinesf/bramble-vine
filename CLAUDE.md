@@ -804,6 +804,48 @@ LINE" while handing back a `tel:` href. Sites: the client-name tap panel
   `tel:` branch. The openphone:// path needs a phone.
 - Never on a vendor or break stop — there is no client to call.
 
+## THE MESSAGE INBOX IS A UNIFIED FEED — SPEC, NOT A PREFERENCE (CC-11, 8/11)
+**Brandon's clarification, recorded because the code currently contradicts it.**
+The Message Center was ALWAYS meant to show **Quo conversations AND Gmail threads
+together**, in one feed. Not either/or, not per-role one-or-the-other. Build and
+fix toward that.
+
+`inboxFeed_` already composes both correctly — `(withGmail ? gmailFeed_() : [])
+.concat(quoFeed_())`. The violation is upstream in **`quoFeedTokens_`'s DEFAULTS
+map**, which hands the `gmail` token to only TWO keys:
+```
+  brandon@ -> '+14152343695'              <- Quo line only, NO gmail
+  angel@   -> '+16507105061'              <- Quo line only, NO gmail
+  thornsandtendrils@ -> '+14152343696'    <- Quo line only, NO gmail
+  info@    -> '+14152343083,gmail'        <- both
+  default  -> '+14152343083,gmail'        <- both
+```
+So for Angel and Brandon, `withGmail` is false, `gmailFeed_` is never called, and
+the feed is Quo-only BY CONSTRUCTION. With Quo returning nothing (see below) their
+inbox is necessarily empty — and that is a config-shaped bug, not an outage.
+**A CAUTION ON MEASURING THIS:** a probe with `?role=` and no `email=` resolves to
+the `default` token and DOES include Gmail. CC-10 measured exactly that and
+reported "Gmail works, Quo empty", which was true of nobody's actual session.
+Always probe the URL the app builds: `?action=getInbox&email=<signed-in email>`.
+Fixing the spec means giving every role the `gmail` token (and, if the QUO_FEEDS
+Script Property is ever set, carrying it forward there too — that property
+REPLACES the whole map, the same trap as QBO_BILLING_GROUPS).
+
+## quoFeed_ RETURNS [] FIVE DIFFERENT WAYS, ALL SILENT (CC-11, 8/11)
+Read this before diagnosing an empty Quo feed again. `quoFeed_` answers `[]` for:
+1. `!quoKey_()` — no QUO_API_KEY Script Property
+2. `!quoLines_().length` — `/phone-numbers` returned nothing (incl. on a 401)
+3. `!Object.keys(allowedIds).length` — the role's line is not among quoLines_()
+4. `quoConversationsPaged_(...) === null` — first-page transport/HTTP failure
+5. there genuinely are no conversations
+From outside, all five are the same `inbox: []`. **`quoDebug()` already exists in
+the editor and separates them** — it logs `keyPresent`, `pnId`, the
+`/conversations` HTTP code and the response body. `resolveLineDebug()` checks
+whether a given PN id resolves. Run those before theorising; no deploy needed.
+Also note `quoFetch_` sends the key RAW in `Authorization` (no `Bearer` prefix) —
+correct for this API, but it means a scope/permission change shows up as a plain
+401 with an empty feed, not as an error anywhere the app can see.
+
 ## TYPECHECKING: THE BASELINE IS 6 ERRORS, NOT ZERO (8/11)
 CC-09 recorded "passes clean". Measured on 8/11 against pristine `main`, the
 `npx tsc --noEmit` baseline is **6 pre-existing `TS2591 Cannot find name

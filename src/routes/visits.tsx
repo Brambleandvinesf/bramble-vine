@@ -4,6 +4,7 @@ import { useViewAs } from "../lib/view-as";
 import { canSee } from "../lib/permissions";
 import { confirmModal } from "../components/ConfirmModal";
 import { sessionCache } from "../lib/session-cache";
+import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
 
 /** Queue payload cache, so re-entering the screen paints from the last one. */
 const CK = "visits:getQueue";
@@ -742,11 +743,30 @@ const STATE: React.CSSProperties = {
   fontSize: 14,
   lineHeight: 1.6,
 };
+/* CC-11 Item 19 — the gate used to bury every way off this screen.
+   It was `inset: 0` with an OPAQUE background at zIndex 200, and the nav chrome
+   all sits lower: day spine 90, "!" report 108, 3-dot menu button 110, Messages
+   FAB 110. So a full-bleed opaque panel at 200 painted over all four, and the
+   only thing reachable was the Y/N itself — with next week's visits unconfirmed
+   and no route out.
+   TWO CHANGES, both using mechanisms this codebase already has:
+   · `bottom: SPINE_RESERVE_CSS` instead of `inset: 0`, so the overlay stops
+     ABOVE the spine band rather than covering it. This is the existing iron rule
+     ("fixed footers must use bottom: SPINE_RESERVE_CSS, never a raw pixel
+     value") applied to a fixed overlay for the same reason.
+   · zIndex 95 — above the visits list underneath, below the report button (108),
+     the menu button (110) and the FAB (110), so all three stay tappable and the
+     menu popover (200) still paints over the gate when opened.
+   The gate is still blocking for the CONTENT it guards, which is the point of
+   it; it just no longer blocks navigation. */
 const GATE_OVERLAY: React.CSSProperties = {
   position: "fixed",
-  inset: 0,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: SPINE_RESERVE_CSS,
   background: "#0a0a0a",
-  zIndex: 200,
+  zIndex: 95,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",

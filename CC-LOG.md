@@ -14,6 +14,68 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-11 — 2026-08-12
+
+**Sent:** Items 15 (Confirm Daily Load wrong screen for non-assistant roles),
+16 (Approval Queue client-switch save lag), 17 (3-dot menu Debrief Queue
+active-state colour), 18 (Debrief Queue special projects not populating under
+Projects Completed), 19 (Visit Confirmation Gate has no nav access — rising
+priority), 20 (sign-out freeze on Angel's account), 21 (Message Inbox total
+failure, re-scoped — balance CONFIRMED FINE at $28.87, rule the 402 theory out;
+record the unified-feed design clarification in CLAUDE.md; report findings before
+writing any fix).
+
+**Response to CC-11:** diagnosis batch. ONE fix shipped (Item 19), nothing
+deployed, no backend change. Key outcomes:
+
+- **Item 21 — Message Inbox: MY v7.4.85 DEPLOY IS NOT THE CAUSE, and I proved it
+  rather than asserting it.** Diffed the deployed Code.js against the pre-CC-10
+  backup: the only occurrences of quo/inbox/gmail/contact in the whole diff are
+  inside the changelog COMMENT I wrote. Changed regions are the header,
+  debriefQueue's dispatch, getField's clientPhones, reportIssue, and
+  debriefQueueData_ — none within thousands of lines of getInbox (2370),
+  inboxFeed_ (12611), quoFeedTokens_ (12586) or quoFeed_ (12634).
+  **getInbox is NOT erroring.** Live: HTTP 200, valid JSON, no error key, 5.3–6.6s.
+  So "Couldn't reach the inbox" cannot be coming from the server — that string
+  (messages.tsx:1659) requires `loadInbox()` to THROW with no cached payload.
+  **THE EMPTY FEED IS CONFIG, NOT AN OUTAGE, and CC-10's measurement was wrong.**
+  The app calls `?action=getInbox&email=<signed-in email>`; I had probed `?role=`,
+  which falls through to the `default` token and includes Gmail. Probing properly:
+  `email=info@` -> 4 Gmail items; `email=angel@` -> **inbox: []**;
+  `email=brandon@` -> **inbox: []**. Cause: quoFeedTokens_'s DEFAULTS give the
+  `gmail` token to info@ and `default` ONLY, so Angel and Brandon are Quo-only by
+  construction. Gmail never "stopped" for them — they were never sent it.
+  **Quo itself still returns nothing, and balance being fine does not narrow it.**
+  quoFeed_ answers [] five distinct silent ways (no key / no lines / line not in
+  the workspace list / first-page HTTP failure / genuinely empty). `quoDebug()`
+  already exists in the editor and separates all five in one run — that is the
+  next step and it needs no deploy.
+  Design clarification recorded in CLAUDE.md as instructed, plus the probe-with-
+  email caution and the five-silent-ways note.
+- **Item 19 — Visit Confirmation Gate: FIXED, root cause was a z-index burial.**
+  GATE_OVERLAY was `inset: 0` with an OPAQUE background at zIndex 200. The nav
+  chrome all sits lower — spine 90, "!" report 108, 3-dot button 110, Messages FAB
+  110 — so the gate painted over every route off the screen. Now
+  `bottom: SPINE_RESERVE_CSS` (the existing iron rule, applied to an overlay for
+  the same reason) at zIndex 95: spine visible and tappable, menu/FAB/report above
+  it, menu popover (200) still paints over the gate. Still blocks the content it
+  guards.
+- **Item 17 — 3-Dot Menu colour: DOES NOT REPRODUCE, and the premise is off.**
+  There is exactly ONE nav surface (HamburgerMenu, __root.tsx) and its label
+  colour is `active ? LIME : "#cfcfcf"` — driven ONLY by the current route, for
+  every entry including Approval Queue. No badge-driven label colour exists
+  anywhere in src/. Both badges are live and correct: badgeCounts returns
+  `approvals: 4, debriefq: 15`, and badgeFor() maps /debrief-queue. Most likely
+  Approval Queue looked lime because it was the route being stood on. Offered as
+  numbered options rather than "fixed".
+- **Items 15, 16, 18, 20 — investigated, not yet fixed.** hqScreenFor already
+  routes dailyload_confirm to /schedule, so Item 15 is downstream of that in
+  schedule.tsx's card gating; reported rather than guessed at. 16 and 18 both
+  touch billing/invoice paths, so per the standing rule they get findings before
+  code.
+
+---
+
 ## CC-10 — 2026-08-11
 
 **Sent (full prompt text, verbatim):**
