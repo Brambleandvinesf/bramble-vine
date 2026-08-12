@@ -65,7 +65,23 @@ export function normalizeNumber(raw: string | null | undefined): string {
   const plus = s.startsWith("+");
   const digits = s.replace(/\D/g, "");
   if (!digits) return "";
-  return plus ? `+${digits}` : digits;
+  if (plus) return `+${digits}`;
+  /* Promote a bare US number to E.164, mirroring the backend's normPhones_
+     EXACTLY (11 digits starting 1 -> drop the 1; 10 digits -> prefix +1).
+     WHY THIS IS NOT COSMETIC. getField.clientPhones is already normalised
+     server-side, so the live path never hit this — but an un-prefixed value
+     degraded twice over, silently: prettyNumber's /^\+1/ match failed and the
+     button showed a bare "4152343083" instead of "(415) 234-3083", and the dial
+     link carried no country code. Found on 8/11 by running this module against
+     a hand-entered Client Info string in the browser; it typechecked fine and
+     the live payload hid it. Keeping the two normalisers in step is the same
+     rule as vendorMatch_/matchVendor. */
+  if (digits.length === 11 && digits.charAt(0) === "1") return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  /* Anything else — an extension, a short code, a typo — is returned as digits
+     rather than guessed at. Better an unformatted number than a confidently
+     wrong one on a button that places a call. */
+  return digits;
 }
 
 /**

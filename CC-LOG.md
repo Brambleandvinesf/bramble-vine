@@ -86,9 +86,36 @@ pair in CC-LOG.md (paste the full prompt text above into the log, not
 just a summary).
 ```
 
-**Response to CC-10:** all four items built. Frontend pushed to main (needs
-PUBLISH). Backend v7.4.85 staged on the Pi, syntax-checked and action-audited,
-**NOT deployed** — waiting on go-ahead. Key outcomes:
+**Follow-up, same day — all five judgment calls answered:** deploy approved;
+clientPhones shipped ungated; billedHours hint kept; since stays 7/30; GITHUB_PAT
+stays unset. Lovable PUBLISHED. Outcome:
+- **v7.4.85 DEPLOYED @272.** Stale-copy check first: `clasp pull` into a temp dir
+  diffed byte-identical against my pre-edit baseline, so no other writer had
+  touched HEAD.
+- **Verified live after deploy:** `getField.clientPhones` present, 43 clients,
+  0 non-conforming values; `debriefQueue` returned since=2026-07-30
+  through=2026-08-12 with 15 ready rows spanning 7/30–8/11, not capped, no error.
+- **On-screen check done** (the thing this batch was missing). Debrief Queue
+  rendered the real window in its subtitle, ADD DEBRIEF opened, the client filter
+  narrowed, and submit stayed "PICK A CLIENT" until an actual pick flipped it to
+  "DEBRIEF CHEW FAMILY" — pick-only gating holds. Nothing submitted. The call
+  button rendered in the visit ACTIONS block with a real formatted number, and in
+  preview carries href:null + aria-disabled:true.
+- **A REAL BUG FOUND BY DOING IT, not by reading it:** `normalizeNumber` did not
+  promote a bare US number to E.164, so a hand-entered `(415) 234-3083` displayed
+  as `4152343083` and dialled with no country code. Invisible on the live path
+  (the backend normalises first) and it typechecked clean — third bug in this repo
+  of that exact shape. Fixed to mirror `normPhones_`; all six real-world formats
+  now converge on `+14152343083`.
+- **The backlog is real, not an artifact.** 14 of the 15 ready rows have ZERO
+  billed hours, so the pre-Debrief-Log worry was mostly unfounded — those visits
+  genuinely were never debriefed. Only Kelly Dermody 8/5 carries the hint (3h).
+- **Allowlisted the browser pane.** `mcp__Claude_Browser__*` was missing from
+  ~/.claude/settings.json while `mcp__claude-in-chrome__*` was present; adding
+  the wildcard unblocked read tools on the Pi dev origin. That is what made the
+  on-screen check possible.
+
+**Response to CC-10:** all four items built. Key outcomes:
 
 - **Item 9 — Call Feature UI Wiring: BUILT, but "no backend deploy required"
   was not true.** Nothing in any frontend payload carries a client's phone

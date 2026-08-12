@@ -495,10 +495,12 @@ Spine UI behaviors, team model, notification matrix: ARCHITECTURE §4–§8.
   The dashed line's styling/animation is liked as-is — do not restyle.
 
 ## WHERE THINGS STAND (end of 8/4 session)
-Backend is LIVE at **v7.4.84 @271** (8/11). **v7.4.85 is written, syntax-checked
-and action-audited on the Pi but NOT DEPLOYED** — it carries CC-10's Item 3
-(ranged debrief queue), Item 12 (the App TODO note sink) and Item 9's
-`getField.clientPhones`, and is waiting on Brandon's go-ahead.
+Backend is LIVE at **v7.4.85 @272** (8/11, CC-10) — ranged debrief queue
+(Item 3), the App TODO note sink (Item 12) and `getField.clientPhones` (Item 9).
+Verified live after deploy: `clientPhones` present with 43 clients, every value
+conforming to `+1` + 10 digits; `debriefQueue` returned
+`since=2026-07-30 through=2026-08-12`, 15 ready rows spanning 7/30–8/11, not
+window-capped, no error.
 
 PAYROLL ACCURACY — TWO REAL BUGS, BOTH FIXED 8/4. Read this before touching
 approvals; both failed SILENTLY and both affected real payroll.
@@ -778,8 +780,28 @@ LINE" while handing back a `tel:` href. Sites: the client-name tap panel
   business line is not a tradeoff worth making to save one property.
 - **No number, no button.** `openphone://dial?number=` with nothing after it
   opens Quo on a blank dialler and reads as a bug. Never render a dead one.
+- `normalizeNumber` MIRRORS THE BACKEND'S `normPhones_` (11 digits starting 1 ->
+  drop the 1; 10 digits -> prefix +1). Keep them in step, same rule as
+  vendorMatch_/matchVendor. Before 8/11 it did not: a bare `(415) 234-3083`
+  normalised to `4152343083`, so prettyNumber's `/^\+1/` match failed and the
+  button showed an unformatted blob while the dial link carried no country code.
+  The live path never hit it (getField.clientPhones is normalised server-side,
+  all 43 values verified conforming) — found only by running the module against
+  a hand-entered string in the browser. It typechecked cleanly, and the live
+  payload hid it: the third bug in this repo of exactly that shape.
+- VERIFIED ON SCREEN 8/11 (management `?preview=visit`, live data): the button
+  renders in the visit ACTIONS block below the camera/note row, shows the real
+  client number formatted, and in preview carries `href: null` +
+  `aria-disabled: true` — a management preview cannot dial. Styling measured as
+  lime #7cff00 / Courier New / 999px pill.
+- NOT YET SEEN ON SCREEN: the tap-panel instance. Preview deliberately disables
+  that panel (`panelDisabled` includes isPreview), so it needs a real started
+  route. Same component, prop pass-through only.
 - STILL UNVERIFIED, on the record: whether a call placed this way appears in
   Quo's own call log. Quo's docs do not say. Confirm on the first real call.
+  Note the deep link CANNOT be exercised from a desktop browser at all —
+  canDeepLinkCall() is false there by design, so the pane always shows the
+  `tel:` branch. The openphone:// path needs a phone.
 - Never on a vendor or break stop — there is no client to call.
 
 ## TYPECHECKING: THE BASELINE IS 6 ERRORS, NOT ZERO (8/11)
