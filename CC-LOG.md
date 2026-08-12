@@ -14,6 +14,54 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-24 — 2026-08-12
+
+**Sent:** deliberately small batch, per Claude Code's own request — only the four
+items that slid across CC-22/CC-23, nothing urgent attached. 26.1 the "extra details"
+collapse, 26.3 wire StepperButton, 27 the four Future Projects styling changes, 26.4
+build the confirmed discount diff and report before deploying. Item 32 explicitly
+held for its own batch, with all three of its design questions answered.
+
+**Response to CC-24:** all four done. Frontend pushed (7cd0c66). Backend v7.4.93
+STAGED, **not deployed**.
+
+- **26.1 — PREMISE CORRECTED, then built.** Size and Notes are NOT on the Items Used
+  screen: `ItemsUsedPicker` only ever rendered name, qty, ✕ and the "partially used"
+  toggle, and `ItemUsed` does not even carry those fields. They live in
+  **`ItemPicker`** — the SHARED add-item modal — in two paths (catalog pick and
+  custom item). One `ExtraDetails` disclosure now wraps both fields in both paths,
+  closed by default, free text unchanged.
+  **SCOPE CONSEQUENCE, flagged:** ItemPicker is used by Projects, Confirm Load, the
+  debrief's Future Projects items AND Items Used, so the collapse applies everywhere.
+  Deliberate (one modal, one behaviour) but broader than the item's wording; it needs
+  a prop if it should be Items-Used-only.
+- **26.3 — wired.** `StepperButton` on both sides of the qty field, step 1, floor of
+  1 (a 0-qty line would post $0 — the exact shape of Item 29). Qty now **defaults to
+  "1"** on add instead of `undefined`: the field was blank while the backend already
+  treated blank as 1 (`parseFloat(i.qty) || 1`), so the displayed and billed values
+  now agree. Text input kept alongside for odd values.
+- **27 — all four.** Saved rows collapse to Action + Type with an EDIT button
+  reopening the full form (reopened state is local, never reaches the payload).
+  **Save button colours confirmed BEFORE inverting:** it was `SMALL_BTN` +
+  `color: LIME, borderColor: LIME` on a transparent fill → now lime fill, black
+  text, lime border, which is exactly PRIMARY_BTN's existing treatment. The
+  already-saved state stays dim-green on transparent, because it is disabled and
+  reporting a fact rather than offering an action. Every card carries a 2px #7cff00
+  border. Nothing outside lime/black.
+- **26.4 — frontend built, backend STAGED.** Checkbox "complimentary — no charge",
+  same quiet toggle treatment as "partially used". Backend: `comp` carried through
+  saveDebrief; each comped item posts at FULL price with "— Complimentary, discount
+  applied below"; ONE `DiscountLineDetail` appended LAST (a discount line applies to
+  what precedes it) with `PercentBased: false` and Amount = the sum of all comped
+  lines. `DiscountAccountRef` deliberately unset so QBO uses the company's configured
+  Discounts account rather than hardcoding an account id.
+  **⚠ ORDERING: deploy v7.4.93 BEFORE publishing 7cd0c66**, or a ticked
+  Complimentary box bills the client in full with no discount.
+- Verified: node --check clean, tsc 0 errors, vite build exit 0, and all four new
+  markers present in the built chunks.
+
+---
+
 ## CC-23 (SECOND SEND — Item 32 added) — 2026-08-12
 
 **Sent:** the same CC-23, regenerated in full per the cumulative-prompt convention,
