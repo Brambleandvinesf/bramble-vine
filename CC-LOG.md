@@ -14,6 +14,59 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-25 — 2026-08-12
+
+**Sent:** deploy v7.4.93 then publish 7cd0c66. 26.1 scope confirmed universal.
+Item 32 build now, all three answers locked (ship staged-vs-live as designed with a
+visual distinction, instant local-state drop on pencil, confirmModal with item count
+on trash) — but 32.6 asks to propose and confirm the visual treatment before
+finalising. Item 31 MAJOR SIMPLIFICATION: haikuClientMsg_'s existing output is
+already the right client-facing content, so the gap is routing/review not
+generation; findings/design only, plus photo attach on the relabelled client field.
+
+**Response to CC-25:** v7.4.93 DEPLOYED @280, verified healthy. Item 32 NOT built —
+two blocking findings plus the 32.6 checkpoint. Item 31 design delivered with a
+confirmed scope reduction.
+
+- **26.4 DEPLOYED @280.** Stale-copy check passed against the cc24 backup. Verified
+  after: getField healthy (4 events, 43 clientPhones). 7cd0c66 is now safe to
+  PUBLISH — that is Brandon's action, and it covers 26.1, 26.3, 27 and the
+  Complimentary checkbox together, in the order he chose.
+- **Item 32 — GOOD NEWS ON PLUMBING, one real blocker.**
+  GOOD: live writes from inside StateDebrief are already an established pattern. The
+  component takes NO post/send prop — its entire contract is `onFinish`, one write at
+  submit — but the Future Projects step already writes live through **lib helpers
+  that own their own fetch** (`saveFutureProject`, `deleteFutureProject`,
+  `addCompletedProject`, plus ProjectCamera's upload). So trash/pill-×/camera need no
+  API change to StateDebrief, and **`deleteFutureProject(client, projectId)` already
+  wraps `deleteProject`**, which already cascades project + items and is
+  client-scoped. Trash is close to free.
+  **BLOCKER — the PENCIL is ambiguous and I did not guess.** "The standard project
+  edit flow (same edit screen used elsewhere)" is projects.tsx's EditForm, on a
+  DIFFERENT ROUTE. Opening it from mid-debrief either navigates away and abandons
+  unsaved debrief state (billing figures, staged checks, items, messages — none of
+  which is written until submit), or means an inline editor. Needs Brandon's call.
+  **32.6 visual treatment proposed** in the response, grounded in the app's OWN
+  existing vocabulary rather than an invented convention: the debrief already renders
+  its two staged toggles ("partially used", "complimentary") as ☐/☑ text toggles, so
+  the staged check reuses that state-carrying hollow→inverted treatment while the
+  three live icons take the ordinary bordered-button treatment used for immediate
+  actions everywhere else. Plus an explicit one-line caption, because border
+  subtleties will not teach anyone.
+- **Item 31 — SCOPE REDUCTION CONFIRMED, and it is large.** haikuClientMsg_ is
+  already called on every debrief and its output already flows into the invoice
+  notification email; the message body needs no new generation logic at all. What is
+  missing is a recipient, a link, and a review surface. Design delivered: trigger at
+  the confirmed-invoice moment (same point that writes the DL ledger, so one invoice
+  = one draft), body = haikuClientMsg_ verbatim + invoice link, staged as a
+  `Kind = invoice` row in the existing Message Queue.
+  **UNRESOLVED AND MATERIAL:** the invoice link. `qbo.intuit.com/app/invoice?txnId=`
+  is an internal QBO app URL requiring a QuickBooks login — sending it to a client
+  gives them a login wall. Photo attachment compounds it: Quo cannot send outbound
+  MMS, so photos on a client-facing text are not possible without hosting them.
+
+---
+
 ## CC-24 — 2026-08-12
 
 **Sent:** deliberately small batch, per Claude Code's own request — only the four
