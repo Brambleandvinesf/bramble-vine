@@ -14,6 +14,53 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-28 — 2026-08-12
+
+**Sent:** Batch B — the invoice/debrief defect cluster. Item 35 (persistent "saving"
+state), Item 38 (30s Finish Debrief delay, findings first), Item 39 (drop the
+redundant description, decision locked), Item 40 (build qboItemProbe, push only).
+
+**Response to CC-28:** 35 and 38 diagnosed. 39 and 40 built and **pushed to HEAD
+without deploying** (v7.4.94). Live app verified unaffected on @280.
+
+- **Item 35 — NO SERVER CALL FIRES. It is scenario 2, and more specifically a
+  COLLISION IN THE VISUAL LANGUAGE.** `setSpecial` is purely local — one
+  `setUpdates`, no fetch anywhere on that path. `crossProject` IS called live, but at
+  field.tsx:1635, on the VISIT screen, not this one. So the staged design is intact.
+  What Brandon is seeing is `opacity: crossed ? 0.5 : 1` in ProjectCard — the
+  DESIGNED completed styling. The problem is that **0.5 opacity already means
+  "disabled" in this codebase** (`opacity: disabled ? 0.5` appears three times in
+  field.tsx alone), so the completed state is drawn in the app's own vocabulary for
+  "inert / mid-operation". Before CC-27 there was also no positive affirmation of
+  completion, so grey + strikethrough was the ONLY feedback — and it never changes
+  back, which is exactly what "saving for a long time" describes.
+- **Item 38 — the button gives ZERO feedback on tap, and that is separable from the
+  latency.** The label is a static "FINISH DEBRIEF"; `disabled` is set from `busy`
+  but `opacity` is tied only to `isPreview`/blocked. So on tap it disables and looks
+  **identical**. Compare NewProjectForm's "SAVING…" and PayrollConfirm's busy states.
+  Measured what I honestly could: platform floor (nonexistent action) **3.6–5.4s**;
+  `qboInvoiceProbe` (2–3 QBO calls, read-only) **2.5–4.5s**. So an individual QBO
+  query is cheap — the 30s is accumulation, not one slow call.
+  **I could NOT measure the real submit path** — saveDebrief creates a live invoice.
+  The breakdown offered is reasoned from the code, and the recommendation is to
+  instrument `report` with per-stage timings so the NEXT real debrief yields exact
+  numbers rather than my estimate.
+- **Item 39 — built.** Ordinary item lines now send NO Description; the line is built
+  and the field added only for a comped item. Matches these books (qboInvoiceProbe
+  showed real invoices carry no Description on any line). Item 30's labor-line trim
+  remains undecided and is untouched — they are independent lines.
+- **Item 40 — `qboItemProbe()` built, editor-only, read-only.** Reports the specific
+  item through the SAME `qboItem_` helper the invoice uses (so it tests the real code
+  path, not a lookalike), states an explicit verdict of FETCH BUG vs DATA GAP, then
+  sweeps the whole active catalog paged at 1000 and reports the count, percentage and
+  first 40 names.
+- **PUSHED, NOT DEPLOYED** — `clasp push -f` only, line 10 of bv-deploy.sh; line 12
+  deliberately not run. Verified after: getField healthy on @280 (4 events, 43
+  clientPhones), badges answering. So Item 39 is in HEAD awaiting a deploy go-ahead,
+  and the probe is runnable in the editor right now with zero live risk.
+
+---
+
 ## CC-27 — 2026-08-12
 
 **Sent:** single-item batch by agreement — Item 32 (Projects Completed full build),
