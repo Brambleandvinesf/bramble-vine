@@ -14,6 +14,42 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-46 — 2026-08-13
+
+**Sent:** New standing rule — a bumped approval must surface itself at the top of the
+next response. Deploy v7.4.108 (Item 47's badge split) and confirm both badges read
+correctly.
+
+**Response to CC-46:** **DEPLOYED v7.4.108 @291.** Both badge functions live. New
+standing rule recorded in CLAUDE.md beside the one-code-block rule.
+
+- **⚠ THE OBVIOUS VERIFICATION WAS DEGENERATE AND I SAID SO RATHER THAN CLAIMING A
+  PASS.** `badgeCounts` returned `visits=0, invoices=0` — and ground truth from
+  `getQueue` is **7 rows, 0 of them pending** (all Sent/Skipped) and **0 invoice rows in
+  existence**. So 0 == 0 is consistent but proves nothing about the kind filter: an
+  outright broken filter returns 0 too.
+- **PROVED IT WITH A SYNTHETIC TEST instead**, running the deployed
+  `queuePendingCount_`, `mqPending_` and `mqKindOf_` against a fabricated Message Queue
+  covering every branch — both kinds, Pending/blank/Sent/Skipped, a **pre-Kind row with
+  a blank Kind cell**, and a **row with no Event ID**:
+```
+  pending confirmations = 3   (incl. the blank-Kind row, as designed)
+  pending invoices      = 2
+  no kind argument      = 5   <- old caller behaviour preserved exactly
+  conf + inv === both   = true   (nothing double-counted, nothing lost)
+  Sent/Skipped excluded = true
+  blank Event ID skipped = true
+```
+  The `conf + inv === both` identity is the one that matters: it is what guarantees the
+  Visit Confirmations badge can no longer include invoice rows while nothing falls
+  between the two counts.
+- **Honest limit:** the split is proven by unit test and the deployment is confirmed
+  serving, but **no invoice row has ever existed**, so neither badge has yet been
+  observed showing a non-zero number against real data. The first debrief that invoices
+  is the end-to-end check.
+
+---
+
 ## CC-45 — 2026-08-13
 
 **Sent:** Status check on Items 47, 36, 37 — were they built? Report honestly. If

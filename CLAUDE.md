@@ -40,6 +40,15 @@ reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
 >   the same clone and their git histories differ.
 
 ## HOW BRANDON BRIEFS THIS PROJECT (process, not code — CC-01 item 11, CC-02 item 3)
+- **⚠ A BUMPED APPROVAL MUST SURFACE ITSELF (CC-46, 8/13).** When approved items get
+  displaced by unrelated urgent work spanning several prompts, **flag the still-pending
+  items explicitly at the TOP of the next response** — every response, until they are
+  either done or explicitly dropped. **Brandon should never have to notice an absence.**
+  This rule exists because Items 47/36/37 were approved and then sat unmentioned
+  through CC-40..CC-44 while Item 33's migration ran; worse, the approving batch
+  (CC-39) never arrived here at all, and nothing in the process would have revealed
+  that. A missing approval and a forgotten approval look identical from this side, so
+  the pending list is what makes either visible.
 - **⚠ ONE SINGLE UNIFIED CODE BLOCK PER RESPONSE. NO EXCEPTIONS, PERMANENT
   (CC-43, 8/13).** The ENTIRE "Response to CC-NN" must be delivered as ONE copiable
   code block, however long it runs. **A response split across several code blocks is
