@@ -14,6 +14,47 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-26 — 2026-08-12
+
+**Sent:** new standing rule (numbered options + recommendation, not open prose).
+Item 32 build with all three answers confirmed. Items 31 (column U collision first),
+33 (Yard/Category vocabulary), 34 (payment reminders), 35 (persistent saving state),
+36 (Items Used pills), 37 (voice input), 38 (30s Finish Debrief delay), 39 (redundant
+item description), 40 (priceless QBO item — data gap or fetch bug).
+
+**Response to CC-26:** standing rule recorded. **Items 31's column-U question and 33
+resolved with real data. Item 39 answered from code. Items 32, 34, 35, 36, 37, 38, 40
+NOT addressed** — the batch is roughly four batches' worth and I said so rather than
+skimming ten items.
+
+- **NEW STANDING RULE written into CLAUDE.md**, in the process section beside the
+  descriptive-titles rule.
+- **Item 31 — THE COLUMN U COLLISION DOES NOT EXIST.** `columnScan` against the live
+  sheet:
+    `U 'Text or email invoice'` — **64 non-empty**
+    `V 'Special Invoicing Protocol'` — 23 non-empty
+  Two separate, ADJACENT columns. U is the channel field and is already well
+  populated; nothing needs disentangling. What is still unknown is U's VALUES —
+  columnScan's peek is allowlisted to {AT,AU,AV,AW,AX} because AP/AQ/AR are gate
+  codes and the WiFi password. U is not sensitive, so adding it is a two-word change.
+  Recorded in CLAUDE.md.
+- **Item 33 — full enumeration delivered.** Garden is nearly clean (Back 161,
+  Front 130, plus Backyard/INDOOR/INDOORS/OUTSIDE and a trailing-space 'Front ');
+  '?' at 180 is the real story — it is a placeholder standing in for unset. Category
+  is genuinely messy: five real categories carry ~380 of the rows, and the tail is
+  not categories at all but sorting headers and instructions
+  ('REQUESTED BY DIANE IN THIS ORDER', 'SPECIAL - requested by Brian. Do nothing else
+  until completed', '2026 FERTILIZING:', 'RECURRING:'), plus a 'Pest Contol' typo and
+  seven spellings of Fertilizing. Canonical list and numbered options in the response.
+- **Item 39 — answered from the code.** Item lines set `Description: i.name`, the
+  same string QBO already shows as the line's item name. The complimentary branch is
+  untouched, as instructed.
+- **NOT ADDRESSED:** 32 (build), 34, 35, 36, 37, 38, 40. Reasons and a proposed
+  sequencing in the response — 34 depends on 31's link answer, 40 needs a QBO item
+  price read that no action exposes, and the rest need real investigation each.
+
+---
+
 ## CC-25 — 2026-08-12
 
 **Sent:** deploy v7.4.93 then publish 7cd0c66. 26.1 scope confirmed universal.

@@ -60,6 +60,20 @@ reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
   to persist it here. Conventions accumulate in this file rather than in chat
   history — if a rule matters, it belongs in this section.
 
+### Ambiguity comes back as NUMBERED OPTIONS with a recommendation (CC-26)
+**When investigation surfaces a genuinely ambiguous or conflicting scenario that
+needs Brandon's decision, present it as numbered multiple-choice options with a
+clear recommendation attached to one of them — never as open-ended prose asking
+what he wants.** He is choosing between concrete alternatives, not writing a spec
+from scratch, and an open question costs a whole round trip to turn into a choice.
+Applies from CC-26 forward, to every item.
+Format that works: the options numbered, each one sentence on what it means and
+what it costs, and the recommended one marked. If two questions are entangled
+(channel and hosting, say), say so and present them together rather than as
+independent choices.
+This does NOT license guessing on the things that genuinely need a human — it is
+about the SHAPE of the ask, not about asking less.
+
 ### Item references always carry a descriptive title (CC-04)
 - **Never cite an item by bare number.** Brandon does not track these by number —
   "item 5" on its own is meaningless to him mid-conversation. Every reference, in
@@ -829,6 +843,21 @@ reintroduce respondWith without a real caching strategy, a catch AND a fallback
 Response. Bumped to `v4-2026-08-12`; skipWaiting + clients.claim were already
 there, so it self-activates. **A service worker is cached hard — this only takes
 effect after a PUBLISH plus a reload.**
+
+## CLIENT INFO U AND V ARE SEPARATE COLUMNS — NO COLLISION (CC-26, 8/12)
+Measured with `?action=columnScan` against the live sheet:
+```
+  U  'Text or email invoice'        64 non-empty   <- the per-client CHANNEL preference
+  V  'Special Invoicing Protocol'   23 non-empty   <- a different field entirely
+  W  'refuse removal fee'           X  'Cadence '
+```
+They are ADJACENT, which is almost certainly why they read as one column holding two
+kinds of data. **U is the channel field and it is already well populated (64
+clients).** Nothing needs disentangling before building against it.
+STILL UNKNOWN: U's actual VALUES. `columnScan`'s value-peek is allowlisted to
+`{AT, AU, AV, AW, AX}` (AP/AQ/AR are gate codes and WiFi and must never be peekable),
+so U's contents cannot be read from outside today. U is not access-sensitive, so
+adding U and V to `PEEK_OK` is a two-word backend change if the values are needed.
 
 ## THE MESSAGE INBOX IS A UNIFIED FEED — ✅ BUILT (CC-17, 8/12, v7.4.88 @275)
 One feed: **Quo conversations AND Gmail threads together.** `inboxFeed_` composes
