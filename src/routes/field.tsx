@@ -4665,6 +4665,11 @@ export function StateDebrief({
     newProjects: NewProject[];
     itemsUsed: ItemUsed[];
     officeTasks: string[];
+    /* CC-35 Item 43: the client-facing notes ON THEIR OWN, additional to (not
+       instead of) the merged officeTasks below. The merge still happens and the
+       Office Tasks tab rows are unchanged — this exists so the backend never has
+       to work out which merged lines were meant for the client. */
+    clientUpdates: string[];
   }) => Promise<void>;
   previewStep?: DebriefStepKey | null;
   employees?: Employee[];
@@ -4899,6 +4904,12 @@ export function StateDebrief({
       newProjects,
       itemsUsed,
       officeTasks: office,
+      /* CC-35 Item 43. `office` above stays exactly as it was — the Office Tasks
+         tab keeps its "Client update: " prefixed rows and nothing about that
+         write changes. This is the same content sent UNMERGED, so the client
+         message can be generated from the client-facing field alone and the
+         internal notes never reach the model at all. */
+      clientUpdates: clientUpdates.filter(Boolean),
     });
   };
 

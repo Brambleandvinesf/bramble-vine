@@ -1300,6 +1300,30 @@ Turn both off after a clean week. Leaving them on is harmless (nothing triggers
 Draft now) but confusing to the next person reading this.
 
 ## FUTURE / BACKLOG — NOT SCHEDULED, NOT STARTED
+### Crew/lead self-review of the AI client message — DEFERRED ON TRUST, NOT UI
+Both routes to letting someone other than Brandon review an invoice draft are on
+hold as of **CC-35 (8/13)**:
+- **Approach 1** — grant leads the VISIT CONFIRMATIONS screen (one character:
+  `visits: { lead: 0 → 1 }` in `src/lib/permissions.ts`), with an Invoices tab.
+- **Approach 2** — a preview/edit step in the crew's own debrief flow.
+
+**Brandon's decision: neither ships now, and the reason is policy, not cost.** He
+does not want leads seeing invoice financials at this trust level, and Approach 2
+as scoped still shows the crew member the message tied to their own invoice —
+closer to Approach 1's exposure than he wants.
+
+**THE REAL GATE IS: are leads trusted to send invoices without Brandon's own
+review?** That is a trust threshold, not a UI question. **Do not build either
+approach without a new explicit ask once that threshold is reached.** Item 42 (the
+per-client Payment Reminders checkbox) is held with it — it was scoped to live on
+whichever review step this produced, so it has no home until then.
+Costings and the exposure analysis are in CC-LOG under CC-34, so this does not
+need re-investigating: Approach 1's access is trivial but `queueRows_` is
+unfiltered, and visit confirmations have no owner to scope by because they are
+drafted before crew assignment exists.
+Item 43 (the Haiku input-set fix) was split out and shipped separately — it does
+not depend on either approach.
+
 ### A branded Bramble & Vine gallery experience (comments, likes)
 Brandon wants the client photo gallery to eventually become a proper B&V-branded
 experience with comments and likes, rather than a bare token link to a Drive

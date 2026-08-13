@@ -14,6 +14,52 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-35 — 2026-08-13
+
+**Sent:** Item 41 HOLD (neither approach — policy, not cost; record in FUTURE
+DIRECTION). Item 43 BUILD (fix the Haiku input-set bug; pass clientUpdates as its
+own field; comms path, report the exact diff before deploying). Item 42 HOLD.
+
+**Response to CC-35:** Item 43 **BUILT AND STAGED — NOT DEPLOYED.** Exact diff
+reported for approval, per the comms-path rule. Backend stays v7.4.102 @286;
+v7.4.103 is staged locally and **not even pushed**. Items 41/42 holds recorded.
+
+- **THE FIX IS NOT A BETTER PROMPT.** The internal office notes are simply no
+  longer passed to the model. A note the model never sees cannot leak, which no
+  prompt instruction can actually promise. That is the whole shape of the fix.
+- **`clientNotes_(clientUpdates, officeTasks)`** — new, pure. Prefers the explicit
+  new field; **falls back to extracting the `'Client update: '` prefixed lines from
+  the merged array IN CODE.** The prefix is a perfectly reliable signal for a string
+  test — it was only unreliable as an unexplained hint to a model. The fallback
+  matters for two real callers: an unpublished frontend mid-propagation, and any
+  caller that only sends the merged list.
+- **Prompt rewritten.** Dropped `'skip internal/office items'` — internal items are
+  gone, and asking a model to filter a list with nothing to filter invites it to
+  drop legitimate content as suspect. Now: these notes were written by the crew
+  expressly for this client, convey all of them, invent nothing.
+- **`officeTasks` on the wire is UNCHANGED** — still the merged, prefixed array, so
+  the Office Tasks tab rows are byte-identical. `clientUpdates` is purely additive.
+- **One frontend change covers both debrief paths:** `StateDebrief` is imported from
+  `field.tsx` into `debrief-queue.tsx`, so both share one `handleFinish`.
+- **⚠ DELIBERATE BEHAVIOUR CHANGE, worth watching:** a visit whose crew typed
+  everything into MESSAGES FOR THE OFFICE and nothing into the client field now
+  produces NO client message, where before one was generated from internal notes.
+  That is the bug being fixed — but it does mean fewer messages, and if crews have
+  been using the office field for client-facing content it will show up as drafts
+  with links but no words. The draft row still carries the invoice and gallery links.
+- Fixed on review: the insertion orphaned the pre-existing comment describing
+  `haikuClientMsg_`, leaving it attached to the new function. Reattached.
+- Verified: stale check clean before patching; `node --check` OK; audit at its known
+  1-finding baseline; frontend `tsc --noEmit` and `vite build` both clean.
+
+**Item 41 / Item 42 — HOLD RECORDED** in CLAUDE.md's FUTURE DIRECTION section,
+including that **the gate is a trust threshold, not a UI question**: are leads
+trusted to send invoices without Brandon's own review? Neither approach is to be
+built without a new explicit ask once that is reached. CC-34's costings are
+referenced so this does not need re-investigating.
+
+---
+
 ## CC-34 — 2026-08-13
 
 **Sent:** Item 41 — where does Angel review the invoice draft? Settle the review
