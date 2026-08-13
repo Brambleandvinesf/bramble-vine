@@ -14,6 +14,54 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-45 — 2026-08-13
+
+**Sent:** Status check on Items 47, 36, 37 — were they built? Report honestly. If
+untouched, build Item 47 (separate Invoice Queue screen), push Item 36's probe, and
+start Item 37 on ItemPicker.
+
+**Response to CC-45:** **⚠ THERE IS NO CC-39. This log goes CC-38 → CC-40.** That
+batch never arrived here, so Items 47/36/37 were never approved or started — CC-38
+ended by asking for decisions on all three, and the next prompt (CC-40) was entirely
+Item 33. Verified by artefact, not memory: no invoice route file, no `Invoice Queue`
+reference anywhere in `src/`, no probe function in `Code.js`, no speech code in
+`ItemPicker`. Nothing was silently dropped; the approval never reached this side.
+
+- **ITEM 47 — BUILT. Frontend complete, backend PUSHED NOT DEPLOYED** (pausing on the
+  badge change per instruction).
+  · **⚠ CORRECTED MY OWN CC-38 RECOMMENDATION:** I proposed a `kind` param on the
+    `countOnly` endpoint. The right hook is **`badgeCounts`**, which already batches
+    every nav badge into ONE request — so the second badge costs **no extra fetch at
+    all**. `countOnly` left untouched.
+  · **⚠ THE VISITS BADGE'S MEANING CHANGES, deliberately.** `badgeVisitsCount_` now
+    counts **confirmations only**; a new `badgeInvoicesCount_` counts invoice rows.
+    Left as-is, the visits badge would double-count every invoice draft and send the
+    office to the wrong screen. `queuePendingCount_(ss, kind)` takes an optional kind
+    and defaults to counting both, so no pre-existing caller changes behaviour.
+  · **ONE component, two screens.** `VisitsPage` is now exported and takes
+    `only="confirmation"|"invoice"`; `/invoices` is a thin route rendering it with
+    `only="invoice"`. Same card, same controls, same send path, same Item 46
+    office-notes display — nothing to drift.
+  · **Two things suppressed on the invoice screen, both would have been wrong:** the
+    weekly drafting GATE (`draftingProducedNothing` is true on any day with no invoice
+    drafts, so it would throw a "draft next week?" overlay over the Invoice Queue), and
+    **"+ NEW MESSAGE"** (it drafts a visit confirmation; hidden, not disabled).
+  · Permission is the SHARED `visits` capability plus a `NAV_CAPABILITY` entry, so it
+    inherits office + management only and **Item 41's hold needs no second rule**.
+  · `routeTree.gen.ts` regenerated and committed — the new route does not exist without
+    it, and tsc failed until the build regenerated it.
+- **ITEM 36 — probe PUSHED (not deployed; editor-only).** `productCategoryProbe()`
+  lists the catalog's distinct category/subCategory values with counts and example
+  names. Never run by Brandon before because it never existed.
+- **ITEM 37 — NOT STARTED, and not started this batch either.** Said plainly rather
+  than part-shipped: it needs a new backend fuzzy-match action plus a new mic
+  affordance inside a screen crews depend on daily, and half of that landing in
+  ItemPicker is worse than none. Next batch, on its own.
+- Verified: `node --check` OK; `tsc --noEmit` clean after the route tree regenerated;
+  `vite build` clean.
+
+---
+
 ## CC-44 — 2026-08-13
 
 **Sent:** Run the live migration (Brandon approved, backup taken), then re-run the dry

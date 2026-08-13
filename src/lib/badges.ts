@@ -15,6 +15,11 @@ export const BK = {
   inbox: "home:getInbox:count",
   receipts: "home:getReceipts:count",
   visits: "home:getQueue:count",
+  /* CC-45 Item 47: the Invoice Queue's own count. It rides the SAME badgeCounts
+     request as every other badge — asking for `visits` now returns both numbers — so
+     a second nav badge costs no extra fetch. `visits` became confirmations-only in
+     v7.4.108, so the two cannot double-count each other. */
+  invoices: "home:getQueue:invoices:count",
   approvals: "home:approvalQueue:count",
   debriefq: "home:debriefQueue:count",
 } as const;
@@ -104,7 +109,12 @@ export function useBadgePoller({
             `&want=${encodeURIComponent(want.join(","))}&days=30`,
         );
         const j = (await r.json()) as {
-          counts?: Partial<Record<"inbox" | "visits" | "receipts" | "approvals" | "debriefq", number>>;
+          counts?: Partial<
+            Record<
+              "inbox" | "visits" | "invoices" | "receipts" | "approvals" | "debriefq",
+              number
+            >
+          >;
           pending?: string[];
         };
         if (cancelled) return false;
@@ -117,6 +127,7 @@ export function useBadgePoller({
         };
         set(BK.inbox, c.inbox);
         set(BK.visits, c.visits);
+        set(BK.invoices, c.invoices);      // CC-45 Item 47
         set(BK.receipts, c.receipts);
         set(BK.approvals, c.approvals);
         set(BK.debriefq, c.debriefq);

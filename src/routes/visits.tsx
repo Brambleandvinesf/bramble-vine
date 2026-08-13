@@ -122,7 +122,19 @@ type CardState = {
   flash: { msg: string; err: boolean } | null;
 };
 
-function VisitsPage() {
+/* CC-45 Item 47 — ONE component, two screens.
+   `only` selects which Kind this instance shows. /invoices renders the exact same
+   card, controls and send path as /visits — the whole point of splitting was the
+   naming and the badge, not a different review UI, so duplicating the card would
+   have created two things to keep in step for no gain.
+   Permission stays `visits` for both, so Item 41's hold (leads must not see invoice
+   financials) holds without a second rule to remember. */
+export function VisitsPage({
+  only = "confirmation",
+}: {
+  only?: "confirmation" | "invoice";
+}) {
+  const isInvoices = only === "invoice";
   const { effectiveRole } = useViewAs();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "visits");
@@ -219,7 +231,12 @@ function VisitsPage() {
     })();
   }, [loadQueue]);
 
-  const pending = useMemo(() => (rows ?? []).filter(isPending), [rows]);
+  /* CC-45 Item 47: filtered CLIENT-SIDE on the `kind` already present on every row,
+     so no second fetch and no filter param on queueRows_. */
+  const pending = useMemo(
+    () => (rows ?? []).filter((r) => isPending(r) && r.kind === only),
+    [rows, only],
+  );
 
   /* (8/6) "Said yes this week" and "has drafts to show for it" are two separate
      facts, and treating them as one locked the crew out for the rest of the week.
@@ -255,8 +272,14 @@ function VisitsPage() {
      rows were actually OBSERVED. Raising it when drafting produced NOTHING would
      close the gate and take the retry button with it — precisely the 8/6 lockout
      that `draftingProducedNothing` exists to prevent. See onYes. */
+  /* CC-45 Item 47: the weekly drafting gate belongs to visit confirmations ONLY.
+     On the Invoice Queue it would be nonsense — invoice drafts arrive per debrief,
+     not from a weekly draft run, and `draftingProducedNothing` would be TRUE on any
+     day with no invoice drafts, throwing up a "draft next week?" overlay over the
+     wrong screen. */
   const gateOpen =
-    forceGate || (!suppressGate && (!yesThisWeek(lastYes) || draftingProducedNothing));
+    !isInvoices &&
+    (forceGate || (!suppressGate && (!yesThisWeek(lastYes) || draftingProducedNothing)));
 
   const onReload = useCallback(async () => {
     setReloading(true);
@@ -496,12 +519,18 @@ function VisitsPage() {
     <div style={PAGE}>
       <header style={HEADER}>
         <div style={{ color: LIME, fontSize: 20, fontWeight: "bold", letterSpacing: 2 }}>
-          VISIT CONFIRMATIONS
+          {isInvoices ? "INVOICE QUEUE" : "VISIT CONFIRMATIONS"}
         </div>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button style={GHOST_BTN} onClick={() => setShowAdd((s) => !s)}>
-            + NEW MESSAGE
-          </button>
+          {/* CC-45: "+ NEW MESSAGE" drafts a VISIT CONFIRMATION for a client — it has
+              no meaning on the Invoice Queue, where rows are created by finishing a
+              debrief that invoices. Hidden rather than disabled: a dead button invites
+              someone to work out why it does nothing. */}
+          {!isInvoices && (
+            <button style={GHOST_BTN} onClick={() => setShowAdd((s) => !s)}>
+              + NEW MESSAGE
+            </button>
+          )}
           <button style={GHOST_BTN} onClick={onReload} disabled={reloading}>
             {reloading ? <>RELOADING<Ellipsis /></> : "RELOAD"}
           </button>

@@ -9,85 +9,26 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VisitsRouteImport } from './routes/visits'
-import { Route as ShoppingRouteImport } from './routes/shopping'
-import { Route as ScheduleRouteImport } from './routes/schedule'
-import { Route as ReceiptsRouteImport } from './routes/receipts'
-import { Route as ProjectsRouteImport } from './routes/projects'
-import { Route as MoreRouteImport } from './routes/more'
-import { Route as MessagesRouteImport } from './routes/messages'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as LoadingRouteImport } from './routes/loading'
-import { Route as FieldRouteImport } from './routes/field'
-import { Route as DebriefQueueRouteImport } from './routes/debrief-queue'
-import { Route as ConfirmRouteImport } from './routes/confirm'
-import { Route as ApprovalsRouteImport } from './routes/approvals'
-import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ApprovalsRouteImport } from './routes/approvals'
+import { Route as ConfirmRouteImport } from './routes/confirm'
+import { Route as DebriefQueueRouteImport } from './routes/debrief-queue'
+import { Route as FieldRouteImport } from './routes/field'
+import { Route as InvoicesRouteImport } from './routes/invoices'
+import { Route as LoadingRouteImport } from './routes/loading'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MessagesRouteImport } from './routes/messages'
+import { Route as MoreRouteImport } from './routes/more'
+import { Route as ProjectsRouteImport } from './routes/projects'
+import { Route as ReceiptsRouteImport } from './routes/receipts'
+import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as ShoppingRouteImport } from './routes/shopping'
+import { Route as VisitsRouteImport } from './routes/visits'
 
-const VisitsRoute = VisitsRouteImport.update({
-  id: '/visits',
-  path: '/visits',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ShoppingRoute = ShoppingRouteImport.update({
-  id: '/shopping',
-  path: '/shopping',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScheduleRoute = ScheduleRouteImport.update({
-  id: '/schedule',
-  path: '/schedule',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReceiptsRoute = ReceiptsRouteImport.update({
-  id: '/receipts',
-  path: '/receipts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProjectsRoute = ProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MoreRoute = MoreRouteImport.update({
-  id: '/more',
-  path: '/more',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MessagesRoute = MessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoadingRoute = LoadingRouteImport.update({
-  id: '/loading',
-  path: '/loading',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FieldRoute = FieldRouteImport.update({
-  id: '/field',
-  path: '/field',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DebriefQueueRoute = DebriefQueueRouteImport.update({
-  id: '/debrief-queue',
-  path: '/debrief-queue',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfirmRoute = ConfirmRouteImport.update({
-  id: '/confirm',
-  path: '/confirm',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApprovalsRoute = ApprovalsRouteImport.update({
-  id: '/approvals',
-  path: '/approvals',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -95,9 +36,74 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ApprovalsRoute = ApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfirmRoute = ConfirmRouteImport.update({
+  id: '/confirm',
+  path: '/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DebriefQueueRoute = DebriefQueueRouteImport.update({
+  id: '/debrief-queue',
+  path: '/debrief-queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FieldRoute = FieldRouteImport.update({
+  id: '/field',
+  path: '/field',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvoicesRoute = InvoicesRouteImport.update({
+  id: '/invoices',
+  path: '/invoices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoadingRoute = LoadingRouteImport.update({
+  id: '/loading',
+  path: '/loading',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessagesRoute = MessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MoreRoute = MoreRouteImport.update({
+  id: '/more',
+  path: '/more',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReceiptsRoute = ReceiptsRouteImport.update({
+  id: '/receipts',
+  path: '/receipts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShoppingRoute = ShoppingRouteImport.update({
+  id: '/shopping',
+  path: '/shopping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VisitsRoute = VisitsRouteImport.update({
+  id: '/visits',
+  path: '/visits',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/confirm': typeof ConfirmRoute
   '/debrief-queue': typeof DebriefQueueRoute
   '/field': typeof FieldRoute
+  '/invoices': typeof InvoicesRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/confirm': typeof ConfirmRoute
   '/debrief-queue': typeof DebriefQueueRoute
   '/field': typeof FieldRoute
+  '/invoices': typeof InvoicesRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/confirm': typeof ConfirmRoute
   '/debrief-queue': typeof DebriefQueueRoute
   '/field': typeof FieldRoute
+  '/invoices': typeof InvoicesRoute
   '/loading': typeof LoadingRoute
   '/login': typeof LoginRoute
   '/messages': typeof MessagesRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/confirm'
     | '/debrief-queue'
     | '/field'
+    | '/invoices'
     | '/loading'
     | '/login'
     | '/messages'
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/confirm'
     | '/debrief-queue'
     | '/field'
+    | '/invoices'
     | '/loading'
     | '/login'
     | '/messages'
@@ -196,6 +207,7 @@ export interface FileRouteTypes {
     | '/confirm'
     | '/debrief-queue'
     | '/field'
+    | '/invoices'
     | '/loading'
     | '/login'
     | '/messages'
@@ -214,6 +226,7 @@ export interface RootRouteChildren {
   ConfirmRoute: typeof ConfirmRoute
   DebriefQueueRoute: typeof DebriefQueueRoute
   FieldRoute: typeof FieldRoute
+  InvoicesRoute: typeof InvoicesRoute
   LoadingRoute: typeof LoadingRoute
   LoginRoute: typeof LoginRoute
   MessagesRoute: typeof MessagesRoute
@@ -227,95 +240,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/visits': {
-      id: '/visits'
-      path: '/visits'
-      fullPath: '/visits'
-      preLoaderRoute: typeof VisitsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/shopping': {
-      id: '/shopping'
-      path: '/shopping'
-      fullPath: '/shopping'
-      preLoaderRoute: typeof ShoppingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/schedule': {
-      id: '/schedule'
-      path: '/schedule'
-      fullPath: '/schedule'
-      preLoaderRoute: typeof ScheduleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/receipts': {
-      id: '/receipts'
-      path: '/receipts'
-      fullPath: '/receipts'
-      preLoaderRoute: typeof ReceiptsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/projects': {
-      id: '/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof ProjectsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/more': {
-      id: '/more'
-      path: '/more'
-      fullPath: '/more'
-      preLoaderRoute: typeof MoreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/messages': {
-      id: '/messages'
-      path: '/messages'
-      fullPath: '/messages'
-      preLoaderRoute: typeof MessagesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/loading': {
-      id: '/loading'
-      path: '/loading'
-      fullPath: '/loading'
-      preLoaderRoute: typeof LoadingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/field': {
-      id: '/field'
-      path: '/field'
-      fullPath: '/field'
-      preLoaderRoute: typeof FieldRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/debrief-queue': {
-      id: '/debrief-queue'
-      path: '/debrief-queue'
-      fullPath: '/debrief-queue'
-      preLoaderRoute: typeof DebriefQueueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/confirm': {
-      id: '/confirm'
-      path: '/confirm'
-      fullPath: '/confirm'
-      preLoaderRoute: typeof ConfirmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/approvals': {
-      id: '/approvals'
-      path: '/approvals'
-      fullPath: '/approvals'
-      preLoaderRoute: typeof ApprovalsRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -325,11 +254,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/approvals': {
+      id: '/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof ApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confirm': {
+      id: '/confirm'
+      path: '/confirm'
+      fullPath: '/confirm'
+      preLoaderRoute: typeof ConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/debrief-queue': {
+      id: '/debrief-queue'
+      path: '/debrief-queue'
+      fullPath: '/debrief-queue'
+      preLoaderRoute: typeof DebriefQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/field': {
+      id: '/field'
+      path: '/field'
+      fullPath: '/field'
+      preLoaderRoute: typeof FieldRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invoices': {
+      id: '/invoices'
+      path: '/invoices'
+      fullPath: '/invoices'
+      preLoaderRoute: typeof InvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loading': {
+      id: '/loading'
+      path: '/loading'
+      fullPath: '/loading'
+      preLoaderRoute: typeof LoadingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/messages': {
+      id: '/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof MessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/more': {
+      id: '/more'
+      path: '/more'
+      fullPath: '/more'
+      preLoaderRoute: typeof MoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/receipts': {
+      id: '/receipts'
+      path: '/receipts'
+      fullPath: '/receipts'
+      preLoaderRoute: typeof ReceiptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/shopping': {
+      id: '/shopping'
+      path: '/shopping'
+      fullPath: '/shopping'
+      preLoaderRoute: typeof ShoppingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/visits': {
+      id: '/visits'
+      path: '/visits'
+      fullPath: '/visits'
+      preLoaderRoute: typeof VisitsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -342,6 +362,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfirmRoute: ConfirmRoute,
   DebriefQueueRoute: DebriefQueueRoute,
   FieldRoute: FieldRoute,
+  InvoicesRoute: InvoicesRoute,
   LoadingRoute: LoadingRoute,
   LoginRoute: LoginRoute,
   MessagesRoute: MessagesRoute,

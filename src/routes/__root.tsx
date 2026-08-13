@@ -19,6 +19,7 @@ import {
   CheckSquare,
   ClipboardList,
   ClipboardCheck,
+  FileText,
   Folder,
   Receipt,
   Shield,
@@ -366,6 +367,9 @@ const TABS: Record<string, TabDef> = {
   loading:  { to: "/loading",  label: "LOADING",       icon: Package },
   field:    { to: "/field",    label: "FIELD",         icon: Truck },
   visits:   { to: "/visits",   label: "CONFIRM VISITS",icon: ClipboardList },
+  /* CC-45 Item 47: its own entry — "CONFIRM VISITS" stopped describing half of what
+     that screen showed once invoice drafts started landing in it. */
+  invoices: { to: "/invoices", label: "INVOICE QUEUE", icon: FileText },
   messages: { to: "/messages", label: "MESSAGES",      icon: MessageSquare },
   projects: { to: "/projects", label: "PROJECTS",      icon: Folder },
   receipts: { to: "/receipts", label: "RECEIPTS",      icon: Receipt },
@@ -387,8 +391,8 @@ import type { Role } from "../lib/auth";
 const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
   lead:       { row: ["messages"], more: ["home","schedule","confirm","field","loading","projects","receipts","shopping","approvals","debriefq"] },
   assistant:  { row: ["messages"], more: ["home","schedule","field","loading","receipts","shopping"] },
-  office:     { row: ["messages"], more: ["home","schedule","visits","projects","receipts","shopping","approvals","debriefq"] },
-  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["projects","receipts","shopping","approvals","debriefq","admin"] },
+  office:     { row: ["messages"], more: ["home","schedule","visits","invoices","projects","receipts","shopping","approvals","debriefq"] },
+  management: { row: ["home","schedule","confirm","loading","field","visits","messages"], more: ["invoices","projects","receipts","shopping","approvals","debriefq","admin"] },
 };
 
 /* XX-05: which nav keys answer to a capability rather than to LAYOUTS alone.
@@ -398,6 +402,12 @@ const LAYOUTS: Record<Role, { row: string[]; more: string[] }> = {
 const NAV_CAPABILITY: Record<string, ScreenId> = {
   approvals: "route_queues",
   debriefq: "route_queues",
+  /* CC-45 Item 47: the Invoice Queue answers to the SAME capability as Confirm
+     Visits, so it inherits office + management only and Item 41's hold (leads must
+     not see invoice financials) needs no second rule. Listed here as well as in
+     LAYOUTS for the reason stated above — LAYOUTS alone is necessary, not
+     sufficient. */
+  invoices: "visits",
 };
 
 const LIME_TAB = "#7cff00";
@@ -410,6 +420,7 @@ function HamburgerMenu() {
   const inboxCount = useBadge(BK.inbox) ?? 0;
   const receiptsCount = useBadge(BK.receipts) ?? 0;
   const visitsCount = useBadge(BK.visits) ?? 0;
+  const invoicesCount = useBadge(BK.invoices) ?? 0;      // CC-45 Item 47
   const approvalsCount = useBadge(BK.approvals) ?? 0;
   const debriefqCount = useBadge(BK.debriefq) ?? 0;
 
@@ -440,6 +451,7 @@ function HamburgerMenu() {
     if (to === "/messages") return inboxCount;
     if (to === "/receipts") return receiptsCount;
     if (to === "/visits") return visitsCount;
+    if (to === "/invoices") return invoicesCount;      // CC-45 Item 47
     if (to === "/approvals") return approvalsCount;
     if (to === "/debrief-queue") return debriefqCount;
 
