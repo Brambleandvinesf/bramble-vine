@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-48 — 2026-08-13
+
+**Sent:** Record the inventory-tracking connection between Items 36/49/50. Item 36 —
+build the catalog-match signal, extended to project add-item; findings first on the
+wider scope. Item 49 — scope the tool usage log. Item 50 — scope the historical Tool
+pass. Findings first on all three.
+
+**Response to CC-48:** **FINDINGS ONLY, nothing built** — all three were findings-first
+and one finding materially changes Item 49. Inventory connection recorded in CLAUDE.md.
+
+- **ITEM 36 — the wider scope IS small, as hoped.** `fromCatalog` needs no inference:
+  **ItemPicker already has two structurally distinct paths** — a catalog pick vs the
+  `customOpen` form — so the flag is known at the moment of the tap, not guessed later.
+  Storage: `ItemUsed` gains `fromCatalog?: true` following `comp`'s existing
+  absent-means-false convention, so no existing payload changes shape.
+  · **Neither tab has a slot today**, but both take one cheaply via the established
+    on-demand column pattern (`dlInvoiceCol_` / `mqKindCol_` / `otEventCol_`):
+    `Items Used` = Date, Client, Event ID, Item, Quantity, Timestamp;
+    `Project Tools & Materials` = Client Name, Project ID, Quantity, Item Name, Size,
+    Category, Loaded Status, Notes, Material ID, Action, Map Link.
+  · **⚠ ONE SHARED FLAG, TWO WRITE SITES.** The tabs are written by different code
+    paths, so "same mechanism" means one component-level flag plumbed to two writers —
+    not one write. That is the actual cost, and it is the part that would silently
+    half-ship if only the debrief path were done.
+- **⚠⚠ ITEM 49 IS MOSTLY ALREADY BUILT — THE PREMISE IS WRONG.** Non-billable items do
+  **NOT** vanish. `saveDebrief` already writes **every** item used to the `Items Used`
+  tab (Code.js:7029), billable or not, with Date, Client, Event ID, Item, Quantity and
+  Timestamp. The gap is not existence, it is **resolution**: no project, no crew
+  member, and no way to tell a tool from a material. So Item 49 is an EXTENSION of an
+  existing log, not a new one — which is also what the anti-sprawl rule wants.
+  Trigger point needs no new hook; it already exists at that same write.
+- **ITEM 50 — retroactive identification is possible without the flag.** `Items Used`
+  is the historical record; past custom entries are identifiable by **name-matching
+  each historical item against the live Products & Services catalog** — no match =
+  custom-typed. That is the retroactive proxy for `fromCatalog`.
+  **⚠ 'Tool' must NOT be a QBO Category value** — confirmed conflict, recorded in
+  CLAUDE.md: that column is a billing taxonomy of real materials on a QB-synced sheet,
+  and `Project Tools & Materials` has a third, separate `Category` of its own.
+- **⚠ COULD NOT CONFIRM the Invoice Queue is reachable** — I guessed the deployed
+  hostname and it did not resolve. Not verified; asked rather than assumed.
+
+---
+
 ## CC-47 — 2026-08-13
 
 **Sent:** productCategoryProbe only printed Category — real headers are 'Item type'

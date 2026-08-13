@@ -1384,6 +1384,25 @@ drafted before crew assignment exists.
 Item 43 (the Haiku input-set fix) was split out and shipped separately — it does
 not depend on either approach.
 
+### INVENTORY TRACKING — Items 36, 49 and 50 are one feature, not three asks
+**Brandon is working toward genuine inventory tracking (CC-48, 8/13).** These three
+items exist together and must be understood together; a future session that treats
+them as unrelated small asks will build three mechanisms where one was intended:
+- **Item 36 — the catalog-match signal.** `fromCatalog` on an item at add time.
+  Catalog-matched vs custom-typed is the only real billable/non-billable proxy
+  available: **no catalog COLUMN distinguishes them** (Item type × price came back
+  overwhelmingly priced across every type).
+- **Item 49 — the non-billable/tool usage log.** What tools get used where.
+- **Item 50 — the one-time historical Tool categorisation pass**, in the shape of
+  Item 33's migration: transparent candidate rule, reviewed before anything is written.
+**⚠ 'Tool' MUST NOT become a QBO Products & Services Category value.** That column is
+a BILLING taxonomy of real materials (Botanicals, Irrigation, Fertilizer, Pest
+Control, Top Dressing, Bulbs, Adhesive, Rock, Batteries) on a QuickBooks-synced sheet.
+Mixing an inventory concept into it would corrupt a billing classification to store a
+stock one. `Project Tools & Materials` has its OWN separate `Category` column — a
+third taxonomy again. Keep them distinct.
+Full findings and costings are in CC-LOG under CC-48.
+
 ### Season-based project visibility (dropdown / snooze control)
 Brandon wants a proper seasonal-visibility feature: a dropdown/snooze-style control
 with **early/late per season plus broad "Growing Season" / "Dormant Season"**
