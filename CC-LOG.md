@@ -14,6 +14,47 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-31 — 2026-08-12
+
+**Sent:** Item 31 Part B — extend the probe. Brandon confirmed the "QB link" and the
+"cc link" are TWO genuinely separate links in real practice, not a column-V artifact,
+so design link resolution around two from the start. Probe must report (1) whether
+`include=invoiceLink` returns a field and what it looks like, (2) whether a distinct
+credit-card/payment link is exposed at all, (3) `Balance` and whether 0 means settled.
+Photo hosting CONFIRMED as option 2 — reuse the existing client gallery link. Part C
+and Item 34 still not to be built.
+
+**Response to CC-31:** Probe written and **PUSHED ONLY — NOT DEPLOYED**. `/exec` still
+serves v7.4.96 @283, unchanged. Brandon runs `qboInvoiceLinkProbe` from the editor.
+
+- **`qboInvoiceLinkProbe()` — v7.4.97 in HEAD.** Read-only: three GETs, no writes, no
+  sends, nothing created. Sits next to `qboItemProbe`, same editor-only pattern as
+  `quoMessagesProbe` / `qboItemProbe`.
+- **Picks the most recent invoice in the file, not a named client.** A hand-picked
+  client with no invoice yet would log "no invoice" and read like a QBO answer when it
+  was really a bad guess. Also logs the 2nd most recent so `Balance` can be read as a
+  *signal* (two invoices, likely different paid states) rather than one unfalsifiable
+  number.
+- **Dumps EVERY top-level field name QBO returns**, then filters for
+  /link|url|pay|share|portal/i. Deliberate: guessing which field carries the payment
+  link is exactly how this goes wrong twice. The answer should be read, not inferred.
+- **Also GETs `/preferences`** (SalesFormsPrefs, EmailMessagesPrefs). Reason: Brandon
+  confirmed two real links, but the Invoice entity may only carry one URL — on many
+  QBO plans the pay-by-card affordance is the SAME InvoiceLink with online payment
+  switched on. If the card side is a company PREFERENCE rather than a second field,
+  preferences is where it shows, and that difference decides whether Part C sends one
+  link or two. The probe reports it instead of asserting it either way.
+- Reports `AllowOnlineCreditCardPayment` / `AllowOnlineACHPayment` /
+  `AllowOnlinePayment` / `EInvoiceStatus` alongside `InvoiceLink`.
+- **Photo hosting logged as settled:** existing client gallery link, one link,
+  existing plumbing end to end.
+- Verified: `node --check` OK; audit clean at the known 1-finding baseline
+  (`placesDetails ignores: sessionToken`, pre-existing). Stale check ran before
+  patching — HEAD matched the working copy.
+- **NOT BUILT, as instructed:** Part C, Item 34.
+
+---
+
 ## CC-30 — 2026-08-12
 
 **Sent:** Batch C. Item 31 Part A (read U and V for real), Part B (resolve the

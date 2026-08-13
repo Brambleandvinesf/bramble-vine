@@ -863,6 +863,13 @@ constrains payment reminders (Item 34):**
   opt-out ALREADY EXPRESSED in this column, before the toggle was built.
 - 3× 'Send cc link' variants, one reading **'send cc link in addition to QB link'** —
   so there are TWO distinct payment links in Brandon's model, not one.
+  **CONFIRMED BY BRANDON (CC-31): the QB link and the cc link are two genuinely
+  separate links in how invoicing actually works — not a data artifact of this
+  column. Design link resolution around TWO possible links from the start.**
+  Open question `qboInvoiceLinkProbe` exists to settle: whether QBO exposes them as
+  two fields, or as ONE `InvoiceLink` plus an online-payment setting. Do not assume
+  either — on many QBO plans the pay-by-card affordance is the same link with a
+  preference switched on, which would mean one URL serving both roles.
 - The rest are extra recipients ('add iye@hsmsf.com', 'Email - Leslie & …') and
   invoice-wording instructions ('List as "Maintenance Flat Fee"').
 **Read V before sending any client anything about money.** Roughly half the clients
