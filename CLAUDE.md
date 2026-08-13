@@ -1360,7 +1360,21 @@ Turn both off after a clean week. Leaving them on is harmless (nothing triggers
 Draft now) but confusing to the next person reading this.
 
 ## FUTURE / BACKLOG — NOT SCHEDULED, NOT STARTED
-### Crew/lead self-review of the AI client message — DEFERRED ON TRUST, NOT UI
+### Crew self-review of the AI client message — REOPENED CC-57 (8/13), BUILDING
+**No longer held.** Brandon reopened this and chose to build **Approach 2 only**, with
+his original boundary intact: **the crew member previews and edits the CLIENT-FACING
+MESSAGE TEXT for their own visit — not the Invoice Queue, not other clients' data, not
+invoice dollar amounts or line items.** Approach 1 (granting leads the VISIT
+CONFIRMATIONS screen) is still NOT being built; the trust threshold that governed it
+never moved, this route simply avoids it by showing only the message.
+The message still routes to the Invoice Queue afterwards for the office's send
+approval — two independent checks: the crew confirms the words are true, the office
+confirms it should go out and to the right number. **Not auto-send on crew submit.**
+Item 42's per-client Payment Reminders checkbox lives on this same preview step.
+Design findings, including what the preview can and cannot show at preview time, are
+in CC-LOG under CC-57.
+
+### (superseded) Crew/lead self-review — the original hold, kept for context
 Both routes to letting someone other than Brandon review an invoice draft are on
 hold as of **CC-35 (8/13)**:
 - **Approach 1** — grant leads the VISIT CONFIRMATIONS screen (one character:
@@ -1373,8 +1387,9 @@ as scoped still shows the crew member the message tied to their own invoice —
 closer to Approach 1's exposure than he wants.
 
 **THE REAL GATE IS: are leads trusted to send invoices without Brandon's own
-review?** That is a trust threshold, not a UI question. **Do not build either
-approach without a new explicit ask once that threshold is reached.** Item 42 (the
+review?** That is a trust threshold, not a UI question. **⚠ SUPERSEDED CC-57: the
+explicit ask arrived. Approach 2 is being built; Approach 1 still is not, and the
+trust threshold above still governs IT — read the CC-57 block above first.** Item 42 (the
 per-client Payment Reminders checkbox) is held with it — it was scoped to live on
 whichever review step this produced, so it has no home until then.
 Costings and the exposure analysis are in CC-LOG under CC-34, so this does not

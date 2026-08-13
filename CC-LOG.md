@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-57 — 2026-08-13
+
+**Sent:** Items 41/42 reopened — build Approach 2 (message-text preview in the crew's
+own debrief) and Item 42's checkbox on that step. Re-verify against everything that
+landed since CC-34. Findings first, report the design before writing code.
+
+**Response to CC-57:** **FINDINGS ONLY, no code written** — both items were
+findings-first. CLAUDE.md's hold replaced with the reopened design. Re-verification
+turned up four things that did not exist when Approach 2 was costed in CC-34.
+
+- **Q1 TIMING — CONFIRMED, and the preview genuinely cannot show a real link.** The
+  invoice does not exist until `saveDebrief` runs, so `invoiceUrl` is unavailable at
+  preview time. The gallery link is also unavailable **unless already minted** —
+  `mqDraftInvoice_` calls `galleryTokenFor_(ss, client, false)` with **create:false**,
+  deliberately, so finishing a debrief never mints a token as a side effect. A preview
+  must therefore show a **placeholder** for the link section.
+- **Q2 — YES, and Item 45's template HELPS rather than blocking.** `haikuClientMsg_`
+  still takes only `(client, notes)`, and `invoiceMsgBody_(channel, invoiceUrl,
+  gallery, clientMsg)` is a **separate, composable** function. A preview action can
+  call Haiku, then call the real template with a placeholder link — so the crew sees
+  the ACTUAL wording that will send, not an approximation.
+- **Q3 — CONFIRMED feasible with a one-line change.** `saveDebrief` computes
+  `const msg = haikuClientMsg_(client, clientNotes_(...))`; accepting a
+  `data.clientMessage` override there means no invoice-creation delay and no splitting
+  of `saveDebrief`, exactly as originally designed.
+- **⚠ FOUR THINGS CC-34 COULD NOT HAVE KNOWN, all raised in the response:**
+  1. **Not every debrief invoices.** `suppressInvoice`, `final === false`, and the
+     server-only `debriefAlreadyInvoiced_` gate it. A preview shown for a debrief that
+     will send nothing is a promise the system will not keep.
+  2. **Column U can produce TWO drafts.** 'Email & Text' clients get one row per
+     channel, and the template differs (greeting inline vs on its own line), so a
+     single preview cannot be literally both.
+  3. **⚠ ITEM 42's CHECKBOX CAN LIE IN TWO WAYS, NOT ONE.** Brandon flagged the master
+     switch; the **column V veto** is the second, and it is stronger — 11 cheque/
+     auto-charged clients and 1 explicit "no reminders" can never be reminded no matter
+     what the toggle says. A crew member ticking the box for a cheque-paying client
+     would otherwise get silent nothing.
+  4. `PAY_REMIND_ENABLED` is currently **off**, so today every tick is inert.
+- Placement, the debrief-queue question, and the Item 42 action shape are all presented
+  as numbered options with recommendations in the response.
+
+---
+
 ## CC-56 — 2026-08-13
 
 **Sent:** Build Item 37's mic UI — six states, capability-checked, ranked candidates
