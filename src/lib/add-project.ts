@@ -146,6 +146,51 @@ export async function deleteFutureProject(client: string, projectId: string): Pr
   if (j.ok === false) throw new Error(String(j.error || "could not delete that project"));
 }
 
+/**
+ * CC-27 Item 32.3 — remove ONE item from a project.
+ *
+ * Wraps the existing `removeItem` action, which is client-scoped and deletes a
+ * SINGLE row: two identical pills on one project take two taps rather than both
+ * vanishing at once. qty/size ride along so the right row is picked when a project
+ * carries the same item name twice; the backend only narrows on them when present.
+ *
+ * Lives here with the other live debrief writes rather than being passed in as a
+ * prop. StateDebrief takes no post function — its whole contract is `onFinish` —
+ * and this is the established way that step already writes live
+ * (saveFutureProject / deleteFutureProject / addCompletedProject all own their fetch).
+ */
+export async function removeProjectItem(
+  client: string,
+  projectId: string,
+  item: { name: string; qty?: string; size?: string },
+): Promise<void> {
+  const j = await post({ action: "removeItem", client, projectId, item });
+  if (j.ok === false) throw new Error(String(j.error || `could not remove "${item.name}"`));
+}
+
+/**
+ * CC-27 Item 32.4 — edit an EXISTING project's fields in place.
+ *
+ * `editProject` writes only the keys it is given, and Project ID, Client Key,
+ * Status, Crossed, Garden and Category are never touched unless named. That is
+ * what makes this safe to call mid-debrief: it edits the fields the form owns and
+ * cannot disturb the completion state the debrief is separately staging.
+ */
+export async function editProjectFields(
+  client: string,
+  projectId: string,
+  fields: {
+    projectAction?: string;
+    type?: string;
+    garden?: string;
+    category?: string;
+    notes?: string;
+  },
+): Promise<void> {
+  const j = await post({ action: "editProject", client, projectId, ...fields });
+  if (j.ok === false) throw new Error(String(j.error || "could not save that edit"));
+}
+
 const SECTION_SUFFIX =
   /^(.*?)[\s\-–]*\b(sec|sect|section|sector)\b\.?\s*([0-9]+|[A-Za-z])\s*$/i;
 

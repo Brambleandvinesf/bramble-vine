@@ -36,6 +36,8 @@ import {
   addCompletedProject,
   saveFutureProject,
   deleteFutureProject,
+  removeProjectItem,
+  editProjectFields,
   fetchClientNames,
   sectionBase,
   sectionLabel,
@@ -2544,15 +2546,74 @@ function ItemPill({
   disabled,
   onClick,
   ignoreLoaded,
+  onRemove,
 }: {
   t: NormTool;
   disabled?: boolean;
   onClick?: () => void;
   /** AD.7: render normal regardless of Loading's `loaded` flag. */
   ignoreLoaded?: boolean;
+  /** CC-27 Item 32.3: when given, the pill carries an × that removes this item
+   *  from the project for real (removeItem). Opt-in — every existing caller
+   *  omits it and renders exactly as before. */
+  onRemove?: () => void;
 }) {
   const label = [t.qty, t.item, t.size].filter(Boolean).join(" ");
   const clickable = !disabled && !!onClick && !!t.materialId;
+  /* The × is a button INSIDE the pill, so the pill itself can no longer be a
+     <button> when removal is offered — nesting them is invalid HTML and the inner
+     click would not reliably win. With onRemove the wrapper becomes a <span> and
+     only the × is interactive, which is also the only behaviour this screen wants:
+     Projects Completed has no tool-toggle. */
+  if (onRemove) {
+    return (
+      <span
+        title={t.notes || undefined}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          maxWidth: "100%",
+          background: BG,
+          color: BRIGHT_LIME,
+          border: `1px solid ${BRIGHT_LIME}`,
+          borderRadius: 999,
+          padding: "4px 4px 4px 10px",
+          fontFamily: "inherit",
+          fontSize: 12,
+          lineHeight: 1.3,
+          textAlign: "left",
+        }}
+      >
+        <span style={{ whiteSpace: "normal", wordBreak: "break-word" }}>{label}</span>
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={disabled}
+          aria-label={`Remove ${t.item}`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 26,
+            minHeight: 26,
+            padding: 0,
+            background: "transparent",
+            color: BRIGHT_LIME,
+            border: `1px solid ${LIME_DIM}`,
+            borderRadius: 999,
+            fontFamily: "inherit",
+            fontSize: 13,
+            lineHeight: 1,
+            cursor: disabled ? "default" : "pointer",
+            opacity: disabled ? 0.5 : 1,
+          }}
+        >
+          ×
+        </button>
+      </span>
+    );
+  }
   return (
     <button
       type="button"
@@ -2585,6 +2646,16 @@ function ItemPill({
   );
 }
 
+/** CC-27 Item 32: the live controls a card can offer. Present ONLY on Projects
+ *  Completed; absent everywhere else, which is what keeps Visit In Progress
+ *  byte-identical (32.7). */
+type ProjectCardActions = {
+  onDelete: () => void;
+  onEdit: () => void;
+  onCamera: () => void;
+  onRemoveItem: (t: NormTool) => void;
+};
+
 function ProjectCard({
   p,
   items,
@@ -2592,6 +2663,7 @@ function ProjectCard({
   onToggleTool,
   crossed,
   onToggleCrossed,
+  actions,
 }: {
   p: ProjectRow;
   items: NormTool[];
@@ -2601,26 +2673,34 @@ function ProjectCard({
    *  permanently (special). */
   crossed?: boolean;
   onToggleCrossed?: () => void;
+  /** CC-27 Item 32.7: PROP-GATED. When given, the card grows the icon row AND
+   *  gives up the whole-card-tap gesture — the check becomes the only way to
+   *  toggle completion. When absent (Visit In Progress) nothing changes. */
+  actions?: ProjectCardActions;
 }) {
   const action = s(p["Project Action"]) || s(p["Action"]) || "—";
   const type = s(p["Type"]);
   const notes = s(p["Notes"]);
+  /* AD.8's card tap is REPLACED, not supplemented, when the icon row is present:
+     two ways to toggle one state on the same surface is how a control stops being
+     predictable. */
+  const cardTap = actions ? undefined : onToggleCrossed;
   return (
     <div
       style={{
         ...PANEL_BOX,
         marginTop: 8,
         opacity: crossed ? 0.5 : 1,
-        cursor: onToggleCrossed ? "pointer" : "default",
+        cursor: cardTap ? "pointer" : "default",
       }}
       /* AD.8: tapping the CARD toggles it, but never when the tap landed
          on a button (item pills and any future controls keep their own
          behaviour). */
       onClick={
-        onToggleCrossed
+        cardTap
           ? (e) => {
               if ((e.target as HTMLElement).closest("button")) return;
-              onToggleCrossed();
+              cardTap();
             }
           : undefined
       }
@@ -2661,14 +2741,93 @@ function ProjectCard({
               ignoreLoaded
               disabled={busy}
               onClick={onToggleTool ? () => onToggleTool(t) : undefined}
+              onRemove={actions ? () => actions.onRemoveItem(t) : undefined}
             />
           ))}
         </div>
       )}
       {notes && <div style={{ color: DIM_GREEN, fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>{notes}</div>}
+
+      {/* CC-27 Item 32.2/32.6 — the action row. Present only on Projects Completed.
+          ONE of these five controls is staged and four apply immediately, so they
+          are deliberately drawn differently:
+            CHECK  — the only STATEFUL control. Dashed border = staged; hollow while
+                     incomplete, inverted (lime fill, black glyph) once marked.
+            TRASH / PENCIL / CAMERA — momentary, live, solid border, never filled.
+                     Trash in red, which is the sanctioned use of red: destructive.
+          The caption is the load-bearing part. Border weights will not teach anyone
+          which control is reversible, and the difference matters — the check can be
+          un-ticked until submit, the other three cannot be undone at all. */}
+      {actions && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              onClick={onToggleCrossed}
+              disabled={busy || !onToggleCrossed}
+              aria-pressed={!!crossed}
+              aria-label={crossed ? "mark not complete" : "mark complete"}
+              style={{
+                ...ICON_BTN,
+                border: `1px dashed ${LIME}`,
+                background: crossed ? LIME : "transparent",
+                color: crossed ? BG : LIME,
+              }}
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              onClick={actions.onEdit}
+              disabled={busy}
+              aria-label="Edit project"
+              style={{ ...ICON_BTN, border: `1px solid ${LIME}`, color: LIME }}
+            >
+              ✎
+            </button>
+            <button
+              type="button"
+              onClick={actions.onCamera}
+              disabled={busy}
+              aria-label="Add an after photo"
+              style={{ ...ICON_BTN, border: `1px solid ${LIME}`, color: LIME }}
+            >
+              📷
+            </button>
+            <button
+              type="button"
+              onClick={actions.onDelete}
+              disabled={busy}
+              aria-label="Delete project"
+              style={{ ...ICON_BTN, border: `1px solid ${RED}`, color: RED, marginLeft: "auto" }}
+            >
+              🗑
+            </button>
+          </div>
+          <div style={{ color: MUTED, fontSize: 10, marginTop: 6, letterSpacing: 0.5 }}>
+            ✓ saves with the debrief · trash, edit, camera apply now
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+/** CC-27 32.6: shared geometry for the card's icon row. Colour and border style are
+ *  set per button, because that is exactly what distinguishes staged from live. */
+const ICON_BTN: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 8,
+  background: "transparent",
+  fontFamily: "inherit",
+  fontSize: 16,
+  lineHeight: 1,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
 
 /* ============================================================
  * ASSISTANT LOADING GATE — pre-navigate step for assistants at
@@ -4512,16 +4671,160 @@ export function StateDebrief({
   );
   const [showAddPerson, setShowAddPerson] = useState(false);
 
+  /* CC-27 Item 32 — LOCAL OVERLAYS over the `projects` PROP.
+     `projects` arrives from getField and only refreshes on its ~20s poll, but three
+     of this screen's controls write live and must be reflected AT ONCE:
+       · trash   -> the card disappears now, not in 20s
+       · pencil  -> retyping to Recurring drops it from this SPECIAL-only list
+                    immediately (32.4 explicitly asks for instant, not the poll)
+       · pill ×  -> the item pill goes now
+     Overlays, not a local copy of the data: the poll stays authoritative and
+     reconciles by simply agreeing. Keyed by Project ID, which is unique WITHIN a
+     client, and this list is already filtered to one client — so no composite key
+     is needed here (unlike projects.tsx, which spans clients: Item 24). */
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [fieldEdits, setFieldEdits] = useState<Record<string, Partial<ProjectRow>>>({});
+  const [removedItemKeys, setRemovedItemKeys] = useState<Set<string>>(new Set());
+  const [editProject, setEditProject] = useState<
+    { projectId: string; client: string; draft: NewProject } | null
+  >(null);
+  const [cameraFor, setCameraFor] = useState<string | null>(null);
+  const [cardErr, setCardErr] = useState<string | null>(null);
+
+  /* CC-27 32.1: the tools prop, normalised the same way StateVisit does it, so the
+     pills on this screen and the pills on the visit card are the same objects drawn
+     by the same component. Client-scoped here; the per-project split happens at
+     render, keyed on Project ID (unique within one client). */
+  const normTools = useMemo<NormTool[]>(
+    () =>
+      (tools ?? [])
+        .map((t) => ({
+          row: Number(t.row ?? 0),
+          materialId: s(t["Material ID"]),
+          client: s(t["Client Name"]).trim(),
+          project: s(t["Project ID"]).trim(),
+          item: s(t["Item Name"]),
+          qty: s(t["Quantity"]),
+          size: s(t["Size"]),
+          notes: s(t["Notes"]),
+          loaded: t["Loaded Status"] === true,
+        }))
+        .filter(
+          (t) =>
+            t.item &&
+            (!clientMatch || t.client.toLowerCase() === clientMatch.toLowerCase()),
+        ),
+    [tools, clientMatch],
+  );
+
+  /* CC-27 32.2 — a REAL, non-recoverable delete: deleteProject removes the project
+     row AND its child T&M rows and rebuilds the client's calendar event. There is no
+     soft-flag and no undo, so it is confirm-gated with the item count named, because
+     "and its 3 items" is the part someone would not otherwise expect. */
+  const deleteWholeProject = useCallback(
+    async (p: ProjectRow, itemCount: number) => {
+      const id = s(p["Project ID"]);
+      const client = s(p["Client Name"]);
+      const action = s(p["Project Action"]) || s(p["Action"]) || "this project";
+      const ok = await confirmModal({
+        message:
+          `Delete "${action}"${itemCount ? ` and its ${itemCount} item${itemCount === 1 ? "" : "s"}` : ""}?\n\n` +
+          "This removes them from Client Projects permanently.",
+        destructive: true,
+      });
+      if (!ok) return;
+      setCardErr(null);
+      /* Optimistic, with rollback — the VV rule. The poll is 20s away and the card
+         must go now. */
+      setDeletedIds((prev) => new Set(prev).add(id));
+      try {
+        await deleteFutureProject(client, id);
+      } catch (e) {
+        setDeletedIds((prev) => {
+          const n = new Set(prev);
+          n.delete(id);
+          return n;
+        });
+        setCardErr(e instanceof Error ? e.message : "could not delete that project");
+      }
+    },
+    [],
+  );
+
+  const removeOneItem = useCallback(async (p: ProjectRow, t: NormTool) => {
+    const id = s(p["Project ID"]);
+    const key = `${id}::${t.item}::${t.qty}`;
+    setCardErr(null);
+    setRemovedItemKeys((prev) => new Set(prev).add(key));
+    try {
+      await removeProjectItem(s(p["Client Name"]), id, {
+        name: t.item,
+        qty: t.qty,
+        size: t.size,
+      });
+    } catch (e) {
+      setRemovedItemKeys((prev) => {
+        const n = new Set(prev);
+        n.delete(key);
+        return n;
+      });
+      setCardErr(e instanceof Error ? e.message : `could not remove "${t.item}"`);
+    }
+  }, []);
+
+  /* CC-27 32.4 — writes the four fields the form owns, then overlays them locally so
+     a Type change to RECURRING drops the card immediately instead of waiting out the
+     poll. editProject never touches Status or Crossed, so the staged completion this
+     debrief is holding cannot be disturbed by an edit. */
+  const saveProjectEdit = useCallback(async () => {
+    if (!editProject) return;
+    const { projectId, client, draft } = editProject;
+    setRowBusy(projectId);
+    setCardErr(null);
+    try {
+      await editProjectFields(client, projectId, {
+        projectAction: draft.action,
+        type: draft.type,
+        garden: draft.garden,
+        category: draft.category,
+        notes: draft.notes,
+      });
+      setFieldEdits((prev) => ({
+        ...prev,
+        [projectId]: {
+          "Project Action": draft.action,
+          Type: draft.type ?? "",
+          Garden: draft.garden ?? "",
+          Category: draft.category ?? "",
+          Notes: draft.notes ?? "",
+        } as Partial<ProjectRow>,
+      }));
+      setEditProject(null);
+    } catch (e) {
+      setCardErr(e instanceof Error ? e.message : "could not save that edit");
+    } finally {
+      setRowBusy(null);
+    }
+  }, [editProject]);
+
   const specialProjects = useMemo(
     () =>
       clientMatch
-        ? projects.filter(
-            (p) =>
-              s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase() &&
-              s(p["Type"]).toUpperCase() === "SPECIAL",
-          )
+        ? projects
+            .filter((p) => s(p["Client Name"]).toLowerCase() === clientMatch.toLowerCase())
+            .map((p) => {
+              const edit = fieldEdits[s(p["Project ID"])];
+              return edit ? { ...p, ...edit } : p;
+            })
+            /* Type is read AFTER the overlay is applied, which is what makes a
+               pencil edit to Recurring drop the card on save. */
+            .filter(
+              (p) =>
+                s(p["Type"]).toUpperCase() === "SPECIAL" &&
+                !deletedIds.has(s(p["Project ID"])),
+            )
         : [],
-    [projects, clientMatch],
+    [projects, clientMatch, fieldEdits, deletedIds],
   );
 
   /* Lv01: `update` notes no longer have a destination on this step. */
@@ -5424,6 +5727,36 @@ export function StateDebrief({
 
         {currentKey === "updates" && (
           <div>
+            {/* CC-27 Item 32.4: the PENCIL opens NewProjectForm inline, pre-filled
+                from the row. Inline rather than navigating to /projects, because
+                everything on this debrief — billing figures, staged checks, items
+                used, messages — is unwritten until submit, and leaving the screen
+                would discard all of it.
+                `savedId` is deliberately NOT set on the draft: it means "already
+                written" to that component and would collapse the card and disable
+                SAVE. The real Project ID is held here instead, and SAVE posts
+                editProject against it. */}
+            {editProject && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ color: LIME, fontSize: 11, letterSpacing: 2, marginBottom: 4 }}>
+                  EDITING PROJECT
+                </div>
+                <NewProjectForm
+                  value={editProject.draft}
+                  clientName={editProject.client}
+                  gardenOptions={gardenOptions}
+                  categoryOptions={categoryOptions}
+                  cameraDisabled
+                  sectionOpts={sectionOpts}
+                  visitClient={clientMatch ?? ""}
+                  saving={rowBusy === editProject.projectId}
+                  onChange={(v) => setEditProject({ ...editProject, draft: v })}
+                  onSave={() => void saveProjectEdit()}
+                  onRemove={() => setEditProject(null)}
+                />
+              </div>
+            )}
+
             {specialProjects.length === 0 && (
               <div style={{ color: MUTED, fontSize: 12 }}>No projects to update.</div>
             )}
@@ -5435,19 +5768,67 @@ export function StateDebrief({
             {specialProjects.map((p) => {
               const id = s(p["Project ID"]);
               const done = updates.some((u) => u.projectId === id && u.status === "DONE");
+              /* CC-27 32.1: REAL items, from the same tools list the visit card
+                 uses — this was `items={[]}`, which is why the pills never showed.
+                 Filtered by client AND project, then minus anything removed in this
+                 session so the pill goes at once. */
+              const cardItems = normTools.filter(
+                (t) => t.project === id && !removedItemKeys.has(`${id}::${t.item}::${t.qty}`),
+              );
               return (
+                <div key={id}>
                 <ProjectCard
-                  key={id}
                   p={p}
-                  items={[]}
+                  items={cardItems}
                   busy={busy}
                   crossed={done}
                   onToggleCrossed={
                     isPreview ? undefined : () => setSpecial(id, done ? "SKIP" : "DONE")
                   }
+                  actions={
+                    isPreview
+                      ? undefined
+                      : {
+                          onEdit: () =>
+                            setEditProject({
+                              projectId: id,
+                              client: s(p["Client Name"]),
+                              draft: {
+                                action: s(p["Project Action"]) || s(p["Action"]),
+                                type: s(p["Type"]) || "SPECIAL",
+                                garden: s(p["Garden"]),
+                                category: s(p["Category"]),
+                                notes: s(p["Notes"]),
+                                client: s(p["Client Name"]),
+                              },
+                            }),
+                          onDelete: () => void deleteWholeProject(p, cardItems.length),
+                          onCamera: () => setCameraFor((cur) => (cur === id ? null : id)),
+                          onRemoveItem: (t) => void removeOneItem(p, t),
+                        }
+                  }
                 />
+                {/* CC-27 32.5: the EXISTING ProjectCamera, re-wired rather than
+                    rebuilt — the same component Add Future Project uses, so photos
+                    file through the one upload path. Rendered under its own card and
+                    toggled by that card's camera icon; ProjectCamera owns its own
+                    photo state and has no dismiss of its own, so the icon closes it. */}
+                {cameraFor === id && (
+                  <div style={{ marginTop: 6, marginLeft: 12 }}>
+                    <ProjectCamera
+                      projectId={id}
+                      clientName={s(p["Client Name"])}
+                      disabled={busy || !!isPreview}
+                      existing={0}
+                    />
+                  </div>
+                )}
+                </div>
               );
             })}
+            {cardErr && (
+              <div style={{ color: RED, fontSize: 12, marginTop: 8 }}>{cardErr}</div>
+            )}
 
 
             {/* CC-09: log something completed that was not on the list. Writes
