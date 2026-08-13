@@ -14,6 +14,45 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-43 — 2026-08-13
+
+**Sent:** NEW PERMANENT FORMATTING RULE — one unified code block per response, no
+exceptions; record it in CLAUDE.md. Seasons blocker resolved as option 1 (four
+dormant-half labels). F.4 delete confirmed. Re-run the dry run with Seasons included
+and report the complete diff. Hold before the live write.
+
+**Response to CC-43:** **DRY RUN EXECUTED AGAINST LIVE DATA. NOTHING WRITTEN.**
+`migrateProjectFields` deployed as **v7.4.106 @289**, dry-run by default.
+
+- **⚠ THE ONE-UNIFIED-CODE-BLOCK RULE IS NOW IN CLAUDE.md**, at the top of "HOW
+  BRANDON BRIEFS THIS PROJECT" beside the other process rules, stated as permanent and
+  with the reason (Brandon copies the response out whole; a split response is unusable).
+- **Dry run result: 75 rows touched, 115 cell writes — matches CC-42's 75 exactly.**
+- **⚠ ROWS ARE KEYED BY Client Name + Project ID, NEVER BY SHEET ROW**, and the delete
+  runs LAST after every edit. Deleting proj-168 shifts every row beneath it, so a
+  row-numbered script would write correct values into wrong rows the moment it ran.
+- **⚠ ROW NUMBERS IN THIS DRY RUN ARE +1 vs CC-42's report.** Not a data change: CC-42
+  used `getProjects`/`tabToObjects_`'s own `row` field, this uses the true sheet row.
+  Identity was verified by client + Project ID + old value matching CC-42 on all 75.
+  Another reason the migration keys on ids rather than row numbers.
+- Also corrected: Zoé Mclaughlin's Garden is `SPECIAL` (uppercase), not `Special` —
+  CC-42 displayed it folded because PowerShell's `-eq` is case-insensitive. Same row,
+  same fold, no change to the plan.
+- **Seasons writes the four REAL labels** — `Late Fall, Early Winter, Late Winter,
+  Early Spring` — on proj-8, proj-11, proj-157, proj-167. Never the string
+  'Dormant Season'. The agreed **"Dormant Season" == those four labels** mapping is now
+  documented in CLAUDE.md beside the season-visibility note, so the future dropdown
+  cannot disagree with the data this migration wrote. "Growing Season" is NOT confirmed.
+- **All 34 Notes appends land on empty Notes** — verified in the dry run, no collisions.
+- **The live pass needs BOTH `dryRun:false` AND `confirm:'MIGRATE33'`** — two
+  independent things to get wrong, because it rewrites project data for every client in
+  one pass. Every rule is expressed as data, so the report and the write cannot
+  disagree about what the rules are.
+- Verified: stale check clean; `node --check` OK; audit at its 1-finding baseline;
+  propagation waited out before running.
+
+---
+
 ## CC-42 — 2026-08-13
 
 **Sent:** Full final migration spec (A–F, all six ambiguous values resolved). Build the

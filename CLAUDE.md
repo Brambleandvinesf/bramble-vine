@@ -40,6 +40,13 @@ reference detail lives in [ARCHITECTURE.md](ARCHITECTURE.md).*
 >   the same clone and their git histories differ.
 
 ## HOW BRANDON BRIEFS THIS PROJECT (process, not code — CC-01 item 11, CC-02 item 3)
+- **⚠ ONE SINGLE UNIFIED CODE BLOCK PER RESPONSE. NO EXCEPTIONS, PERMANENT
+  (CC-43, 8/13).** The ENTIRE "Response to CC-NN" must be delivered as ONE copiable
+  code block, however long it runs. **A response split across several code blocks is
+  unusable on Brandon's end** — he copies it out whole. Do not break out of the block
+  for prose, headings, sub-diffs, or a lead-in sentence, and do not "helpfully" split
+  a long diff into per-section blocks. Everything, including tables and diffs, goes
+  inside the one fence. Length is never a reason to split.
 - **CC-labelled prompts are cumulative and self-contained.** Brandon uses
   alphanumeric labels ("CC01", "CC02") for a running prompt built up across a
   Cowork conversation. When he references a label, that label IS the source of
@@ -1366,6 +1373,15 @@ the column makes `inSeasonNow_` match nothing in every season, which **permanent
 hides that project from Confirm Special Loading** rather than seasonally hiding it.
 Any broad-season feature must either map those words onto the eight labels or extend
 `inSeasonNow_` — do not write them as literal cell values.
+**THE MAPPING IS DECIDED AND DOCUMENTED BEFORE IT IS NEEDED (Brandon, CC-43, 8/13):**
+```
+  "Dormant Season"  ==  Late Fall, Early Winter, Late Winter, Early Spring
+```
+That exact four-label set is what the Item 33 migration wrote to the four seasonal
+rows, so when the dropdown is eventually built, its "Dormant Season" option must
+resolve to these four and nothing else — otherwise the UI and the existing data
+disagree. "Growing Season" is the complement (Late Spring, Early Summer, Late Summer,
+Early Fall) but has NOT been confirmed by Brandon; ask before assuming it.
 
 ### A branded Bramble & Vine gallery experience (comments, likes)
 Brandon wants the client photo gallery to eventually become a proper B&V-branded
