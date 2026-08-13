@@ -14,6 +14,35 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-52 — 2026-08-13
+
+**Sent:** Deploy v7.4.111 + v7.4.112 bundled. Confirm existing items unchanged and the
+Item Attributes tab ready. Next batch = Item 36 frontend only.
+
+**Response to CC-52:** **DEPLOYED @292 (v7.4.112, bundling v7.4.111).** Stale check
+clean, propagation waited out. Two honest caveats on the post-deploy confirmation.
+
+- **Existing items unchanged, verified against live data:** 445 tool rows and 768
+  project rows still read normally; **445 of 445 carry no flag**, which reads as false —
+  i.e. exactly today's behaviour. **0 rows flagged**, correct, since the frontend does
+  not send `fromCatalog` yet.
+- **⚠ CAVEAT 1 — 'From Catalog' DOES NOT EXIST ON THE TAB YET, and that is by design.**
+  `fromCatalogCol_` creates the column lazily on the first WRITE, not at deploy. No
+  writer has run since @292, so the header is still absent. It will appear the first
+  time anyone adds an item or saves a debrief. Reporting this rather than claiming the
+  column is in place — "deployed" and "materialised" are different things here.
+- **⚠ CAVEAT 2 — the Item Attributes tab DOES NOT EXIST YET EITHER.** Same reason: it
+  is created on demand by `setupItemAttributes()`, which is an **editor-only** function
+  with no POST action, so I cannot create it from here. **Brandon must run it once:**
+  Apps Script editor → function dropdown → `setupItemAttributes` → Run. Idempotent.
+  I could have exposed it as an action to self-serve, but adding a web-facing endpoint
+  purely so I can press a button is the sprawl the standing rules warn about.
+- Verified: stale check clean; both versions present in the deployed file
+  (`IA_HEADERS` ×5, `FROM_CATALOG_COL` ×9); `node --check` OK; propagation waited out
+  before reading.
+
+---
+
 ## CC-51 — 2026-08-13
 
 **Sent:** Build Items 36 + 49 together. Set fromCatalog on the four creating writers,
