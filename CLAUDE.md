@@ -863,13 +863,24 @@ constrains payment reminders (Item 34):**
   opt-out ALREADY EXPRESSED in this column, before the toggle was built.
 - 3× 'Send cc link' variants, one reading **'send cc link in addition to QB link'** —
   so there are TWO distinct payment links in Brandon's model, not one.
-  **CONFIRMED BY BRANDON (CC-31): the QB link and the cc link are two genuinely
-  separate links in how invoicing actually works — not a data artifact of this
-  column. Design link resolution around TWO possible links from the start.**
-  Open question `qboInvoiceLinkProbe` exists to settle: whether QBO exposes them as
-  two fields, or as ONE `InvoiceLink` plus an online-payment setting. Do not assume
-  either — on many QBO plans the pay-by-card affordance is the same link with a
-  preference switched on, which would mean one URL serving both roles.
+  **RESOLVED (CC-32, 8/12) by running `qboInvoiceLinkProbe`:**
+  - QBO's `?include=invoiceLink` returns a REAL customer-facing URL on
+    connect.intuit.com — HTTP 200, no login wall. **This is the only link this
+    automation ever sources**, for both the invoice message and Item 34's
+    reminders. Do not source a second link for reminders.
+  - **There is NO distinct payment-link field anywhere in what QBO returns.**
+    Card vs ACH is controlled by booleans on the invoice
+    (`AllowOnlineCreditCardPayment`, `AllowOnlineACHPayment`), not by a second URL.
+  - **The "cc link" some clients get comes from SwipeSimple, NOT QBO.** Brandon
+    confirmed this is a FRINGE CASE. **The office keeps sending the SwipeSimple
+    link BY HAND** for the small subset of column-V clients whose protocol says
+    "send cc link". No SwipeSimple integration exists and none is planned —
+    do not build one because column V mentions a cc link.
+  - `Balance` is present and reads as expected. ⚠ Both invoices the probe could
+    reach were OUTSTANDING, so **"0 = settled" is verified by convention (standard
+    QBO field), not observed against a real paid invoice.** It is Item 34's stop
+    condition. If reminders ever chase a paid invoice, this is the assumption that
+    broke — `paymentReminderSweep_` reports the balance it saw for that reason.
 - The rest are extra recipients ('add iye@hsmsf.com', 'Email - Leslie & …') and
   invoice-wording instructions ('List as "Maintenance Flat Fee"').
 **Read V before sending any client anything about money.** Roughly half the clients
@@ -1279,6 +1290,14 @@ Turn both off after a clean week. Leaving them on is harmless (nothing triggers
 Draft now) but confusing to the next person reading this.
 
 ## FUTURE / BACKLOG — NOT SCHEDULED, NOT STARTED
+### A branded Bramble & Vine gallery experience (comments, likes)
+Brandon wants the client photo gallery to eventually become a proper B&V-branded
+experience with comments and likes, rather than a bare token link to a Drive
+folder view. **EXPLICITLY NOT IN SCOPE as of CC-32 (8/12)** — the simple existing
+link is what ships, and Item 31's invoice message links exactly that. Recorded so
+the aspiration is not mistaken for a requirement, and so nobody "improves" the
+plain link into a half-built version of this.
+
 ### Confirm Method needs a real dropdown in the Client Info screen
 `Confirm Method` is free text and silently blank for most accounts. Blank is
 *handled* — it falls back to Text + `Phone Number(s)` — but it is handled by

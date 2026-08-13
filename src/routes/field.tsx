@@ -5956,6 +5956,24 @@ export function StateDebrief({
                 onChange={setClientUpdates}
                 placeholder="Something for the office to pass on…"
               />
+              {/* CC-32 Item 31 Part C.9 — photo capture on the client-facing note.
+                  THE EXISTING VisitCamera, not a new surface: Item 31's invoice
+                  message links the client's gallery, and a tagged capture is what
+                  puts a photo IN that gallery (untagged captures stay private —
+                  see VisitCamera's upload). So this is the component that makes a
+                  photo actually reach the client.
+                  ⚠ kind="after" because "before" and "after" are the only two the
+                  backend accepts, and a note-attached photo is neither. It lands
+                  in the right place and is captioned honestly here; see the CC-32
+                  response for the option to add a third kind. */}
+              <div style={{ marginTop: 8 }}>
+                <VisitCamera
+                  clientName={clientMatch ?? s(event?.title)}
+                  disabled={isPreview}
+                  kind="after"
+                  eventId={s(event?.id)}
+                />
+              </div>
             </div>
             <div>
               <div style={{ color: LIME, fontSize: 12, letterSpacing: 2, marginBottom: 6 }}>

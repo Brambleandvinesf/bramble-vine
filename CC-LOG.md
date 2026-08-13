@@ -14,6 +14,71 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-32 — 2026-08-12
+
+**Sent:** Part B resolved with probe evidence (InvoiceLink real; no second payment
+link field; cc link is SwipeSimple and stays manual; Balance present). BUILD Part C
+(9 sub-items) and Item 34 (payment reminder toggle, column V exclusion enforced).
+
+**Response to CC-32:** Built. **PUSHED, NOT DEPLOYED** — invoicing + comms path.
+Backend v7.4.99 in HEAD; `/exec` still v7.4.96 @283. Frontend tsc + vite build clean.
+
+- **MQ `Kind` column** — `mqKindCol_` creates it on demand (dlInvoiceCol_'s shape);
+  `mqKindOf_` is the single pure place that decides **blank = confirmation**, so
+  every pre-existing row keeps its meaning untouched and no backfill is needed.
+- **⚠ CAUGHT: draftVisitQueue's clear step would have destroyed invoice drafts.**
+  It was `deleteRows(2, before - 1)` — the whole block. Invoice drafts arrive on the
+  crew's schedule, not weekly, so every weekly draft run would have wiped pending
+  ones. Now selects confirmation rows only and **deletes descending** so removals
+  cannot shift the rows still to go. Same shape as the Make clear-first bug this
+  drafter was written to replace.
+- **⚠ CAUGHT: the send ledger would have swallowed invoice texts.** `queueAction`
+  hardcoded `qaKind = 'confirm'`; TEXT_SENT is keyed client+kind and refuses
+  repeats. A client who got a confirmation that morning would have had their invoice
+  message dropped as `alreadySent` — **and the office would have seen success**.
+  Kind now comes from the row; two independent day-locks.
+- **Trigger point — the brief said "inside qboDebriefInvoice_"; the DL ledger is
+  actually written in `saveDebrief`, after that function returns.** Hooked at the
+  real ledger write, which is also the only point where invoiceId and the Haiku
+  message are both in hand. Same moment, correct place.
+- **Idempotency is the key, literally:** the row is keyed `INV-<invoiceId>` in
+  Event ID. Reused rather than adding a key column because `queueRows_` SKIPS rows
+  with a blank Event ID and `queueAction` looks up by it — a second identity would
+  have meant teaching both plus the frontend.
+- **Body** = `haikuClientMsg_`'s existing output verbatim (reused, not regenerated),
+  then the gallery link, then the invoice link. Links last so the human sentence is
+  what a phone preview shows. Gallery uses `galleryTokenFor_(ss, client, false)` —
+  **create:false**, so finishing a debrief never mints a token as a side effect.
+- Link resolution fail-soft: no link = a weaker message, not a failed invoice.
+- **Frontend:** `kind` on QueueRow + an `INVOICE` badge. Card layout, field order
+  and controls **identical** to the confirmation card by design; the badge is the
+  only addition, because kind is the one thing the office can't infer from the text.
+  Not a colour change — INVOICE is a category, not a warning.
+- **Item 9 photo icon:** the existing `VisitCamera`, since only a *tagged* capture
+  reaches the gallery the invoice message links. Uses `kind="after"` because before
+  and after are the only two the backend accepts — flagged as an option.
+
+**Item 34 — built with three independent brakes**, because it is an automated loop
+that talks to clients about money:
+1. **`PAY_REMIND_ENABLED` ships OFF.** Absent or anything but `'true'` = no-op.
+2. **Column V veto, checked BEFORE the toggle and independent of it** —
+   `/pays?\s*via\s*check|charge\s*cc|no\s*reminders/i`. The 11 cheque/auto-charged
+   clients and the 1 explicit "no reminders" can never be reminded, toggle or not.
+3. **It DRAFTS. It never sends.** A human still taps SEND.
+- Piggybacks `dailyReset_` — **no new trigger**, per `vendorEventFill_`'s precedent.
+- Per-invoice cadence stamps in `PAY_REMINDED` (QUO_DONE_IDS' shape); 7-day cadence;
+  balance read live per invoice so an hour-old payment stops the chase.
+- `paymentReminderSweep` action is **dry-run by default** — run it and read `vetoed`
+  before ever setting the master switch.
+- ⚠ Balance "0 = settled" is convention, not observed (CC-31: both probed invoices
+  were outstanding). The sweep reports the balance it saw so this is falsifiable.
+- Missing Client Info column is treated as "nobody opted in", not an error.
+
+**Open, presented as options in the response:** column U says 16 clients prefer
+Email and 9 want both, but Part C drafts Text for everyone per the brief.
+
+---
+
 ## CC-31 — 2026-08-12
 
 **Sent:** Item 31 Part B — extend the probe. Brandon confirmed the "QB link" and the

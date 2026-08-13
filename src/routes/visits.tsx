@@ -45,6 +45,11 @@ type QueueRow = {
   visitDate: string;
   draft: string;
   status: string;
+  /* CC-32: the queue now carries two kinds of message. The backend resolves this
+     on every row (a blank cell reads as "confirmation" there), so it is never
+     empty in practice — the fallback in normalizeRow is for a response served by
+     an older deployment mid-propagation. */
+  kind: "confirmation" | "invoice";
 };
 
 type QueueResponse = {
@@ -62,6 +67,10 @@ function normalizeRow(r: Record<string, unknown>): QueueRow {
     visitDate: String(r.visitDate ?? r["Visit Date"] ?? "").trim(),
     draft: String(r.draft ?? r["Draft"] ?? ""),
     status: String(r.status ?? r["Status"] ?? ""),
+    kind:
+      String(r.kind ?? r["Kind"] ?? "").trim().toLowerCase() === "invoice"
+        ? "invoice"
+        : "confirmation",
   };
 }
 
@@ -580,6 +589,12 @@ function VisitsPage() {
                 {row.visitDate && (
                   <span style={{ fontSize: 12, color: MUTED }}>{row.visitDate}</span>
                 )}
+                {/* CC-32: same card, same field order, same controls as a visit
+                    confirmation — deliberately. The only addition is this badge,
+                    because the one thing the office cannot infer from the text is
+                    which kind of message they are about to send. No colour change:
+                    INVOICE is a category, not a warning. */}
+                {row.kind === "invoice" && <span style={BADGE}>INVOICE</span>}
                 <span style={BADGE}>{row.method}</span>
                 {row.contact ? (
                   <span style={{ fontSize: 12, color: MUTED }}>{row.contact}</span>
