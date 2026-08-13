@@ -2690,7 +2690,16 @@ function ProjectCard({
       style={{
         ...PANEL_BOX,
         marginTop: 8,
-        opacity: crossed ? 0.5 : 1,
+        /* CC-29 Item 35: the completed card is NO LONGER dimmed.
+           `opacity: crossed ? 0.5 : 1` was the designed "done" styling, but 0.5
+           opacity already means DISABLED throughout this app (`opacity: disabled ?
+           0.5` appears three times in this file alone, plus StepperButton,
+           PRIMARY_BTN, ItemPill). So completion was being drawn in the exact
+           vocabulary used for "inert / mid-operation" — and because the state is
+           staged until submit, it never changed back. That reads as a save that
+           never finishes, which is precisely how it was reported.
+           Two unambiguous signals remain: the strikethrough on the action, and the
+           inverted lime check from CC-27. Neither can be mistaken for "busy". */
         cursor: cardTap ? "pointer" : "default",
       }}
       /* AD.8: tapping the CARD toggles it, but never when the tap landed
@@ -6030,11 +6039,22 @@ export function StateDebrief({
               ...PRIMARY_BTN,
               flex: 1,
               minHeight: 56,
-              opacity: isPreview || finishBlockedReason ? 0.5 : 1,
+              /* CC-29 Item 38.1: `busy` now drives the LOOK, not just `disabled`.
+                 It was `opacity: isPreview || finishBlockedReason ? 0.5 : 1` — so on
+                 tap the button went disabled and rendered IDENTICALLY. This submit
+                 can take ~30s (invoice creation, PDF fetch, email, calendar
+                 rebuild), and thirty seconds of an unchanged button is
+                 indistinguishable from a dead one, which is exactly how it was
+                 reported. Same treatment NewProjectForm and PayrollConfirm already
+                 use for their own writes. */
+              opacity: busy || isPreview || finishBlockedReason ? 0.5 : 1,
               cursor: finishBlockedReason ? "not-allowed" : PRIMARY_BTN.cursor,
             }}
           >
-            FINISH DEBRIEF
+            {/* The label is the load-bearing part — an opacity change alone is easy
+                to miss in sunlight on a phone. "…" matches the app's existing busy
+                copy ("SAVING…", "RELOADING…"). */}
+            {busy ? "SUBMITTING…" : "FINISH DEBRIEF"}
           </button>
         ) : (
           <button
