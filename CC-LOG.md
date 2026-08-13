@@ -14,6 +14,70 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-36 — 2026-08-13
+
+**Sent:** Item 43 DEPLOY (approved). Item 45 BUILD — fixed invoice message template
+with the AI output appended only when non-empty; confirm per-channel whitespace and
+whether one function or two; report diff before deploying. Item 44 FINDINGS —
+best point for the client-field nudge. Item 46 FINDINGS — read-only office notes
+above the client textarea on the review card.
+
+**Response to CC-36:** Item 43 **DEPLOYED @287 (v7.4.103)**, propagation waited out,
+deployment confirmed serving. Item 45 **BUILT AND STAGED, NOT DEPLOYED** — diff
+reported. Items 44 and 46 are findings only, as asked.
+
+**ITEM 45 — one function, both channels.** `invoiceMsgBody_(channel, invoiceUrl,
+gallery, clientMsg)`. The ONLY divergence between Text and Email is whether the
+greeting joins the lead sentence with a space or a blank line, so two templates
+would be two copies of the same wording waiting to drift. Sections are collected
+and joined at the end rather than concatenated as we go, which is what guarantees
+no trailing blank line when the AI message is empty.
+**Rendered all six real cases through the actual deployed function** (not described
+— executed, with blank lines marked): Text/Email × (with AI message / empty AI
+message / no message and no photos). All six correct, no trailing whitespace, no
+placeholder text. Output pasted in the response.
+- Bare invoice URL, no `'Your invoice: '` label — the lead sentence already says
+  what it is. Was labelled before.
+- **⚠ REMINDERS DO NOT USE THE TEMPLATE.** They share `mqDraftInvoice_`, so they now
+  pass `plain: true` and keep their own wording. Wrapping a payment reminder in
+  "Here's the invoice from yesterday's garden visit" would be plainly wrong. This
+  was not in the brief and would have been a real bug.
+- The old `nothing to say` guard is unreachable on the template path and was removed
+  there rather than left looking like it still protects something. It remains on the
+  `plain` path, where it still can fire.
+- **⚠ TWO THINGS THE TEMPLATE AS WRITTEN WOULD HAVE CHANGED SILENTLY — both raised,
+  neither decided unilaterally:** (1) the specified template has no photo slot, which
+  would drop the gallery link confirmed in CC-32/33 — KEPT and flagged; (2) the copy
+  says "yesterday's garden visit" but the draft is created at debrief time, the same
+  day as the visit, so sending it the same evening reads wrong.
+- Also flagged: the brief's Text template reads "Good morning!" and the Email one
+  "Good Morning!". Normalised to sentence case for both; say if the capital was
+  deliberate.
+
+**ITEM 44 — FINDINGS.** `confirmModal` is already imported into `field.tsx` and used
+in six places, including an object form with `destructive`, so this needs no new
+component. **The placement matters more than the wording:** `DEBRIEF_STEPS` is
+`updates → items → new → office ("Messages") → billing ("Hours")`, so **"Messages"
+is step 4 of 5 and Hours is last** — at FINISH DEBRIEF the crew is no longer looking
+at the notes fields. Prompting there means Cancel dumps them on Hours with nothing
+to act on. Recommended prompting on advance off the Messages step (`goNext`,
+field.tsx:5369) where both fields are on screen and Cancel needs no navigation.
+
+**ITEM 46 — FINDINGS, AND IT IS NOT DISPLAY-ONLY.** The brief assumed the office
+notes are already reachable from the review card. **They are not.** `queueRows_`
+returns eventId/client/visitDate/method/contact/draft/status/kind — no notes. The
+`Office Tasks` tab is `['Timestamp','Client','Item','Source','Status']`: **no Event
+ID and no invoice id**, so it cannot be joined to an invoice row except on
+client+date, which is fuzzy and would pull in rows from other sources. So Item 46
+needs a backend change and therefore a deploy, contrary to "frontend only".
+Recommended snapshotting the notes onto the queue row at draft time — `saveDebrief`
+already has `data.officeTasks` in hand at exactly the moment it drafts.
+
+- Verified: stale check clean before patching; `node --check` OK; audit at its known
+  1-finding baseline; @287 confirmed serving after propagation.
+
+---
+
 ## CC-35 — 2026-08-13
 
 **Sent:** Item 41 HOLD (neither approach — policy, not cost; record in FUTURE
