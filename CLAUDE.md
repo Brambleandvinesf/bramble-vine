@@ -853,6 +853,16 @@ Clean, no typos, no whitespace variants. But **'Email & Text' means BOTH** — a
 channel parser that treats this as a binary text-or-email flag silently drops 9
 clients' second channel.
 
+**HOW U IS CONSUMED (CC-33, 8/12) — `invoiceChannelFor_`:** each word is tested
+independently (`/email/`, `/text/`), NOT switched on the whole string, so
+'Email & Text' resolves to BOTH channels and drafts two Message Queue rows.
+**Do not "simplify" this to an equality test** — that is what drops nine clients'
+second channel, the same failure shape as the AF opt-out. Blank falls back to
+Text (house convention: blank = "no override", never "do nothing").
+**The MQ idempotency key carries the channel: `INV-<invoiceId>-T` / `-E`**, plus
+`-R<n>` for reminders. One key per invoice PER CHANNEL — a single bare
+`INV-<invoiceId>` would refuse the Email row as a duplicate of the Text row.
+
 **V 'Special Invoicing Protocol' — 23 populated, free prose, and it materially
 constrains payment reminders (Item 34):**
 - **9× 'Pays via check'** — these clients do not pay online at all. A "pay this
@@ -1296,7 +1306,9 @@ experience with comments and likes, rather than a bare token link to a Drive
 folder view. **EXPLICITLY NOT IN SCOPE as of CC-32 (8/12)** — the simple existing
 link is what ships, and Item 31's invoice message links exactly that. Recorded so
 the aspiration is not mistaken for a requirement, and so nobody "improves" the
-plain link into a half-built version of this.
+plain link into a half-built version of this. **Needs a dedicated, explicit ask
+from Brandon before any work starts** — same treatment as every other item in
+this section. Re-confirmed CC-33 (8/12).
 
 ### Confirm Method needs a real dropdown in the Client Info screen
 `Confirm Method` is free text and silently blank for most accounts. Blank is

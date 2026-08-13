@@ -14,6 +14,68 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-33 — 2026-08-13
+
+**Sent:** Channel decision = Option 1, honour column U fully (Text / Email / both).
+Confirm the idempotency key still holds when two rows exist for one invoice. Verify
+the FUTURE DIRECTION gallery note is in CLAUDE.md. Deploy v7.4.99 as approved.
+
+**Response to CC-33:** **DEPLOYED — @284, then @285, then @286 (v7.4.102).** Two
+follow-up deploys came out of verifying the first; both are described below.
+
+- **THE KEY DID NEED ADJUSTING — you were right to ask.** `INV-<invoiceId>` is one
+  key for what is now up to two rows, so **the Email row would have been refused as
+  a duplicate of the Text row and the 9 'Email & Text' clients would have silently
+  lost the second channel.** Now `INV-<invoiceId>-T` / `-E`, with `-R<n>` appended
+  for reminders. Safe to change because v7.4.99 was never deployed — no row anywhere
+  carried the old bare key.
+- Also fixed while there: the guard read `if (key === 'INV-')`, which stopped being
+  a valid emptiness test the moment suffixes existed. Now tests `invoiceId` directly.
+- **`invoiceChannelFor_` tests each word independently** (`/email/`, `/text/`) rather
+  than switching on the string, so 'Email & Text' resolves to both. Blank → Text,
+  the house convention. No new send path: `queueAction`'s Email branch already
+  existed, and Email rows carry the normalised Email column via `normEmails_`.
+- **Reminders honour U too** — a client marked Email should not be chased by text.
+- **FUTURE DIRECTION note: it WAS already there** (CLAUDE.md:1293, added in CC-32 as
+  part of a038cbc). My CC-32 response failed to say so — the work was done, the
+  report omitted it. Added the "needs a dedicated explicit ask" clause CC-33 asked
+  for and re-confirmed the date.
+
+**⚠ VERIFYING THE DEPLOY BROKE MY OWN VERIFICATION PLAN — @285.**
+The dry sweep against @284 returned `vetoed: []`. Brake 1 (the master switch)
+returned *before* the veto list was ever evaluated, so **the check this feature
+depends on — "run it dry and confirm the 11 excluded clients really are excluded" —
+was impossible to perform**, because the only way to populate the list was to switch
+the feature on first, which is exactly what the check exists to precede. A dry run
+writes nothing, sends nothing and stamps nothing, so the switch had no business
+gating it. The switch now gates only the live path; dry runs evaluate in full and
+report `masterSwitch: 'off (a live run would do nothing)'`.
+
+**⚠ CORRECTION — @286.** CC-32 claimed the sweep created the `Payment Reminders`
+column on demand. **It did not.** It reported "no column, nobody is opted in" and
+stopped, so the feature could not be switched on without hand-editing Client Info
+first. Now the manual dry run creates the header (`createColumn` defaults true on a
+dry run — a human typing the action is the explicit act; pass false to look without
+touching the sheet). **`dailyReset_` never creates it** — a 5am trigger silently
+appending a column to the master client roster is not something that should happen
+unwatched.
+
+**ALL THREE BRAKES NOW VERIFIED IN PRODUCTION** against real invoices, from the
+@286 dry run — not reasoned about, observed:
+```
+considered: 2
+vetoed:  Chew Family, invoice 22771 — "Charge cc on file, flat fee"   <- brake 2
+skipped: Michael Smith 22772 — toggle off                              <- per-client default
+masterSwitch: off (a live run would do nothing)                        <- brake 1
+createdColumn: added "Payment Reminders" to Client Info
+```
+- Verified: stale check clean before patching; `node --check` OK on each of the
+  three; audit at its known 1-finding baseline; propagation waited out before every
+  live read. No frontend change this batch (the channel work is backend-only), so
+  CC-32's tsc/vite results still stand.
+
+---
+
 ## CC-32 — 2026-08-12
 
 **Sent:** Part B resolved with probe evidence (InvoiceLink real; no second payment
