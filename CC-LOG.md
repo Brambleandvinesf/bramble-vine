@@ -14,6 +14,44 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-54 — 2026-08-13
+
+**Sent:** Item 37 voice input, ItemPicker search field only. Design settled. Confirm
+three things first — PWA permission/graceful degradation, prompt/payload shape and
+candidate count, and whether matching needs a backend action (deploy → flag first).
+
+**Response to CC-54:** **QUESTION 3 CHANGES THE SHAPE: this is NOT frontend-only.**
+Matcher **BUILT AND PUSHED (v7.4.113, HEAD only, NOT DEPLOYED)**. Frontend voice UI
+**NOT built this batch** — reported honestly rather than fragmented.
+
+- **⚠ Q3 — A BACKEND ACTION IS REQUIRED, AND IT IS A SECURITY POINT, NOT A PREFERENCE.**
+  The Anthropic key lives in Script Properties (`ANTHROPIC_API_KEY`, same as
+  `haikuClientMsg_`). Matching in the browser means **shipping that key inside a
+  published PWA where anyone can read it** — a credential leak. So the browser captures
+  speech and sends TEXT only; the key never leaves the server. **This needs a deploy,
+  flagged per standing rule before building the UI.**
+- **`matchItemVoice` — read-only, writes nothing, sends nothing.** TWO STAGES on
+  purpose: a deterministic token prefilter in code narrows 3,300+ names to ≤120, and
+  only that shortlist goes to the model. Sending the whole catalog would be slow,
+  costly, and **worse — a model asked to scan 3,300 names invents plausible ones.**
+- **⚠ EVERY RETURNED NAME IS VALIDATED BACK AGAINST THE SHORTLIST** before it is
+  returned. ItemPicker's own rule is that names are copied VERBATIM, so a near-miss
+  from the model would break the downstream write. Anything not verbatim is dropped.
+- **Q2 — candidate count is a FIXED LIMIT (default 5, clamped 1–10), not a confidence
+  threshold.** A model's self-reported confidence is not calibrated and would produce
+  a list whose length varies for no reason the crew could interpret. Ranked order
+  carries that signal instead.
+- **Three-tier degradation, so voice never blocks typing:** AI ranking → prefilter
+  word-matches (used when the key is missing OR the model returns nothing usable) →
+  empty list with a note. Fail-soft on `haikuClientMsg_`'s pattern throughout.
+- **Q1 — Web Speech API answered in the response:** no manifest entry needed, browser
+  handles the mic permission prompt, and the correct pattern is a capability check so
+  an unsupported browser **never renders the control at all** rather than showing one
+  that does nothing.
+- Verified: `node --check` OK; audit at its known 1-finding baseline. Not deployed.
+
+---
+
 ## CC-53 — 2026-08-13
 
 **Sent:** Three pending items resolved (see below). Build Item 36's frontend as the
