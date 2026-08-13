@@ -14,6 +14,69 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-41 — 2026-08-13
+
+**Sent:** Item 33 decisions confirmed (B = option 1; 'Fertilizing - NOT TODAY' as
+C-class; Garden 'Special' → blank; Garden 'Hutch' keep). Re-requested the per-client
+context for the six ambiguous values, reported as missing from CC-40. Build nothing.
+
+**Response to CC-41:** **NOTHING BUILT, NOTHING RUN.** The context was in CC-40 under
+"D. THE SIX AMBIGUOUS VALUES", but **this log entry is where it should have lived and
+did not** — CC-40's entry summarised it instead of recording the rows, so the durable
+copy was thin. Re-pulled live (unchanged, 769 rows) and recorded in full below, with
+`Project ID` added and the row counts now matching Brandon's stated figures exactly.
+
+### THE SIX — FULL CONTEXT, NO RESOLUTIONS PROPOSED
+```
+1. 'Whiteness' — 3 rows, 1 client: A&G Sect 5
+   row 29  proj-12  garden '?'  SPECIAL   "Stake plants away from fence. Vertical is the goal"   Notes: (empty)
+   row 42  proj-25  garden '?'  SPECIAL   "Stake plants away from fence. Vertical is the goal"   Notes: (empty)
+   row 43  proj-26  garden '?'  SPECIAL   "Remove Yucca fronds from garden beds"                 Notes: (empty)
+   NOTE: rows 29 and 42 carry IDENTICAL action text under DIFFERENT project ids.
+
+2. 'Winter' — 1 row, 1 client: A&G Sect 1
+   row 13  proj-8   garden 'FRONT'  RECURRING  "Trim as needed"   Notes: (empty)
+   NOTE: the only one of the six that is RECURRING with a real garden value.
+
+3. 'Winter 2025' — 1 row, 1 client: Susan Cox
+   row 603 proj-157 garden '?'  SPECIAL  "Propagate rose for siblings"   Notes: (empty)
+
+4. 'Fall/Winter' — 2 rows, 1 client: Jenny & Daniel
+   row 303 proj-167 garden '?'  SPECIAL  "Check and resecure"   Notes: (empty)
+   row 304 proj-168 garden '?'  SPECIAL  "Chiranthodendron"     Notes: (empty)
+   NOTE: row 304's action is a plant name rather than an action.
+
+5. 'Dormant season' — 1 row, 1 client: Brian Kurtz
+   row 106 proj-11  garden '?'  SPECIAL
+           "Cut Hydrangeas suckers at bottom growing towards the topiaries"   Notes: (empty)
+
+6. 'Maintenance' — 1 row, 1 client: A&G Sect 1
+   row 14  proj-188 garden 'Hutch'  RECURRING  "Re enforce hutch"
+           NOTES: "Roof needs re enforcing."   <- the ONLY one of the six with Notes
+```
+Cross-cutting facts, offered as context rather than proposals: five of the six are
+seasonal/timing words, **the dedicated `Seasons` column is EMPTY on all six**, and
+`Status` is empty on all six.
+
+### DECISIONS NOW LOCKED FOR THE BUILD (Brandon, CC-41)
+- **A** — Garden `Backyard`/`BACKYARD` (20 rows, 6 clients) → `Back`; `INDOORS`
+  (2 rows, Jessy Exum) → `Indoor`.
+- **B = OPTION 1** — fold year-less spelling/case variants (`Fertilize`) into
+  `Fertilizing`; **MIGRATE the six year-bearing variants** (`2026 FERTILIZING:` 10,
+  `2026 Fertilizing` 3, `Fertilizing 2026` 3, `2025 Fertilizing:` 2,
+  `Fertilizing: 2026` 2) to Notes with Category=Misc so the year survives.
+- **`Fertilizing - NOT TODAY`** (1 row) → C-class migrate, because folding deletes
+  "NOT TODAY" and inverts the row's meaning.
+- **C** — `Diane First` (10 rows, Diane Merlino), `CHECK IRRIGATION`,
+  `Promote moss between rocks`, `Pest Control - no` → Notes, Category=Misc.
+- **PEST CONTOL / Pest Contol** (7 rows, Aarthi + Diane Merlino) → `Pest Control`.
+- **Garden `Special`** (2 rows) → BLANK; it is a Type value in the wrong field.
+- **Garden `Hutch`** (1 row, A&G Sect 1) → KEEP as a per-client extra.
+- Migration rules: **APPEND to Notes, never overwrite** (D6 has existing Notes);
+  **nothing deleted**; dry-run first with the exact per-row diff reported.
+
+---
+
 ## CC-40 — 2026-08-13
 
 **Sent:** Item 33 migration corrections — (A) fold Garden case variants
