@@ -50,6 +50,11 @@ type QueueRow = {
      empty in practice — the fallback in normalizeRow is for a response served by
      an older deployment mid-propagation. */
   kind: "confirmation" | "invoice";
+  /* CC-37 Item 46: that debrief's INTERNAL office notes, joined server-side on
+     the debrief's calendar event id. Read-only context for whoever approves the
+     client-facing text — never sent. Empty for confirmations, and empty for any
+     invoice row drafted before the Event ID join existed. */
+  officeNotes: string[];
 };
 
 type QueueResponse = {
@@ -71,6 +76,9 @@ function normalizeRow(r: Record<string, unknown>): QueueRow {
       String(r.kind ?? r["Kind"] ?? "").trim().toLowerCase() === "invoice"
         ? "invoice"
         : "confirmation",
+    officeNotes: Array.isArray(r.officeNotes)
+      ? (r.officeNotes as unknown[]).map((n) => String(n)).filter(Boolean)
+      : [],
   };
 }
 
@@ -602,6 +610,28 @@ function VisitsPage() {
                   <span style={{ fontSize: 12, color: RED }}>no contact!</span>
                 )}
               </div>
+              {/* CC-37 Item 46 — the crew's INTERNAL office notes for this
+                  debrief, directly above the client-facing text they're about to
+                  approve. READ-ONLY and never sent: it is context for the
+                  approver, which is why it is plain text and not another
+                  textarea. Rendered only when there are notes, so a debrief with
+                  none adds no empty furniture to the card. */}
+              {row.kind === "invoice" && row.officeNotes.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div
+                    style={{ color: MUTED, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}
+                  >
+                    MESSAGES FOR THE OFFICE — INTERNAL, NOT SENT
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: MUTED, fontSize: 12 }}>
+                    {row.officeNotes.map((n, i) => (
+                      <li key={i} style={{ marginBottom: 2 }}>
+                        {n}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <textarea
                 value={c.text}
                 onChange={(e) =>

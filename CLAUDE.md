@@ -935,6 +935,28 @@ info@ 4 Quo + 3 Gmail.
 Token grammar: comma-separated E.164 Quo lines, plus literal `gmail` for the
 shared business mailbox, plus `*` for every workspace line (viewAll).
 
+## PHOTO_LINK_CLIENTS — 'Mike Davis' ONLY, AND THAT IS DELIBERATE (CC-37, 8/13)
+The client photo gallery link is appended to the invoice message **for one client**.
+Canonical starting value, live as of v7.4.105 @288:
+```
+  PHOTO_LINK_CLIENTS  (Script Property, currently UNSET -> default below is live)
+  ["Mike Davis"]
+```
+**THIS IS A DELIBERATE LIMITED ROLLOUT, NOT AN INCOMPLETE LIST.** Brandon's explicit
+decision: he does not want the gallery link going to clients generally yet, and asked
+to be prompted about widening it later. **Do not "fix" this into universal coverage.**
+Every other client's invoice message omits the photo section entirely — the section
+does not exist for them rather than existing empty, which falls out of
+`invoiceMsgBody_` only appending sections that have content.
+**⚠ SAME REPLACE TRAP as QUO_FEEDS / QBO_BILLING_GROUPS:** if PHOTO_LINK_CLIENTS is
+ever set it REPLACES this default outright. Setting it to ADD a client silently
+REMOVES Mike Davis unless he is listed again. An unparseable value falls back to the
+default rather than to everyone — verified by unit test in CC-37.
+
+**⏰ WATCH ITEM — REVISIT ~NOVEMBER 2026 (set 2026-08-13).** Ask Brandon whether the
+photo link should expand beyond Mike Davis. He asked to be re-approached "in a few
+months". Until he says so, the answer is no.
+
 **⚠ WHY THIS COPY EXISTS.** Setting the **QUO_FEEDS** Script Property REPLACES
 THE WHOLE MAP (`if (raw) map = JSON.parse(raw)`) — the same trap as
 QBO_BILLING_GROUPS. It is currently UNSET, so the defaults above are live.
@@ -1333,6 +1355,14 @@ the aspiration is not mistaken for a requirement, and so nobody "improves" the
 plain link into a half-built version of this. **Needs a dedicated, explicit ask
 from Brandon before any work starts** — same treatment as every other item in
 this section. Re-confirmed CC-33 (8/12).
+
+**Second half of the same idea, added CC-37 (8/13):** Brandon also wants a branded
+gallery SCREEN that **filters by client and groups photos by date and by
+before/after**. Recorded here rather than separately because these two are plainly
+one feature and will be scoped together — comments/likes and client-filtered,
+date-grouped browsing are the same screen. `visitPhoto` already tags captures
+`before`/`after` with an event id, so the data to group by exists; nothing else does.
+Still **not scoped work** and still needs its own explicit ask.
 
 ### Confirm Method needs a real dropdown in the Client Info screen
 `Confirm Method` is free text and silently blank for most accounts. Blank is

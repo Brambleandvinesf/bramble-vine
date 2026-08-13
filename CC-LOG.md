@@ -14,6 +14,62 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-37 — 2026-08-13
+
+**Sent:** Item 45 deploy, with the photo link gated to Mike Davis only ("yesterday's"
+confirmed as-is). Item 44 build the nudge on leaving the Messages step. Item 46 build
+the Event ID join (Option 2, chosen over the snapshot because the invoice email is to
+be phased out) — findings on backfill first. New FUTURE DIRECTION note.
+
+**Response to CC-37:** **DEPLOYED @288 (v7.4.105)** — Item 45 template + photo gate +
+Item 46 backend. Frontend for Items 44 and 46 built; tsc + vite clean. Propagation
+waited out and the new fields confirmed live on `getQueue`.
+
+- **ITEM 46 BACKFILL — ANSWERED WITH EVIDENCE, AND IT IS A NON-QUESTION.** Queried the
+  live queue before building: **7 rows, 0 of them invoice rows.** No invoice draft has
+  ever existed. So there is no historical gap for a backfill to fill — old Office
+  Tasks rows only matter if an invoice row exists for that same debrief, and none do.
+  Forward-only is not a compromise here, it is complete. (If history is ever wanted, a
+  one-off Debrief Log join on client+date remains possible later.)
+- **⚠ THE JOIN NEEDED A COLUMN NOBODY ASKED FOR.** The MQ 'Event ID' column holds the
+  IDEMPOTENCY KEY for invoice rows (`INV-<invoiceId>-T`), **not** a calendar id. Joining
+  on it would have matched nothing and rendered as "this debrief had no notes" — a
+  silent empty. Added `Debrief Event ID` to MQ, written at draft time, on-demand
+  column like `mqKindCol_`.
+- **Office Tasks gained `Event ID`**, appended at the end so positional readers of the
+  first five columns are unaffected, set by index after `appendRow` so the 5-value row
+  shape the dedupe scan reads back stays consistent. **The dedupe rule is UNCHANGED**
+  (today + Client + Item) — the column is for the join, not for dedupe.
+- **A documented decision was reversed, so the comment was rewritten, not left to
+  contradict the code.** The old note argued Office Tasks should NOT get an Event ID
+  column. It now records that Brandon reversed it and why (the review card becomes the
+  only place he sees office notes once the invoice email goes away).
+- **ITEM 45 PHOTO GATE — `photoLinkAllowed_` + `PHOTO_LINK_CLIENTS_DEFAULT =
+  ['Mike Davis']`.** Gated BEFORE the token lookup, so a non-rollout client's gallery
+  is never even resolved — no token minted. **Unit-tested against the replace trap:**
+  default (unset) → only Mike Davis, case/whitespace-insensitive; property set to
+  another name → Mike Davis correctly FALSE (the trap, demonstrated); **unparseable
+  property → falls back to the default, not to everyone.**
+  Canonical value + the deliberate-narrowness note + a dated **watch item (revisit
+  ~Nov 2026)** are in CLAUDE.md.
+- **ITEM 44** — nudge in `goNext`, gated on `DEBRIEF_STEPS[current].key === "office"`
+  with office notes present and the client field empty. Reuses the existing
+  `confirmModal`; `goNext` became async, which `onClick` accepts. One insertion covers
+  the debrief queue too via the shared `StateDebrief`.
+- **ITEM 46 frontend** — read-only list above the client textarea, labelled
+  "MESSAGES FOR THE OFFICE — INTERNAL, NOT SENT", rendered only when notes exist so a
+  debrief without them adds no empty furniture. Plain text, not a textarea, because it
+  is context and must not look editable.
+- The join reads Office Tasks **once and only when an invoice row needs it** —
+  `getQueue` is already the app's slowest call and confirmations have no notes.
+  Wrapped so notes can never be a reason the queue fails to load.
+- Caught in my own patch script before running it: `otEventCol_`'s insertion point
+  would have broken the later join hunk's anchor, and one `once()` was a no-op.
+- Verified: stale check clean; `node --check` OK; audit at its 1-finding baseline;
+  tsc + vite clean; @288 confirmed serving `debriefEventId` + `officeNotes`.
+
+---
+
 ## CC-36 — 2026-08-13
 
 **Sent:** Item 43 DEPLOY (approved). Item 45 BUILD — fixed invoice message template

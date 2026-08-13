@@ -5364,7 +5364,26 @@ export function StateDebrief({
     });
   }, [billing, qbtDay]);
 
-  const goNext = () => {
+  const goNext = async () => {
+    /* CC-37 Item 44 — the client-field nudge, on the way OFF the Messages step.
+       Deliberately HERE and not at FINISH DEBRIEF: "Messages" is step 4 of 5 and
+       Hours is last, so by the time they finish, both note fields are two screens
+       behind them and Cancel would leave them somewhere they cannot act. Here the
+       fields are still on screen, so Cancel needs no navigation at all — it just
+       leaves them where they are.
+       NOT A BLOCK: OK continues. Reuses the existing confirmModal rather than
+       adding a component, and one insertion covers the debrief queue too, since
+       debrief-queue.tsx renders this same StateDebrief. */
+    if (
+      DEBRIEF_STEPS[current]?.key === "office" &&
+      officeTasks.filter(Boolean).length > 0 &&
+      clientUpdates.filter(Boolean).length === 0
+    ) {
+      const ok = await confirmModal(
+        "You added office notes but nothing for the client — anything here they should know too?",
+      );
+      if (!ok) return;
+    }
     setCompleted((c) => new Set(c).add(current));
     setLiveIndex((i) => Math.min(DEBRIEF_STEPS.length - 1, i + 1));
   };
