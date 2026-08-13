@@ -1403,6 +1403,18 @@ stock one. `Project Tools & Materials` has its OWN separate `Category` column �
 third taxonomy again. Keep them distinct.
 Full findings and costings are in CC-LOG under CC-48.
 
+**THE FULL INVENTORY VISION — NOT SCOPED, NEEDS ITS OWN EXPLICIT ASK (CC-49, 8/13):**
+1. **A searchable database of tool locations.** The `Location` field on the Item
+   Attributes tab is the seed of this, which is why that tab is being designed with
+   room to grow rather than as a bare Tool flag.
+2. **A voice-activated status update.** Crew says something like "one of the shovels
+   is broken and needs replacing"; the system updates that tool's status/quantity and
+   **automatically adds it to the Shopping List or triggers an order from a preferred
+   vendor**. Plausibly the same Web Speech API + Claude fuzzy-matching approach as
+   Item 37, but a distinct and much larger feature — the write side (mutating stock,
+   ordering) is the hard part, not the transcription.
+**Do not build either without a dedicated scoping pass and an explicit ask.**
+
 ### Season-based project visibility (dropdown / snooze control)
 Brandon wants a proper seasonal-visibility feature: a dropdown/snooze-style control
 with **early/late per season plus broad "Growing Season" / "Dormant Season"**

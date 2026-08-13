@@ -14,6 +14,47 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-49 — 2026-08-13
+
+**Sent:** Build Item 36 (both write sites, Complimentary disabled for custom-typed).
+Build Item 49 (extend Items Used; no unit column). Item 50 — confirm the Item
+Attributes schema before building, push the toolCandidateAudit probe. Record the full
+inventory vision as future direction.
+
+**Response to CC-49:** **PARTIAL — and said so plainly rather than half-shipping.**
+Item 50's probe **PUSHED (v7.4.110, HEAD only, read-only)**. Future-direction note
+recorded. **Items 36 and 49 NOT BUILT this batch**, for one substantive reason and one
+capacity reason:
+
+- **⚠ THE ITEM 36 COST ESTIMATE FROM CC-48 WAS WRONG, AND I FOUND OUT BEFORE BUILDING.**
+  I reported "one shared flag, two write sites". `TM_TAB` is actually written from **at
+  least three places** (Code.js:4209, 4646, 6919) plus read at 3909. Which of those is
+  the project add-item path — and whether they all need the flag or only one — is a
+  question I must answer before touching them, not while touching them. Building
+  against a wrong site count is precisely how the debrief path gets covered and the
+  project path silently renders every item as custom-typed forever, which is the
+  half-ship the brief explicitly warned against.
+- Item 49's Items Used extension is straightforward on its own (the UPSERT at
+  Code.js:7029 keyed on Date+Client+Event ID+Item, widening to Project / By /
+  From Catalog), **but it shares the fromCatalog column with Item 36** — building it
+  alone would land a column nothing populates.
+- **ITEM 50 PROBE PUSHED — `toolCandidateAudit()`.** Name-matches every distinct
+  `Items Used` entry against the live Products & Services catalog, because
+  `fromCatalog` did not exist when those rows were written and nothing else records
+  how an item was added. Reports **three buckets, deliberately unmerged**: catalog
+  match / TOOL CANDIDATE / unmatched-but-rule-says-nothing. **The rule is printed**, as
+  Item 33's audit was. **Its honest failure mode is reported in the log itself:** a
+  catalog product renamed since it was used will look custom-typed.
+- **ITEM 50 SCHEMA — proposed for confirmation, not built**, as instructed. Structure
+  in the response, with two additions I think it needs and one caution about the join
+  key.
+- Full inventory vision (searchable tool locations; voice-activated status updates that
+  write to the Shopping List or trigger vendor orders) recorded in CLAUDE.md as
+  future-direction, flagged as connected to Item 37 but distinctly larger — the write
+  side is the hard part, not the transcription.
+
+---
+
 ## CC-48 — 2026-08-13
 
 **Sent:** Record the inventory-tracking connection between Items 36/49/50. Item 36 —
