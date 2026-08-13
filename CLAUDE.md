@@ -1053,6 +1053,28 @@ as the receipts badge disagreeing over 'Final designation' vs
 'Final Designation', and as `participants[]` vs `participants`. **When a feature
 "does nothing", compare the exact spelling of the key on both sides before
 theorising about logic.**
+
+**⚠ SIXTH OCCURRENCE, AND THIS ONE WAS MINE (CC-47, 8/13).** `productCategoryProbe`
+probed a hardcoded candidate list — `['Category','Type','Sub-category','subCategory',
+'Sub Category']` — and **`continue`d past any name it did not find**. Products &
+Services actually has **'Item type'**, and **no 'Sub-category' column exists at all**,
+so the probe printed only Category and looked like it had answered the question.
+Running list of this class: `'Account Name '` trailing space · `'Final designation'`
+vs `'Final Designation'` · `participants[]` vs `participants` · `LAST_YES` vs
+`lastYes` · `CI_SKIP_ETA_COL` after the AF rename · this.
+**THE LESSON IS NOT "USE THE RIGHT NAME".** A diagnostic that guesses header names
+inherits the exact bug it is meant to find. **A probe must enumerate the headers that
+ARE there and report anything it was asked for and could not find — loudly, never by
+silently printing nothing.** `productCategoryProbe` was rewritten to do that.
+For reference, the REAL Products & Services header row:
+```
+row | Product/Service Name | Variant Name | Quantity on hand | Item type |
+Single,parent or variant? | Category | SKU | Taxable | Price | Cost |
+Income Account | Expense Account | Inventory asset account |
+Sales Description | Purchase Description | Reorder Point
+```
+Note **Price and Cost DO exist on this sheet** — `getProducts` deliberately trims them
+out of the payload, so they are reachable server-side but never in the frontend.
 Also: `clearQueue` is the OTHER `lastYes` writer and is DEAD — nothing in the app
 calls it (it is in every audit run's "handlers the app never calls" list). It was
 Make's first step. Do not read it as the current source; it is annotated in place.

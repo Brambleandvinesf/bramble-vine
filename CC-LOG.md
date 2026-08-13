@@ -14,6 +14,41 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-47 — 2026-08-13
+
+**Sent:** productCategoryProbe only printed Category — real headers are 'Item type'
+and there is no 'Sub-category'. Fix, re-push read-only, add to the header-mismatch
+running list. Flag whether 'Item type' is the real billable signal.
+
+**Response to CC-47:** **PROBE REWRITTEN AND PUSHED (v7.4.109, HEAD only, no deploy).**
+
+- **⚠ THE FIX IS NOT "USE THE RIGHT NAME".** The old probe took a hardcoded candidate
+  list and `continue`d past any header it could not find — **a diagnostic that guesses
+  header names inherits the exact bug it exists to catch.** Correcting 'Type' to 'Item
+  type' would leave the next unknown column just as invisible.
+  It now **enumerates the headers that ARE present**, reports every column's distinct-
+  value count (low cardinality = candidate signal), and breaks down any column with
+  ≤25 distinct values. It cannot silently skip a column because it never asks for one
+  by name.
+- Added as the **sixth entry** in CLAUDE.md's header-assumption running list, alongside
+  `'Account Name '`, 'Final designation', `participants[]`, `LAST_YES`, and
+  `CI_SKIP_ETA_COL` — with the real Products & Services header row recorded verbatim,
+  and the lesson stated as a rule about how probes must be written.
+- **⚠ TWO THINGS THE REAL HEADER LIST REVEALS, both material to Item 36:**
+  1. **`Price` and `Cost` DO exist on this sheet.** `getProducts` deliberately trims
+     them out, so they are reachable server-side but never reach the frontend. A
+     price-based signal is therefore possible but would need the payload widened —
+     and Item 40's 107-item data gap still argues against price as the signal.
+  2. **`subCategory` is almost certainly dead data in the frontend.** `products.ts`
+     exposes `ProductRow.subCategory`, but no sub-category column exists on this sheet
+     at all, so `getProducts`' header sniff can only be resolving it to empty. Any
+     Item 36 design keying on subCategory would key on nothing.
+- Added a targeted cross-tab to the probe: **Item type × has-a-Price**, which is the
+  actual Item 36 question — does Item type separate what we charge for from what we
+  own? Reported rather than assumed.
+
+---
+
 ## CC-46 — 2026-08-13
 
 **Sent:** New standing rule — a bumped approval must surface itself at the top of the
