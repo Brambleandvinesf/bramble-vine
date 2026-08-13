@@ -14,6 +14,65 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-34 — 2026-08-13
+
+**Sent:** Item 41 — where does Angel review the invoice draft? Settle the review
+screen's real on-screen name first, then cost Approach 1 (role access + tabs) vs
+Approach 2 (a step in the crew's own debrief flow). Item 42 — per-client Payment
+Reminders checkbox on the draft card, scoped after 41.
+
+**Response to CC-34:** INVESTIGATION ONLY — no code written, nothing deployed.
+Backend stays v7.4.102 @286.
+
+- **ON-SCREEN NAME, SETTLED:** nav item = **"CONFIRM VISITS"**, page header =
+  **"VISIT CONFIRMATIONS"**, tab title "Bramble & Vine — Visit Confirmations".
+  **"Message Queue" is the SHEET TAB name and appears nowhere in the UI** — it has
+  been internal-only naming for 20 batches. Any invoice-review UI on that screen
+  needs it renamed, or the screen contradicts itself.
+- **⚠ THE FINDING THAT OUTRANKS BOTH APPROACHES — the message is built from the
+  wrong input set.** `field.tsx:4888` merges `clientUpdates` (prefixed
+  `"Client update: "`) AND `officeTasks` into ONE array, sent as `officeTasks`.
+  `Code.js:6786` then calls `haikuClientMsg_(client, data.officeTasks)`. **So Haiku
+  receives the internal office notes as well as the client-facing ones** and is
+  asked to "skip internal/office items" — while the one signal that distinguishes
+  them, the `"Client update: "` prefix, **is never explained in the prompt.** Two
+  failure modes: internal items leak into a client message, and client updates get
+  dropped as internal. Angel's exact concern has a mechanism defect underneath it,
+  and **no choice of review screen fixes it.** Fix before either approach.
+- **APPROACH 1 — access is one character; the exposure is the real cost.**
+  `src/lib/permissions.ts` is a genuine single source of truth (nav layouts, badge
+  poller and route guard all read `canSee`), so `visits: { lead: 0 → 1 }` is the
+  whole access change. **But `queueRows_` returns EVERY pending row unfiltered** —
+  all clients' confirmations and invoices, with phone numbers and email addresses.
+  Flipping the bit hands Angel the entire roster's contact details.
+  **Scoping to "only visits Angel worked" is undefinable for half the screen:**
+  invoice rows could be scoped via a join that does not exist today (MQ row →
+  invoiceId → Debrief Log's Invoice column → its `By` column) plus viewer identity
+  on the request; **visit confirmations have no owner at all** — `draftVisitQueue`
+  drafts NEXT week's Mon–Fri before any crew assignment exists.
+- **APPROACH 2 — the timing question resolves in its favour.** `haikuClientMsg_`
+  takes only `(client, notes)`. **It does not depend on the invoice.** Its output is
+  passed into the invoice payload but only reaches the internal info@ email
+  (`Code.js:12130`) — **it is never written onto the invoice.** So a preview needs
+  NO delay to invoice creation and no splitting of `saveDebrief`: a small read-only
+  action calling `haikuClientMsg_` alone, then the crew's edited text rides along
+  with the debrief payload for `saveDebrief` to use instead of regenerating.
+- **⚠ "Sidesteps the access question entirely" is TRUE for the field path only.**
+  `debrief-queue.tsx:266` also posts `saveDebrief`, so a past visit can be
+  debriefed by office/lead/management who did not work it. That path needs the same
+  step or it produces an unreviewed message.
+- **ITEM 42 — cheap, but not via the existing writer.** `setClientInfoField` exists
+  and is dry-run-by-default, but it is a **column-LETTER allowlist** sitting next to
+  the AP/AQ/AR credentials exclusion — and the `Payment Reminders` column was
+  APPENDED DYNAMICALLY, so its letter depends on the sheet's current width.
+  Wiring it through would mean a position-based reference to a dynamically created
+  column, against the house header-not-position rule. Recommended a narrow
+  dedicated action keyed by header name instead.
+  Also flagged: a client toggled ON while `PAY_REMIND_ENABLED` is off receives
+  nothing, so the checkbox must not imply otherwise.
+
+---
+
 ## CC-33 — 2026-08-13
 
 **Sent:** Channel decision = Option 1, honour column U fully (Text / Email / both).
