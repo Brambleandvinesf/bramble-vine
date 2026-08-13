@@ -14,6 +14,42 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-55 — 2026-08-13
+
+**Sent:** Deploy v7.4.113, then test matchItemVoice against four realistic transcripts
+(easy / vague / no-overlap / multi-match) and report full ranked results so quality can
+be judged before any mic UI is built.
+
+**Response to CC-55:** **DEPLOYED, THEN FOUND THE AI LEG HAD NEVER WORKED, THEN FIXED
+IT.** Now live at **v7.4.115 @295**, and match quality is strong. Three deploys: @293
+(the action), @294 (diagnostics), @295 (the fix).
+
+- **⚠⚠ THE FIRST TEST RUN WAS A FALSE PASS, CAUSED BY MY OWN FAIL-SOFT.** All four
+  transcripts returned plausible-looking results — every one was the **deterministic
+  word-match fallback**, carrying `note: "AI returned nothing usable"`. The AI stage had
+  failed on every call since it was written. **Had I reported "quality looks reasonable"
+  and built the UI on top, the feature would have shipped never once calling the model,
+  and looked fine doing it.**
+- **Added permanent diagnostics rather than guessing** (`aiHttp`, `aiRaw`, `aiReturned`,
+  `aiParseError`, `aiBody`). Result: **HTTP 200 with a PERFECT ranked answer using exact
+  catalog names — wrapped in ```json fences** despite the prompt forbidding them.
+  `JSON.parse` rejected the backticks, `parsed` came back empty, the fallback served
+  word-matches. **The matching was never the problem; the parser was.**
+- **FIX:** slice from the first `[` to the last `]` before parsing — robust to fences,
+  stray prose and trailing commentary. Commented as a do-not-simplify.
+- **Diagnostics are PERMANENT, deliberately.** A fallback hiding a broken primary path
+  is this project's most-repeated failure shape (`quoLines_`, the AF opt-out,
+  `LAST_YES`, the header-guessing probe). `aiHttp`/`aiReturned` mean it can never again
+  look like it is working when it is not.
+- **QUALITY AFTER THE FIX — strong across all four categories.** EASY put the exact item
+  first with the wrong-length variants ranked below and reasons given. VAGUE resolved a
+  purely descriptive phrase to a real drip splitter. NO-OVERLAP reasoned to porous
+  rock/pumice as moisture-retaining mulch **with no shared words at all**. MULTI-MATCH
+  returned five real fertilizers with rose-specific reasoning — ranked, not guessed.
+- Mic UI **not built** — next batch, as agreed, now that quality is confirmed.
+
+---
+
 ## CC-54 — 2026-08-13
 
 **Sent:** Item 37 voice input, ItemPicker search field only. Design settled. Confirm
