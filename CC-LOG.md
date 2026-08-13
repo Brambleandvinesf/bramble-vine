@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-29 — 2026-08-12
+
+**Sent:** deploy Item 39. Item 35 option 1 (drop the opacity). Item 38 both parts —
+button feedback now, timing instrumentation with the diff reported. Item 40 RESOLVED
+as a genuine data gap (target Id 451, UnitPrice 0; 107 of 3,328 active items, 3%) —
+write the full list to a sheet tab with Id/Name/Type, sorted so grouping items
+separate from real products.
+
+**Response to CC-29:** two deploys (@281, @282), two frontend fixes. All verified.
+
+- **Item 39 DEPLOYED @281.** HEAD and deployment back in sync.
+- **Item 35 — opacity removed.** `opacity: crossed ? 0.5 : 1` is gone from
+  ProjectCard. Strikethrough + CC-27's inverted lime check remain as the two
+  completion signals, neither of which can be read as "busy".
+- **Item 38.1 — button feedback.** `opacity` now includes `busy` (it was tied only
+  to `isPreview`/blocked, so on tap the button disabled and rendered IDENTICALLY),
+  and the label becomes **"SUBMITTING…"**.
+- **Item 38.2 DEPLOYED @282 — per-stage timings on `report.timingsMs`**, with the
+  invoice leg broken out separately in `report.invoiceTimingsMs`
+  (customerLookup / itemLookups / invoiceQueryAndWrite / pdfAndEmail / TOTAL /
+  exitedAt). Purely additive — nothing branches on a timing, no existing field
+  changes.
+  **CAUGHT A REAL GAP WHILE BUILDING IT:** the success path never called `qFinish`,
+  so the ONLY case worth profiling — an invoice that actually got created — would
+  have returned no timings at all. Fixed before deploying.
+  Item lookups NOT batched and the PDF NOT moved off the critical path, deliberately
+  — those wait for the numbers.
+- **Item 40 — `qboPricelessItemsToSheet()`** (editor-only) writes every priceless
+  active item to a **'QBO Priceless Items'** tab: Id, Name, Type, Sub-item of,
+  sorted by Type then Name. Read-only against QBO; the only write is that diagnostic
+  tab, which it owns and rebuilds.
+- **PATCHING NOTE worth keeping:** three of the five `mark()` anchors failed —
+  `report.updates` and `report.newProjects` each appear in a SECOND, unrelated
+  action, and my diagnostic `sed | sed 's/^/    /'` added four spaces that I then
+  copied into the anchors. Fixed by scoping the search to saveDebrief's own offset
+  and reading each line's real indentation from the file. Never hand-type
+  indentation into an anchor; take it from the source.
+- Verified: node --check clean, action audit unchanged (same single pre-existing
+  placesDetails finding), tsc 0, vite build exit 0, getField healthy twice after
+  deploy, debriefQueue answering.
+
+---
+
 ## CC-28 — 2026-08-12
 
 **Sent:** Batch B — the invoice/debrief defect cluster. Item 35 (persistent "saving"
