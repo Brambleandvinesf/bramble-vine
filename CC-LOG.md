@@ -14,6 +14,48 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-27 — 2026-08-12
+
+**Sent:** single-item batch by agreement — Item 32 (Projects Completed full build),
+all seven sub-answers confirmed. Decisions for future batches recorded in the prompt
+(Item 31 PEEK_OK, Item 33 canonical vocab, Item 39 drop the description, Item 40
+qboItemProbe).
+
+**Response to CC-27:** Item 32 BUILT and pushed (6f468a5). Frontend only, no deploy.
+
+- **32.1 pills** — ProjectCard already supported `items` and rendered ItemPill; the
+  step was passing `items={[]}`. Now passes the real tools, normalised in
+  StateDebrief exactly as StateVisit does it. `ItemPill` gained an optional
+  `onRemove`; **when present the wrapper becomes a `<span>` rather than a
+  `<button>`** — a button inside a button is invalid HTML and the inner click would
+  not reliably win, and this screen has no tool-toggle to lose.
+- **32.2 trash** — `deleteFutureProject` (cascades project + child T&M rows,
+  client-scoped), confirm-gated with the item count named, optimistic with rollback.
+- **32.3 pill ×** — new `removeProjectItem` helper in add-project.ts, same `post()`
+  pattern as its siblings.
+- **32.4 pencil** — NewProjectForm inline, pre-filled. **`savedId` deliberately NOT
+  set on the draft**: to that component it means "already written" and would collapse
+  the card and disable SAVE, so the real Project ID is held alongside and SAVE posts
+  `editProject`. That action writes only the keys given and never touches Status or
+  Crossed, so an edit cannot disturb the staged completion.
+- **Instant fall-through** — three local overlays over the `projects` PROP
+  (`deletedIds`, `fieldEdits`, `removedItemKeys`), because the prop only refreshes on
+  its ~20s poll. Type is read AFTER the overlay is applied, which is what makes a
+  retype to Recurring drop the card at once. Overlays not a local copy, so the poll
+  stays authoritative and reconciles by agreeing.
+- **32.5 camera** — the EXISTING ProjectCamera re-wired. Its real props are
+  `projectId/clientName/disabled/existing` — no `kind`, no `onDone`, and it owns its
+  own photo state — so it renders under its own card and the icon toggles it closed.
+  My first pass guessed `kind`/`onDone` and was wrong; caught by reading the
+  component.
+- **32.6 visual split** shipped as agreed, caption included.
+- **32.7 prop-gated** behind `actions`: absent on Visit In Progress, which keeps its
+  whole-card tap and renders byte-identical.
+- Verified: tsc 0 errors, vite build exit 0, all four markers in the built chunks.
+  NOT verified on screen — needs a live debrief on a client with SPECIAL projects.
+
+---
+
 ## CC-26 — 2026-08-12
 
 **Sent:** new standing rule (numbered options + recommendation, not open prose).
