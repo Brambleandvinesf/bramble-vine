@@ -18,6 +18,12 @@ export type PickedItem = {
   qty: string;
   size: string;
   notes: string;
+  /* CC-53 Item 36: PICKED from the QBO catalog, or TYPED by hand?
+     No catalog column separates billable from non-billable (Item type × price came
+     back overwhelmingly priced across every type), so this is the only real signal —
+     and it is known HERE, at the tap, rather than inferred later from the name.
+     The two add paths are already structurally distinct, so nothing is guessed. */
+  fromCatalog: boolean;
 };
 
 const LIME = "#7cff00";
@@ -444,7 +450,8 @@ export function ItemPicker({
           <CustomItemForm
             initialName={query.trim()}
             onCancel={() => setCustomOpen(false)}
-            onAdd={(item) => onAdd(item)}
+            /* CC-53: the CUSTOM path — typed by hand, so no catalog match. */
+            onAdd={(item) => onAdd({ ...item, fromCatalog: false })}
           />
         )}
 
@@ -454,7 +461,9 @@ export function ItemPicker({
             onCancel={() => setSelected(null)}
             onAdd={(qty, size, notes) => {
               // NAME MUST BE VERBATIM from ProductRow
-              onAdd({ name: selected.name, qty, size, notes });
+              /* CC-53: the CATALOG path — `selected` IS a ProductRow, so this is a
+                 real catalog match by construction, not by name comparison. */
+              onAdd({ name: selected.name, qty, size, notes, fromCatalog: true });
             }}
           />
         )}
@@ -750,6 +759,10 @@ function CustomItemForm({
               qty: qty.trim(),
               size: size.trim(),
               notes: notes.trim(),
+              /* CC-53: this form IS the custom path. Set at the source rather than
+                 only at the call site above, so a future caller of CustomItemForm
+                 cannot accidentally produce a catalog-looking item. */
+              fromCatalog: false,
             })
           }
         >

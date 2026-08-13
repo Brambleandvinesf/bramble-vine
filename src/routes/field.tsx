@@ -4632,7 +4632,15 @@ function newProjectRow(type = "RECURRING"): NewProject {
    reads `i.comp === true`, so an older payload is unchanged. The item still posts at
    FULL price; a single invoice-level discount equal to the sum of all comped items
    nets them out, so the market value survives on the document for the deduction. */
-type ItemUsed = { name: string; qty?: string; partial?: boolean; comp?: boolean };
+/* CC-53 Item 36: `fromCatalog` follows `comp`'s existing convention — present only
+   when true, so absent means false and no existing payload changes shape. */
+type ItemUsed = {
+  name: string;
+  qty?: string;
+  partial?: boolean;
+  comp?: boolean;
+  fromCatalog?: boolean;
+};
 
 /* (8/4) EXPORTED so the failsafe DEBRIEF QUEUE route can render these very same
    steps for a visit that already happened. A second entry point, NOT a rebuild -
@@ -6612,8 +6620,38 @@ function ItemsUsedPicker({
           style={{ borderBottom: `1px solid ${LINE}`, padding: "2px 0 8px" }}
         >
           <div style={{ ...ROW_LINE, borderBottom: "none", gap: 6 }}>
-            <div style={{ flex: 1, color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
-              {i.name}
+            {/* CC-53 Item 36 — the catalog-match pill.
+                CATALOG-MATCHED gets the inverted treatment (lime fill, black text);
+                CUSTOM-TYPED gets the plain outlined one. Lime/black only, no new
+                colours — and deliberately NOT red: a custom-typed item is a normal,
+                valid thing to add, not a failure.
+                ⚠ KNOWN LIMITATION, recorded not solved: a custom-typed name could
+                coincidentally match a real catalog name. This pill reflects HOW THE
+                ITEM WAS ADDED, not what the invoice will do — the invoice always
+                reflects backend truth. */}
+            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span
+                title={
+                  i.fromCatalog
+                    ? "Picked from the QuickBooks catalog"
+                    : "Typed by hand — not matched to the catalog"
+                }
+                style={{
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  padding: "1px 6px",
+                  borderRadius: 999,
+                  whiteSpace: "nowrap",
+                  border: `1px solid ${i.fromCatalog ? LIME : DIM_GREEN}`,
+                  background: i.fromCatalog ? LIME : "transparent",
+                  color: i.fromCatalog ? "#000" : DIM_GREEN,
+                }}
+              >
+                {i.fromCatalog ? "CATALOG" : "CUSTOM"}
+              </span>
+              <span style={{ color: TEXT, fontSize: 13, wordBreak: "break-word" }}>
+                {i.name}
+              </span>
             </div>
             {/* CC-24 Item 26.3: − / + around the quantity, using the SAME
                 StepperButton the Hours screen uses (it steps 0.25 there, 1 here).
@@ -6714,7 +6752,19 @@ function ItemsUsedPicker({
                 ),
               )
             }
-            disabled={disabled}
+            /* CC-53 Item 36: DISABLED for custom-typed items. A comped item posts at
+               FULL price on its own line with an invoice-level discount netting it
+               out — so it needs a real catalog price to discount against. A
+               custom-typed item has none, and comping one is how a $0 line reaches an
+               invoice, which is exactly Item 29's bug shape.
+               VISIBLY disabled rather than hidden: a control that vanishes reads as a
+               missing feature, where a dimmed one with a reason reads as a rule. */
+            disabled={disabled || !i.fromCatalog}
+            title={
+              i.fromCatalog
+                ? undefined
+                : "Only catalog items can be comped — a custom-typed item has no price to discount against"
+            }
             style={{
               background: "transparent",
               border: "none",
@@ -6722,13 +6772,16 @@ function ItemsUsedPicker({
               fontFamily: "inherit",
               fontSize: 11,
               letterSpacing: 0.5,
-              color: i.comp ? LIME : MUTED,
-              cursor: "pointer",
+              color: !i.fromCatalog ? DIM_GREEN : i.comp ? LIME : MUTED,
+              cursor: i.fromCatalog ? "pointer" : "not-allowed",
+              opacity: i.fromCatalog ? 1 : 0.6,
               textAlign: "left",
             }}
             aria-pressed={!!i.comp}
+            aria-disabled={!i.fromCatalog}
           >
             {i.comp ? "☑" : "☐"} complimentary — no charge
+            {!i.fromCatalog && " (catalog items only)"}
           </button>
         </div>
       ))}
@@ -6749,7 +6802,15 @@ function ItemsUsedPicker({
                (`parseFloat(i.qty) || 1`) — so the screen showed nothing and the
                invoice billed one. Now the visible value and the billed value are the
                same number, and the steppers have something to step from. */
-            onChange([...items, { name: picked.name, qty: picked.qty || "1" }]);
+            onChange([
+              ...items,
+              {
+                name: picked.name,
+                qty: picked.qty || "1",
+                /* CC-53: absent means false, so only carry it when true. */
+                ...(picked.fromCatalog ? { fromCatalog: true } : {}),
+              },
+            ]);
             setPickerOpen(false);
           }}
         />

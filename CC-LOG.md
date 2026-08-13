@@ -14,6 +14,52 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-53 — 2026-08-13
+
+**Sent:** Three pending items resolved (see below). Build Item 36's frontend as the
+sole scope: ItemPicker sets fromCatalog at both paths, pill styling, Complimentary
+disabled for custom-typed. Frontend only, no deploy.
+
+**Response to CC-53:** **ITEM 36 COMPLETE END TO END.** Frontend built; tsc --noEmit
+and vite build both clean. No backend change, no deploy. Backend stays v7.4.112 @292.
+
+### THREE PENDING ITEMS RESOLVED — RECORDED
+1. **`setupItemAttributes` RUN.** Item Attributes tab exists with the confirmed schema.
+2. **`toolCandidateAudit` RUN — and the result is "nothing to migrate", not "audit
+   failed".** Only **9 Items Used rows exist historically (8 distinct items), and all 8
+   are catalog matches** — zero tool candidates, zero unmatched. Items Used logging is
+   simply a new feature with almost no accumulated history, and no custom-typed usage
+   yet. **Item 50's historical pass has nothing to act on: no migration needed.**
+   Categorisation now happens prospectively via `fromCatalog` as usage accumulates.
+   **Re-run the audit once meaningfully more history exists** — this is neither done
+   nor blocked, it is early.
+3. **Invoice Queue reachability CONFIRMED** — INVOICE QUEUE appears in the ⋯ menu and
+   /invoices loads. Still never exercised with a real invoice draft; the CC-32-onward
+   path still awaits its first live observation.
+
+### ITEM 36 FRONTEND
+- **`PickedItem` gains `fromCatalog: boolean` — REQUIRED, not optional.** That is what
+  made the compiler find a **third** add path I had not seen: `CustomItemForm`'s own
+  submit at ItemPicker.tsx:757, beyond the two call sites. Set at the source there, so
+  a future caller of that form cannot produce a catalog-looking item by omission.
+- Catalog path is true **by construction** — `selected` IS a `ProductRow`, so it is a
+  real match rather than a name comparison.
+- **`ItemUsed.fromCatalog` follows `comp`'s convention** — carried only when true, so
+  absent means false and no existing payload changes shape. This matches the backend's
+  `fromCatalogOf_` exactly, which is what makes CC-51's restore-only preservation safe.
+- **Pill:** CATALOG = inverted (lime fill, black text); CUSTOM = outlined dim green.
+  Lime/black only. **Deliberately not red** — custom-typed is a normal, valid thing to
+  add, not a failure.
+- **Complimentary visibly disabled for custom-typed**, with a title explaining why and
+  a "(catalog items only)" suffix. Comping posts at FULL price with an invoice-level
+  discount, so it needs a real catalog price to discount against; comping a
+  custom-typed item is how a $0 line reaches an invoice — Item 29's exact shape.
+- Known limitation recorded in-code, not solved: a custom-typed name could
+  coincidentally match a catalog name. **The pill reflects HOW THE ITEM WAS ADDED**,
+  not what the invoice will do; the invoice always reflects backend truth.
+
+---
+
 ## CC-52 — 2026-08-13
 
 **Sent:** Deploy v7.4.111 + v7.4.112 bundled. Confirm existing items unchanged and the
