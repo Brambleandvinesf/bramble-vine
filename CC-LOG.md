@@ -14,6 +14,47 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-50 — 2026-08-13
+
+**Sent:** Formatting rule violated again (CC-49 arrived split) — re-read it and confirm.
+Item 50 schema confirmed incl. Notes/Updated and join-key option 1 — build the tab.
+Items 36+49: identify TM_TAB's write sites plainly before writing any code.
+
+**Response to CC-50:** Formatting rule re-read and confirmed; the cause was my own
+narration between tool calls, not the final block. Item 50's **Item Attributes tab
+BUILT and PUSHED (v7.4.111, HEAD only, not deployed)**. TM_TAB write sites mapped.
+
+- **⚠ TM_TAB HAS EIGHT SITES, NOT THREE.** My CC-49 figure was still wrong — I had
+  reported three from a partial grep. Mapped each to its owning action:
+```
+  4219 setLoaded      | 4656 addProject   | 6929 saveDebrief  | 7465 confirmDay
+  8200 importProjects | 9465 createProject| 9506 addItems     | 9550 removeItem
+  reads only: 3434, 3884, 3919, 4126, 8235, 12813
+```
+  **Three of these CREATE item rows and therefore need `fromCatalog`:** `addProject`,
+  `createProject`, `addItems`. `saveDebrief` writes the debrief's own items.
+  **⚠ AND ONE IS THE BULK/REBUILD WRITER I WAS WORRIED ABOUT:** `saveDebrief`'s
+  `writeItems` **REWRITES a project's tool rows rather than appending** (documented
+  in-code: keyed only by Project ID, so appending would duplicate every item, and
+  rewriting also makes an edit remove things). **A flag written by `addItems` would be
+  destroyed the next time that project was saved through the debrief path** unless the
+  rewrite carries it forward. That is the concrete half-ship risk, now identified
+  rather than discovered later.
+  `setLoaded` / `removeItem` / `confirmDay` / `importProjects` do not create new item
+  rows in the normal flow and need no flag, but `importProjects` is worth a second look
+  if it is ever re-run.
+- **ITEM ATTRIBUTES TAB BUILT** exactly as confirmed: `Item Name | Tool | Location |
+  Owned Quantity | Replacement Cost | Status | Notes | Updated`. `itemAttrSheet_`
+  creates on demand **and tops up a missing header** on an existing tab, so growing the
+  schema never needs a migration. `setupItemAttributes()` is the editor-only entry.
+- **`itemAttrRow_` deliberately does NOT create a row on a miss.** The join key is a
+  free-text name shared with a QB-synced catalog, so a miss can mean "renamed in QB"
+  rather than "new item" — silently minting a row under the new spelling is exactly the
+  header/name-drift failure this project has hit six times. Callers must report loudly,
+  per the confirmed option 1.
+
+---
+
 ## CC-49 — 2026-08-13
 
 **Sent:** Build Item 36 (both write sites, Complimentary disabled for custom-typed).
