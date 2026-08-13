@@ -14,6 +14,54 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-40 — 2026-08-13
+
+**Sent:** Item 33 migration corrections — (A) fold Garden case variants
+Backyard/BACKYARD→Back, INDOORS→Indoor; (B) fold typos PEST CONTOL/Pest Contol→Pest
+Control and non-colon Fertilizing variants; (C) add four missed instruction values to
+the candidate list; (D) pull full per-row context for six ambiguous values, one at a
+time, and propose nothing. Build the migration after Brandon answers D.
+
+**Response to CC-40:** **NO CODE WRITTEN, NO MIGRATION RUN** — correct for this batch.
+Pulled D's context myself instead of shipping another probe: `getProjects` is a full
+`tabToObjects_(ss, CP_TAB)` passthrough, so all 769 rows and all 17 columns were
+already readable over GET. No deploy, no editor step, no round trip.
+
+- **All six D values reported with client, sheet row, Project Action, Garden, Type,
+  Status, Seasons, Target/Frequency and Notes.** No resolutions proposed, as
+  instructed. Three factual observations surfaced because they change the decision:
+  **'Whiteness' rows 29 and 42 are duplicates** (identical Project Action);
+  **five of the six are seasonal/timing words and the dedicated `Seasons` column is
+  EMPTY on every one of them**; and **'Maintenance' is the only one carrying existing
+  Notes** ("Roof needs re enforcing.").
+- **⚠ INSTRUCTION B IS SELF-CONTRADICTORY AND I DID NOT GUESS.** It says the
+  colon-bearing Fertilizing variants were "correctly caught as migration candidates"
+  (→ Notes, Category=Misc) and that the non-colon ones should get "the same
+  treatment", then says to "fold into canonical 'Fertilizing'". Those are two
+  different outcomes. Raised as numbered options — it decides the fate of 21 rows.
+- **⚠ THE FERTILIZING FAMILY IS LARGER THAN B'S EXAMPLES:** `Fertilizing` 29,
+  `2026 FERTILIZING:` 10, `2026 Fertilizing` 3, `Fertilizing 2026` 3,
+  `2025 Fertilizing:` 2, `Fertilizing: 2026` 2, `Fertilizing - NOT TODAY` 1,
+  `Fertilize` 1. **Folding loses the YEAR** on 20 of them.
+- **⚠ `Fertilizing - NOT TODAY` IS AN INSTRUCTION, NOT A SPELLING VARIANT.** Folding it
+  to `Fertilizing` would delete the words "NOT TODAY" — arguably a C-class row, not a
+  B-class one. Raised separately.
+- **A and C validated against real rows.** Backyard/BACKYARD = 20 rows across 6
+  clients (Aarthi, Fay & Robert, Jason & Ashley, Joyce Kim, Marieke, Michael Smith) —
+  matches. INDOORS = 2, Jessy Exum. PEST CONTOL + Pest Contol = 7, Aarthi + Diane
+  Merlino — matches 6+1. **'Diane First' is 10 rows**, all Diane Merlino.
+- **⚠ TWO GARDEN VALUES A DIDN'T COVER:** `Special` (2 rows) — which looks like a Type
+  value ('SPECIAL') sitting in the Garden column — and `Hutch` (1 row, A&G Sect 1),
+  which is a legitimate per-client extra. Also `?` = 214 rows, already handled as blank.
+- **Migration will APPEND to Notes, never overwrite.** Verified none of C's four rows
+  currently has Notes content, so no collision there — but D6 does, which is exactly
+  why append is the rule rather than an optimisation.
+- **No code change needed for A/B's dropdown display:** the helper already folds
+  case-insensitively with canonical winning, so `FRONT` already renders as `Front`.
+  Once the data migration runs, `Backyard` stops existing and stops being offered.
+
+---
+
 ## CC-38 — 2026-08-13
 
 **Sent:** Item 47 investigate splitting the invoice queue into its own screen. Item 33
