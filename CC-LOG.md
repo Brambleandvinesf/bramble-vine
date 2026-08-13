@@ -14,6 +14,63 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-38 — 2026-08-13
+
+**Sent:** Item 47 investigate splitting the invoice queue into its own screen. Item 33
+build the canonical Garden/Category lists (confirm components first, report the
+migration plan). Item 36 Items Used pills — findings first. Item 37 voice input —
+findings first.
+
+**Response to CC-38:** Item 33 dropdown work **BUILT** (frontend only, tsc + vite
+clean); its migration audit probe **PUSHED, NOT DEPLOYED**. Items 47, 36, 37 are
+findings only. Backend live stays v7.4.105 @288.
+*Correction to the prompt's header: live is v7.4.105, not v7.4.103 — @287 was 103.*
+
+- **ITEM 33 — "does one fix cover every screen?" NO. FOUR independent
+  implementations**, in `projects.tsx`, `field.tsx`, `confirm.tsx` and
+  `messages.tsx`. `ComboSelect` is shared but each caller built its own option list.
+- **⚠ AND THREE OF THE FOUR HAD A REAL DEFECT:** they mapped every project with **no
+  `new Set`** and no client scoping, so "Front" appeared once per matching row and
+  every client's place names showed on every client. Only `field.tsx` deduped and
+  filtered per client. Fixed as part of this.
+- **THE DROPDOWN *WAS* THE DATA.** Every list was derived from existing sheet values,
+  so there was no canonical list anywhere and a typo became a permanent option. New
+  `src/lib/project-fields.ts` holds the canonical lists and merges: **canonical
+  first, in Brandon's order, then that client's own extras**, deduped
+  case-insensitively, `'?'` treated exactly as blank. Place names stay per-client and
+  are never promoted. A&G's three extra categories attach by the same `/a\s*&\s*g/i`
+  name test `draftVisitQueue` uses, and never merge into the general list.
+- **MIGRATION NOT RUN.** `projectFieldAudit()` pushed as editor-only, read-only: it
+  reports every distinct Garden/Category value, its row count, how many clients use
+  it, and tags each as canonical / per-client extra (KEEP) / `?` placeholder /
+  MIGRATION CANDIDATE. **The candidate rule is reported rather than trusted** —
+  >30 chars or matching special|requested|per |: — so Brandon can judge the rule
+  before any row is rewritten. Plan: prose moves to Notes, Category becomes Misc,
+  nothing deleted.
+
+- **ITEM 47 — costed.** `permissions.ts` is a true single source of truth, so a new
+  screen is: 1 route file, 1 `PERMISSIONS` entry, per-role nav layout entries, and a
+  badge count. **The badge is the only non-trivial part:** `queuePendingCount_` exists
+  specifically because full `getQueue` was 20KB/3.3s for one number, so a second
+  badge wants a `kind` filter on the existing `countOnly` endpoint, not a second full
+  fetch. Frontend can filter rows client-side — `kind` already ships on every row —
+  so `queueRows_` needs no filter param. Recommended option 1 with that caveat.
+- **ITEM 36 — the proposed signal does not work, and the data is not there.**
+  `ItemUsed` is `{name, qty?, partial?, comp?}` — **no billable flag at all**. And
+  `getProducts` is **deliberately TRIMMED to name/category/subCategory** (the full
+  8-column passthrough was 1.4MB), so the frontend has no price data whatsoever.
+  Worse, UnitPrice is a bad signal even server-side: Item 40 proved **107 of 3,328
+  active items have UnitPrice 0 as a DATA GAP**, so price-absent conflates
+  "non-billable tool" with "nobody filled in a price" and would mis-style ~107 items.
+  Recommended a one-run probe of distinct category/subCategory values — already in
+  the payload, so free — before choosing the signal. Nothing built.
+- **ITEM 37 — findings.** Recommended Web Speech API (zero new dependency, no audio
+  leaves the device) with the **existing** Anthropic integration reused for
+  fuzzy-matching the transcript against the catalog, and ranked suggestions rather
+  than a best guess. Nothing built.
+
+---
+
 ## CC-37 — 2026-08-13
 
 **Sent:** Item 45 deploy, with the photo link gated to Mike Davis only ("yesterday's"

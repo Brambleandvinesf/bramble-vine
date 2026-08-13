@@ -21,6 +21,10 @@ import { invalidateProjectPhotos } from "../lib/project-photos";
 import { planPunchDelete, applyPunchDelete } from "../lib/punch-edit";
 import { PayrollConfirm } from "../components/PayrollConfirm";
 import { confirmModal } from "../components/ConfirmModal";
+import {
+  gardenOptions as buildGardenOptions,
+  categoryOptions as buildCategoryOptions,
+} from "../lib/project-fields";
 import { hqScreenFor, useDayState } from "../lib/day-state";
 import { openGoogleWallet } from "../lib/wallet";
 import { ClientRefPanel } from "../components/ClientRefPanel";
@@ -5310,29 +5314,28 @@ export function StateDebrief({
   /* (8/5) Client-scoped Garden/Category suggestions for the Add Future Project
      form — the same derivation confirm.tsx uses, from THIS client's existing
      projects, deduped so a value used ten times is offered once. */
-  const gardenOptions = useMemo(
+  /* CC-38 Item 33: the canonical lists lead, then THIS CLIENT's own place names.
+     The per-client filter is kept — it was already right here, and it is what
+     stops one client's "Acadia" showing up on everyone else. The dedupe and sort
+     move into the helper. */
+  const clientProjectValues = useMemo(
     () =>
-      Array.from(
-        new Set(
-          projects
-            .filter((pr) => s(pr["Client Name"]).toLowerCase() === (clientMatch ?? "").toLowerCase())
-            .map((pr) => s(pr["Garden"]).trim())
-            .filter(Boolean),
-        ),
-      ).sort(),
+      projects.filter(
+        (pr) => s(pr["Client Name"]).toLowerCase() === (clientMatch ?? "").toLowerCase(),
+      ),
     [projects, clientMatch],
+  );
+  const gardenOptions = useMemo(
+    () => buildGardenOptions(clientProjectValues.map((pr) => s(pr["Garden"]))),
+    [clientProjectValues],
   );
   const categoryOptions = useMemo(
     () =>
-      Array.from(
-        new Set(
-          projects
-            .filter((pr) => s(pr["Client Name"]).toLowerCase() === (clientMatch ?? "").toLowerCase())
-            .map((pr) => s(pr["Category"]).trim())
-            .filter(Boolean),
-        ),
-      ).sort(),
-    [projects, clientMatch],
+      buildCategoryOptions(
+        clientProjectValues.map((pr) => s(pr["Category"])),
+        clientMatch,
+      ),
+    [clientProjectValues, clientMatch],
   );
 
   const qbtPerson = (name: string) =>

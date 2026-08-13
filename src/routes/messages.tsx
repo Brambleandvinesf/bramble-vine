@@ -19,6 +19,10 @@ import { useAuth } from "../lib/auth";
 import { ensureAudioContext, playCrowShriek, unlockCrowAudio } from "../lib/crow-sound";
 import { confirmModal } from "../components/ConfirmModal";
 import { ComboSelect } from "../components/ComboSelect";
+import {
+  gardenOptions as buildGardenOptions,
+  categoryOptions as buildCategoryOptions,
+} from "../lib/project-fields";
 
 const CK_DEFAULT = "messages:getInbox";
 const CK_ALL = "messages:getInbox:all";
@@ -479,12 +483,14 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       projectCatalogFetched.current = false;
     }
   }, []);
+  /* CC-38 Item 33: canonical lists first, then values actually in use. Also fixes
+     the missing dedupe — there was no `new Set` here either. */
   const gardenOptions = useMemo(
-    () => projectCatalog.map((p) => p.garden).filter(Boolean),
+    () => buildGardenOptions(projectCatalog.map((p) => p.garden)),
     [projectCatalog],
   );
   const categoryOptions = useMemo(
-    () => projectCatalog.map((p) => p.category).filter(Boolean),
+    () => buildCategoryOptions(projectCatalog.map((p) => p.category)),
     [projectCatalog],
   );
   const [rcPick, setRcPick] = useState<{

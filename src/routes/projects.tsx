@@ -8,6 +8,10 @@ import { sessionCache } from "../lib/session-cache";
 import { RefreshDot } from "../components/RefreshDot";
 import { confirmModal } from "../components/ConfirmModal";
 import { useProjectPhotos, photoKey } from "../lib/project-photos";
+import {
+  gardenOptions as buildGardenOptions,
+  categoryOptions as buildCategoryOptions,
+} from "../lib/project-fields";
 
 const CK = "projects:getProjects";
 
@@ -256,12 +260,15 @@ function ProjectsPage() {
   /* (8/5) Project photos, one cached read shared with the other project
      screens. Keyed by (client, projectId) — see project-photos.ts. */
   const photos = useProjectPhotos();
+  /* CC-38 Item 33: canonical lists first, then values actually in use. This also
+     fixes a real defect — there was no `new Set` here, so every matching row
+     contributed an option and "Front" appeared once per project. */
   const gardenOptions = useMemo(
-    () => projects.map((p) => p.garden).filter(Boolean),
+    () => buildGardenOptions(projects.map((p) => p.garden)),
     [projects],
   );
   const categoryOptions = useMemo(
-    () => projects.map((p) => p.category).filter(Boolean),
+    () => buildCategoryOptions(projects.map((p) => p.category)),
     [projects],
   );
 

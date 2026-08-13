@@ -19,6 +19,10 @@ import { useReviewableToday } from "../lib/reviewable-today";
 import { Check, SkipForward, Trash2 } from "lucide-react";
 import { confirmModal } from "../components/ConfirmModal";
 import { SPINE_RESERVE_CSS } from "../components/DayStateSpine";
+import {
+  gardenOptions as buildGardenOptions,
+  categoryOptions as buildCategoryOptions,
+} from "../lib/project-fields";
 
 const CK = "confirm:getConfirm";
 
@@ -317,12 +321,14 @@ function ConfirmPage() {
   /* (8/5) Photos per project, one cached read shared with the other screens
      that list projects. Keyed by (client, projectId) — see project-photos.ts. */
   const photos = useProjectPhotos();
+  /* CC-38 Item 33: canonical lists first, then values actually in use. Also fixes
+     the missing dedupe — there was no `new Set` here either. */
   const gardenOptions = useMemo(
-    () => projects.map((p) => p.garden).filter(Boolean),
+    () => buildGardenOptions(projects.map((p) => p.garden)),
     [projects],
   );
   const categoryOptions = useMemo(
-    () => projects.map((p) => p.category).filter(Boolean),
+    () => buildCategoryOptions(projects.map((p) => p.category)),
     [projects],
   );
   // Read once per mount: later writes go through writeStaged, and re-reading
