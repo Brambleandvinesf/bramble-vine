@@ -844,6 +844,30 @@ Response. Bumped to `v4-2026-08-12`; skipWaiting + clients.claim were already
 there, so it self-activates. **A service worker is cached hard — this only takes
 effect after a PUBLISH plus a reload.**
 
+## CLIENT INFO U AND V — THE ACTUAL VALUES (CC-30, 8/12, read via columnScan)
+**U 'Text or email invoice' — 64 populated, and it is THREE values, not two:**
+```
+  39x 'Text'          16x 'Email'          9x 'Email & Text'
+```
+Clean, no typos, no whitespace variants. But **'Email & Text' means BOTH** — any
+channel parser that treats this as a binary text-or-email flag silently drops 9
+clients' second channel.
+
+**V 'Special Invoicing Protocol' — 23 populated, free prose, and it materially
+constrains payment reminders (Item 34):**
+- **9× 'Pays via check'** — these clients do not pay online at all. A "pay this
+  invoice" link is wrong for them, and so is a payment reminder.
+- 2× auto-charged: 'Charge cc on file, flat fee' / 'Charge cc in QB, flat fee' —
+  already paid by the time an invoice exists; a reminder would be an error.
+- **1× 'date 1 month into the future - no reminders'** — an explicit reminder
+  opt-out ALREADY EXPRESSED in this column, before the toggle was built.
+- 3× 'Send cc link' variants, one reading **'send cc link in addition to QB link'** —
+  so there are TWO distinct payment links in Brandon's model, not one.
+- The rest are extra recipients ('add iye@hsmsf.com', 'Email - Leslie & …') and
+  invoice-wording instructions ('List as "Maintenance Flat Fee"').
+**Read V before sending any client anything about money.** Roughly half the clients
+who have a value there should never receive a payment link or reminder.
+
 ## CLIENT INFO U AND V ARE SEPARATE COLUMNS — NO COLLISION (CC-26, 8/12)
 Measured with `?action=columnScan` against the live sheet:
 ```

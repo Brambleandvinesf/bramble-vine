@@ -14,6 +14,43 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-30 — 2026-08-12
+
+**Sent:** Batch C. Item 31 Part A (read U and V for real), Part B (resolve the
+invoice link and photo hosting as numbered options), Part C (build the non-blocked
+plumbing, matching the visit-confirmation screen's layout). Item 34 payment reminders,
+hard-dependent on Part B.
+
+**Response to CC-30:** Part A DONE with real data, and it changed both items. Part B
+presented as options — the QBO link question is NOT settled and I did not guess.
+Part C and Item 34 NOT built.
+
+- **PART A DEPLOYED @283** (v7.4.96, U and V added to columnScan's PEEK_OK; AP/AQ/AR
+  stay off it permanently). Then read live:
+  **U — 64 populated, THREE values not two:** `Text` ×39, `Email` ×16,
+  **`Email & Text` ×9**. Clean, no typos. The third value is the finding: a binary
+  text-or-email parser silently drops 9 clients' second channel.
+  **V — 23 populated, and it constrains Item 34 far more than expected:**
+  **9× 'Pays via check'** (do not pay online at all), 2× auto-charged
+  ('Charge cc on file/in QB, flat fee'), and **1× 'date 1 month into the future -
+  no reminders'** — an explicit reminder opt-out already written in prose before the
+  toggle exists. Plus 3× 'Send cc link', one reading **'send cc link in addition to
+  QB link'**, so there are TWO payment links in play, not one.
+  Net: roughly half the clients with a V value should never receive a payment link
+  or a reminder. Recorded in CLAUDE.md.
+- **PART B — NOT SETTLED, and deliberately not guessed.** The Intuit Invoice-entity
+  doc page truncated before the relevant section for the second batch running, so I
+  cannot confirm from documentation whether `include=invoiceLink` returns a
+  customer-facing URL. Options and a recommendation are in the response, including a
+  cheap way to settle it with evidence (extend qboInvoiceProbe, push-only).
+- **PART C + ITEM 34 — NOT BUILT.** Part C.5 (message body) and C.2's link field both
+  depend on Part B; Item 34 is hard-dependent on it by the prompt's own sequencing.
+  Building the Kind column and trigger hook without the link resolved would mean
+  drafting messages with a placeholder where the whole point of the message goes.
+  Item 34's scheduling and paid-status research reported in the response.
+
+---
+
 ## CC-29 — 2026-08-12
 
 **Sent:** deploy Item 39. Item 35 option 1 (drop the opacity). Item 38 both parts —
