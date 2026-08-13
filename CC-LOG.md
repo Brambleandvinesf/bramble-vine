@@ -14,6 +14,48 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-42 — 2026-08-13
+
+**Sent:** Full final migration spec (A–F, all six ambiguous values resolved). Build the
+dry-run script, report the exact per-row diff, wait before writing. Record the
+season-visibility future-direction note.
+
+**Response to CC-42:** **DRY-RUN DIFF PRODUCED FOR ALL 75 ROWS. NOTHING WRITTEN. THE
+WRITE SCRIPT IS DELIBERATELY NOT BUILT YET** — one spec item would break production.
+
+- **⚠⚠ BLOCKER: `Seasons = 'Dormant Season'` (spec F.2/F.3/F.4/F.5) IS NOT A VALID
+  VALUE AND WOULD PERMANENTLY HIDE THOSE FOUR PROJECTS.** The `Seasons` column is
+  already load-bearing: `inSeasonNow_` treats blank as "always shown" and otherwise
+  requires a comma-separated match against the CURRENT season, and `getConfirm` filters
+  Confirm Special Loading through it. The vocabulary is exactly eight labels
+  (`Early Spring … Late Winter`); `assignSeasons` validates against them and
+  `suggestSeasons` instructs the model to use exactly those eight. **'Dormant Season'
+  matches none of them, so `inSeasonNow_` returns false in EVERY season** — rows 13,
+  603, 303 and 106 would vanish from Confirm Special Loading year-round instead of
+  seasonally. Brandon's own note calls the Seasons population "a first step" toward the
+  feature; the column is in fact the live mechanism. Raised as numbered options, not
+  guessed. Recorded in CLAUDE.md under the new future-direction note.
+- **DELETE MECHANISM CONFIRMED (F.4, row 304 / proj-168 / Jenny & Daniel).** The right
+  path is the existing `deleteProject` action → `deleteProjectRows_(ss, pid, client)`,
+  which removes the CP row, removes child T&M rows matched on **Project ID + Client
+  Name** (bottom-up), and then runs `maybeRebuild_` for the calendar. A raw sheet-row
+  delete would orphan the T&M rows and skip the rebuild. **proj-168 HAS one child T&M
+  row (TM row 257)** — so the delete removes 2 rows, not 1.
+- **Per-row diff, all 75:** A = 22 (20 Backyard/BACKYARD → Back across Aarthi, Fay &
+  Robert, Jason & Ashley, Joyce Kim, Marieke, Michael Smith; 2 INDOORS → Indoor, Jessy
+  Exum). B1 = 1 (`Fertilize` → `Fertilizing`, Mike Davis row 540). B2 = 21 (20
+  year-bearing + `Fertilizing - NOT TODAY`) → Notes append + Misc; **every one has
+  empty Notes, so all 21 appends are clean writes with no collision.** C = 7 typo folds.
+  D = 13 instruction migrations, all with empty Notes. E = 2 Garden `Special` → blank.
+  F = 9 rows (3 Whiteness, 1 Winter, 1 Winter 2025, 2 Fall/Winter incl. the delete,
+  1 Dormant season, 1 Maintenance).
+- **Noted, not challenged:** F.3 discards '2025' entirely while B2 preserves years in
+  Notes. That is inconsistent as a rule but it is Brandon's explicit instruction for
+  that single row, and it will be implemented exactly as specified.
+- Full diff is in the CC-42 response.
+
+---
+
 ## CC-41 — 2026-08-13
 
 **Sent:** Item 33 decisions confirmed (B = option 1; 'Fertilizing - NOT TODAY' as

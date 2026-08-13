@@ -1346,6 +1346,27 @@ drafted before crew assignment exists.
 Item 43 (the Haiku input-set fix) was split out and shipped separately — it does
 not depend on either approach.
 
+### Season-based project visibility (dropdown / snooze control)
+Brandon wants a proper seasonal-visibility feature: a dropdown/snooze-style control
+with **early/late per season plus broad "Growing Season" / "Dormant Season"**
+options, hiding or greying out projects that are not seasonally relevant.
+**NOT BUILT, needs its own scoping and explicit ask** (CC-42, 8/13).
+⚠ **The `Seasons` column is ALREADY LOAD-BEARING — it is not a free-text field and
+not a placeholder.** `inSeasonNow_` treats blank as "always shown" and otherwise
+requires a comma-separated match against the CURRENT season, and `getConfirm` uses it
+to filter Confirm Special Loading. The accepted vocabulary is exactly eight labels:
+```
+  SEASON_NAMES = Early Spring, Late Spring, Early Summer, Late Summer,
+                 Early Fall, Late Fall, Early Winter, Late Winter
+```
+`assignSeasons` VALIDATES writes against that list, and `suggestSeasons` instructs the
+model to "Choose from EXACTLY these eight labels".
+**So "Growing Season"/"Dormant Season" do not exist yet.** Writing either string into
+the column makes `inSeasonNow_` match nothing in every season, which **permanently
+hides that project from Confirm Special Loading** rather than seasonally hiding it.
+Any broad-season feature must either map those words onto the eight labels or extend
+`inSeasonNow_` — do not write them as literal cell values.
+
 ### A branded Bramble & Vine gallery experience (comments, likes)
 Brandon wants the client photo gallery to eventually become a proper B&V-branded
 experience with comments and likes, rather than a bare token link to a Drive
