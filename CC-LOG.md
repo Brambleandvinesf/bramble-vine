@@ -14,6 +14,42 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-56 — 2026-08-13
+
+**Sent:** Build Item 37's mic UI — six states, capability-checked, ranked candidates
+selectable exactly as if typed. Frontend only. "Other" stays in results.
+
+**Response to CC-56:** **ITEM 37 COMPLETE END TO END.** All six states built; tsc
+--noEmit and vite build clean. Frontend only, no backend change, no deploy. Backend
+stays v7.4.115 @295.
+
+- **New `src/lib/voice-search.ts`** holds the Web Speech lifecycle and the
+  `matchItemVoice` call. Kept out of ItemPicker deliberately — that component is the
+  most-reused in the app (Projects, Confirm Load, Future Projects, debrief) and six
+  states inlined would bury the picker's own logic.
+- **`voiceSupported()` gates rendering**, so on an unsupported browser there is **no
+  control at all** — no dead button, no toast. Read once per mount; it cannot change.
+- **⚠ THE STATE MACHINE HAS ONE ORDERING TRAP I HAD TO HANDLE:** Web Speech fires
+  `onend` AFTER `onerror`. A naive `onend` handler would overwrite a **permission
+  denial** with "no speech detected" — telling the crew to try again when the browser
+  will never re-prompt. `onend` therefore only advances from `listening`, leaving
+  terminal states intact.
+- A `liveRef` guard drops late callbacks from a recognition the user already dismissed,
+  and an unmount aborts it — otherwise a result could land on a closed picker.
+- **`thinking` is a separate state from `listening`** because the round trip is a real
+  wait; leaving the mic lit would tell the crew they were still being heard.
+- **Selecting a candidate goes through the NORMAL path:** the spoken match is resolved
+  back to a real `ProductRow` and `setSelected(row)` runs, so it reaches ItemDetail and
+  `onAdd` fires with **`fromCatalog: true` by construction**. No separate voice write
+  path to keep in step. If the lookup ever missed, the row is **skipped rather than
+  fabricated** — ItemPicker's contract is that names reaching `onAdd` came from a
+  ProductRow, and voice must not be the one path that breaks it.
+- **Typing is available in every state**; every message is informational, nothing
+  blocks, and no red anywhere — a denied mic is a choice, not a failure.
+- "Other" left in results, as confirmed.
+
+---
+
 ## CC-55 — 2026-08-13
 
 **Sent:** Deploy v7.4.113, then test matchItemVoice against four realistic transcripts

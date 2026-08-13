@@ -4,6 +4,7 @@ import {
   useProducts,
   type ProductRow,
 } from "../lib/products";
+import { useVoiceSearch, voiceSupported } from "../lib/voice-search";
 
 /**
  * Shared ADD ITEM flow used across Projects, Confirm Load, and the Debrief
@@ -171,6 +172,10 @@ export function ItemPicker({
   const [customOpen, setCustomOpen] = useState(false);
   const [browseCategory, setBrowseCategory] = useState<string | null>(null);
   const [browseSub, setBrowseSub] = useState<string | null>(null);
+  /* CC-56 Item 37 — voice. Capability read ONCE per mount: it cannot change, and
+     calling it during render on every keystroke would be pointless work. */
+  const [micAvailable] = useState(() => voiceSupported());
+  const voice = useVoiceSearch();
 
   const list = products ?? [];
 
@@ -295,6 +300,44 @@ export function ItemPicker({
                   style={{ ...INPUT, flex: 1 }}
                   enterKeyHint="search"
                 />
+                {/* CC-56 Item 37 — THE MIC. Rendered only where the Web Speech API
+                    actually exists: on an unsupported browser there is no control at
+                    all, rather than one that does nothing or a toast to dismiss.
+                    Typing is untouched either way — voice is an addition, never a
+                    replacement, so nothing is lost by its absence. */}
+                {micAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (voice.state === "listening") voice.stop();
+                      else if (voice.state === "idle") voice.start();
+                      else voice.reset();
+                    }}
+                    aria-label={
+                      voice.state === "listening" ? "Stop listening" : "Search by voice"
+                    }
+                    aria-pressed={voice.state === "listening"}
+                    title="Search by voice"
+                    style={{
+                      ...INPUT,
+                      width: 46,
+                      flex: "0 0 auto",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 18,
+                      cursor: "pointer",
+                      /* Inverted while listening — the same lime-fill treatment the
+                         catalog pill uses for "active", so the palette stays honest.
+                         No red anywhere: a denied mic is not a failure state. */
+                      background: voice.state === "listening" ? LIME : "transparent",
+                      color: voice.state === "listening" ? "#000" : LIME,
+                      borderColor: LIME,
+                    }}
+                  >
+                    {voice.state === "listening" ? "◉" : "🎤"}
+                  </button>
+                )}
                 <button
                   type="submit"
                   style={{
@@ -331,6 +374,121 @@ export function ItemPicker({
                   </button>
                 )}
               </form>
+              {/* CC-56 Item 37 — VOICE FEEDBACK. Sits between the field and the
+                  Custom pill so it reads as a result of the mic, and it NEVER covers
+                  the input: typing stays available in every state, which is what makes
+                  each of these informational rather than blocking. */}
+              {micAvailable && voice.state !== "idle" && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    border: `1px solid ${LINE}`,
+                    borderRadius: 6,
+                    padding: "8px 10px",
+                  }}
+                >
+                  {voice.state === "listening" && (
+                    <div style={{ color: LIME, fontSize: 12, letterSpacing: 1 }}>
+                      ◉ LISTENING — say the item, then pause
+                    </div>
+                  )}
+                  {voice.state === "thinking" && (
+                    <div style={{ color: MUTED, fontSize: 12 }}>
+                      Matching “{voice.transcript}”…
+                    </div>
+                  )}
+                  {voice.state === "nospeech" && (
+                    <div style={{ color: MUTED, fontSize: 12 }}>
+                      Didn’t catch that — tap the mic to try again, or just type.
+                    </div>
+                  )}
+                  {voice.state === "denied" && (
+                    /* The browser will not re-prompt, so telling them to "allow it"
+                       in the app is useless — say where the setting actually lives.
+                       Not red: choosing not to grant a mic is not an error. */
+                    <div style={{ color: MUTED, fontSize: 12 }}>
+                      Microphone blocked for this site. Enable it in the browser’s site
+                      settings, or keep typing — search works exactly as before.
+                    </div>
+                  )}
+                  {voice.state === "error" && (
+                    <div style={{ color: MUTED, fontSize: 12 }}>
+                      Voice search didn’t work just now. Typing still does.
+                    </div>
+                  )}
+                  {voice.state === "done" && (
+                    <>
+                      <div style={{ color: MUTED, fontSize: 11, marginBottom: 6 }}>
+                        Heard “{voice.transcript}”
+                        {voice.note ? ` — ${voice.note}` : ""}
+                      </div>
+                      {voice.matches.length === 0 ? (
+                        <div style={{ color: DIM_GREEN, fontSize: 12 }}>
+                          No catalog match for that. Try again, type it, or use{" "}
+                          <strong style={{ color: LIME }}>+ Custom</strong> below.
+                        </div>
+                      ) : (
+                        voice.matches.map((m) => {
+                          /* Resolve the spoken match back to a REAL ProductRow. The
+                             backend already validates every returned name verbatim
+                             against the catalog, so this lookup should always hit —
+                             but if it ever misses, the row is skipped rather than
+                             fabricated. ItemPicker's contract is that a name reaching
+                             onAdd came from a ProductRow, and voice must not be the
+                             one path that breaks it. */
+                          const row = list.find((p) => p.name === m.name);
+                          if (!row) return null;
+                          return (
+                            <button
+                              key={`v-${row.row}-${row.name}`}
+                              style={{ ...LIST_ROW, display: "block", width: "100%" }}
+                              onClick={() => {
+                                /* Identical to tapping a search result: it goes to
+                                   ItemDetail, and onAdd fires with fromCatalog TRUE by
+                                   construction — same downstream behaviour, no special
+                                   voice path to keep in step. */
+                                setSelected(row);
+                                voice.reset();
+                              }}
+                            >
+                              <span>{row.name}</span>
+                              {m.why && (
+                                <span
+                                  style={{
+                                    display: "block",
+                                    color: MUTED,
+                                    fontSize: 11,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  {m.why}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </>
+                  )}
+                  {voice.state !== "listening" && voice.state !== "thinking" && (
+                    <button
+                      type="button"
+                      onClick={voice.reset}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: "6px 0 0",
+                        fontFamily: "inherit",
+                        fontSize: 11,
+                        color: MUTED,
+                        cursor: "pointer",
+                      }}
+                    >
+                      dismiss
+                    </button>
+                  )}
+                </div>
+              )}
               {/* Always-visible Custom pill so search never dead-ends. */}
               <div style={{ marginTop: 8 }}>
                 <button
