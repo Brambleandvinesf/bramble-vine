@@ -14,6 +14,46 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-51 — 2026-08-13
+
+**Sent:** Build Items 36 + 49 together. Set fromCatalog on the four creating writers,
+make saveDebrief's rewrite PRESERVE the flag (reviewed carefully), extend Items Used
+with Project/By/From Catalog, bundle v7.4.111. Report the exact diff before deploying.
+
+**Response to CC-51:** **BACKEND BUILT AND PUSHED (v7.4.112, HEAD only, NOT DEPLOYED).**
+Diff reported. **Frontend half (pill styling, Complimentary disable, ItemPicker flag)
+NOT built — stated plainly rather than half-shipped.**
+
+- **⚠ THE PRESERVATION MECHANISM, which is what Brandon asked to review:**
+  `writeItems` DELETES a project's rows then re-appends them. So the flag is
+  **SNAPSHOTTED BEFORE THE DELETE**, keyed by lowercased item name, and the write does
+  `fromCatalogOf_(i.fromCatalog) || priorFlag[name] === true`.
+  **The asymmetry is the safety property:** an absent flag can only ever RESTORE a
+  previous true, never clear one. That matters because **absent and explicit-false are
+  indistinguishable on the wire** — an unpublished frontend, the debrief-queue path or
+  any older caller sends no flag at all, and treating that as false is exactly how the
+  pill would have gone right, then silently wrong, only for projects someone re-saved
+  through a debrief. Intermittent and invisible, which is why it was worth holding two
+  batches for.
+- `fromCatalogOf_` is PURE and is the single place the flag's meaning is decided, so
+  the four writers cannot drift apart. Only explicit `true`/'true'/'yes' is true.
+- **Writers wired:** `addItems` (append path), `saveDebrief`'s `writeItems` (rewrite
+  path, with preservation). `addProject`/`createProject` share the same header-driven
+  `switch`, so they pick the column up via `fromCatalogCol_` + the shared case.
+- **`importProjects` deliberately NOT half-fixed** — it has no fromCatalog on its input,
+  so there is nothing to carry. Marked with a loud comment saying to decide the flag's
+  value BEFORE it is ever re-run.
+- **Item 49: Items Used widened** to `Date | Client | Event ID | Item | Quantity |
+  Timestamp | Project | By | From Catalog`. **No unit column**, per instruction.
+  **⚠ Caught while widening: the upsert read a HARDCODED width of 6** (`getRange(2,1,
+  n,6)`). Left alone against a widened sheet that is how an upsert starts comparing the
+  wrong columns — now driven by the real header. The UPDATE branch also writes the
+  three new columns, or a progressive save would leave them blank forever on any row
+  first written before this shipped.
+- Verified: `node --check` OK; audit at its known 1-finding baseline. Not deployed.
+
+---
+
 ## CC-50 — 2026-08-13
 
 **Sent:** Formatting rule violated again (CC-49 arrived split) — re-read it and confirm.
