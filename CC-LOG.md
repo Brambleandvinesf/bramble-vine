@@ -14,6 +14,40 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-44 — 2026-08-13
+
+**Sent:** Run the live migration (Brandon approved, backup taken), then re-run the dry
+run to confirm 0 rows / idempotency. Report both together. Check db1dd55 publish.
+
+**Response to CC-44:** **LIVE MIGRATION RAN CLEAN. 115 cells written across 75 rows,
+proj-168 deleted, calendar rebuilt.** Backend now **v7.4.107 @290**.
+
+- Live result: `ok=true, rowsTouched=75, cellWrites=115, written=115,
+  deleted='proj-168 (Jenny & Daniel)', rebuild='updated: Jenny & Daniel'` — exactly the
+  approved diff, no surprises.
+- **⚠ THE FIRST CONFIRMING DRY RUN REPORTED 4 ROWS, NOT 0 — AND THAT WAS A BUG IN MY
+  VERIFICATION, NOT THE DATA.** The Seasons branch had **no equality guard**, unlike the
+  Garden and Category branches, so those four rows re-reported as pending even though
+  the cell already held the target value — the diff line read
+  `'Late Fall, …' -> 'Late Fall, …'`, identical on both sides. **The writes were always
+  correct; only the idempotency report was wrong**, which would have quietly defeated
+  the "dry run says 0 = complete" check this migration's verification depends on.
+  Guarded and redeployed as v7.4.107 @290. Dry run now reports **0 rows, 0 writes**.
+- **INDEPENDENTLY VERIFIED against `getProjects`, not the action's own report:**
+  · **768 project rows** (was 769) — the delete landed. **proj-168 absent.**
+  · **Every old Category/Garden value gone.** The only 'Whiteness' hits are the 3 rows
+    where it is now the GARDEN, which is the intended F.1 outcome.
+  · `Back` = 181 rows after the folds.
+  · Notes append verified: Jim Heard proj-1 Notes = `'CHECK IRRIGATION'`.
+  · **Append-not-overwrite verified:** A&G proj-188 Notes still reads
+    `'Roof needs re enforcing.'` — the pre-existing note survived untouched.
+- **Row numbers below the deleted row shifted up by one as expected** (Susan Cox
+  proj-157 moved 604 → 603, Jenny & Daniel proj-167 stayed 304). This is precisely the
+  shift that would have corrupted a row-numbered script, and is why the migration keyed
+  on Client Name + Project ID and ran the delete last.
+
+---
+
 ## CC-43 — 2026-08-13
 
 **Sent:** NEW PERMANENT FORMATTING RULE — one unified code block per response, no
