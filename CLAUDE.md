@@ -1893,9 +1893,42 @@ the minutes from arrival to assignment were simply lost.
   auto-assigns correctly on OUR create path can only be confirmed by the next real
   debrief. It cannot be tested from outside without writing a real invoice to the live
   books, which is not a thing to do casually for a test.
-- ✅ **ITEM 54 SOLVED: THE INVOICE LINK REQUIRES `AllowOnlineCreditCardPayment` — AND IT
-  IS THE *CREATE* PATH ONLY (CC-68, 8/14; STAGED v7.4.123, not deployed at time of
-  writing).** The create payload now sets `AllowOnlineCreditCardPayment: true`. Three
+- 🚫 **ITEM 54 — THE CARD-PAYMENT FIX WAS PROPOSED, REJECTED, AND SPLIT BACK OUT. DO NOT
+  RE-ADD IT (CC-69, 8/14).** **Brandon will not enable credit card acceptance on
+  automated invoices. That constraint is FIRM and is not a preference to re-litigate**
+  — it is a money decision (processing fees on every automated invoice), and it
+  outranks the convenience of a payment link. `AllowOnlineCreditCardPayment: true` was
+  staged in v7.4.123 and REMOVED before deploy; the create payload is byte-identical to
+  v7.4.122's. A future session finding the CC-68 analysis below must not treat it as an
+  unimplemented to-do.
+  **THE REQUIREMENT IS "LINKS EXIST *AND* CARDS ARE NEVER ACCEPTED"** — not a choice
+  between them. Three hypotheses, tested by `qboInvoiceLinkMatrix()` (v7.4.124,
+  editor-only, read-only):
+    H1 the link requires CARD — if true, Brandon's constraint blocks a link entirely
+    H2 the link requires `AllowOnlinePayment` — deprecated, but an Intuit forum thread
+       is titled "Api will only return an invoice link if (the deprecated option)
+       AllowOnlinePayment = true". If it is not simply (card OR ach), there may be a
+       path to a link with no card acceptance. **Our invoices have ACH true already and
+       still get NO link, which is exactly why this is worth testing rather than
+       assuming.**
+    H3 the link needs no payment method at all — a pure view-only link, nothing to
+       enable, and the cleanest possible fix
+  ⚠ AND THE SAMPLING GAP THAT MADE CC-68 OVERCONFIDENT: **no invoice observed so far
+  has had BOTH payment flags false**, so "a link is impossible without payment" was
+  never actually tested — it was inferred from a sample that contained no instance of
+  the case. **Absence of a case is not evidence about that case.** The matrix reports
+  an empty cell as "NO EXAMPLE IN THE BOOKS — untestable from existing data" for
+  precisely this reason.
+  WHAT DID SURVIVE from CC-68, and it is strong: from the live Message Queue, the two
+  drafts carrying links key to **INV-22732 and INV-22287** — an old future-dated
+  monthly invoice and an old invoice — while **EIGHT recently created invoices (22776,
+  22777, 22778, 22781–22785) all drafted with NO link.** 8/8 linkless among the new,
+  2/2 linked among the old. So Brandon's counter-observation is explained WITHOUT
+  contradicting the create/append split; it does not by itself rescue the link.
+  SUPERSEDED CONCLUSION (reasoning kept, verdict withdrawn):
+- ~~✅ **ITEM 54 SOLVED: THE INVOICE LINK REQUIRES `AllowOnlineCreditCardPayment` — AND IT
+  IS THE *CREATE* PATH ONLY (CC-68, 8/14).**~~ The create payload was to set
+  `AllowOnlineCreditCardPayment: true` — NOT DONE, see above. Three
   independent things establish it, and the third is the one that corrects the earlier
   framing:
   · **Sent-status is NOT the gate.** Invoice 2159 was never sent (`EmailStatus: NotSet`,
@@ -1911,17 +1944,18 @@ the minutes from arrival to assignment were simply lost.
     CREATE branch was ever linkless, because only it builds a payload from scratch.**
   ⚠ THE FLAG GOES IN THE CREATE BRANCH ONLY — appending must never silently switch on
   card payment for an invoice the office built by hand with its own settings.
-  ⚠ **TRADE-OFF ON THE RECORD: the payment link and card acceptance are the SAME
-  SWITCH.** ACH alone demonstrably yields no link, so a link cannot be had without
-  enabling card payment, and card payments carry processing fees. This matches what
-  Brandon's own UI-created invoices already do, which is why it is the right default —
-  but it is a money decision, not a formatting one. Do not "tidy" the flag away.
-  `AllowOnlinePayment` is deliberately NOT set: QBO derives it.
-  ⚠ STILL UNVERIFIED END TO END, and it is the last thing in the CC-32-onward chain that
-  is: no invoice has yet been CREATED with the flag set. The next real debrief that
-  creates (not appends) is the test — expect a populated `InvoiceLink` and a link
-  paragraph in the drafted message. If the flag does not stick, QBO silently ignoring it
-  is the failure mode to check first.
+  ⚠ TRADE-OFF AS IT WAS THEN STATED — **and the claim in it was too strong, corrected in
+  CC-69:** "ACH alone demonstrably yields no link" overstated the evidence. What was
+  actually observed is that ACH being true **by QBO's own default** yields no link.
+  Whether **explicitly declaring** ACH in the CREATE payload behaves differently was
+  never tested, and is one of the open questions the matrix probe exists to settle.
+  🚫 AND THE INSTRUCTION THAT USED TO CLOSE THIS BLOCK — "do not tidy the flag away" —
+  IS REVERSED. The flag is out, by Brandon's firm decision (CC-69). It is not to be
+  re-added.
+  `AllowOnlinePayment` was deliberately NOT set here on the assumption QBO derives it.
+  ⚠ That assumption is now itself under test: if `AllowOnlinePayment` is what gates the
+  link and is settable independently, it may be the route to a link with NO card
+  acceptance. See H2 above.
   SUPERSEDED INVESTIGATION NOTES (kept for the reasoning, not the conclusion):
 - **⚠ AN API-CREATED INVOICE MAY GET NO InvoiceLink — CC-31's PROBE DID NOT TEST ONE
   (CC-63, 8/14 — Item 54, now SOLVED above).** The CC-32 finding above ("`include=invoiceLink`
@@ -2092,7 +2126,7 @@ the minutes from arrival to assignment were simply lost.
   enrolled with no review. If that ever matters, the answer is a heads-up when a new
   multi-number client appears, NOT a hand-maintained list.
   ✅ **STEP 3 — EVERY TEXT PATH NOW FANS OUT. ONE RULE, NO EXCEPTIONS (CC-68, 8/14;
-  STAGED v7.4.123, not deployed at time of writing).** `textRouting_`'s Primary branch
+  LIVE @301 as of CC-69, shipped ALONE after Item 54's flag was split back out).** `textRouting_`'s Primary branch
   (arrival/departure ETA texts) fans out too, Brandon's call, for consistency. So
   arrival/departure texts, visit confirmations, invoice messages and payment reminders
   ALL address every number in the Phone cell.

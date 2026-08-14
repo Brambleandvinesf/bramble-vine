@@ -14,6 +14,64 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-69 — 2026-08-14
+
+**Sent:** Deploy Item 56 step 3 on its own, splitting it out of v7.4.123 if Item 54 needs
+holding. HOLD Item 54's card-payment fix — Brandon will NOT enable card acceptance, firm,
+but has counter-evidence (A&G Sect 6 and Mada have working links). Investigate: (1) check
+those two invoices' actual flags, (2) can a link exist with NO payment method enabled at
+all, (3) does explicitly declaring ACH-only at create time differ. Brandon needs a path to
+"links exist, cards never accepted", not a forced choice.
+
+**Response to CC-69:** **DEPLOYED @301 (v7.4.123) — Item 56 step 3 ALONE.** Item 54's flag
+was removed and the create payload verified byte-identical to v7.4.122's. Investigation
+findings below; `qboInvoiceLinkMatrix()` pushed as v7.4.124 to HEAD only, editor-only,
+read-only. **No card flag anywhere in the codebase.**
+
+- **⚠ THE SPLIT CAUGHT A CHANGELOG BUG OF MY OWN MAKING.** Swapping the v7.4.123 header
+  left the OLD body intact underneath — an entry that still announced
+  "the create payload now sets AllowOnlineCreditCardPayment:true" sitting above code
+  where it no longer did. Deploying that would have shipped a changelog asserting the
+  opposite of the truth, which is the exact failure the "keep the header true" rule
+  exists for. Caught by diffing the whole file against the pre-CC-68 backup rather than
+  trusting the edit, and removed before deploy.
+- **⚠ CC-68's VERDICT IS WITHDRAWN, AND THE REASON IS A SAMPLING GAP I SHOULD HAVE
+  NAMED.** "A link cannot be had without card payment" was never tested: **no invoice in
+  any sample had BOTH payment flags false**, so the decisive case simply was not present.
+  **Absence of a case is not evidence about that case** — I generalised from a sample
+  that contained no instance of the thing being ruled out. The new probe reports an empty
+  cell as "NO EXAMPLE IN THE BOOKS — untestable from existing data" rather than as a
+  negative result.
+- **AND ONE CLAIM WAS OVERSTATED:** "ACH alone demonstrably yields no link" should have
+  read *ACH true BY QBO'S DEFAULT yields no link*. Whether **explicitly declaring** ACH in
+  the create payload behaves differently was never tested — which is precisely Brandon's
+  question 3, and he was right that it is an untested case rather than a known dead end.
+- **✅ Q1 ANSWERED FROM THE LIVE QUEUE WITHOUT NEEDING THE PROBE, and it explains the
+  counter-evidence without either side being wrong.** The two linked drafts key to
+  **INV-22732** (A&G's old future-dated monthly invoice) and **INV-22287** (an old Mada
+  invoice) — NOT to recent creations. Meanwhile **eight recently created invoices (22776,
+  22777, 22778, 22781–22785) all drafted with NO link.** 8/8 linkless among the new, 2/2
+  linked among the old. So Brandon's observation is real AND consistent with the
+  create/append split; it does not by itself rescue the link.
+- **⚠ THE LEAD THAT COULD ACTUALLY GIVE BRANDON WHAT HE WANTS:** an Intuit developer forum
+  thread titled *"Api will only return an invoice link if (the deprecated option)
+  AllowOnlinePayment = true"*. Our invoices have ACH true and still no link, so if
+  `AllowOnlinePayment` is the real gate and is not simply (card OR ach), a link without
+  card acceptance may be reachable. The probe captures `AllowOnlinePayment` on every
+  sampled invoice for exactly this reason.
+- **The probe is an EXPERIMENT, not a dump:** a card×ACH contingency table plus direct
+  answers to Q1/Q2/Q3, and a separate section on whether any linked invoice has
+  `AllowOnlinePayment` false (which would rule it out as the gate).
+- **⚠ AND THE HONEST LIMIT: Q2 and Q3 may be unanswerable from existing data**, because
+  the books may contain no invoice with both flags off and none created with ACH
+  explicitly declared. If so the only way to settle them is a written test, proposed as
+  an ISOLATED one — a throwaway customer, flag combinations tried, invoice deleted —
+  so no real client's record is touched. Brandon's authorisation required; not done.
+- **Pending:** Item 52 (renumber Chew Family's 3633), Item 54 (run the matrix, then
+  choose), Item 50 (Tool Candidate Audit).
+
+---
+
 ## CC-68 — 2026-08-14
 
 **Sent:** Deploy v7.4.122. Item 56 — extend fan-out to textRouting_'s Primary branch so
