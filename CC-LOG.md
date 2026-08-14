@@ -21,7 +21,7 @@ it isn't rediscovered and "fixed". Mark Items 41 and 42 CLOSED in CLAUDE.md. Rem
 open items unchanged.
 
 **Response to CC-62:** **DOCUMENTATION ONLY — no code, no deploy.** Backend stays
-v7.4.118 @297. Docs 1c3f2ae.
+v7.4.118 @297. Docs 2e1a24e.
 
 - **CLAUDE.md's Item 41/42 section rewritten as ✅ CLOSED**, leading with what actually
   shipped rather than how it was scoped, and with an explicit **"do not re-scope from
