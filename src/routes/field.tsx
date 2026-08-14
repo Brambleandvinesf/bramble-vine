@@ -4677,6 +4677,9 @@ export function StateDebrief({
     newProjects: NewProject[];
     itemsUsed: ItemUsed[];
     officeTasks: string[];
+    /* CC-60 Item 41: present only when the crew accepted or edited a suggestion.
+       Absent = saveDebrief generates the message itself, unchanged behaviour. */
+    clientMessage?: string;
     /* CC-35 Item 43: the client-facing notes ON THEIR OWN, additional to (not
        instead of) the merged officeTasks below. The merge still happens and the
        Office Tasks tab rows are unchanged — this exists so the backend never has
@@ -4894,6 +4897,16 @@ export function StateDebrief({
     })),
   );
   const [clientUpdates, setClientUpdates] = useState<string[]>([]);
+  /* CC-60 Item 41. `clientMessage` is what actually rides to the backend; empty means
+     "no override", so saveDebrief generates as it does today — which is exactly what
+     happens when the suggestion is suppressed or fails.
+     `suggestSeen` makes this fire ONCE per debrief: without it, stepping back to
+     Messages and forward again would re-ask, re-charge an AI call, and re-open an
+     overlay they already answered. */
+  const [clientMessage, setClientMessage] = useState("");
+  const [suggest, setSuggest] = useState<{ text: string; reason: string } | null>(null);
+  const [suggestSeen, setSuggestSeen] = useState(false);
+  const [suggestBusy, setSuggestBusy] = useState(false);
   const [officeTasks, setOfficeTasks] = useState<string[]>(() =>
     officeNotes.map((n) => appendPhotos(n.text ?? "", n.photos)),
   );
@@ -4922,6 +4935,9 @@ export function StateDebrief({
          message can be generated from the client-facing field alone and the
          internal notes never reach the model at all. */
       clientUpdates: clientUpdates.filter(Boolean),
+      /* CC-60 Item 41: only sent when the crew actually resolved a suggestion. Absent
+         means saveDebrief generates the message itself, exactly as before. */
+      ...(clientMessage.trim() ? { clientMessage: clientMessage.trim() } : {}),
     });
   };
 
@@ -5395,6 +5411,56 @@ export function StateDebrief({
       );
       if (!ok) return;
     }
+    /* CC-60 Item 41 — the wording suggestion, on the SAME hook for the same reason.
+       "Finished entering" is unambiguous here: they have left the whole step, every
+       TextList entry is committed, and it fires exactly ONCE. Field blur would have
+       fired between entries, on tapping +, and on tabbing to the office field —
+       repeatedly, mid-thought, at the cost of an AI call each time.
+       The overlay only appears when the server says changed:true; when the crew's own
+       wording is already client-appropriate, nothing interrupts them. */
+    if (
+      DEBRIEF_STEPS[current]?.key === "office" &&
+      clientUpdates.filter(Boolean).length > 0 &&
+      !suggestSeen
+    ) {
+      setSuggestSeen(true);
+      setSuggestBusy(true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "suggestClientMsg",
+            client: clientMatch ?? "",
+            clientUpdates: clientUpdates.filter(Boolean),
+          }),
+        });
+        const j = (await res.json()) as {
+          changed?: boolean;
+          suggestion?: string;
+          reason?: string;
+        };
+        if (j.changed && j.suggestion) {
+          /* Stop here — the overlay owns the step until they choose. Advancing is
+             what ACCEPT / EDIT / DENY do, so there is one way forward, not two. */
+          setSuggestBusy(false);
+          setSuggest({ text: String(j.suggestion), reason: String(j.reason ?? "") });
+          return;
+        }
+      } catch {
+        /* A failed suggestion must never trap the crew on a step. Fall through. */
+      }
+      setSuggestBusy(false);
+    }
+    setCompleted((c) => new Set(c).add(current));
+    setLiveIndex((i) => Math.min(DEBRIEF_STEPS.length - 1, i + 1));
+  };
+  /* Leaves the step and records what the client message should be. DENY passes the
+     crew's original text verbatim: nothing auto-sends, so it lands as a draft on the
+     Invoice Queue where it can be cleaned up before anyone sees it. */
+  const resolveSuggestion = (text: string) => {
+    setClientMessage(text);
+    setSuggest(null);
     setCompleted((c) => new Set(c).add(current));
     setLiveIndex((i) => Math.min(DEBRIEF_STEPS.length - 1, i + 1));
   };
@@ -5997,6 +6063,62 @@ export function StateDebrief({
                 onChange={setClientUpdates}
                 placeholder="Something for the office to pass on…"
               />
+              {suggestBusy && (
+                <div style={{ color: MUTED, fontSize: 11, marginTop: 6 }}>
+                  Checking the wording…
+                </div>
+              )}
+              {/* CC-60 Item 41 — THE SUGGESTION OVERLAY. Inline on this step, not a
+                  separate screen: the crew's own notes are directly above it, so they
+                  can see what the rewrite was made from.
+                  It appears ONLY when the server returned changed:true — if their
+                  wording is already client-appropriate, nothing interrupts them. */}
+              {suggest && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: `1px solid ${LIME}`,
+                    borderRadius: 6,
+                    padding: 10,
+                  }}
+                >
+                  <div style={{ color: LIME, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>
+                    SUGGESTED WORDING FOR THE CLIENT
+                  </div>
+                  <textarea
+                    value={suggest.text}
+                    onChange={(e) => setSuggest({ ...suggest, text: e.target.value })}
+                    rows={4}
+                    style={{ ...INPUT, width: "100%", resize: "vertical" }}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                    {/* ACCEPT and EDIT are the SAME action deliberately: the textarea
+                        is already editable, so "edit" is just accepting what is now in
+                        it. A separate mode would be a state with no behaviour. */}
+                    <button
+                      style={{ ...PRIMARY_BTN, flex: 1, minWidth: 120 }}
+                      onClick={() => resolveSuggestion(suggest.text)}
+                    >
+                      USE THIS
+                    </button>
+                    <button
+                      style={{ ...SMALL_BTN, flex: 1, minWidth: 120 }}
+                      onClick={() =>
+                        /* DENY — the crew's own words, verbatim. Nothing auto-sends;
+                           this lands as a draft on the Invoice Queue. */
+                        resolveSuggestion(clientUpdates.filter(Boolean).join("\n"))
+                      }
+                    >
+                      KEEP MINE
+                    </button>
+                  </div>
+                  {suggest.reason && (
+                    <div style={{ color: MUTED, fontSize: 10, marginTop: 6 }}>
+                      {suggest.reason}
+                    </div>
+                  )}
+                </div>
+              )}
               {/* CC-32 Item 31 Part C.9 — photo capture on the client-facing note.
                   THE EXISTING VisitCamera, not a new surface: Item 31's invoice
                   message links the client's gallery, and a tagged capture is what

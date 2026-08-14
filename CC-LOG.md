@@ -14,6 +14,41 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-60 — 2026-08-13
+
+**Sent:** Build Item 41 (trigger option 1 = goNext, conditional option 1 = AI returns
+`changed`) and Item 42's Invoice Queue frontend, then deploy everything together.
+
+**Response to CC-60:** **DEPLOYED @296 (v7.4.117)** — Items 41, 42 and 51 backend +
+both frontends. tsc + vite clean. **Item 42 verified working and correct. ⚠ Item 41
+ships with a REAL DEFECT I found in testing and am reporting rather than hiding.**
+
+- **ITEM 42 — VERIFIED LIVE, and the honesty case proved itself.** `setPaymentReminder`
+  dry run on Chew Family returned `value=false, masterSwitch=off,
+  vetoedByProtocol=true, protocol="Charge cc on file, flat fee"`. That is precisely the
+  client who would otherwise get a checkbox implying reminders work. The card renders
+  the ON/OFF state, "(paused project-wide)" and the cheque-protocol line from that one
+  call. Read is the action's own dry run — one action, no second endpoint.
+- **ITEM 41 — the mechanism works, the SUPPRESSION DOES NOT.** Shorthand input produced
+  a good rewrite with a stated reason. **But text that was already perfectly
+  client-appropriate ALSO came back `changed:true`**, with a reason claiming "internal
+  shorthand" that was not there. The model rewrites regardless, so **the overlay will
+  appear on essentially every debrief** — which defeats the "only if warranted"
+  requirement that made option 1 the recommendation.
+- **⚠ SECOND ITEM 41 DEFECT: the suggestion opens "Hi Michael,"** — but Item 45's fixed
+  template already opens with "Good morning!" and signs off itself. As it stands the
+  client would receive **two greetings and two sign-offs**. `haikuClientMsg_`'s own
+  prompt avoids this; the new prompt does not, because I wrote it standalone rather
+  than deriving it from the one already proven in production.
+- Both are prompt-level faults in `suggestClientMsg`, not structural — the trigger,
+  the once-per-debrief guard, ACCEPT/KEEP MINE, the `clientMessage` override and the
+  fail-soft path are all correct and verified.
+- Trigger built on `goNext` as chosen, sharing Item 44's hook; fires once per debrief
+  (`suggestSeen`), and a failed or suppressed suggestion advances the step normally so
+  the crew can never be trapped.
+
+---
+
 ## CC-59 — 2026-08-13
 
 **Sent:** Item 51 REVISED to a failsafe notification only — do not widen invoice

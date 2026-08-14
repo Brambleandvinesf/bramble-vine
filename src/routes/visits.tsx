@@ -661,6 +661,14 @@ export function VisitsPage({
                   </ul>
                 </div>
               )}
+              {/* CC-60 Item 42 — the PERSISTENT per-client payment-reminder opt-in.
+                  On this card rather than in the debrief flow because it is used
+                  rarely and belongs where invoices are reviewed one at a time.
+                  It is per CLIENT, not per invoice: once on it stays on for every
+                  future invoice until switched off. */}
+              {row.kind === "invoice" && (
+                <PaymentReminderToggle client={row.client} />
+              )}
               <textarea
                 value={c.text}
                 onChange={(e) =>
@@ -890,3 +898,96 @@ const GATE_OVERLAY: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
 };
+
+/* CC-60 Item 42 — the per-client Payment Reminders opt-in.
+ *
+ * ⚠ IT REPORTS BOTH WAYS THE SETTING CAN BE A LIE, not just one. A client can be
+ * toggled ON and still never receive a reminder, for two independent reasons:
+ *   1. PAY_REMIND_ENABLED is off project-wide (it currently is), and
+ *   2. their Client Info column V protocol vetoes them — 11 clients pay by cheque or
+ *      are auto-charged, and one has "no reminders" written in prose. That veto is
+ *      checked BEFORE the toggle and overrides it.
+ * Showing a plain checked box in either case would tell the office reminders are
+ * active when nothing will ever send. Both states come back on the same call the
+ * read already makes, so honesty costs no extra round trip.
+ */
+function PaymentReminderToggle({ client }: { client: string }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [master, setMaster] = useState("");
+  const [vetoed, setVetoed] = useState(false);
+  const [protocol, setProtocol] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const call = useCallback(
+    async (write: boolean, next?: boolean) => {
+      setBusy(true);
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: JSON.stringify({
+            action: "setPaymentReminder",
+            client,
+            on: next ?? false,
+            /* Read = the action's own dry run. One action, one shape, no second
+               endpoint to keep in step with it. */
+            dryRun: !write,
+          }),
+        });
+        const j = (await res.json()) as {
+          ok?: boolean;
+          value?: boolean;
+          masterSwitch?: string;
+          vetoedByProtocol?: boolean;
+          protocol?: string;
+        };
+        if (j.ok === false) return;
+        setOn(!!j.value);
+        setMaster(String(j.masterSwitch ?? ""));
+        setVetoed(!!j.vetoedByProtocol);
+        setProtocol(String(j.protocol ?? ""));
+      } catch {
+        /* A reminder setting is context, never a reason the card fails to render. */
+      } finally {
+        setBusy(false);
+      }
+    },
+    [client],
+  );
+
+  useEffect(() => {
+    void call(false);
+  }, [call]);
+
+  if (on === null) return null; // nothing to show until the real value is known
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button
+        onClick={() => void call(true, !on)}
+        disabled={busy}
+        aria-pressed={on}
+        style={{
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          fontFamily: "inherit",
+          fontSize: 12,
+          letterSpacing: 0.5,
+          color: on ? LIME : MUTED,
+          cursor: busy ? "wait" : "pointer",
+          textAlign: "left",
+        }}
+      >
+        {on ? "☑" : "☐"} Payment reminders for this client — {on ? "ON" : "OFF"}
+        {on && master !== "on" ? " (paused project-wide)" : ""}
+      </button>
+      {vetoed && (
+        <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>
+          (this client is set to pay by cheque, so reminders never send
+          {protocol ? ` — "${protocol}"` : ""})
+        </div>
+      )}
+    </div>
+  );
+}
