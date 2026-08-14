@@ -1813,8 +1813,13 @@ the minutes from arrival to assignment were simply lost.
   invoice (a deposit, a scheduled invoice, an estimate converted to one) will
   absorb debrief lines the same way. Verify with the read-only qboInvoiceProbe
   before assuming that is a bug.
+- ✅ **DEPLOYED @298 (v7.4.119, CC-65, 8/14): Item 53's date fix and Item 30's
+  Description removal are LIVE.** Read the two notes below as shipped, not staged.
+  Item 53's consolidation was confirmed correct in practice the same day — Brandon
+  had to delete a redundant Alok & Vinitaa invoice by hand, which is precisely the
+  duplicate this prevents from here on.
 - **⚠ THE INVOICE'S TxnDate IS THE CREATION DATE AGAIN — and know WHY it stopped
-  being one (CC-63, 8/14; STAGED v7.4.119, not deployed at time of writing).**
+  being one (CC-63, 8/14; LIVE @298 as of CC-65).**
   `qboDebriefInvoice_` wrote `TxnDate: payload.date`. `payload.date` is
   saveDebrief's `date` parameter, and **only ONE caller ever sends it: the Debrief
   Queue failsafe, which sends the VISIT's date.** field.tsx's live flow does not
@@ -1856,6 +1861,24 @@ the minutes from arrival to assignment were simply lost.
   maximum: DocNumber is a STRING, so that ordering is lexical — '99999' sorts above
   '2702' and '9' above '10'. A code-side maximum has to be computed numerically over
   a window, which means it can never see more than a window.
+  **RESOLVED WITHOUT CODE (CC-65, 8/14): Brandon turned "Custom transaction numbers"
+  OFF in QBO and cleaned up the junk-numbered invoices.** No DocNumber is set by this
+  automation and none should be added — QBO now assigns the number itself on create.
+  That is the whole fix; do not "improve" it later by generating numbers in code.
+  **⚠ BUT THE CLEANUP LEFT A NEW OUTLIER, AND IT IS THE SAME TRAP WEARING A DIFFERENT
+  NUMBER.** 22777 is gone and 22776 survives merged and re-dated to 8/14 — with
+  **DocNumber `22776`, identical to its own internal QBO Id**, against a real sequence
+  in the 2600–2700s. Nothing in QBO assigns a DocNumber equal to the Id, and the
+  comparison invoice (Id 22590 / DocNumber 2665) proves it is not systematic, so this
+  is a hand-typed value. Auto-numbering takes the highest existing number, so **the
+  next invoice will likely be 22777 and the whole book jumps ~20,000** unless 22776 is
+  renumbered into the 2700s. `qboInvoiceNumberProbe` (v7.4.120) now predicts the next
+  auto-number and names any outlier more than 1000 above the median, specifically so
+  this cannot happen a third time unnoticed.
+  ⚠ NOTE THE VERIFICATION LIMIT, so nobody records this as proven: that QBO
+  auto-assigns correctly on OUR create path can only be confirmed by the next real
+  debrief. It cannot be tested from outside without writing a real invoice to the live
+  books, which is not a thing to do casually for a test.
 - **⚠ AN API-CREATED INVOICE MAY GET NO InvoiceLink — CC-31's PROBE DID NOT TEST ONE
   (CC-63, 8/14 — Item 54, OPEN).** The CC-32 finding above ("`include=invoiceLink`
   returns a real customer-facing URL") was measured on **the most recent invoice in
@@ -1870,10 +1893,23 @@ the minutes from arrival to assignment were simply lost.
   hypothesis: QBO generates the link only with online payment enabled, and the
   create payload says nothing about `AllowOnlineCreditCardPayment` /
   `AllowOnlineACHPayment`, which a UI-created invoice inherits from company prefs.
-  `qboInvoiceNumberProbe()` (v7.4.119, editor-only, read-only) settles all of the
-  above in one run, and 22776/22777 having been hand-numbered makes it a clean
-  controlled test: **a number present and the link STILL absent proves Item 54 is
-  independent of Item 52.**
+  `qboInvoiceNumberProbe()` (editor-only, read-only) settles all of the above in one
+  run.
+  **⚠ AND A LESSON ABOUT CONTROLS, CC-65: THE PROBE'S FIRST "UI-CREATED CONTROL" WAS
+  NOT A CONTROL.** It selected the comparison invoice as "newest with DocNumber
+  < 10000" — a test the hand-typed cleanup numbers ALSO pass, so the control could
+  easily have been another of our own invoices wearing a plausible number, comparing
+  ours against ours and proving nothing. **A control has to be chosen by a property
+  the thing being tested cannot fake.** v7.4.120 picks it by AGE instead — the oldest
+  invoices in the file, which necessarily predate this automation — and that is the
+  rule to reuse for any future comparison in these books.
+  SECOND HYPOTHESIS NOW UNDER TEST (CC-65): that the link needs the invoice to have
+  been **SENT**, not merely created. `EInvoiceStatus` was undefined on all four
+  invoices tested, which is consistent with "never sent" but proves nothing alone, so
+  v7.4.120 logs `EmailStatus` and `DeliveryInfo` — the fields that actually record a
+  send — beside every link and states which hypothesis the data supports. If
+  link-present tracks sending rather than the payload, the fix is to send through QBO,
+  NOT to add online-payment flags to the create.
 - **INVOICE IDEMPOTENCY LIVES IN THE SHEET, NOT IN QBO (8/4).** saveDebrief used
   to invoice on EVERY call, and qboDebriefInvoice_ blind-concats onto today's (or
   a future) invoice — so debriefing one visit twice appended the same labour and
@@ -1886,8 +1922,12 @@ the minutes from arrival to assignment were simply lost.
   that real invoices in these books carry NO Description on any line (including a
   SubTotalLineDetail line). Do not rebuild that — the only per-line field QBO
   exposes is Description, and it prints on the client's invoice.
+  ⚠ **SUPERSEDED BY CC-65 — READ THE LABOUR-LINE NOTE BELOW THIS BLOCK FIRST.** The
+  blank labour Description shipped @298 was a SHORT-LIVED DEFAULT, replaced by the
+  visit window in v7.4.120. The paragraph immediately following describes @298 only,
+  and is kept because its reasoning about `l.desc` and the two exceptions still holds.
   ✅ **NO LINE THIS AUTOMATION WRITES CARRIES A DESCRIPTION ANY MORE — Item 39 for
-  the item lines, Item 30 for the labour line (CC-63, 8/14; STAGED v7.4.119).**
+  the item lines, Item 30 for the labour line (CC-63, 8/14; LIVE @298).**
   `Description: l.desc` is gone from the labour line: 'Labor — 3 people × 1.5h'
   repeated the item name QBO already prints ('Labor Hours, 3 people'), the Qty
   column (1.5) and the Rate column. **TWO deliberate exceptions remain, and both
@@ -1899,6 +1939,67 @@ the minutes from arrival to assignment were simply lost.
   QBO item, and those go to the office, not to the client. Deleting it at the source
   (which is where the string is written) silently degrades those diagnostics to
   '(no rate)' with nothing named.
+- **⚠ THE LABOUR LINE'S DESCRIPTION IS THE VISIT WINDOW, AND A "LAYER" IS NOT A TIME
+  INTERVAL (CC-65, 8/14 — Item 30; STAGED v7.4.120, not deployed at time of writing).**
+  Every labour line now carries `'<M/D>, approx. <start>–<end>'` from
+  `visitWindowDesc_`, built from REAL QuickBooks Time punches via `payrollDayData_`.
+  **ONE window per invoice, identical on every labour line — deliberately NOT per
+  layer, and this is the part that matters:** `decomposeLabor_` computes
+  `hrs[k-1] - hrs[k]` over the hours list sorted descending. That is an arithmetic
+  slab, and it maps to a real clock window only if the whole crew clocked in together.
+  Two crews with identical person-hours (3.5/3.5/1.5) produce IDENTICAL layers while
+  one had 3 people first and the other had 3 people LAST, so a per-layer window would
+  print the wrong hours on a client's invoice in the second case. Deriving them
+  honestly requires an interval-based decomposition, **which changes the BILLED
+  AMOUNTS — and a description must never move money.** Do not "upgrade" this to
+  per-layer times without treating it as a billing change with its own verification.
+  THE DATE IS `payload.date` (the VISIT date), NOT `today`. This is load-bearing: Item
+  53 moved TxnDate to the creation date, so the line description is now the ONLY place
+  a client can see when the work happened. The two items are one change to the
+  invoice's face — 53 took the visit date off the header, 30 put it on the lines.
+  ⚠ GUARD THAT MATTERS MOST: `payrollDayData_` returns EVERY segment for the day, with
+  a warning, when no QB jobcode matches the client. Trusting that would build the
+  window from OTHER clients' time and print it on this client's invoice, so a null
+  `jobcodeFilter` degrades to date-only. Also date-only on: no QBT people (hand-entered
+  rows), unreadable punches, a zero-length or inverted window, or any throw. Someone
+  still on the clock uses `Date.now()` as the end, since a debrief is filed at the end
+  of the visit and the string already says "approx.".
+  Rounded to the nearest QUARTER hour — the unit the hours are billed in, so the
+  description rounds the way the money does.
+  COST: one QBT call per invoicing debrief, inside saveDebrief's existing stopwatch so
+  it lands in `report.timingsMs` rather than being guessed at.
+- **THE INVOICE MESSAGE'S LEAD SENTENCE IS DATE-AWARE AND KNOWS ABOUT MULTI-VISIT
+  INVOICES (CC-65, 8/14 — Item 53.2/53.3; STAGED v7.4.120).** `invoiceMsgBody_` takes
+  a `visitPhrase`: "today's garden visit" / "yesterday's garden visit" / "your 7/30
+  garden visit" / **"your recent garden visitS"** when one invoice covers several visit
+  dates — the case Item 53's consolidation created and the old hardcoded
+  "yesterday's" could not express. The dates come from `invoiceVisitDates_`, which
+  reads the Debrief Log's Invoice column HEADER-MATCHED and matches BOTH shapes
+  saveDebrief writes there (`<id>` and `<DocNumber> (id <id>)`) — matching only the
+  pretty one would have returned zero dates for every numbered invoice, i.e. all of
+  them now. A blank phrase falls back to the neutral singular, never to "yesterday",
+  because the only way it can be blank is an unreadable ledger and "yesterday" would
+  be a guess. Reminders are unaffected: they pass `plain:true` and never reach this.
+- **⚠ QUO SUPPORTS GENUINE GROUP THREADS, AND B&V ALREADY USES THEM — PROVEN LIVE, NOT
+  ASSUMED (CC-65, 8/14 — Item 56, findings only).** Quo's `POST /messages` takes `to`
+  as an array, `minItems 1, maxItems 10`. The docs do NOT say whether that makes one
+  thread or N separate ones, so it was tested against live data instead: `getSearch`
+  returns conversations with a `participants` array, and one live conversation has TWO
+  participants — a single shared thread, for the client "Jason & Ashley". The only code
+  path that fans out is `textRouting_`'s `mode === 'special'` branch, so B&V created
+  that thread itself. **Alok & Vinitaa, by contrast, has a ONE-participant conversation
+  on their first number only** — which is the reported bug exactly.
+  ⚠ THE FIRST-NUMBER-ONLY DEFAULT IS DELIBERATE, NOT AN OVERSIGHT. `textRouting_`'s
+  own comment: "Primary keeps its long-standing first-number-only behaviour. Only
+  Special fans out, so no existing client's recipient list changes today." So flipping
+  Primary to fan out reverses a considered decision across ~180 clients at once, and
+  the Phone column is hand-entered free text that may hold a property manager,
+  gardener or office line as a second number. Sending invoices and payment reminders
+  to every number is therefore a disclosure decision, not a formatting one — audit the
+  column before flipping it.
+  ✅ THE CALL PATH IS UNRELATED AND MUST STAY FIRST-NUMBER-ONLY: `getField`'s
+  `clientPhones` says so in its own comment ("the fan-out to several numbers is a
+  Special-Contact texting rule and has no meaning for placing one call").
   Two properties worth keeping straight: the ledger is written ONLY after QBO
   confirms, so the failure direction is "might re-invoice", never "silently
   skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for

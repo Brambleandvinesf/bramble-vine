@@ -14,6 +14,79 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-65 — 2026-08-14
+
+**Sent:** Ship v7.4.119 as-is. Item 52 — verification only, Brandon cleaned up the junk
+invoices and turned OFF Custom transaction numbers. Item 53 — consolidation confirmed;
+build the date-aware wording plus multi-visit plural. Item 30 — build now, guards
+confirmed. Item 54 — retest with a genuine control; investigate whether EInvoiceStatus /
+being SENT gates InvoiceLink. Item 56 NEW — multi-phone clients should get a group text,
+findings first.
+
+**Response to CC-65:** **DEPLOYED @298 (v7.4.119) exactly as authorised — nothing added
+to that deploy.** Items 53.2/53.3, 30 and the rewritten probe are **STAGED v7.4.120 on
+HEAD, NOT deployed**, diffs reported. `node --check` clean, action audit clean
+(pre-existing `placesDetails` finding only, byte-identical to the pre-patch run).
+
+- **⚠ ITEM 52 — THE SETTING CHANGE IS RIGHT, BUT THE CLEANUP LEFT A NEW OUTLIER AND IT
+  IS THE SAME TRAP.** 22777 is gone and 22776 survives merged and re-dated to 8/14 —
+  with **DocNumber `22776`, identical to its own internal QBO Id**, against a real
+  sequence in the 2600–2700s. QBO never assigns a DocNumber equal to the Id, and the
+  comparison invoice (Id 22590 / DocNumber 2665) proves it is not systematic, so it is
+  hand-typed. Auto-numbering takes the highest existing number, so **the next invoice
+  will likely be 22777 and the book jumps ~20,000.** Needs one more two-minute QBO edit.
+- **AND THE VERIFICATION LIMIT SAID PLAINLY:** that QBO auto-numbers correctly on OUR
+  create path can only be proven by the next real debrief. Confirming it from here
+  would mean writing a real invoice into the live books, which is not a thing to do for
+  a test. Not reported as verified.
+- **⚠ ITEM 54 — THE PROBE'S FIRST "CONTROL" WAS NOT A CONTROL, and Brandon spotted it
+  before I did.** It selected the comparison invoice as "newest with DocNumber < 10000"
+  — a test the hand-typed cleanup numbers also pass, so it may have been comparing ours
+  against ours. **A control has to be chosen by a property the thing being tested cannot
+  fake.** v7.4.120 picks it by AGE instead (oldest invoices in the file, necessarily
+  pre-automation) via a separate ascending query, since the descending window cannot
+  reach them.
+- **ITEM 54's SECOND QUESTION IS NOW INSTRUMENTED PROPERLY.** `EInvoiceStatus`
+  undefined on all four is consistent with "never sent" but proves nothing alone, so the
+  probe now logs `EmailStatus` and `DeliveryInfo` — the fields that actually record a
+  send — beside every link, and prints a verdict block stating which hypothesis the data
+  supports. If link-present tracks SENDING, the fix is to send through QBO, not to add
+  online-payment flags to the create payload.
+- **⚠ ITEM 30 — REAL PUNCHES USED, BUT ONE WINDOW PER INVOICE, NOT PER LAYER, AND THE
+  REASON IS A BILLING REASON.** A `decomposeLabor_` layer is `hrs[k-1] - hrs[k]` over
+  sorted hours — an arithmetic slab, not an interval. Two crews with identical
+  person-hours produce identical layers while one had 3 people FIRST and the other 3
+  people LAST, so per-layer windows would print the wrong hours in the second case, and
+  deriving them honestly changes the BILLED AMOUNTS. A description must never move
+  money.
+- **ITEM 30 + ITEM 53 ARE ONE CHANGE TO THE INVOICE'S FACE.** The description's date is
+  `payload.date` (the VISIT date), not `today`, because Item 53 moved TxnDate to the
+  creation date and the line is now the only place the visit date appears. Getting that
+  backwards would have printed the creation date twice and lost the visit date entirely.
+- **ITEM 53 WORDING — the ledger match was the trap.** saveDebrief stamps the Debrief
+  Log's Invoice column as either `<id>` or `<DocNumber> (id <id>)`. Matching only the
+  pretty shape would have returned zero dates for every NUMBERED invoice — which is all
+  of them now that QBO numbers them — silently degrading every message to the neutral
+  fallback. Both shapes matched; header-matched, not positional.
+- **⚠⚠ ITEM 56 — ANSWERED EMPIRICALLY FROM LIVE DATA, NOT FROM DOCS. GROUP THREADS
+  WORK AND B&V ALREADY HAS ONE.** Quo's `to` is an array (`maxItems 10`) but the docs
+  never say whether that makes one thread or N. So it was tested: `getSearch` exposes
+  each conversation's `participants`, and one live conversation has **TWO participants —
+  a single shared thread**, for "Jason & Ashley". The only code path that fans out is
+  `textRouting_`'s Special-Contact branch, so B&V built that thread itself. Alok &
+  Vinitaa has a ONE-participant conversation on their first number — the reported bug,
+  confirmed. Q4's fallback is moot.
+- **⚠ BUT THE FIRST-NUMBER-ONLY DEFAULT IS DELIBERATE, NOT AN OVERSIGHT** — the code
+  says so in its own comment, and the Phone column is hand-entered free text that may
+  hold a property manager or office line as a second number. Fanning invoices and
+  payment reminders out to every number is a DISCLOSURE decision across ~180 clients,
+  so the recommendation leads with a read-only dry-run audit of the column rather than
+  flipping it. Call path confirmed unchanged.
+- **Pending, re-stated:** Item 50 — Tool Candidate Audit, still waiting on real Items
+  Used history.
+
+---
+
 ## CC-64 — 2026-08-14
 
 **Sent:** Item 30 REVISED — not a reversal, a replaced default: ALL labour lines get date
