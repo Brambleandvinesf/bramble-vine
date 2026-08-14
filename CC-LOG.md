@@ -14,6 +14,38 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-59 — 2026-08-13
+
+**Sent:** Item 51 REVISED to a failsafe notification only — do not widen invoice
+matching. Item 41 REVISED — automatic trigger, conditional suggestion, DENY falls back
+to the crew's original text; report the trigger/conditional mechanism before building.
+Item 42 — build as scoped, on the Invoice Queue card.
+
+**Response to CC-59:** **BACKEND BUILT AND PUSHED (v7.4.116, HEAD only, NOT
+DEPLOYED).** Item 41 findings reported, no code. Item 42 frontend **not built this
+batch** — said plainly.
+
+- **ITEM 51 — built exactly as narrowed.** `qboDebriefInvoice_`'s invoice matching and
+  creation are **untouched**; one invoice per visit stands. The zero-billable-lines
+  path now emails info@ with the client, the date and the `skipped` reasons.
+  Fail-soft in its own try/catch: a notification problem must never change what the
+  invoice leg returns.
+- **ITEM 42 — `setPaymentReminder` built**, dry-run by default, header-matched on
+  'Payment Reminders' and structurally unable to reach any other column. Returns
+  `value`, `masterSwitch`, `vetoedByProtocol` and the raw `protocol` text in ONE round
+  trip, so the UI can be honest without three calls. Writes `'Yes'`/blank rather than
+  TRUE/FALSE — the office reads this column by eye and every other yes/no column there
+  is written that way. Creates the column on demand on a live run only.
+- **ITEM 41 — findings only.** The trigger and the "is a suggestion warranted" test are
+  both genuinely ambiguous and are presented as numbered options with recommendations
+  in the response. Short version: **blur alone misfires**, and the honest way to know
+  whether a rewrite is warranted is **to let the same AI call say so** rather than
+  guess with a heuristic that cannot read tone.
+- **Item 42's frontend is NOT built.** The backend is complete and inert. Reported
+  rather than half-shipped.
+
+---
+
 ## CC-58 — 2026-08-13
 
 **Sent:** Item 41 REVISED — no new step; inline ACCEPT/DENY/EDIT overlay on the existing
