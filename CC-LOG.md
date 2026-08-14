@@ -14,6 +14,78 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-63 — 2026-08-14
+
+**Sent:** FIRST REAL INVOICE OBSERVED. Item 52 — invoice number not auto-generating,
+confirm CustomTxnNumbers don't assume, propose DocNumber generation, flag the
+concurrent-creation race. Item 53 — invoice date should be creation date not
+visit/debrief date, confirm whether deliberate first. Item 30 — RESOLVED, drop the
+labour line's description entirely. Item 54 — invoice draft message missing the link
+entirely, confirm whether it is Item 52's root cause manifesting twice or a separate
+bug. Report findings and exact fixes before deploying.
+
+**Response to CC-63:** **STAGED v7.4.119 ON HEAD, NOT DEPLOYED.** Items 53 and 30
+written and diffed; Items 52 and 54 are findings + numbered options only, because both
+turn on a live QBO read that cannot be done from outside Apps Script. `node --check`
+clean; action audit clean (its one finding, `placesDetails ignores: sessionToken`, is
+pre-existing — verified identical against the pre-patch backup).
+
+- **⚠ ITEM 53 — NOT DELIBERATE, AND NOT AN OVERSIGHT EITHER. IT IS COLLATERAL.**
+  `TxnDate: payload.date` has been there since before 7/31, but before 8/4 `today` was
+  **hardcoded** to `new Date()`, so the invoice WAS dated its creation day. The 8/4
+  change made saveDebrief's `date` a parameter **for Billing Hours and Items Used** —
+  its in-code comment names only those two tabs — and the invoice's TxnDate followed
+  along because it reuses the same variable. So there is no reason on record to keep
+  the current behaviour, and the fix RESTORES rather than changes.
+- **⚠ AND THE BUG IS PATH-SPECIFIC: only the Debrief Queue failsafe ever sends
+  `date`.** field.tsx's live flow does not — verified against `StateDebrief`'s
+  `onFinish` payload type, which has no date field. So the live same-day path has
+  always been correct and every catch-up debrief has been wrong.
+- **ITEM 53's REAL CONSEQUENCE, flagged rather than shipped quietly.** Creation and
+  the append SELECT now share one `today`, so a backdated invoice is finally findable
+  by a later append — two catch-up debriefs for one client filed the same day now land
+  on ONE invoice. Invoices 22776 (7/30) and 22777 (8/10) are exactly that case. The
+  `INV-<id>` queue key then refuses the second draft, so the client is messaged once,
+  with wording predating the appended lines.
+- **⚠ ITEM 52 — CONFIRMED IN CODE, AND THE JUNK NUMBERS ARE THE EVIDENCE.** The create
+  payload is `{ CustomerRef, TxnDate, Line }` — no DocNumber, ever. Live via
+  qboInvoiceProbe: the real scheme is a **bare sequential integer** (2595, 2602, 2648,
+  2665, 2702), and the two automation invoices carry **99999 and 88888** — hand-typed
+  to get past QBO's "you must enter invoice number" block.
+  **⚠ THOSE TWO MUST BE RENUMBERED OR VOIDED BEFORE EITHER FIX**, because QBO's next
+  auto-number derives from what is in the books: leave them and it jumps to
+  88889/100000. A trap under both candidate fixes, not just the auto-numbering one.
+  ⚠ Also flagged: `orderby DocNumber desc` is **lexical** (DocNumber is a string), so a
+  code-side maximum must be computed numerically over a window and can never see more
+  than a window. A real argument against generating numbers ourselves.
+  **CustomTxnNumbers itself is NOT re-confirmed** — said plainly rather than assumed.
+- **⚠ ITEM 54 — ALMOST CERTAINLY NOT ITEM 52's ROOT CAUSE, and the code says why.**
+  The create SUCCEEDED: without an invoiceId there is no queue row at all, and Brandon
+  saw a queue row. Ordering is correct (`invoiceDraft` is built after
+  `qboDebriefInvoice_` returns; `out.invoiceUrl` is set before it returns), and
+  `qboFetch_` appends the path verbatim so the URL is well-formed. So `out.invoiceUrl`
+  was `''` and `invoiceMsgBody_` omitted its conditional link paragraph — producing the
+  exact message observed. **Leading hypothesis: CC-31's probe measured a UI-CREATED
+  invoice**, and the create payload never sets
+  `AllowOnlineCreditCardPayment`/`AllowOnlineACHPayment`.
+- **`qboInvoiceNumberProbe()` — v7.4.119, editor-only, read-only, no writes.** Settles
+  CustomTxnNumbers, the numbering scheme and maximum, and InvoiceLink on our own
+  invoices vs a UI-created control, in one run. Brandon hand-numbering 22776/22777
+  turned it into a clean controlled test: number present + link still absent proves
+  Item 54 independent of Item 52.
+- **Item 30 — one line removed, and one thing deliberately NOT removed.** The brief
+  pointed at `decomposeLabor_`'s `desc:`; deleting it there would have silently
+  degraded the two `skipped.push()` office diagnostics to '(no rate)' naming nothing.
+  What reaches the client is `Description: l.desc` on the invoice line, and that is
+  what went.
+- **Flagged, not built:** the template's "yesterday's garden visit" is wrong on the
+  same failsafe path — Brandon's own screenshot shows it on a 7/30 visit drafted 8/14.
+  Presented as numbered options.
+- **Pending, re-stated:** Item 50 — Tool Candidate Audit, still waiting on real Items
+  Used history before re-running `toolCandidateAudit`.
+
+---
+
 ## CC-62 — 2026-08-13
 
 **Sent:** Sign-off — option 1, leave as is; record it as a known accepted divergence so

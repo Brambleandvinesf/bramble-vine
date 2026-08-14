@@ -1813,6 +1813,67 @@ the minutes from arrival to assignment were simply lost.
   invoice (a deposit, a scheduled invoice, an estimate converted to one) will
   absorb debrief lines the same way. Verify with the read-only qboInvoiceProbe
   before assuming that is a bug.
+- **⚠ THE INVOICE'S TxnDate IS THE CREATION DATE AGAIN — and know WHY it stopped
+  being one (CC-63, 8/14; STAGED v7.4.119, not deployed at time of writing).**
+  `qboDebriefInvoice_` wrote `TxnDate: payload.date`. `payload.date` is
+  saveDebrief's `date` parameter, and **only ONE caller ever sends it: the Debrief
+  Queue failsafe, which sends the VISIT's date.** field.tsx's live flow does not
+  send `date` at all (verified against StateDebrief's `onFinish` payload type —
+  there is no date field in it), so the live same-day path always stamped the real
+  today and always looked correct. The failsafe path did not: observed live on 8/14
+  as an invoice dated **07/30**.
+  The instructive part is that nobody decided this. Before 8/4 `today` was
+  `Utilities.formatDate(new Date(), ...)` — hardcoded. The 8/4 change made it a
+  parameter **for Billing Hours and Items Used**, so a next-morning debrief stamped
+  the right day on those two tabs; its in-code comment names only those two tabs.
+  The invoice's TxnDate inherited the visit date silently because it reuses the same
+  `today` variable. **A deliberate change to a shared variable is not a deliberate
+  change to every reader of it** — that is the general lesson. Billing Hours and
+  Items Used still stamp `payload.date` and are untouched.
+  ⚠ CONSEQUENCE, accepted knowingly: creation and the append SELECT now use the
+  SAME `today`, so a backdated debrief's invoice is finally findable by a later
+  append. Two catch-up debriefs for one client filed the same day therefore land on
+  ONE invoice instead of two — exactly what invoices 22776 (7/30) and 22777 (8/10)
+  would have done. That also means the Message Queue's `INV-<id>` key refuses the
+  second draft as a duplicate, so the client is messaged once, with wording
+  generated before the appended lines existed. Pre-existing behaviour for two
+  same-day visits; it now reaches catch-up debriefs too.
+- **⚠ THE AUTOMATION HAS NEVER SET DocNumber, AND TWO JUNK NUMBERS ARE NOW IN THE
+  BOOKS (CC-63, 8/14 — Item 52, OPEN).** The create payload is
+  `{ CustomerRef, TxnDate, Line }` — no DocNumber, ever. With
+  `SalesFormsPrefs.CustomTxnNumbers` true, QBO accepts that and stores a BLANK
+  invoice number; the QBO UI then refuses to save the invoice at all
+  ("You must enter invoice number").
+  **The real numbering scheme is a bare sequential integer** — sampled live via
+  qboInvoiceProbe: 2595 (6/5), 2602 (6/10), 2648 (6/10), 2665 (dated 8/14), 2702
+  (A&G, dated 8/31). No prefix, no year segment.
+  **⚠ INVOICES 22776 AND 22777 CARRY DocNumber 99999 AND 88888** — hand-typed to get
+  past that UI block, and far outside the sequence. **Any fix must renumber or void
+  those two FIRST**, because QBO derives its next auto-number from what is already
+  in the books: leave them and the sequence jumps to 88889/100000. This is a trap
+  under BOTH candidate fixes, not only the auto-numbering one.
+  ⚠ And do NOT reach for `select * from Invoice orderby DocNumber desc` to find the
+  maximum: DocNumber is a STRING, so that ordering is lexical — '99999' sorts above
+  '2702' and '9' above '10'. A code-side maximum has to be computed numerically over
+  a window, which means it can never see more than a window.
+- **⚠ AN API-CREATED INVOICE MAY GET NO InvoiceLink — CC-31's PROBE DID NOT TEST ONE
+  (CC-63, 8/14 — Item 54, OPEN).** The CC-32 finding above ("`include=invoiceLink`
+  returns a real customer-facing URL") was measured on **the most recent invoice in
+  the file, which was created in the QBO UI.** Whether a link comes back for an
+  invoice THIS AUTOMATION created has never been asked — and on 8/14 a real draft
+  went out with no link at all, which is precisely what `invoiceMsgBody_` does when
+  `out.invoiceUrl` is `''` (the link paragraph is conditional and simply omitted).
+  Ruled out by reading the code: the create SUCCEEDED (no invoiceId means no queue
+  row at all, and a queue row existed), ordering is correct (`invoiceDraft` is built
+  after `qboDebriefInvoice_` returns, and `out.invoiceUrl` is set before it returns),
+  and `qboFetch_` appends the path verbatim so the URL is well-formed. Leading
+  hypothesis: QBO generates the link only with online payment enabled, and the
+  create payload says nothing about `AllowOnlineCreditCardPayment` /
+  `AllowOnlineACHPayment`, which a UI-created invoice inherits from company prefs.
+  `qboInvoiceNumberProbe()` (v7.4.119, editor-only, read-only) settles all of the
+  above in one run, and 22776/22777 having been hand-numbered makes it a clean
+  controlled test: **a number present and the link STILL absent proves Item 54 is
+  independent of Item 52.**
 - **INVOICE IDEMPOTENCY LIVES IN THE SHEET, NOT IN QBO (8/4).** saveDebrief used
   to invoice on EVERY call, and qboDebriefInvoice_ blind-concats onto today's (or
   a future) invoice — so debriefing one visit twice appended the same labour and
@@ -1825,6 +1886,19 @@ the minutes from arrival to assignment were simply lost.
   that real invoices in these books carry NO Description on any line (including a
   SubTotalLineDetail line). Do not rebuild that — the only per-line field QBO
   exposes is Description, and it prints on the client's invoice.
+  ✅ **NO LINE THIS AUTOMATION WRITES CARRIES A DESCRIPTION ANY MORE — Item 39 for
+  the item lines, Item 30 for the labour line (CC-63, 8/14; STAGED v7.4.119).**
+  `Description: l.desc` is gone from the labour line: 'Labor — 3 people × 1.5h'
+  repeated the item name QBO already prints ('Labor Hours, 3 people'), the Qty
+  column (1.5) and the Rate column. **TWO deliberate exceptions remain, and both
+  must survive any future tidy-up:** the complimentary item line, whose sentence is
+  the only thing on the client's document explaining the discount that follows, and
+  the discount line itself.
+  ⚠ `decomposeLabor_` still BUILDS `desc` and must keep doing so — it is what the
+  two `skipped.push()` calls report when a labour layer has no rate or no matching
+  QBO item, and those go to the office, not to the client. Deleting it at the source
+  (which is where the string is written) silently degrades those diagnostics to
+  '(no rate)' with nothing named.
   Two properties worth keeping straight: the ledger is written ONLY after QBO
   confirms, so the failure direction is "might re-invoice", never "silently
   skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for
