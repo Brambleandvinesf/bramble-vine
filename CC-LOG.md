@@ -14,6 +14,38 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-58 — 2026-08-13
+
+**Sent:** Item 41 REVISED — no new step; inline ACCEPT/DENY/EDIT overlay on the existing
+Messages step; findings first on trigger, action semantics and call shape. Item 42
+MOVED to the Invoice Queue card. Item 51 NEW — every debrief should invoice or append
+to an open invoice; full findings-first, no code.
+
+**Response to CC-58:** **FINDINGS ONLY, no code.** CLAUDE.md updated for both
+revisions. Item 51's investigation changes the premise.
+
+- **⚠⚠ ITEM 51 — "ADD TO AN OPEN INVOICE" ALREADY EXISTS AND HAS SINCE v6.** Q3
+  answered by reading `qboDebriefInvoice_`: it queries
+  `select * from Invoice where CustomerRef = <id> and TxnDate >= <today> maxresults 1`
+  and, when one is found, **appends `newLines` via a sparse POST with `Id` +
+  `SyncToken`** — otherwise it creates. So QBO supports appending, and B&V already does
+  it. What is narrow is the DEFINITION: "today-or-future dated", **not** "open/unpaid".
+- **⚠ THE THREE GATES ARE NOT SKIPPING REAL DEBRIEFS.** Enumerated from the code:
+  `suppressInvoice` is documented **test-only**; `final === false` exists so
+  **progressive mid-visit saves record data without billing** and defaults to true, so
+  only an explicit opt-out reaches it; `debriefAlreadyInvoiced_` is the idempotency
+  gate whose in-code note records a **real over-charge on a real client** — a second
+  save appended the SAME labour and item lines to the SAME invoice and re-emailed the
+  PDF. **Removing it re-creates a documented billing incident.**
+- **⚠ THE ACTUAL SKIP IS ALMOST CERTAINLY A FOURTH ONE BRANDON DID NOT LIST:**
+  `if (!newLines.length) return 'nothing billable (' + skipped.join('; ') + ')'`.
+  A debrief whose labour and items resolve to no billable lines produces no invoice —
+  and that is the case worth investigating, not the three gates.
+- Item 41's trigger/DENY-semantics/call-shape options and Item 42's placement are
+  presented as numbered options with recommendations in the response.
+
+---
+
 ## CC-57 — 2026-08-13
 
 **Sent:** Items 41/42 reopened — build Approach 2 (message-text preview in the crew's

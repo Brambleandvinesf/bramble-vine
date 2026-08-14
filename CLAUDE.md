@@ -1370,7 +1370,13 @@ never moved, this route simply avoids it by showing only the message.
 The message still routes to the Invoice Queue afterwards for the office's send
 approval — two independent checks: the crew confirms the words are true, the office
 confirms it should go out and to the right number. **Not auto-send on crew submit.**
-Item 42's per-client Payment Reminders checkbox lives on this same preview step.
+**⚠ REVISED AGAIN, CC-58 — the standalone preview STEP was rejected outright**, for
+both debrief paths. No new step anywhere. Instead an **inline overlay on the EXISTING
+"Messages" step**, suggesting the AI-paraphrased client wording with ACCEPT / DENY /
+EDIT SUGGESTION.
+**Item 42 MOVED OFF the debrief flow entirely** — the Payment Reminders checkbox now
+lives on the **Invoice Queue's** invoice-draft card, because the feature is used rarely
+and belongs where invoices are reviewed one at a time, not embedded in every debrief.
 Design findings, including what the preview can and cannot show at preview time, are
 in CC-LOG under CC-57.
 
