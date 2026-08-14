@@ -14,6 +14,34 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-62 — 2026-08-13
+
+**Sent:** Sign-off — option 1, leave as is; record it as a known accepted divergence so
+it isn't rediscovered and "fixed". Mark Items 41 and 42 CLOSED in CLAUDE.md. Remaining
+open items unchanged.
+
+**Response to CC-62:** **DOCUMENTATION ONLY — no code, no deploy.** Backend stays
+v7.4.118 @297. Docs 1c3f2ae.
+
+- **CLAUDE.md's Item 41/42 section rewritten as ✅ CLOSED**, leading with what actually
+  shipped rather than how it was scoped, and with an explicit **"do not re-scope from
+  the design notes below"** — the CC-57→CC-61 negotiation is history, not a backlog.
+  The prior hold block is retitled "(design history)" for the same reason.
+- **The sign-off divergence is recorded WITH ITS REASONING, not just its verdict.**
+  Stating "accepted" alone invites the next session to re-litigate it. So the note also
+  carries why the obvious fix was rejected: `invoiceMsgBody_` supplies the greeting but
+  NOT a sign-off, so moving the sign-off into the template would change the message
+  **every non-overridden debrief sends** and would need its own verification pass —
+  disproportionate for one line.
+- Marked plainly that **Approach 1 was never built** and the trust threshold in the
+  superseded block still governs it, so a future reader does not take "Items 41/42
+  closed" to mean leads now have screen access.
+- **Open items, unchanged and re-stated:** Item 50 (waiting on real Items Used history
+  before re-running `toolCandidateAudit` — 9 rows, 8 distinct, all catalog matches at
+  last run), and the first live observation of the CC-32-onward invoice path.
+
+---
+
 ## CC-61 — 2026-08-13
 
 **Sent:** Fix both Item 41 defects at prompt level (option 1) — derive from

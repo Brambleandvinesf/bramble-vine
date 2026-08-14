@@ -1360,7 +1360,33 @@ Turn both off after a clean week. Leaving them on is harmless (nothing triggers
 Draft now) but confusing to the next person reading this.
 
 ## FUTURE / BACKLOG — NOT SCHEDULED, NOT STARTED
-### Crew self-review of the AI client message — REOPENED CC-57 (8/13), BUILDING
+### ✅ Crew self-review of the AI client message — CLOSED CC-62 (8/13), SHIPPED
+**Items 41 and 42 are DONE. Do not re-scope them from the design notes below** — those
+record how the design got here, not outstanding work. What actually shipped:
+- **Item 41** — an inline suggestion overlay on the debrief's existing **Messages**
+  step (no separate screen). Fires from `goNext` when leaving that step, **once per
+  debrief**, and only when `suggestClientMsg` returns `changed:true`. USE THIS →
+  AI text; editing the textarea first → the edited text; KEEP MINE → the crew's
+  original words verbatim. Whichever they pick rides to `saveDebrief` as
+  `data.clientMessage`; absent means the backend generates as it always did.
+- **Item 42** — the persistent per-client Payment Reminders toggle on the **Invoice
+  Queue** card, via `setPaymentReminder` (header-matched, dry-run by default). It
+  surfaces BOTH ways the setting can be inert: `masterSwitch` off project-wide, and
+  the column-V veto.
+- Approach 1 (granting leads the VISIT CONFIRMATIONS screen) was **never built**, and
+  the trust threshold in the superseded block below still governs it.
+
+**⚠ KNOWN, ACCEPTED, DO NOT "FIX" (Brandon, CC-62):** an ACCEPTED AI suggestion ends
+**without** the "— Bramble & Vine" sign-off, while a debrief that generates its own
+message via `haikuClientMsg_` ends **with** it. The prompt asks for the sign-off; the
+model drops it. This is a **deliberate accept, not an oversight** — the fixed template's
+greeting and the invoice link already identify the sender, so the divergence is
+cosmetic. Reasoning kept so a future session does not "discover" and chase it:
+`invoiceMsgBody_` supplies the greeting but NOT a sign-off, so moving the sign-off into
+the template would change the message every non-overridden debrief sends and would need
+its own verification pass. Not worth it for one line.
+
+### (design history) Crew self-review — how Items 41/42 were scoped
 **No longer held.** Brandon reopened this and chose to build **Approach 2 only**, with
 his original boundary intact: **the crew member previews and edits the CLIENT-FACING
 MESSAGE TEXT for their own visit — not the Invoice Queue, not other clients' data, not
