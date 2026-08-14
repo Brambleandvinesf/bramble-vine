@@ -14,6 +14,38 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-61 — 2026-08-13
+
+**Sent:** Fix both Item 41 defects at prompt level (option 1) — derive from
+haikuClientMsg_'s prompt, make `changed` conservative, remove the greeting. Verify
+against both test cases before reporting done.
+
+**Response to CC-61:** **DEPLOYED @297 (v7.4.118). BOTH DEFECTS FIXED AND VERIFIED
+AGAINST THE EXACT TWO CASES.** Prompt-only change; no structural, UI or state-machine
+edits, as scoped.
+
+- **TEST B — the CC-60 false positive is GONE.** The already-appropriate Japanese
+  maple/aphids text now returns **`changed:false`**, reason "already clear, polite,
+  and client-ready with no jargon or abbreviations". The overlay stays silent.
+- **TEST A — shorthand still rewrites**, `changed:true`, and **the greeting is gone** —
+  it opens "We noticed some dead tips…" rather than "Hi Michael,". Its reason quotes
+  the actual shorthand it found ("dead tips", "re aphids", "told her"), which is a
+  better signal than the generic claim it made before.
+- **The `changed` test is now the FIRST instruction and defaults to FALSE**, with an
+  explicit line that better phrasing is not a reason to rewrite, and "WHEN IN DOUBT,
+  FALSE". Under-firing is the correct failure: an overlay on every debrief is tuned
+  out within a week and then catches nothing.
+- **⚠ THE SIGN-OFF WAS KEPT IN THE PROMPT ON PURPOSE — and the model dropped it
+  anyway.** Reasoning for keeping it: `invoiceMsgBody_` supplies the greeting but does
+  NOT supply a sign-off, and `haikuClientMsg_` has always produced one, so stripping it
+  would make an ACCEPTED suggestion differ from the message the same debrief would
+  have sent by itself. **Test A's output has no "— Bramble & Vine".** Minor and
+  cosmetic, but real, and reported rather than glossed — see the response for options.
+- Derived from `haikuClientMsg_`'s wording rather than written afresh, which is
+  precisely what caused both defects the first time.
+
+---
+
 ## CC-60 — 2026-08-13
 
 **Sent:** Build Item 41 (trigger option 1 = goNext, conditional option 1 = AI returns
