@@ -1940,7 +1940,7 @@ the minutes from arrival to assignment were simply lost.
   (which is where the string is written) silently degrades those diagnostics to
   '(no rate)' with nothing named.
 - **⚠ THE LABOUR LINE'S DESCRIPTION IS THE VISIT WINDOW, AND A "LAYER" IS NOT A TIME
-  INTERVAL (CC-65, 8/14 — Item 30; STAGED v7.4.120, not deployed at time of writing).**
+  INTERVAL (CC-65, 8/14 — Item 30; LIVE @299 as of CC-66).**
   Every labour line now carries `'<M/D>, approx. <start>–<end>'` from
   `visitWindowDesc_`, built from REAL QuickBooks Time punches via `payrollDayData_`.
   **ONE window per invoice, identical on every labour line — deliberately NOT per
@@ -1969,7 +1969,7 @@ the minutes from arrival to assignment were simply lost.
   COST: one QBT call per invoicing debrief, inside saveDebrief's existing stopwatch so
   it lands in `report.timingsMs` rather than being guessed at.
 - **THE INVOICE MESSAGE'S LEAD SENTENCE IS DATE-AWARE AND KNOWS ABOUT MULTI-VISIT
-  INVOICES (CC-65, 8/14 — Item 53.2/53.3; STAGED v7.4.120).** `invoiceMsgBody_` takes
+  INVOICES (CC-65, 8/14 — Item 53.2/53.3; LIVE @299 as of CC-66).** `invoiceMsgBody_` takes
   a `visitPhrase`: "today's garden visit" / "yesterday's garden visit" / "your 7/30
   garden visit" / **"your recent garden visitS"** when one invoice covers several visit
   dates — the case Item 53's consolidation created and the old hardcoded
@@ -2000,6 +2000,22 @@ the minutes from arrival to assignment were simply lost.
   ✅ THE CALL PATH IS UNRELATED AND MUST STAY FIRST-NUMBER-ONLY: `getField`'s
   `clientPhones` says so in its own comment ("the fan-out to several numbers is a
   Special-Contact texting rule and has no meaning for placing one call").
+  **STEP 1 BUILT, FAN-OUT DELIBERATELY NOT (CC-66, 8/14): `clientPhoneAudit()`,
+  v7.4.121, editor-only, read-only.** Brandon chose audit-first. Two things it does
+  that a naive count would not, and both are the reason it exists:
+  · **It prints the RAW cell text verbatim.** `normPhones_` keeps digits and discards
+    everything else, so '415-555-1212 (Alok), 415-555-3434 (Vinita)' and
+    '415-555-1212, 415-555-9999 property mgr' normalise IDENTICALLY. The labels are
+    the only household-vs-not signal in the system, so the audit separates cells that
+    carry one (judgeable) from cells that do not — **the unlabelled group is the
+    actual decision set**, and it is smaller than the raw multi-number count.
+  · **It applies column U before counting impact.** A client whose invoice preference
+    is Email is untouched by a TEXT fan-out however many numbers they hold, so the
+    honest affected population is multi-number AND text-reachable, not multi-number.
+  It also lists Confirm Contact numbers absent from the Phone column, because
+  `textRouting_` falls back to Confirm Contact and those recipients would otherwise be
+  invisible to the review. Reuses `clientDirectory_` so it cannot disagree with what
+  the send paths actually see.
   Two properties worth keeping straight: the ledger is written ONLY after QBO
   confirms, so the failure direction is "might re-invoice", never "silently
   skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for

@@ -14,6 +14,62 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-66 — 2026-08-14
+
+**Sent:** Deploy v7.4.120 now (stale-copy check, verify propagation). Item 56 — Option 1
+approved: build the read-only Phone-column audit first, editor-only probe, no deploy; do
+NOT build the fan-out yet. Items 52 and 54 — reminders only, waiting on Brandon.
+
+**Response to CC-66:** **DEPLOYED @299 (v7.4.120)** — Item 53's date-aware/multi-visit
+wording, Item 30's labour-line visit windows, and the rewritten probe. Propagation
+verified. **`clientPhoneAudit()` pushed as v7.4.121 to HEAD only, NOT deployed** —
+editor-only and read-only, so it runs without one. No fan-out logic written, as
+instructed.
+
+- **⚠ THE CHANGELOG HEADER WAS FIXED BEFORE DEPLOYING, not after.** v7.4.120's entry
+  still read "STAGED, NOT DEPLOYED — diffs reported first", which would have shipped a
+  header asserting the opposite of the truth. That is the exact failure the
+  "KEEP THE HEADER TRUE" rule exists for — v7.4.83/84 shipped with no entry at all and
+  disarmed the stale-copy check for everyone after. Corrected to "DEPLOYED under CC-66
+  after diff review" as part of the deploy, not as a follow-up.
+- **Deploy hygiene, in order:** clasp pull + changelog diff (byte-identical, no other
+  writer) → header correction → `node --check` → action audit (clean; only the
+  pre-existing `placesDetails ignores: sessionToken`) → bv-deploy.sh to the pinned id →
+  propagation check. Backup Code.js.bak.cc66.<ts>.
+- **Propagation verified on four endpoints, not one:** getTodo 200, qboInvoiceProbe
+  answering, getField 200, and **debriefQueue 200** — the last deliberately, because the
+  Debrief Queue is the failsafe path both Item 53 and Item 30 actually change. It
+  currently holds a pending A&G Sect 8 catch-up dated 8/7, so the next debrief through
+  it will exercise both fixes at once: an invoice dated today rather than 8/7, and
+  "your 8/7 garden visit" rather than "yesterday's".
+- **⚠ ITEM 52 — VERIFIED STILL OUTSTANDING rather than just re-flagged.** Re-read live:
+  invoice Id 22776 still carries DocNumber `22776`. So the next QBO-assigned number will
+  land in the 22,000s and the whole book jumps ~20,000. Reported as measured, not as a
+  reminder — the difference matters because a reminder can be read as "no news".
+- **ITEM 56 — the audit does two things a plain count would not**, and both are the
+  point. It prints the **RAW cell text verbatim**, because `normPhones_` discards
+  everything but digits and '…(Alok), …(Vinita)' normalises identically to
+  '…, … property mgr' — the labels are the only household-vs-not signal that exists.
+  And it splits labelled from **UNLABELLED** cells, because the unlabelled ones are the
+  real decision set and are fewer than the raw multi-number count.
+- **AND IT APPLIES COLUMN U BEFORE REPORTING IMPACT.** A client whose invoice
+  preference is Email is untouched by a TEXT fan-out however many numbers they hold, so
+  the report states the affected population as multi-number AND text-reachable. Counting
+  raw multi-number clients would have overstated the decision.
+- **It also surfaces Confirm Contact numbers absent from the Phone column**, since
+  `textRouting_` falls back to Confirm Contact — recipients that a review of the Phone
+  column alone would never see. Reuses `clientDirectory_` (already header-matched,
+  already drops Archived, already resolves the Special Contact columns) so the audit
+  cannot disagree with what the send paths see.
+- **Flagged in the probe itself: the log contains client phone numbers in the clear.**
+  Editor execution log only — nothing written, nothing sent.
+- **Pending, re-stated:** Item 52 (renumber 22776 in QBO), Item 54 (run
+  qboInvoiceNumberProbe and paste the log — now deployed as well as on HEAD), Item 56
+  step 2 (fan-out, awaiting audit review), Item 50 (Tool Candidate Audit, still waiting
+  on real Items Used history).
+
+---
+
 ## CC-65 — 2026-08-14
 
 **Sent:** Ship v7.4.119 as-is. Item 52 — verification only, Brandon cleaned up the junk
