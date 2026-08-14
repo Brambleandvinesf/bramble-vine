@@ -1985,11 +1985,19 @@ the minutes from arrival to assignment were simply lost.
   as an array, `minItems 1, maxItems 10`. The docs do NOT say whether that makes one
   thread or N separate ones, so it was tested against live data instead: `getSearch`
   returns conversations with a `participants` array, and one live conversation has TWO
-  participants — a single shared thread, for the client "Jason & Ashley". The only code
-  path that fans out is `textRouting_`'s `mode === 'special'` branch, so B&V created
-  that thread itself. **Alok & Vinitaa, by contrast, has a ONE-participant conversation
-  on their first number only** — which is the reported bug exactly.
-  ⚠ THE FIRST-NUMBER-ONLY DEFAULT IS DELIBERATE, NOT AN OVERSIGHT. `textRouting_`'s
+  participants — a single shared thread, for the client "Jason & Ashley". **Alok &
+  Vinitaa, by contrast, has a ONE-participant conversation on their first number
+  only** — which is the reported bug exactly.
+  ⚠ **CORRECTION (CC-67, 8/14): CC-65 stated "the only code path that fans out is
+  `textRouting_`'s `mode === 'special'` branch". THAT WAS WRONG.** The VISIT
+  CONFIRMATION path has always fanned out too — `lookupContact_` returns the whole
+  Phone cell, `draftVisitQueue` and `queueRows_` pass it through `normPhones_` with no
+  truncation, and `queueAction`'s send splits the Contact cell into Quo's `to` array.
+  So the Jason & Ashley thread was at least as likely created by a routine visit
+  confirmation as by the Special-Contact branch, and the group-thread conclusion stands
+  either way — but do not repeat the "only Special fans out" claim, it is false.
+  ⚠ THE FIRST-NUMBER-ONLY DEFAULT IS DELIBERATE FOR ARRIVAL/DEPARTURE TEXTS.
+  `textRouting_`'s
   own comment: "Primary keeps its long-standing first-number-only behaviour. Only
   Special fans out, so no existing client's recipient list changes today." So flipping
   Primary to fan out reverses a considered decision across ~180 clients at once, and
@@ -2016,6 +2024,32 @@ the minutes from arrival to assignment were simply lost.
   `textRouting_` falls back to Confirm Contact and those recipients would otherwise be
   invisible to the review. Reuses `clientDirectory_` so it cannot disagree with what
   the send paths actually see.
+  ✅ **STEP 2 BUILT — ONE LINE (CC-67, 8/14; STAGED v7.4.122, not deployed at time of
+  writing).** `mqDraftInvoice_`'s phone branch dropped its `.split(',')[0]`, so invoice
+  messages AND payment reminders (they share that drafter) now address every number.
+  Brandon confirmed four two-number households from the audit: **Brook & Zack, Jason &
+  Ashley, Alok & Vinitaa, Lyne & Peter.**
+  ⚠ **THE PLUMBING WAS ALREADY MULTI-RECIPIENT END TO END — this `[0]` was the only
+  place the extra numbers were discarded.** `normPhones_` returns them comma-joined (its
+  own doc comment's example is literally Brook & Zack's two numbers), the Contact cell is
+  already written as `'@'` plain text so a leading `+` is not eaten as a formula,
+  `queueRows_` re-normalises without truncating, `queueAction` already builds Quo's `to`
+  ARRAY from it, and `visits.tsx` renders `row.contact` as plain text with no `tel:` link.
+  **THE TELL, worth remembering as a debugging heuristic:** the Email branch of that same
+  expression always kept EVERY address, because `normEmails_` joins them all. An
+  asymmetry inside a single expression is strong evidence of an oversight rather than a
+  policy — and CC-65's "two sites to change" estimate was wrong for exactly this reason:
+  it assumed symmetry with the confirmation path instead of reading it.
+  Verified before staging: single-number and empty cells produce byte-identical output to
+  the old code, so 179 of 183 clients are untouched; an empty cell still yields `to: []`
+  and is refused by queueAction's own `!qaContact` guard before any send.
+  ⚠ IT IS A BLANKET RULE, NOT AN ALLOWLIST. Right for all four of today's households,
+  which is why it was audited first — but a client who LATER gains a second number is
+  enrolled with no review. If that ever matters, the answer is a heads-up when a new
+  multi-number client appears, NOT a hand-maintained list.
+  ⚠ STILL FIRST-NUMBER-ONLY, AND NOW THE ONLY TEXT PATH THAT IS: `textRouting_`'s Primary
+  branch (arrival/departure ETA texts). Left alone deliberately — it was not in scope and
+  its own comment records the choice. Flagged in CC-67 as an open question.
   Two properties worth keeping straight: the ledger is written ONLY after QBO
   confirms, so the failure direction is "might re-invoice", never "silently
   skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for

@@ -14,6 +14,60 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-67 — 2026-08-14
+
+**Sent:** Item 56 step 2 — build the text fan-out for all 4 confirmed households (Brook &
+Zack, Jason & Ashley, Alok & Vinitaa, Lyne & Peter) at the two identified sites:
+mqDraftInvoice_ and the visit-confirmation recipient derivation. Confirm the send produces
+a genuine group thread. Call feature unchanged. Confirm Contact fallback out of scope.
+Report the exact diff before deploying. Item 52's QBO edit done on Brandon's end.
+
+**Response to CC-67:** **STAGED v7.4.122 on HEAD, NOT DEPLOYED** — diff reported, comms
+path. LIVE stays v7.4.120 @299. `node --check` clean, action audit clean (pre-existing
+`placesDetails` finding only).
+
+- **⚠ CC-65's "TWO SITES" WAS WRONG, AND I AM CORRECTING MY OWN ESTIMATE: THERE WAS ONE.**
+  The visit-confirmation path has **always** fanned out. `lookupContact_` returns the
+  WHOLE Phone cell (`dir[i].phone.trim()`), `draftVisitQueue` and `queueRows_` run it
+  through `normPhones_` with **no `[0]`**, and `queueAction`'s send already does
+  `to: normPhones_(qaContact).split(',')…` — Quo's `to` ARRAY. Nothing there needed
+  touching, and changing it would have been churn dressed as a fix.
+- **SO THE ENTIRE BUG WAS ONE `.split(',')[0]` IN mqDraftInvoice_.** Removed. Invoice
+  messages and payment reminders share that drafter, so both are fixed by the one line.
+- **⚠ THE TELL I SHOULD HAVE READ IN CC-65, now recorded as a heuristic:** the EMAIL
+  branch of that same expression always kept EVERY address, because `normEmails_` joins
+  them all. So a client on 'Email & Text' had every email addressed and exactly one
+  phone. **An asymmetry inside a single expression is strong evidence of an oversight
+  rather than a policy** — and it would have pointed at one site, not two.
+- **GROUP THREAD CONFIRMED FROM THE CODE, not just from the earlier live observation.**
+  `queueAction` builds Quo's `to` array (docs: `minItems 1, maxItems 10`), which is the
+  same shape that produced the observed two-participant Jason & Ashley conversation. One
+  conversation, not N sends. ⚠ Also corrected in CLAUDE.md: CC-65 claimed the Special
+  branch was the ONLY fan-out path, which is false — the confirmation path is the more
+  likely origin of that very thread.
+- **VERIFIED BEFORE STAGING, by running normPhones_ and queueAction's split verbatim over
+  five real cell shapes.** Single-number and empty cells produce **byte-identical** output
+  to the old code, so **179 of 183 clients are untouched**; an empty cell still yields
+  `to: []` and is refused by queueAction's own `!qaContact` guard before any send. The
+  blast radius is exactly the four audited households.
+- **Four downstream assumptions checked rather than assumed safe:** the Contact cell is
+  already written as `'@'` plain text (so a leading `+` is not eaten as a formula),
+  `queueRows_` re-normalises without truncating, `visits.tsx` renders `row.contact` as
+  plain text with no `tel:` link, and Quo's cap is 10 — above any real household.
+- **✅ CALL PATH UNCHANGED, verified by grep rather than by intention:** the only two
+  remaining `.split(',')[0]` text/phone sites are `getField`'s `clientPhones` (the CALL
+  button) and `textRouting_`'s Primary branch. Both intentional.
+- **⚠ FLAGGED, NOT BUILT: `textRouting_`'s Primary branch is now the ONLY first-number-only
+  TEXT path left** — arrival/departure ETA texts still reach one number for these same four
+  couples. Out of scope this batch; presented as numbered options rather than changed
+  unasked.
+- **Item 52 closed on Brandon's end** — noted; will be confirmed by the next invoicing
+  debrief's DocNumber landing in the 2700s.
+- **Pending, re-stated:** Item 54 (run `qboInvoiceNumberProbe`, paste the log), Item 50
+  (Tool Candidate Audit, awaiting real Items Used history).
+
+---
+
 ## CC-66 — 2026-08-14
 
 **Sent:** Deploy v7.4.120 now (stale-copy check, verify propagation). Item 56 — Option 1
