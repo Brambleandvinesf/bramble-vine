@@ -14,6 +14,79 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-68 — 2026-08-14
+
+**Sent:** Deploy v7.4.122. Item 56 — extend fan-out to textRouting_'s Primary branch so
+all text paths follow one rule, and update the stale comment. Item 52 — Chew Family's
+invoice (Id 22771, DocNumber 3633) is a second outlier the probe's 1000-above-median
+threshold missed; flag it and propose a better threshold before changing it. Item 54 —
+probe verdict points at AllowOnlineCreditCardPayment, not send status; confirm against
+the code, then fix the create payload. Report diffs before deploying.
+
+**Response to CC-68:** **DEPLOYED @300 (v7.4.122).** Items 56 step 3 and 54 are **STAGED
+v7.4.123 on HEAD, NOT deployed** — diffs reported. Item 52's threshold proposed, not
+changed, as instructed.
+
+- **⚠⚠ ITEMS 30 AND 53 ARE NOW VERIFIED LIVE IN PRODUCTION — the first real invoice
+  through v7.4.120 landed while this batch ran.** The A&G Sect 8 catch-up cleared the
+  debrief queue, and its invoice (Id 22732) carries labour lines reading
+  **`"8/7, approx. 10:30am–5:30pm"`** and **`"8/11, approx. 9:00am–5:30pm"` ×2** — the
+  exact format, real QBT punch times, and two layers from one visit correctly sharing
+  ONE window. Item 30 works.
+- **AND THE GUARDS FIRED CORRECTLY, WHICH IS THE BETTER NEWS.** The same invoice carries
+  two labour lines reading just **`"7/31"`** — date-only, meaning `visitWindowDesc_` found
+  no usable punches for that client on that date and degraded exactly as designed rather
+  than printing a wrong window or throwing. Designed-for degradation, observed in
+  production.
+- **ITEM 53.3's PLURAL FIRED TOO.** The queue holds a draft reading **"Here's the invoice
+  from your recent garden visits."** and two reading **"your 8/12 garden visit"** — the
+  multi-visit and explicit-date branches, both live. Corroboration worth noting: two
+  office-edited rows had been hand-written as "your last couple garden visits" / "your
+  last few garden visits", which is precisely the need Item 53.3 automated.
+- **A&G's MONTHLY ARRANGEMENT SURVIVED THE TxnDate CHANGE**, as predicted: the lines
+  appended to the future-dated 8/31 invoice rather than creating a new one.
+- **⚠⚠ ITEM 54 — THE SURFACE READING WAS RIGHT ABOUT THE FIELD AND WRONG ABOUT THE
+  SCOPE, and the live queue is what showed it.** Two automation-drafted invoice messages
+  (A&G Sect 6, Mada) **DO carry working connect.intuit.com links.** Those went through
+  the APPEND branch, which sparse-POSTs only Id/SyncToken/Line onto an existing
+  UI-created invoice and inherits its flags. **So "API-created invoices never get links"
+  was too broad — only the CREATE branch was ever linkless.** That is the confirmation
+  Brandon asked for: not a correlation, a mechanism, with same-day counter-examples from
+  the same function.
+- **So the flag goes in the CREATE branch ONLY** — appending must never silently switch
+  on card payment for an invoice the office built by hand. Verified by grep that the
+  append payload is untouched.
+- **⚠ TRADE-OFF STATED, NOT BURIED: the payment link and card acceptance are the same
+  switch.** ACH is already true on our invoices and yields no link, so a link cannot be
+  had without enabling card payment, and card payments carry processing fees. It matches
+  what Brandon's own UI invoices already do, which is why it is the right default — but
+  it is a money decision. `AllowOnlinePayment` deliberately not set; QBO derives it.
+- **⚠ ITEM 52 — 22776 IS FIXED (now DocNumber 2777, verified live). CHEW FAMILY'S 3633
+  IS NOT.** Next auto-number would be 3634, jumping ~900. Flagged as Brandon's action.
+- **AND THE THRESHOLD LESSON IS THE GENERAL ONE: an absolute threshold cannot detect an
+  outlier in a sequence whose scale it does not know.** 1000-above-median missed a 930
+  gap in a window whose entire legitimate span is ~110 numbers. Proposed replacement is a
+  **cluster-break detector keyed to the median consecutive gap**, plus printing every
+  DocNumber with its gap so the evidence does not depend on the threshold at all — the
+  same "print the rule, don't trust it" discipline as toolCandidateAudit. Proposed only;
+  not changed.
+- **ITEM 56 STEP 3 — ONE RULE, NO EXCEPTIONS FOR TEXT.** `textRouting_`'s Primary branch
+  fans out. **The stale comment was REPLACED, not left above the changed line** — it
+  claimed the truncation was deliberate, which would have read as current reasoning and
+  invited a future "restore". Verified by grep that the ONLY remaining first-number-only
+  site is `getField`'s `clientPhones`, the CALL button.
+- **LIVE CORROBORATION of CC-67's correction:** the queue's CONFIRMATION rows for Lyne &
+  Peter and Jason & Ashley already carried two numbers each, while Alok & Vinitaa's
+  INVOICE row carried one — exactly the asymmetry diagnosed, visible in production data.
+- **⚠ AND A PRACTICAL CONSEQUENCE NOBODY ASKED ABOUT: pending queue rows drafted before
+  the fix keep their single recipient.** `queueRows_` re-normalises a stored Contact but
+  only re-resolves from Client Info when the cell is BLANK. To repair one, clear its
+  Contact cell — `lookupContact_` returns every number, so it back-fills complete.
+- **Pending:** Item 52 (renumber 3633), Item 54 (verify the next CREATED invoice gets a
+  link — the last unverified link in the CC-32 chain), Item 50 (Tool Candidate Audit).
+
+---
+
 ## CC-67 — 2026-08-14
 
 **Sent:** Item 56 step 2 — build the text fan-out for all 4 confirmed households (Brook &

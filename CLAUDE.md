@@ -1875,12 +1875,56 @@ the minutes from arrival to assignment were simply lost.
   renumbered into the 2700s. `qboInvoiceNumberProbe` (v7.4.120) now predicts the next
   auto-number and names any outlier more than 1000 above the median, specifically so
   this cannot happen a third time unnoticed.
+  ✅ 22776 WAS RENUMBERED to **2777** (verified live, CC-68) — back inside the sequence.
+  **⚠ BUT A SECOND OUTLIER IS STILL IN THE BOOKS AND THE PROBE MISSED IT: Chew Family,
+  Id 22771, DocNumber `3633`, against a live sequence around 2700–2777 (CC-68, 8/14 —
+  OPEN, needs the same manual renumber).** Auto-numbering takes the HIGHEST existing
+  number, so the next invoice becomes 3634 and the book jumps ~900 rather than ~20,000 —
+  smaller, permanent, same class of damage.
+  ⚠ **WHY THE PROBE MISSED IT, AND THE LESSON: a fixed threshold cannot detect an
+  outlier in a sequence whose scale it does not know.** The rule was "more than 1000
+  above the median"; 3633 sits ~930 above, a near-miss, so it passed. **The right
+  detector is RELATIVE TO THE SEQUENCE'S OWN SPACING, not an absolute constant** — the
+  legitimate window spans about 110 numbers end to end, so a 930 jump is enormous in
+  context and invisible to any constant chosen without that context. See CC-68 for the
+  proposed cluster-break detector (median consecutive gap). **General form: a threshold
+  expressed in absolute units silently changes meaning as the data's scale changes.**
   ⚠ NOTE THE VERIFICATION LIMIT, so nobody records this as proven: that QBO
   auto-assigns correctly on OUR create path can only be confirmed by the next real
   debrief. It cannot be tested from outside without writing a real invoice to the live
   books, which is not a thing to do casually for a test.
+- ✅ **ITEM 54 SOLVED: THE INVOICE LINK REQUIRES `AllowOnlineCreditCardPayment` — AND IT
+  IS THE *CREATE* PATH ONLY (CC-68, 8/14; STAGED v7.4.123, not deployed at time of
+  writing).** The create payload now sets `AllowOnlineCreditCardPayment: true`. Three
+  independent things establish it, and the third is the one that corrects the earlier
+  framing:
+  · **Sent-status is NOT the gate.** Invoice 2159 was never sent (`EmailStatus: NotSet`,
+    no `DeliveryInfo`) and has a working link. That kills the "needs a QBO send" theory.
+  · **ACH is NOT the gate.** `AllowOnlineACHPayment` is already true on OUR invoices,
+    equally with the linked ones, and produces no link. It is specifically the CARD flag,
+    so ACH needs no change.
+  · **⚠ AND "API-CREATED INVOICES DON'T GET LINKS" WAS TOO BROAD.** The live Message
+    Queue on 8/14 held automation-drafted invoice messages for **A&G Sect 6 and Mada that
+    DO carry working connect.intuit.com links.** Those went through the APPEND branch,
+    which sparse-POSTs only `Id`/`SyncToken`/`Line` onto an existing UI-created invoice
+    and therefore inherits its flags. Same function, same day, links present. **Only the
+    CREATE branch was ever linkless, because only it builds a payload from scratch.**
+  ⚠ THE FLAG GOES IN THE CREATE BRANCH ONLY — appending must never silently switch on
+  card payment for an invoice the office built by hand with its own settings.
+  ⚠ **TRADE-OFF ON THE RECORD: the payment link and card acceptance are the SAME
+  SWITCH.** ACH alone demonstrably yields no link, so a link cannot be had without
+  enabling card payment, and card payments carry processing fees. This matches what
+  Brandon's own UI-created invoices already do, which is why it is the right default —
+  but it is a money decision, not a formatting one. Do not "tidy" the flag away.
+  `AllowOnlinePayment` is deliberately NOT set: QBO derives it.
+  ⚠ STILL UNVERIFIED END TO END, and it is the last thing in the CC-32-onward chain that
+  is: no invoice has yet been CREATED with the flag set. The next real debrief that
+  creates (not appends) is the test — expect a populated `InvoiceLink` and a link
+  paragraph in the drafted message. If the flag does not stick, QBO silently ignoring it
+  is the failure mode to check first.
+  SUPERSEDED INVESTIGATION NOTES (kept for the reasoning, not the conclusion):
 - **⚠ AN API-CREATED INVOICE MAY GET NO InvoiceLink — CC-31's PROBE DID NOT TEST ONE
-  (CC-63, 8/14 — Item 54, OPEN).** The CC-32 finding above ("`include=invoiceLink`
+  (CC-63, 8/14 — Item 54, now SOLVED above).** The CC-32 finding above ("`include=invoiceLink`
   returns a real customer-facing URL") was measured on **the most recent invoice in
   the file, which was created in the QBO UI.** Whether a link comes back for an
   invoice THIS AUTOMATION created has never been asked — and on 8/14 a real draft
@@ -2024,8 +2068,8 @@ the minutes from arrival to assignment were simply lost.
   `textRouting_` falls back to Confirm Contact and those recipients would otherwise be
   invisible to the review. Reuses `clientDirectory_` so it cannot disagree with what
   the send paths actually see.
-  ✅ **STEP 2 BUILT — ONE LINE (CC-67, 8/14; STAGED v7.4.122, not deployed at time of
-  writing).** `mqDraftInvoice_`'s phone branch dropped its `.split(',')[0]`, so invoice
+  ✅ **STEP 2 BUILT — ONE LINE (CC-67, 8/14; LIVE @300 as of CC-68).**
+  `mqDraftInvoice_`'s phone branch dropped its `.split(',')[0]`, so invoice
   messages AND payment reminders (they share that drafter) now address every number.
   Brandon confirmed four two-number households from the audit: **Brook & Zack, Jason &
   Ashley, Alok & Vinitaa, Lyne & Peter.**
@@ -2047,9 +2091,30 @@ the minutes from arrival to assignment were simply lost.
   which is why it was audited first — but a client who LATER gains a second number is
   enrolled with no review. If that ever matters, the answer is a heads-up when a new
   multi-number client appears, NOT a hand-maintained list.
-  ⚠ STILL FIRST-NUMBER-ONLY, AND NOW THE ONLY TEXT PATH THAT IS: `textRouting_`'s Primary
-  branch (arrival/departure ETA texts). Left alone deliberately — it was not in scope and
-  its own comment records the choice. Flagged in CC-67 as an open question.
+  ✅ **STEP 3 — EVERY TEXT PATH NOW FANS OUT. ONE RULE, NO EXCEPTIONS (CC-68, 8/14;
+  STAGED v7.4.123, not deployed at time of writing).** `textRouting_`'s Primary branch
+  (arrival/departure ETA texts) fans out too, Brandon's call, for consistency. So
+  arrival/departure texts, visit confirmations, invoice messages and payment reminders
+  ALL address every number in the Phone cell.
+  ⚠ **THE OLD COMMENT WAS REPLACED, NOT LEFT ABOVE THE CHANGED LINE.** It read "Primary
+  keeps its long-standing first-number-only behaviour. Only Special fans out…" — sound
+  reasoning while fan-out was unaudited, and actively misleading afterwards. **A stale
+  rationale sitting above changed code is worse than no comment: the next reader takes
+  it for current reasoning and "restores" the truncation.** The replacement records who
+  decided, when, and on what evidence (clientPhoneAudit).
+  ✅ **THE ONLY REMAINING FIRST-NUMBER-ONLY SITE IN THE FILE is `getField`'s
+  `clientPhones` — the CALL button, which must stay that way because a call rings one
+  number.** Verified by grep after the change, not by intention. If a future grep finds
+  a second one, it is a regression.
+  LIVE CORROBORATION of the whole fan-out story, from the Message Queue on 8/14: the
+  CONFIRMATION rows for Lyne & Peter and Jason & Ashley already carried TWO numbers each
+  in a single Contact cell, while Alok & Vinitaa's INVOICE row carried one. Exactly the
+  asymmetry CC-67 diagnosed, visible in production data.
+  ⚠ AND A PRACTICAL CONSEQUENCE: a queue row DRAFTED BEFORE the fix keeps its single
+  recipient — `queueRows_` re-normalises a stored Contact but only re-resolves from
+  Client Info when the cell is BLANK. So to repair an existing pending row, clear its
+  Contact cell and let `queueRows_` back-fill it; `lookupContact_` returns every number,
+  so it comes back complete.
   Two properties worth keeping straight: the ledger is written ONLY after QBO
   confirms, so the failure direction is "might re-invoice", never "silently
   skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for
