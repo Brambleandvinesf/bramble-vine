@@ -2053,8 +2053,25 @@ the minutes from arrival to assignment were simply lost.
   send — beside every link and states which hypothesis the data supports. If
   link-present tracks sending rather than the payload, the fix is to send through QBO,
   NOT to add online-payment flags to the create.
-- ✅ **ITEM 57 FIX BUILT — `mqHasInvoiceRow_` + a loud email (CC-71, 8/14; STAGED
-  v7.4.125, not deployed at time of writing).** An invoice that is created or appended
+- 🚫 **THE ROUTINE "Invoice ready" EMAIL IS OFF (CC-72, 8/14; STAGED v7.4.126).** It
+  fired on every successful debrief with the PDF attached. Gated on Script Property
+  **`INVOICE_EMAIL`, which DEFAULTS TO OFF** — no property has to exist for it to stay
+  off, and setting it to `on` restores the old behaviour **with no deploy**. Gate rather
+  than deletion because a preference should not require editing invoicing code twice.
+  ⚠ **THE PDF FETCH IS INSIDE THE GATE**, not just the send: it existed only to attach
+  to that email, nothing downstream reads it, and it is a full QBO round trip on the
+  crew's critical path. `qMark('pdfAndEmail')` still fires either way so the timing
+  series stays comparable across the change.
+  ✅ UNTOUCHED, DELIBERATELY: Item 51's zero-billable failsafe and Item 57's no-draft
+  failsafe. Rare exception alerts, not routine traffic — that distinction is the whole
+  basis of the change and should survive any future tidy-up.
+  ⚠ **KNOWN LOSS: `skipped` IS NOW INVISIBLE.** An item with no price on its QBO item,
+  or a name not found in QBO, was reported ONLY in that email's body (and in
+  `report.invoiceKick`, which the caller discards). **Item 51 fires only when NOTHING
+  was billable, so a PARTIAL skip — most of the visit billed, one line silently dropped
+  — now has no surface at all.** Proposed narrow notice in CC-72; not built unasked.
+- ✅ **ITEM 57 FIX BUILT — `mqHasInvoiceRow_` + a loud email (CC-71, 8/14; LIVE @302 as
+  of CC-72).** An invoice that is created or appended
   and leaves NO Message Queue row now emails info@ with the client, invoice id, invoice
   number, visit date and the drafter's own return string.
   **DETECTION IS BY ROW EXISTENCE, NOT BY PARSING THE RETURN STRING.** The string is
@@ -2098,8 +2115,33 @@ the minutes from arrival to assignment were simply lost.
   idempotency guard firing because the invoice was an APPEND target that a previous
   visit had already drafted for — the exact consequence flagged when consolidation was
   introduced; (2) a swallowed exception; (3) a row deleted from the tab afterwards.
+- **⚠ ITEM 60 — THE RECEIPT PIPELINE: WHAT IS ACTUALLY IN PLACE (CC-72, 8/14 —
+  investigation only, nothing built).** Brandon's description is broadly right but the
+  pieces connect differently, and one constraint is structural:
+  · `RECEIPT_FOLDER_ID` = `108YdTQ5QELwtw4niYkqFVs7nOm_sAgmm` ('receipt drop').
+  · `RECEIPT_HOOK` = a **Make.com** webhook — the receipt-scan scenario.
+  · `saveReceipt` (kiosk path) renders a receipt-styled PDF, files it in that folder,
+    then **POSTs RECEIPT_HOOK to kick Make immediately** (v5.8 — "no folder polling").
+  · `extractReceipt` is a **Gmail** path that already exists: it takes a threadId,
+    concatenates the plain bodies and asks Haiku for receipt JSON.
+  · `getReceipts` READS `RC_TAB` ('Receipts') and `LI_TAB` ('Line items').
+  🚫 **THE STRUCTURAL CONSTRAINT: nothing in Code.js has EVER written a Line items row
+  — there is no `appendRow` on `LI_TAB` anywhere. Make writes them.** So "absorb the
+  Make scenario" is not a rewiring job; it means Apps Script gains a writer it has
+  never had. And `LI_TAB` carries **formula columns M–P that must never be written**,
+  so any new writer must be header-matched and leave those alone.
+  ⚠ AND THERE IS MORE THAN ONE INPUT: some Receipts rows come from vendor PDFs in
+  folders that are NOT `RECEIPT_FOLDER_ID` and never passed through `saveReceipt`.
+  Replacing Make means accounting for those too, not just the kiosk path.
+  ⚠ **APPS SCRIPT CANNOT SENSE A PURCHASE. It has no client-side presence** — it cannot
+  observe a Wallet notification or a button press. Every candidate trigger is therefore
+  something OUTSIDE Apps Script poking it: MacroDroid posting to the web app (immediate,
+  keeps the one piece that must stay phone-side), a Gmail-driven poll (minutes, not
+  instant), or a card-platform webhook (immediate, but depends entirely on which card
+  platform is actually in use). **"One reliable trigger inside Apps Script" is not
+  achievable; "one reliable trigger feeding Apps Script" is.**
 - ✅ **ITEM 58 OPTION 1 BUILT — `matchItemVoice` GAINS AN isNew BRANCH (CC-71, 8/14;
-  STAGED v7.4.125).** When the model says none of the catalog candidates fit, the action
+  LIVE @302 as of CC-72).** When the model says none of the catalog candidates fit, the action
   now proposes ONE clean canonical name (`result.isNew`, `result.suggestedName`,
   `result.suggestedWhy`) instead of overwriting that answer with word-matches. Mirrors
   `matchProduct`'s new-item behaviour. **SUGGESTION ONLY — writes nothing, creates no

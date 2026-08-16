@@ -14,6 +14,62 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-72 — 2026-08-14
+
+**Sent:** Deploy v7.4.125. Turn off ONLY the routine "Invoice ready" email, leaving Items
+51 and 57's failsafes alone; recommend hard removal vs toggle. Item 59 — build the
+rendered preview as a Lovable prompt, covering both textareas. Item 60 NEW — receipt
+pipeline absorption into Apps Script; investigation only, be honest about the trigger
+constraint.
+
+**Response to CC-72:** **DEPLOYED @302 (v7.4.125)** — Item 57's silent-failure alert and
+Item 58's new-item suggestion are live. The email change is **STAGED v7.4.126 on HEAD,
+NOT deployed** (invoicing path, diff first). Item 59 delivered as a Lovable prompt. Item
+60 investigation only.
+
+- **⚠ THE "STAGED" HEADER TRAP AGAIN, CAUGHT AGAIN.** v7.4.125's changelog entry still
+  read "STAGED — Items 57 + 58", which would have shipped an entry asserting the opposite
+  of the truth. Corrected to "DEPLOYED under CC-72" as part of the deploy. This is the
+  second time in four batches; the pattern is that a version staged in one batch and
+  deployed in another always carries a stale first line, so **checking the header is now
+  part of the deploy ritual, not an afterthought.**
+- **THE EMAIL: GATED, NOT DELETED — and recommended that way.** `INVOICE_EMAIL` **defaults
+  to OFF**, so nothing has to be created for the change to take effect, and setting it to
+  `on` restores the old behaviour **with no deploy**. A preference should not require
+  editing invoicing code twice to reverse.
+- **⚠ THE PDF FETCH WENT INSIDE THE GATE, NOT JUST THE SEND.** It existed only to attach
+  to that email, nothing downstream reads it, and it is a full QBO round trip on the
+  crew's critical path — so turning the email off also removes a per-debrief round trip.
+  `qMark('pdfAndEmail')` still fires either way so the timing series stays comparable.
+- **⚠⚠ AND THE THING THIS QUIETLY COSTS, FOUND BY READING WHAT ELSE THAT EMAIL CARRIED:
+  `skipped` HAD NO OTHER SURFACE.** An item with no price on its QBO item, or a name not
+  in QBO, was reported only in that email's body. Item 51's failsafe fires only when
+  NOTHING was billable — so a **PARTIAL** skip (most of the visit billed, one line
+  silently dropped) now has no surface at all. Flagged with a proposed narrow notice
+  rather than folded in unasked; Brandon asked for the routine email off, not for a new
+  alert.
+- **ITEM 59 — Lovable prompt written for BOTH textareas**, review card and composer, as
+  a read-only preview beneath each. Additive only: the textarea, SEND/SAVE/SKIP and the
+  busy states are untouched, so nothing existing can regress.
+- **⚠ ITEM 60 — BRANDON'S DESCRIPTION IS BROADLY RIGHT BUT ONE PIECE IS STRUCTURAL, NOT
+  A REWIRING JOB: nothing in Code.js has EVER written a Line items row.** There is no
+  `appendRow` on `LI_TAB` anywhere — Make writes them. So "absorb the Make scenario"
+  means Apps Script gains a writer it has never had, against a tab with **formula columns
+  M–P that must never be written.**
+- **AND THERE IS MORE THAN ONE INPUT:** some Receipts rows come from vendor PDFs in
+  folders that are NOT `RECEIPT_FOLDER_ID` and never passed through `saveReceipt`.
+  Replacing Make has to account for those too, or they silently stop arriving.
+- **🚫 THE TRIGGER CONSTRAINT, CONFIRMED PLAINLY AS ASKED: Apps Script cannot sense a
+  purchase.** It has no client-side presence — it cannot observe a Wallet notification
+  or a button press. **"One reliable trigger inside Apps Script" is not achievable;
+  "one reliable trigger feeding Apps Script" is.** Options presented on that basis, with
+  MacroDroid-posts-directly recommended as the one that keeps the only genuinely
+  phone-side piece and drops Make from the path.
+- **Pending:** the email diff, Item 54 (PDF probe + throwaway-invoice decision), Item 59
+  (paste the prompt), Item 60 (choose a trigger), Item 50.
+
+---
+
 ## CC-71 — 2026-08-14
 
 **Sent:** Confirm Alok's cleared Contact re-fills. Item 54 — investigate the PDF path
