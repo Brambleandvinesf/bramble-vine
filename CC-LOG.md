@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-77 — 2026-08-14
+
+**Sent:** Move WEB_PUSH_URL/KEY to cfg_ (approved). Supabase waiting on a token. Item 63
+waiting on Brandon's diagnostic. Item 64 NEW — sent messages not appearing in preview
+cards; check for a deliberate prior decision first. Item 65 NEW — crew contact cards
+should drop the phone number and match client-card name styling.
+
+**Response to CC-77:** **STAGED v7.4.129 on HEAD, NOT deployed** (config-reading path,
+diff first). LIVE stays v7.4.128 @305. Items 64 and 65 are findings + Lovable prompts;
+no frontend applied.
+
+- **CONFIG MOVE — three lines, and `cfg_` already did the work.** It reads the App Config
+  tab first and falls back to the Script Property, so anything already set keeps working;
+  this only ADDS a safer home. Both keys also added to `CONFIG_MIGRATED` so `configAudit`
+  reports them.
+  ⚠ **AND THE GOTCHA THAT WOULD OTHERWISE COST AN HOUR: `cfgMap_` CACHES THE TAB FOR SIX
+  HOURS.** After editing App Config, `cfgBust_()` must be run from the editor or the
+  change simply will not be seen. Recorded in the changelog beside the change.
+- **✅ ITEM 64 — NO DELIBERATE DECISION EXISTS. THE OPPOSITE DOES.** Searched the history
+  for a staging/privacy/composer reason and found none. What I found instead is
+  **CLAUDE.md's OPTIMISTIC-WRITE RULE (VV, 8/2)**, which says every optimistic UI update
+  MUST ship with one of: seed the poll's cache, suppress the next poll, or merge
+  non-destructively with a TTL. **So this is not a conflict to ask about — it is an
+  existing rule not being honoured.**
+- **THE MECHANISM, CONFIRMED IN CODE.** A send prepends an optimistic item carrying
+  `snippet: text`, and removes it **only on failure**. But the poller does
+  `setItems(its)` — **a wholesale destructive replace** with the server's inbox. So the
+  sent message shows until the next poll tick and is then wiped: exactly the reported
+  symptom, and precisely the destructive merge the rule forbids.
+- **⚠ ONE THING I COULD NOT SETTLE AND AM NOT GUESSING AT:** whether `getInbox`'s snippet
+  ever includes outbound messages. If it does, this is transient and a frontend merge
+  fixes it completely; if it does not, the card can never show a sent message once the
+  TTL lapses and the real fix is backend. **Brandon can distinguish the two in ten
+  seconds** — send a message, wait a minute, and see whether it reappears.
+- **ITEM 65 — the discriminator already exists and is exact.** `internalRoleFor(it)`
+  returns a role for internal senders (by email or by B&V line number) and `null` for
+  clients; `isInternal` is derived from it in the shared card component. So the fix scopes
+  cleanly to the crew path with no risk to client cards — no new prop, no new branch.
+- **Carried forward:** Supabase token, Item 63 diagnostic, Item 54 A/B, Items 59/62
+  Lovable prompts, the Amex inquiry, Item 50.
+
+---
+
 ## CC-76 — 2026-08-14
 
 **Sent:** Can Claude self-deploy the Supabase Edge Function? Deploy v7.4.128. Item 62
