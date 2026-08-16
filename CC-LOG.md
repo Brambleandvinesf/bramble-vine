@@ -14,6 +14,53 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-78 — 2026-08-14
+
+**Sent:** Deploy v7.4.129. Item 54 path A closed as a dead end (PDF URLs are all Adobe
+XMP boilerplate) — record it. Path B approved, execute the throwaway-invoice test. Item 63
+not reproducing — mark as such. Item 66 NEW — receipts badge shows nothing despite pending
+receipts; findings first.
+
+**Response to CC-78:** **DEPLOYED @306 (v7.4.129)** — Web Push config now reads from App
+Config. Path A recorded as a dead end. Item 63 marked not-reproducing. **Path B test
+written and pushed to HEAD as v7.4.130 but NOT RUN — I cannot reach QBO.** Item 66 root
+cause narrowed to the frontend with live evidence.
+
+- **⚠ PATH B — I CANNOT EXECUTE IT, AND SAYING SO IS THE ONLY HONEST ANSWER.** The test
+  needs the QBO token, which lives in Script Properties and is reachable only from inside
+  Apps Script. Every probe this project has used has been an editor function for exactly
+  this reason. Written as `qboInvoiceLinkTest()` — Brandon runs it, one click.
+- **IT IS THE ONLY FUNCTION IN THE FILE THAT WRITES TO THE LIVE BOOKS FOR A TEST**, so it
+  is built like it: everything on a customer named `ZZZ AUTOMATION TEST - DELETE ME`;
+  **cleanup in a `finally` so a mid-run throw still cleans up**; and both cleanup steps
+  **re-read the record and REFUSE to act unless the name matches that literal exactly** —
+  a wrong id cannot delete a real client's invoice.
+- **THE EXPERIMENT ISOLATES ONE VARIABLE PER STEP:** create bare → link? / sparse-update
+  card=true → link? / send to info@ → link? **The first step that produces a link is the
+  answer.** Step 2 only ⇒ configuration, needing the card flag Brandon refuses. Step 3
+  only ⇒ the link needs a SEND and card payment is irrelevant — the outcome that would
+  satisfy the constraint.
+- **✅✅ ITEM 66 — THE BACKEND IS CORRECT. THE BUG IS IN THE FRONTEND.** Proven live
+  rather than reasoned: `?action=badgeCounts&email=brandon@…&want=messages,visits,receipts,queues&days=30`
+  — the exact call the app makes, with the exact params — returns **`{"counts":{…,"receipts":30}}`**.
+  The count-only endpoint agrees (`{"count":30}`), and re-running the backend's own rule
+  over the live 236 line items also yields 30.
+- **AND THE TWO PENDING RULES DO NOT DISAGREE THIS TIME.** `receiptsPendingCount_` and
+  `isPendingDesignation` are both `!finalDesignation && !invoiced` — CC-11's twin-rule
+  bug has not regressed. Checked because that history made it the obvious suspect; it is
+  not the cause.
+- **⚠ SO THE FAULT IS BETWEEN `set(BK.receipts, 30)` AND THE PILL.** `BK.receipts` is
+  `"home:getReceipts:count"`. **CC-11's lesson was two implementations of one rule
+  disagreeing over a single character; the shape here is the same, moved one layer along
+  — a key written under one string and read under another.** That is the first thing to
+  check, and it is frontend-only.
+- **Deploy hygiene:** header corrected before deploying (sixth time, standing step);
+  stale-copy check clean; audit clean.
+- **Carried forward:** Item 64's ten-second test, the Supabase token, Items 59/62/65
+  Lovable prompts, the Amex inquiry, Item 50, and `cfgBust_()` after editing App Config.
+
+---
+
 ## CC-77 — 2026-08-14
 
 **Sent:** Move WEB_PUSH_URL/KEY to cfg_ (approved). Supabase waiting on a token. Item 63

@@ -2018,6 +2018,21 @@ the minutes from arrival to assignment were simply lost.
   22777, 22778, 22781–22785) all drafted with NO link.** 8/8 linkless among the new,
   2/2 linked among the old. So Brandon's counter-observation is explained WITHOUT
   contradicting the create/append split; it does not by itself rescue the link.
+  🚫 **PATH A IS A CONFIRMED DEAD END — THE INVOICE PDF CARRIES NO PAYMENT LINK
+  (CC-78, 8/14). DO NOT REVISIT WITHOUT NEW EVIDENCE.** `qboInvoicePdfProbe` was run
+  against the five most recently created invoices. Every URL found in every PDF is
+  standard Adobe XMP/RDF metadata boilerplate — `ns.adobe.com`, `w3.org`, `purl.org` —
+  present in essentially every PDF ever produced. **Zero payable URLs, on any of them.**
+  So whatever QBO now bakes into invoice PDFs generally, it is not present on
+  automation-created invoices on this account and plan. The PDF cannot carry the
+  client's payment route, and the InvoiceLink question is the only remaining path.
+- **⚠ ITEM 63 — SIGN-OUT FREEZE: NOT CURRENTLY REPRODUCING (CC-78, 8/14). NOT FIXED,
+  NOT CLOSED.** Brandon reports it has not recurred. Nothing was changed, so if it
+  returns it is the same unfixed thing. What CC-76 established and is still true:
+  the LIVE `sw.js` is the correct `v4-2026-08-12` with the empty fetch handler and zero
+  push handlers, so neither the CC-13 regression nor Item 62's (unpasted) frontend can
+  be the cause. The two live candidates remain a **chunk-reload loop through `/login`**
+  after a redeploy, and a **stale service worker on that one device**.
   SUPERSEDED CONCLUSION (reasoning kept, verdict withdrawn):
 - ~~✅ **ITEM 54 SOLVED: THE INVOICE LINK REQUIRES `AllowOnlineCreditCardPayment` — AND IT
   IS THE *CREATE* PATH ONLY (CC-68, 8/14).**~~ The create payload was to set
