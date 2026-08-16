@@ -143,6 +143,17 @@ single prompt/voice-driven interface that can act on the current screen directly
 collapsing today's multi-screen navigation. Recorded so it informs design
 instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
+FUTURE DIRECTION ONLY, NOT SCOPED WORK (CC-70, 8/14 — Item 58.4): a SELF-UPDATING
+REFERENCE DATABASE for product and species naming — pulling from external sources
+where they exist, and accumulating its own knowledge from receipt data over time.
+Brandon's own framing was explicitly speculative ("Maybe we need…"), and it is
+recorded here on that basis, alongside the other long-term ideas. **Do NOT design or
+build any part of this without a dedicated ask.**
+⚠ Read it against what CC-70's investigation actually found: the *non-living* half is
+largely a matter of extending Product Master and `matchItemVoice`, which already
+exist; the *living things* half has no viable free data source (see the GBIF findings
+in the Item 58 note below) and is the part that would make this a large project.
+
 ## STACK MAP
 - Frontend: Lovable React PWA, project c1aae680, repo Brambleandvinesf/bramble-vine
 - Backend: Google Apps Script "chron order" (LIVE v7.4.84 @271), single web-app
@@ -1893,6 +1904,45 @@ the minutes from arrival to assignment were simply lost.
   auto-assigns correctly on OUR create path can only be confirmed by the next real
   debrief. It cannot be tested from outside without writing a real invoice to the live
   books, which is not a thing to do casually for a test.
+- ⚠⚠ **ITEM 54 — THE FLAGS DO NOT DETERMINE THE LINK. BOTH OF MY EARLIER VERDICTS WERE
+  WRONG, IN THE SAME WAY, TWICE (CC-70, 8/14).** The matrix showed **eight invoices with
+  `card=false, ach=true, AllowOnlinePayment=true` and NO link** (22771, 22772, 22776,
+  22778, 22781–22784) alongside invoices with **identical flags that DO have one**.
+  Identical configuration, different outcome ⇒ **configuration is not the cause.**
+  🚫 **AND THE PROBE'S OWN VERDICT LINE WAS A LOGIC ERROR, NOT A DATA ERROR.** It tested
+  *"does any invoice exist with card=false and a link?"* and printed *"ACH ALONE IS
+  SUFFICIENT — THIS IS THE FIX."* **An existence test cannot establish sufficiency.**
+  That is the same mistake as CC-68's (which generalised from a sample containing no
+  instance of the case being ruled out), committed a second time inside the very tool
+  written to prevent it. **A probe that states a verdict must state what would FALSIFY
+  it** — this one only ever looked for confirming instances.
+  **LEADING HYPOTHESIS NOW: `InvoiceLink` is a SHARING TOKEN minted by an EVENT, not by
+  configuration.** `connect.intuit.com/t/scs-v1-<token>` is a per-invoice share token;
+  it plausibly comes into existence when an invoice is emailed OR when someone uses
+  "share link" in the QBO UI, and does not exist before. This fits everything currently
+  known: old invoices (long since sent to clients) have links; freshly created ones do
+  not; identical flags differ because flags were never the mechanism.
+  ⚠ AND IT DISSOLVES CC-68's "SEND IS RULED OUT". Invoice 2159 has a link with
+  `EmailStatus: NotSet` — which rules sending out as **NECESSARY**, not as
+  **SUFFICIENT**, because share-by-link does not set EmailStatus. **Necessary and
+  sufficient were conflated.** Same error family again: watch for it in this cluster.
+  BEST EVIDENCE THE LINK APPEARS OVER TIME, from the live queue: **INV-22287-T carries
+  NO link and INV-22287-E carries one — the SAME invoice, two drafts.** Both channels
+  are drafted from one `inv` object in a single `mqDraftInvoiceChannels_` call, so equal
+  link state is guaranteed *within* a call; differing state means they were drafted at
+  **different moments** and the link materialised in between. ⚠ Confound, not yet
+  excluded: the office can edit a draft via `queueAction` `do:'save'`, so one text may
+  simply have been hand-edited.
+  ⚠ **AND THE 22786 "ANOMALY" WAS PROBABLY MY OWN WORDING, NOT A STATE CHANGE.** CC-69
+  said 22786 "is not the one carrying the link" — that was about which invoice the
+  *draft's* link pointed at (22287), **not a measurement of 22786's `InvoiceLink`
+  field, which was never read.** So no before/after pair exists and no change is
+  established. Report an unmeasured thing as unmeasured.
+  ✅ **IF THE HYPOTHESIS HOLDS IT SATISFIES BRANDON'S CONSTRAINT EXACTLY**: sharing or
+  sending an invoice mints a link and has nothing to do with accepting cards. That is
+  the "links exist, cards never accepted" path, and it is why this is worth settling.
+  SAFE DECISIVE TEST (no send, no client contact, no flag change): open a linkless
+  invoice in the QBO UI, use "share link", then re-read `include=invoiceLink`.
 - 🚫 **ITEM 54 — THE CARD-PAYMENT FIX WAS PROPOSED, REJECTED, AND SPLIT BACK OUT. DO NOT
   RE-ADD IT (CC-69, 8/14).** **Brandon will not enable credit card acceptance on
   automated invoices. That constraint is FIRM and is not a preference to re-litigate**
@@ -1988,6 +2038,61 @@ the minutes from arrival to assignment were simply lost.
   send — beside every link and states which hypothesis the data supports. If
   link-present tracks sending rather than the payload, the fix is to send through QBO,
   NOT to add online-payment flags to the create.
+- **⚠ ITEM 57 — AN INVOICE CAN BE CREATED WITH NO MESSAGE EVER DRAFTED, AND NOTHING
+  ANYWHERE RECORDS IT (CC-70, 8/14 — findings only, no fix built).** Reported for
+  Michael Smith (invoice 22772); confirmed live, and **it is NOT client-specific —
+  THREE invoices exist with no queue row of any status: 22771 (Chew Family), 22772
+  (Michael Smith), 22786 (Mada).**
+  Absence is real, not cleanup: `queueRows_` returns rows in EVERY status (Sent,
+  Skipped, Pending) and only re-resolves contacts for pending ones, so a processed
+  draft would still be listed. Michael Smith is also fully configured — present in
+  `clientDirectory_` with a phone — so a missing contact is not the explanation, and
+  in any case `mqDraftInvoice_` writes the row anyway and reports "NO PHONE ON FILE".
+  ⚠ **THE STRUCTURAL FAULT, WHICH IS WORTH MORE THAN THE ROOT CAUSE: the outcome is
+  unrecorded.** `saveDebrief` wraps the drafter in
+  `try { report.invoiceDraft = … } catch (err) { report.invoiceDraft = 'failed: ' + err }`
+  and `report` is returned to the caller and then discarded. Every early return inside
+  `mqDraftInvoice_` — `'no invoice id'`, `'already drafted … not duplicated'`, `'Message
+  Queue has no Event ID column'` — likewise returns a STRING nobody stores. **So an
+  invoice that silently failed to draft is indistinguishable from one that drafted
+  fine, after the fact.** That is why the root cause cannot be recovered from the three
+  known cases, and why the fix should make it detectable regardless of cause — the same
+  shape as Item 51's zero-billable failsafe email.
+  RANKED CANDIDATES (none confirmed, and say so): (1) the `'already drafted'`
+  idempotency guard firing because the invoice was an APPEND target that a previous
+  visit had already drafted for — the exact consequence flagged when consolidation was
+  introduced; (2) a swallowed exception; (3) a row deleted from the tab afterwards.
+- **⚠ ITEM 58 — SMART PRODUCT SUGGESTIONS: THE TWO HALVES ARE NOT THE SAME SIZE
+  (CC-70, 8/14 — investigation only, nothing built).**
+  **NON-LIVING PRODUCTS — mostly ALREADY BUILT, needs extending not inventing.** Two
+  mechanisms exist: `matchProduct` (receipts side — Claude matches a receipt line
+  against Product Master, returns `{productKey|null, canonicalName, isNew}`, SUGGESTION
+  ONLY) confirmed by `assignProductKey` (creates the Product Master entry, upserts
+  Vendor Prices, recomputes tiered-MAX, pushes to QBO, logs the change); and
+  `matchItemVoice` (debrief side, CC-54 — deterministic word-overlap prefilter, then
+  the model ranks, READ ONLY). **The gap is narrow: `matchItemVoice` only RANKS
+  EXISTING catalog entries and has no "isNew → propose a canonical name" branch, which
+  `matchProduct` already has.** Extending it needs NO external API.
+  🚫 **LIVING THINGS — NO VIABLE FREE SOURCE FOUND. Tested live against GBIF, not
+  assumed.** GBIF is free and needs no key, but:
+  · `/species/match` does NOT resolve common names — "Japanese maple", "quail" and
+    "snail" all return `matchType: NONE`. Brandon's own two examples both fail.
+  · Cultivar epithets BREAK the match rather than being ignored: "Acer palmatum
+    Sango-kaku" degrades to the GENUS `Acer`; "Salvia Hot Lips" to genus `Salvia`.
+    The `'Variety'` part of the requested format is governed by the ICNCP and is not in
+    GBIF's backbone at all.
+  · ⚠ AND `/species/search` FAILS DANGEROUSLY RATHER THAN EMPTILY: "Japanese maple"
+    returns **Lopholeucaspis japonica — Japanese maple SCALE, an insect**; "snail"
+    returns a **virus**; "quail" returns genera named after an author called Quail.
+    Even the good case ("California quail") returns SYNONYMS (`Tetrao californicus`)
+    rather than the accepted `Callipepla californica`.
+  **A confidently wrong scientific name printed on a client invoice is worse than no
+  suggestion.** Any future attempt here must be judged on its false-positive behaviour,
+  not on whether it returns something.
+  RETAILER LOOKUP: Lowe's does operate a developer portal (Azure API Management) but it
+  is PARTNER-GATED, not open signup; the openly available options are paid third-party
+  scrapers. So real-time retailer lookup is a commercial integration, not a casual API
+  call — confirm current access terms before scoping it as work.
 - **INVOICE IDEMPOTENCY LIVES IN THE SHEET, NOT IN QBO (8/4).** saveDebrief used
   to invoice on EVERY call, and qboDebriefInvoice_ blind-concats onto today's (or
   a future) invoice — so debriefing one visit twice appended the same labour and

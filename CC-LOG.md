@@ -14,6 +14,87 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-70 — 2026-08-14
+
+**Sent:** Item 54 — the probe's own verdict contradicts its own data (8 invoices with
+identical flags and no link); investigate the 22786 anomaly, async population, and any
+other differing field. Findings only. Item 57 NEW — Michael Smith's invoice 22772 created
+but no draft message; findings first. Item 58 NEW — smart product suggestions for new
+billable items; investigation only, build nothing.
+
+**Response to CC-70:** **FINDINGS ONLY — no code written, nothing deployed.** LIVE stays
+v7.4.123 @301. Chew Family's renumber confirmed (22771 → DocNumber 2710).
+
+- **🚫 ITEM 54 — BRANDON IS RIGHT AND THE PROBE'S VERDICT IS WITHDRAWN. THE FAULT IS A
+  LOGIC ERROR IN MY OWN TOOL.** Its Q3 tested *"does any invoice exist with card=false
+  and a link?"* and printed *"ACH ALONE IS SUFFICIENT — THIS IS THE FIX."* **An existence
+  test cannot establish sufficiency.** That is the SAME error as CC-68's sampling gap,
+  committed a second time inside the very probe written to prevent it. The lesson now in
+  CLAUDE.md: **a probe that states a verdict must state what would FALSIFY it** — this
+  one only ever looked for confirming instances.
+- **THE DATA SETTLES ONE THING CLEANLY: configuration is not the cause.** Eight invoices
+  with `card=false, ach=true, AllowOnlinePayment=true` and no link, against invoices with
+  identical flags that have one. Identical inputs, different outcomes.
+- **LEADING HYPOTHESIS: `InvoiceLink` is a SHARING TOKEN minted by an EVENT** (an email
+  send, or "share link" in the QBO UI), not by configuration. Fits everything: old
+  invoices have links, fresh ones do not, flags are irrelevant.
+- **⚠ AND IT DISSOLVES CC-68's "SEND IS RULED OUT".** Invoice 2159 having a link with
+  `EmailStatus: NotSet` rules sending out as NECESSARY, not as SUFFICIENT — share-by-link
+  does not set EmailStatus. **Necessary and sufficient were conflated.** Same error
+  family, third time in this cluster; now flagged in CLAUDE.md as a thing to watch for.
+- **BEST EVIDENCE THE LINK APPEARS OVER TIME: `INV-22287-T` has NO link and `INV-22287-E`
+  HAS one — the same invoice, two drafts.** Both channels are built from one `inv` object
+  in a single call, so equal link state is guaranteed *within* a call; differing state
+  means they were drafted at different moments and the link materialised between.
+  Confound stated rather than hidden: the office can edit a draft via `queueAction`
+  `do:'save'`, so a hand-edit is not excluded.
+- **⚠ THE 22786 "ANOMALY" IS PROBABLY MY OWN WORDING, NOT A STATE CHANGE.** CC-69 said
+  22786 "is not the one carrying the link" — that was about which invoice the DRAFT's
+  link pointed at (22287), not a reading of 22786's `InvoiceLink` field, which was never
+  measured. **No before/after pair exists, so no change is established.** Reported as
+  unmeasured rather than reasoned about as if it were data.
+- **✅ AND THE HYPOTHESIS, IF TRUE, MEETS BRANDON'S CONSTRAINT EXACTLY** — sharing an
+  invoice has nothing to do with accepting cards. Safe decisive test proposed: use "share
+  link" in the QBO UI on one linkless invoice, then re-read. No send, no client contact,
+  no flag change.
+- **⚠ ITEM 57 — NOT CLIENT-SPECIFIC. THREE invoices have no queue row in ANY status:
+  22771 (Chew), 22772 (Michael Smith), 22786 (Mada).** Absence is real, not cleanup —
+  `queueRows_` returns Sent and Skipped rows too, and 13 invoice rows across all statuses
+  came back. Michael Smith is fully configured with a phone, so a missing contact is not
+  it (and that path writes the row anyway, reporting "NO PHONE ON FILE").
+- **THE STRUCTURAL FAULT MATTERS MORE THAN THE ROOT CAUSE, WHICH IS NO LONGER
+  RECOVERABLE.** Every early return in `mqDraftInvoice_` returns a STRING into
+  `report.invoiceDraft`, and `report` is returned to the caller and discarded — as is a
+  swallowed exception. **A silently undrafted invoice is indistinguishable from a
+  drafted one after the fact.** Proposed fix is therefore detection regardless of cause,
+  in the shape of Item 51's zero-billable failsafe, not a speculative patch.
+- **⚠ ITEM 58 — THE TWO HALVES ARE NOT THE SAME SIZE, and the gap is the finding.**
+  NON-LIVING is mostly BUILT: `matchProduct` + `assignProductKey` (receipts) and
+  `matchItemVoice` (debrief, CC-54) already do AI-suggests → human-confirms → system
+  writes. The only gap is that `matchItemVoice` ranks EXISTING catalog entries and has no
+  "isNew → propose a canonical name" branch, which `matchProduct` already has. **No
+  external API needed.**
+- **🚫 LIVING THINGS — NO VIABLE FREE SOURCE, TESTED LIVE AGAINST GBIF RATHER THAN
+  ASSUMED.** `/species/match` returns `NONE` for "Japanese maple", "quail" and "snail" —
+  both of Brandon's own examples fail. Cultivars BREAK the match ("Acer palmatum
+  Sango-kaku" → genus `Acer`), and the `'Variety'` part of his requested format is ICNCP
+  territory, absent from GBIF's backbone entirely.
+- **AND IT FAILS DANGEROUSLY, NOT EMPTILY: `/species/search` returns "Japanese maple" →
+  *Lopholeucaspis japonica*, the Japanese maple SCALE INSECT; "snail" → a VIRUS; "quail"
+  → genera named after an author called Quail.** Even "California quail" returns
+  synonyms rather than the accepted name. **A confidently wrong scientific name on a
+  client invoice is worse than no suggestion at all** — that is the criterion any future
+  attempt must be judged against.
+- **Lowe's:** a real developer portal exists but is PARTNER-GATED; the open options are
+  paid third-party scrapers. A commercial integration, not a casual API call.
+- **Item 58.4's self-updating database recorded in CLAUDE.md's FUTURE DIRECTION**, marked
+  speculative per Brandon's own framing, with a pointer to why one half is small and the
+  other is not.
+- **Pending:** Item 54 (share-link test), Item 57 (approve the failsafe), Item 58 (choose
+  a scope), Item 50 (Tool Candidate Audit).
+
+---
+
 ## CC-69 — 2026-08-14
 
 **Sent:** Deploy Item 56 step 3 on its own, splitting it out of v7.4.123 if Item 54 needs
