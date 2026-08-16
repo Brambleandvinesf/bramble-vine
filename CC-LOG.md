@@ -14,6 +14,67 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-71 — 2026-08-14
+
+**Sent:** Confirm Alok's cleared Contact re-fills. Item 54 — investigate the PDF path
+FIRST (QBO now bakes a payment link into the PDF the automation already fetches), and
+determine whether a non-contacting share/link API op exists; STOP and report if the only
+route emails a real client. Item 59 NEW — invoice links not clickable in the queue's
+message preview. Item 57 — build the loud failsafe. Item 58 — build Option 1 only.
+
+**Response to CC-71:** **STAGED v7.4.125 on HEAD, NOT deployed** — Items 57 and 58 plus a
+read-only PDF probe. LIVE stays v7.4.123 @301. Item 54 **STOPPED at the guardrail and
+reported**, as instructed. Item 59 findings only.
+
+- **🚫 THE CONTACT REPAIR I RECOMMENDED IN CC-68 WAS WRONG, AND IT HAS ALREADY COST
+  SOMETHING.** I said "clear the Contact cell and `queueRows_` back-fills it". **The
+  backfill sits inside `if (pending)`** — `mqPending_` is true only for blank or
+  `Pending`. Alok & Vinitaa's row is **Sent**, so clearing it emptied it permanently:
+  the row now reads `contact=(EMPTY)`. Delivery is unaffected (the message had already
+  gone) but the record of where it went is destroyed. **I gave advice without checking
+  the status gate on the branch I was recommending.**
+  The value to type back is **`+15138855346`** — the single number it actually went to,
+  not the new fan-out list, because **a Sent row is a record, not a plan**.
+- **🚫 ITEM 54 PATH B — STOPPED AND REPORTING, PER THE GUARDRAIL. THERE IS NO
+  NON-CONTACTING LINK-GENERATION OPERATION IN THE API.** `include=invoiceLink` is a READ
+  and has never minted anything. `POST /invoice/{id}/send` EMAILS THE CLIENT.
+- **⚠ AND THE OBVIOUS WORKAROUND IS WORSE THAN IT LOOKS: `?sendTo=<addr>` does not just
+  redirect one email — it OVERWRITES `BillEmail.Address` ON THE INVOICE** and sets
+  `EmailStatus: EmailSent`. So "send it to ourselves" would corrupt a client's billing
+  email and make a never-delivered invoice look delivered. Not done.
+  ✅ Clean alternative offered instead: a throwaway invoice on a throwaway customer,
+  sent to info@, link read, invoice deleted — no real record touched. Needs a yes.
+- **ITEM 54 PATH A — `qboInvoicePdfProbe()` staged, editor-only, read-only.** Scans the
+  PDF the automation ALREADY fetches for embedded URLs and prints them beside that same
+  invoice's `invoiceLink`. Reads the response as **ISO-8859-1** so PDF bytes survive
+  1:1 — reading a PDF as UTF-8 mangles the very strings being searched for. **Reports
+  its own limit: "found" is conclusive, "not found" is only suggestive**, because a URI
+  inside a compressed object stream would be invisible to a byte scan.
+- **✅ ITEM 59 ROOT CAUSE CONFIRMED — it is a plain `<textarea>`** (visits.tsx:672)
+  holding the draft. A textarea renders text and only text; **no URL inside one can ever
+  be tappable, by definition** — this is not a styling bug and no CSS or library fixes
+  it. Fix must add a rendered surface alongside the editable one. Proposed, not built.
+- **✅ ITEM 57 BUILT — detection by ROW EXISTENCE, not by parsing the return string.**
+  Prose parsing would miss a swallowed exception and break on any wording change.
+  **`mqHasInvoiceRow_` FAILS CLOSED — deliberately the opposite of
+  `debriefAlreadyInvoiced_`'s fail-open.** A missed invoice is lost revenue, so that one
+  fails open; a false alarm on every debrief would train the office to ignore the one
+  real alert, so this one fails closed. Different failure costs, opposite defaults.
+- **⚠ AND ITS KNOWN GAP IS STATED IN THE CODE RATHER THAN DISCOVERED LATER:** the
+  `'already drafted'` case will NOT fire it, because a row does exist — the earlier
+  visit's. Right by this check's definition, not the same as "the client was told about
+  the appended lines". Flagged as a separate decision.
+- **✅ ITEM 58 BUILT — and the safety hinges on one distinction: "no match" and "the call
+  failed" are NOT the same empty.** `aiSaidNoMatch` requires HTTP 200 **and**
+  `aiReturned === 0` **and** no parse error. A non-200, a parse failure, or names failing
+  the verbatim check still fall back to word matches — **proposing a shiny new product
+  name because the API was down would invent catalog entries out of an outage.**
+  Suggestion only; writes nothing, creates no QBO item.
+- **Pending:** Item 54 (run the PDF probe; decide on the throwaway-invoice test),
+  Item 59 (choose a fix), Items 57/58 (approve the diffs), Item 50.
+
+---
+
 ## CC-70 — 2026-08-14
 
 **Sent:** Item 54 — the probe's own verdict contradicts its own data (8 invoices with

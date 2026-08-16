@@ -1943,6 +1943,21 @@ the minutes from arrival to assignment were simply lost.
   the "links exist, cards never accepted" path, and it is why this is worth settling.
   SAFE DECISIVE TEST (no send, no client contact, no flag change): open a linkless
   invoice in the QBO UI, use "share link", then re-read `include=invoiceLink`.
+  🚫 **AND THE API CANNOT DO THAT (CC-71, 8/14). THERE IS NO NON-CONTACTING
+  LINK-GENERATION OPERATION.** What exists:
+  · `GET …?include=invoiceLink` — a READ. It returns a link that already exists and has
+    never minted one; our create path has called it every time and got nothing.
+  · `POST /invoice/{id}/send` — **EMAILS THE CLIENT** at their `BillEmail`.
+  · `POST /invoice/{id}/send?sendTo=<addr>` — emails that address instead **AND
+    OVERWRITES `BillEmail.Address` ON THE INVOICE**. So the "send it to ourselves"
+    trick is NOT harmless: it corrupts the client's billing email on that record and
+    marks `EmailStatus: EmailSent`, making a never-delivered invoice look delivered.
+  So the QBO UI's "share link" has no API equivalent. **Any API-side test of the
+  event hypothesis emails somebody or damages a record** — which is why CC-71 stopped
+  and reported instead of proceeding under "do whatever it takes".
+  ✅ THE CLEAN TEST, if one is wanted: a THROWAWAY invoice on a throwaway customer —
+  create, `/send?sendTo=info@…` (BillEmail overwrite is harmless on a throwaway), read
+  the link, delete. No real client record is touched at any point.
 - 🚫 **ITEM 54 — THE CARD-PAYMENT FIX WAS PROPOSED, REJECTED, AND SPLIT BACK OUT. DO NOT
   RE-ADD IT (CC-69, 8/14).** **Brandon will not enable credit card acceptance on
   automated invoices. That constraint is FIRM and is not a preference to re-litigate**
@@ -2038,8 +2053,29 @@ the minutes from arrival to assignment were simply lost.
   send — beside every link and states which hypothesis the data supports. If
   link-present tracks sending rather than the payload, the fix is to send through QBO,
   NOT to add online-payment flags to the create.
+- ✅ **ITEM 57 FIX BUILT — `mqHasInvoiceRow_` + a loud email (CC-71, 8/14; STAGED
+  v7.4.125, not deployed at time of writing).** An invoice that is created or appended
+  and leaves NO Message Queue row now emails info@ with the client, invoice id, invoice
+  number, visit date and the drafter's own return string.
+  **DETECTION IS BY ROW EXISTENCE, NOT BY PARSING THE RETURN STRING.** The string is
+  reported because it is the best clue available, but it is not the test — prose parsing
+  would miss a swallowed exception entirely and would break the first time the wording
+  changed. Asking the sheet "is there a row for this invoice" answers the question the
+  office actually has.
+  ⚠ **`mqHasInvoiceRow_` FAILS CLOSED, THE OPPOSITE OF `debriefAlreadyInvoiced_`, ON
+  PURPOSE.** An unreadable sheet returns TRUE (assume a row exists) so a read error
+  cannot email info@ on every debrief. The invoice ledger fails OPEN because a missed
+  invoice is lost revenue; this fails CLOSED because a false alarm every time would
+  train the office to ignore the one real alert. **Different failure costs, opposite
+  defaults — do not "make them consistent".**
+  It matches on the `INV-<id>-` PREFIX, since one invoice legitimately has several rows
+  (`-T`, `-E`, and `-R<n>` reminder suffixes).
+  ⚠ KNOWN GAP, ACCEPTED: the `'already drafted … not duplicated'` case does NOT fire it,
+  because a row DOES exist — the earlier visit's. Correct by this check's definition,
+  but NOT the same as "the client has been told about the lines just appended". Second-
+  visit appends needing their own notice is a separate decision, not smuggled in here.
 - **⚠ ITEM 57 — AN INVOICE CAN BE CREATED WITH NO MESSAGE EVER DRAFTED, AND NOTHING
-  ANYWHERE RECORDS IT (CC-70, 8/14 — findings only, no fix built).** Reported for
+  ANYWHERE RECORDS IT (CC-70, 8/14 — the investigation that led to the fix above).** Reported for
   Michael Smith (invoice 22772); confirmed live, and **it is NOT client-specific —
   THREE invoices exist with no queue row of any status: 22771 (Chew Family), 22772
   (Michael Smith), 22786 (Mada).**
@@ -2062,8 +2098,27 @@ the minutes from arrival to assignment were simply lost.
   idempotency guard firing because the invoice was an APPEND target that a previous
   visit had already drafted for — the exact consequence flagged when consolidation was
   introduced; (2) a swallowed exception; (3) a row deleted from the tab afterwards.
+- ✅ **ITEM 58 OPTION 1 BUILT — `matchItemVoice` GAINS AN isNew BRANCH (CC-71, 8/14;
+  STAGED v7.4.125).** When the model says none of the catalog candidates fit, the action
+  now proposes ONE clean canonical name (`result.isNew`, `result.suggestedName`,
+  `result.suggestedWhy`) instead of overwriting that answer with word-matches. Mirrors
+  `matchProduct`'s new-item behaviour. **SUGGESTION ONLY — writes nothing, creates no
+  QBO item, touches no catalog**, and the existing `fromCatalog` signal already records
+  that the result was typed rather than picked.
+  ⚠ **THE DISTINCTION THAT MAKES IT SAFE, and the thing to preserve in any edit:
+  "no match" and "the call failed" are NOT the same empty.** `aiSaidNoMatch` requires
+  HTTP 200 **and** `aiReturned === 0` **and** no parse error. A non-200, a parse
+  failure, or names that all failed the verbatim check still fall back to word matches —
+  because proposing a shiny new name because the API was down would invent catalog
+  entries out of an outage. Collapsing these two back into one `if (!matches.length)` is
+  the regression to watch for.
+  No suggestion available is not a failure either: the crew types the name, exactly as
+  today, and the note says "not in the catalog — type the name".
+  🚫 NOT BUILT, per Brandon: plant-taxonomy formatting (Option 2) and any external
+  retailer/taxonomy integration (Options 3/4). See the GBIF findings below before
+  anyone revisits them.
 - **⚠ ITEM 58 — SMART PRODUCT SUGGESTIONS: THE TWO HALVES ARE NOT THE SAME SIZE
-  (CC-70, 8/14 — investigation only, nothing built).**
+  (CC-70, 8/14 — the investigation behind the build above).**
   **NON-LIVING PRODUCTS — mostly ALREADY BUILT, needs extending not inventing.** Two
   mechanisms exist: `matchProduct` (receipts side — Claude matches a receipt line
   against Product Master, returns `{productKey|null, canonicalName, isNew}`, SUGGESTION
@@ -2254,6 +2309,15 @@ the minutes from arrival to assignment were simply lost.
   Client Info when the cell is BLANK. So to repair an existing pending row, clear its
   Contact cell and let `queueRows_` back-fill it; `lookupContact_` returns every number,
   so it comes back complete.
+  🚫 **⚠ CORRECTION (CC-71, 8/14): THAT REPAIR ONLY WORKS ON A *PENDING* ROW, AND THE
+  ADVICE ABOVE OMITTED THE CONDITION.** The whole backfill sits inside
+  `if (pending)` — `mqPending_` is true only for a blank or `Pending` status. **Clearing
+  the Contact on a Sent or Skipped row empties it permanently**, because nothing
+  re-resolves it. That happened live: Alok & Vinitaa's row was **Sent**, its Contact was
+  cleared on this advice, and it now reads empty. Harmless to delivery (the message had
+  already gone) but it destroys the record of WHERE it went.
+  **A Sent row is a RECORD, not a plan** — repair it by typing the number that was
+  actually used back in, not the new fan-out list. Alok & Vinitaa's was `+15138855346`.
   Two properties worth keeping straight: the ledger is written ONLY after QBO
   confirms, so the failure direction is "might re-invoice", never "silently
   skipped an invoice"; and debriefAlreadyInvoiced_ FAILS OPEN on a read error for
