@@ -122,6 +122,48 @@ type CardState = {
   flash: { msg: string; err: boolean } | null;
 };
 
+function MessagePreview({ text }: { text: string }) {
+  if (!text) return null;
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div
+        style={{ color: MUTED, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}
+      >
+        PREVIEW
+      </div>
+      <div
+        style={{
+          ...INPUT,
+          color: MUTED,
+          fontSize: 13,
+          lineHeight: 1.5,
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+          cursor: "default",
+        }}
+      >
+        {parts.map((part, i) => {
+          if (/^https?:\/\/[^\s]+$/.test(part)) {
+            return (
+              <a
+                key={i}
+                href={part}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: LIME, textDecoration: "underline" }}
+              >
+                {part}
+              </a>
+            );
+          }
+          return <span key={i}>{part}</span>;
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* CC-45 Item 47 — ONE component, two screens.
    `only` selects which Kind this instance shows. /invoices renders the exact same
    card, controls and send path as /visits — the whole point of splitting was the
