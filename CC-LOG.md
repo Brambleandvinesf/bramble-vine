@@ -14,6 +14,61 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-73 — 2026-08-14
+
+**Sent:** Deploy v7.4.126. Build the skipped-line exception email (Option 1, approved).
+Item 60 — two new questions: can MacroDroid force-open the scanner on the same event, and
+is anything wired to the Wallet vendor shortcut. Item 60c — card platform confirmed as
+Amex business; record Amex and Ramp in FUTURE DIRECTION with the uncertainty stated.
+
+**Response to CC-73:** **DEPLOYED @303 (v7.4.126)** — the routine "Invoice ready" email
+is off. The skipped-line notice is **STAGED v7.4.127 on HEAD, NOT deployed** (invoicing
+path, diff first). Item 60's two questions answered from code, not assumption.
+
+- **⚠ THE "STAGED" HEADER TRAP, THIRD TIME — AND IT IS NOW PART OF THE RITUAL.**
+  v7.4.126's first line still read "STAGED"; corrected to "DEPLOYED under CC-73" before
+  pushing. Recorded in CC-72 as a structural pattern rather than a slip: **any version
+  staged in one batch and deployed in another carries a stale first line by
+  construction.** Checking it is now a deploy step, not something to remember.
+- **THE SKIPPED-LINE EMAIL — and the property it has that matters most: it CANNOT
+  overlap Item 51, by CONTROL FLOW rather than by a condition.** The zero-billable path
+  returns long before the skipped check, so "nothing billed" and "something billed but a
+  line dropped" are mutually exclusive structurally. A shared flag would have rotted.
+- **⚠ AND IT IS DELIBERATELY *NOT* GATED ON `INVOICE_EMAIL`.** That property switches
+  off ROUTINE traffic; this notice exists precisely BECAUSE the routine mail went away.
+  Gating it on the same switch would silently re-open the gap it was written to close —
+  worth stating because it looks like an inconsistency until you know why.
+- **✅ ITEM 60.2 — THE WALLET VENDOR SHORTCUT IS FULLY INERT. Verified on BOTH sides,
+  not inferred from one.** `src/lib/wallet.ts` only ever LAUNCHES Wallet outbound (an
+  Android intent URL with Play Store / web fallbacks) — a nudge, not a listener. And the
+  backend has **no Wallet code at all**: `doPost`'s ONLY webhook entry point in the whole
+  file is `e.parameter.hook === 'quo'`. **There is no receipt or Wallet inbound endpoint
+  in existence.** So the shortcut going unused has cost nothing — it was never connected.
+- **✅ ITEM 60.1 — DEEP LINKS ALREADY WORK; THE MISSING PIECE IS THE DESTINATION.**
+  `appUrl_()` resolves `APP_URL` = `https://brambleandvinesf.lovable.app` (confirmed live
+  via `configAudit`), and the backend already builds `appUrl_() + '/messages'` and
+  `+ '/loading'`. MacroDroid can open any route by URL with nothing new to build.
+- **🚫 BUT THERE IS NO RECEIPT CAPTURE SCREEN TO OPEN.** `/receipts` is REVIEW only
+  (getReceipts → designate → addToInvoices); the only camera capture in the PWA is visit
+  photos in field.tsx; and `saveReceipt` — the kiosk PDF path — **is not called from this
+  frontend at all.** So "force-open the scanner" is blocked on a scan route existing.
+  **The launching is the easy half; the screen is the work.**
+- **🚫 AND THE PUSHOVER ALTERNATIVE IS NOT A LIGHTER OPTION — IT IS UNBUILT.** Apps
+  Script cannot push to a phone (same class of limit as "cannot sense a purchase"):
+  `ntfyPushRoles_` is called in 23 places and delivers nothing, Pushover is deactivated
+  with an empty token, and the `MACRODROID_*_URL` properties are still unset — the App
+  TODO row "Configure MacroDroid webhooks on all 3 phones" is still **open**. That
+  infrastructure would have to be stood up first.
+- **ITEM 60c recorded in FUTURE DIRECTION with the uncertainty stated**, including that
+  Amex eligibility **cannot be resolved from documentation** and is Brandon's inquiry to
+  make, and that Ramp would mean changing card platform — a business decision far larger
+  than a receipt trigger.
+- **Carried forward, unchanged:** Item 54 path A (run `qboInvoicePdfProbe`), path B
+  (authorise the throwaway-invoice test), Item 59 (paste the Lovable prompt), Amex
+  inquiry, Item 50.
+
+---
+
 ## CC-72 — 2026-08-14
 
 **Sent:** Deploy v7.4.125. Turn off ONLY the routine "Invoice ready" email, leaving Items

@@ -143,6 +143,26 @@ single prompt/voice-driven interface that can act on the current screen directly
 collapsing today's multi-screen navigation. Recorded so it informs design
 instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
+FUTURE DIRECTION ONLY, NOT SCOPED WORK (CC-73, 8/14 — Item 60c): REAL-TIME PURCHASE
+DETECTION FROM THE CARD ITSELF, which would make the receipt pipeline trigger-free on
+the phone entirely. Brandon confirmed the card platform: **a dedicated AMEX BUSINESS
+account, multiple cards across staff.** Two candidate paths, NEITHER confirmed buildable:
+  (a) **Amex's own developer platform** (developer.americanexpress.com) publishes an
+      "Account and Transaction API" and "American Express @ Work" corporate-card APIs.
+      ⚠ Accessibility for a business B&V's size is UNCONFIRMED and reads as
+      enterprise/partner-gated from outside. **This cannot be resolved from
+      documentation — it needs a direct inquiry to Amex business services.** Brandon's
+      action, not a build task. Do NOT scope work against this on the assumption access
+      exists.
+  (b) **Ramp** — already noted in project history as a spend-control candidate —
+      publishes clear, self-serve webhook documentation for real-time transaction
+      notifications, explicitly aimed at this kind of automation. The realistic fallback
+      if Amex proves inaccessible, but it means changing card platform, which is a
+      business decision well beyond a receipt trigger.
+**Do NOT build against either without a dedicated ask.** Note how this relates to the
+constraint below: a card webhook is the only candidate that removes the phone from the
+loop, because Apps Script can neither sense a purchase nor push to a device.
+
 FUTURE DIRECTION ONLY, NOT SCOPED WORK (CC-70, 8/14 — Item 58.4): a SELF-UPDATING
 REFERENCE DATABASE for product and species naming — pulling from external sources
 where they exist, and accumulating its own knowledge from receipt data over time.
@@ -2053,7 +2073,26 @@ the minutes from arrival to assignment were simply lost.
   send — beside every link and states which hypothesis the data supports. If
   link-present tracks sending rather than the payload, the fix is to send through QBO,
   NOT to add online-payment flags to the create.
-- 🚫 **THE ROUTINE "Invoice ready" EMAIL IS OFF (CC-72, 8/14; STAGED v7.4.126).** It
+- ✅ **THREE NARROW INVOICE ALERTS, THREE DISJOINT CONDITIONS — AND THAT SEPARATION IS
+  THE DESIGN, NOT AN ACCIDENT (CC-73, 8/14).** After the routine email went off, the
+  only mail this path sends is exception mail:
+  · **Item 51 — "Debrief billed NOTHING"**: no billable lines at all. Returns before an
+    invoice exists.
+  · **Item 57 — "Invoice created but NO MESSAGE DRAFTED"**: an invoice exists, no
+    Message Queue row does.
+  · **Item 60/CC-73 — "Invoice SHORT a line"** (STAGED v7.4.127): an invoice exists and
+    billed, but `skipped.length > 0`.
+  ⚠ **Items 51 and CC-73's are mutually exclusive BY CONTROL FLOW, not by a condition
+  someone has to keep in sync** — the zero-billable branch returns long before the
+  skipped check. Keep it that way; a shared flag would rot.
+  ⚠ **THE SKIPPED-LINE NOTICE IS DELIBERATELY *NOT* GATED ON `INVOICE_EMAIL`.** That
+  property switches off ROUTINE traffic; this exists precisely BECAUSE the routine mail
+  went away. Gating it on the same switch would re-open the gap it was written to close.
+  WHY IT MATTERS MORE THAN IT SOUNDS: an item with no price on its QBO item, or a name
+  QBO does not have, is deliberately not added (never post $0). So the visit bills
+  MOSTLY correctly and one line vanishes — the invoice looks finished and is short, and
+  a real client is under-charged with nobody told.
+- 🚫 **THE ROUTINE "Invoice ready" EMAIL IS OFF (CC-72, 8/14; LIVE @303 as of CC-73).** It
   fired on every successful debrief with the PDF attached. Gated on Script Property
   **`INVOICE_EMAIL`, which DEFAULTS TO OFF** — no property has to exist for it to stay
   off, and setting it to `on` restores the old behaviour **with no deploy**. Gate rather
@@ -2115,6 +2154,32 @@ the minutes from arrival to assignment were simply lost.
   idempotency guard firing because the invoice was an APPEND target that a previous
   visit had already drafted for — the exact consequence flagged when consolidation was
   introduced; (2) a swallowed exception; (3) a row deleted from the tab afterwards.
+- **⚠ ITEM 60 — TWO MORE THINGS CHECKED RATHER THAN ASSUMED (CC-73, 8/14).**
+  ✅ **THE GOOGLE WALLET VENDOR SHORTCUT IS FULLY INERT. NOTHING IS WIRED TO IT.**
+  Verified on both sides: `src/lib/wallet.ts` only ever LAUNCHES Wallet outbound
+  (`openGoogleWallet()`, an Android intent URL, with a Play Store / web fallback) — it
+  is a nudge on the vendor stop, not a listener. And the backend has **no Wallet code
+  at all**; `doPost`'s ONLY webhook entry point in the entire file is
+  `e.parameter.hook === 'quo'`. **There is no receipt or Wallet inbound endpoint to
+  trigger.** So the shortcut being "never used" costs nothing today — it was never
+  connected to anything.
+  ✅ **DEEP LINKS INTO THE PWA ALREADY WORK, and the pattern is established.**
+  `appUrl_()` resolves `APP_URL` = `https://brambleandvinesf.lovable.app` (confirmed
+  live via `configAudit`), and the backend already builds `appUrl_() + '/messages'` and
+  `+ '/loading'`. So MacroDroid can open any route by URL with nothing new to build.
+  🚫 **BUT THERE IS NO RECEIPT CAPTURE SCREEN TO OPEN.** `/receipts` is a REVIEW screen
+  (getReceipts → designate → addToInvoices). The only camera capture in the PWA is for
+  VISIT PHOTOS in field.tsx (`accept="image/*" capture="environment"`), and
+  `saveReceipt` — the kiosk PDF path — **is not called from this frontend at all.**
+  So "force-open the scanner" needs a scan route to exist first; that is the work, not
+  the launching.
+  🚫 **AND APPS SCRIPT CANNOT PUSH ANYTHING TO A PHONE — the same class of limit as
+  "cannot sense a purchase".** It has no client-side presence. The push helpers exist
+  and deliver nothing: `ntfyPushRoles_` is called in 23 places, Pushover is deactivated
+  with an empty token, and the `MACRODROID_*_URL` properties are still unset — the App
+  TODO row "Configure MacroDroid webhooks on all 3 phones" is still **open**. **So the
+  "Pushover notification with a deep link" alternative is not a lighter option today;
+  it is unbuilt infrastructure that would have to be stood up first.**
 - **⚠ ITEM 60 — THE RECEIPT PIPELINE: WHAT IS ACTUALLY IN PLACE (CC-72, 8/14 —
   investigation only, nothing built).** Brandon's description is broadly right but the
   pieces connect differently, and one constraint is structural:
