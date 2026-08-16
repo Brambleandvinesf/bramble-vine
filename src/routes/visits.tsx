@@ -604,6 +604,7 @@ export function VisitsPage({
               style={{ ...INPUT, marginTop: 8, resize: "vertical" }}
               placeholder="Message text…"
             />
+            <MessagePreview text={addText} />
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button style={SOLID_BTN} onClick={onAdd} disabled={addBusy}>
                 {addBusy ? "ADDING…" : "ADD TO QUEUE"}
