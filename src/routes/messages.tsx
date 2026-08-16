@@ -3112,12 +3112,12 @@ function FeedCard({
             paddingRight: 56,
           }}
         >
-          {isInternal && (
-            <div style={{ width: "100%", fontSize: ".75rem", letterSpacing: 1.5, color: T.dim, marginBottom: 2 }}>
-              {role}
-            </div>
+          {isInternal ? (
+            <span style={{ fontWeight: "bold" }}>{role}</span>
+          ) : (
+            <span style={{ fontWeight: "bold" }}>{it.from}</span>
           )}
-          <span style={{ fontWeight: "bold" }}>{it.from}</span>
+
           {it.hasMedia && (
             <span
               title="Has attachment"
