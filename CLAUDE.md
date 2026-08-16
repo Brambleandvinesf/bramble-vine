@@ -154,11 +154,12 @@ account, multiple cards across staff.** Two candidate paths, NEITHER confirmed b
       documentation — it needs a direct inquiry to Amex business services.** Brandon's
       action, not a build task. Do NOT scope work against this on the assumption access
       exists.
-  (b) **Ramp** — already noted in project history as a spend-control candidate —
-      publishes clear, self-serve webhook documentation for real-time transaction
-      notifications, explicitly aimed at this kind of automation. The realistic fallback
-      if Amex proves inaccessible, but it means changing card platform, which is a
-      business decision well beyond a receipt trigger.
+  (b) **Ramp** — ⚠ **STRICTLY A FALLBACK, NOT A CO-EQUAL OPTION (CC-74, Brandon's
+      explicit framing).** It publishes clear self-serve webhook documentation for
+      real-time transaction notifications, but it means changing card platform — a
+      business decision far beyond a receipt trigger. **Investigate Amex FIRST and
+      completely; reach for Ramp only if Amex's access is ruled out.** Do not present
+      these two side by side as a choice.
 **Do NOT build against either without a dedicated ask.** Note how this relates to the
 constraint below: a card webhook is the only candidate that removes the phone from the
 loop, because Apps Script can neither sense a purchase nor push to a device.
@@ -431,6 +432,13 @@ in the Item 58 note below) and is the part that would make this a large project.
   driveway warning — because the only place they lived was a description
   nothing rendered.
 - Only crew vehicle is a black Prius (no truck references).
+- **THE "OPEN GOOGLE WALLET" BUTTON IS A CONVENIENCE, NOT A REQUIRED STEP (CC-74,
+  8/14, Brandon confirmed).** Tap-to-pay does NOT need it: with NFC on and Google
+  Wallet set as the default payment app, standard Android behaviour handles the tap
+  with the phone locked or on any screen. The button on the vendor stop is a nudge —
+  it saves a moment of hunting, nothing more. **Do not treat it as load-bearing**, and
+  do not build a purchase flow that assumes it was pressed. See also `src/lib/wallet.ts`
+  (outbound intent only) and CC-73's finding that nothing anywhere listens for it.
 - Script Properties hold all config; edits are live, no redeploy needed.
 - PUBLISH after every Lovable change that's confirmed working.
 
@@ -2154,6 +2162,48 @@ the minutes from arrival to assignment were simply lost.
   idempotency guard firing because the invoice was an APPEND target that a previous
   visit had already drafted for — the exact consequence flagged when consolidation was
   introduced; (2) a swallowed exception; (3) a row deleted from the tab afterwards.
+- 🚫 **MACRODROID IS PHASED OUT AS A DIRECTION, NOT KEPT AS A WORKAROUND (CC-74, 8/14 —
+  Brandon's decision, and it governs how this project moves generally).** Do not
+  propose MacroDroid for detection OR for opening a screen. The open App TODO row
+  "Configure MacroDroid webhooks on all 3 phones" is therefore **obsolete**, not
+  pending. Its replacement is: **card-platform webhook for detection, Web Push for
+  routing.**
+  ⚠ **SEQUENCING IS NOT SYMMETRIC — AMEX FIRST, RAMP ONLY IF AMEX FAILS.** Amex is the
+  card already in use: no new vendor, no new account, no migration. **Ramp is NOT a
+  co-equal option** and must not be scoped or recommended as one — it is strictly
+  "what we would consider if Amex's access does not work out". Brandon's outreach to
+  Amex business services is the gate, and it **cannot be resolved from documentation**.
+- **⚠ ITEM 61 — WEB PUSH: WHAT EXISTS, AND THE TWO HARD CONSTRAINTS (CC-74, 8/14 —
+  findings only, nothing built).**
+  ✅ THE SERVICE WORKER EXISTS: `public/sw.js`, v4-2026-08-12. It has `install`,
+  `activate`, `message` and a **deliberately empty** `fetch` handler — read its CC-13
+  comment before touching that file; the empty fetch handler IS the fix for the Angel
+  freeze bug and must not gain a `respondWith`.
+  🚫 IT HAS **NO `push` HANDLER AND NO `notificationclick` HANDLER.** Both would be new,
+  along with frontend subscription registration, a backend place to store
+  subscriptions, and a sender.
+  🚫🚫 **APPS SCRIPT CANNOT SEND WEB PUSH. THIS IS A HARD BLOCK, NOT A DIFFICULTY.**
+  VAPID requires a JWT signed with **ES256 (ECDSA, P-256)**. Apps Script's `Utilities`
+  offers `computeRsaSha256Signature` (RSA) and HMAC — **there is no ECDSA primitive at
+  all.** And the payload additionally requires **ECDH P-256 key agreement + AES128GCM**,
+  which is likewise unavailable. **So a relay is mandatory**, and this is the same
+  family of limit as "cannot sense a purchase" and "cannot push to a phone": Apps
+  Script is a server-side scripting host, not a crypto or client platform.
+  Relay candidates: a **Supabase Edge Function** — ⚠ note Supabase is ALREADY
+  provisioned and wired into this app (`src/integrations/supabase/`, `supabase/`
+  migrations), so this adds no vendor; or **FCM HTTP v1**, which Apps Script *can*
+  authenticate to because service-account JWTs use **RS256**, which it does support —
+  but that needs the Firebase SDK on the frontend.
+  🚫🚫 **AND THE TARGETING CONSTRAINT IS ARCHITECTURAL: THIS APP HAS NO PER-PERSON
+  IDENTITY.** `src/lib/auth.tsx` is "identity-only auth, no backend", a hardcoded FOUR
+  entry crew list in localStorage — and the whole assistant tier shares ONE address,
+  `thornsandtendrils@brambleandvinesf.com` ("Field Crew"). So a webhook naming
+  cardholder "Miguel" **cannot be mapped to an app login**, because Miguel and everyone
+  else on that tier are the same identity. This is the same limitation the AY note
+  records ("real per-user identity is a separate, larger project and is NOT in place").
+  ✅ THE WAY ROUND IT: **a push subscription is per-DEVICE, not per-identity.** Register
+  the subscription with an explicit one-time "whose phone is this" label and store
+  that, independent of login. Targeting then works without solving per-user auth.
 - **⚠ ITEM 60 — TWO MORE THINGS CHECKED RATHER THAN ASSUMED (CC-73, 8/14).**
   ✅ **THE GOOGLE WALLET VENDOR SHORTCUT IS FULLY INERT. NOTHING IS WIRED TO IT.**
   Verified on both sides: `src/lib/wallet.ts` only ever LAUNCHES Wallet outbound

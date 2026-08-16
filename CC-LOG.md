@@ -14,6 +14,61 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-74 — 2026-08-14
+
+**Sent:** Deploy v7.4.127. Record that the Google Wallet button is a convenience, not
+load-bearing. Item 60/61 SUPERSEDED — MacroDroid phased out as a direction; Amex
+investigated FIRST with Ramp strictly a fallback; investigate Web Push as MacroDroid's
+replacement for routing/opening. Findings only.
+
+**Response to CC-74:** **DEPLOYED @304 (v7.4.127)** — the skipped-line exception email is
+live. Item 61 is findings only; nothing built. Wallet note recorded.
+
+- **The "STAGED" header was corrected before deploying again** — fourth time, now a
+  standing deploy step rather than a recurring surprise.
+- **🚫🚫 THE HEADLINE FINDING: APPS SCRIPT CANNOT SEND WEB PUSH. HARD BLOCK, NOT A
+  DIFFICULTY.** VAPID requires a JWT signed with **ES256 (ECDSA P-256)**. Apps Script's
+  `Utilities` has `computeRsaSha256Signature` (RSA) and HMAC — **no ECDSA primitive
+  exists at all.** The payload additionally needs **ECDH P-256 + AES128GCM**, also
+  unavailable. **A relay is mandatory**, and this is the same family as "cannot sense a
+  purchase" and "cannot push to a phone" — Apps Script is a server-side scripting host,
+  not a crypto or client platform.
+- **✅ AND THE RELAY DOES NOT NEED A NEW VENDOR: Supabase is ALREADY provisioned and
+  wired into this app** (`src/integrations/supabase/`, `supabase/` migrations). An Edge
+  Function there can hold the VAPID keys and do the signing and encryption. FCM is the
+  alternative and Apps Script *can* authenticate to it (service-account JWTs use RS256,
+  which it does support) — but that needs the Firebase SDK added to the frontend.
+- **🚫🚫 SECOND HARD CONSTRAINT, ARCHITECTURAL: THIS APP HAS NO PER-PERSON IDENTITY.**
+  `src/lib/auth.tsx` is "identity-only auth, no backend" — a hardcoded FOUR-entry crew
+  list in localStorage, and **the entire assistant tier shares ONE address**,
+  `thornsandtendrils@` ("Field Crew"). So a webhook naming cardholder "Miguel" **cannot
+  be mapped to an app login**, because Miguel and everyone else on that tier are the
+  same identity. Same limitation the AY note already records.
+- **✅ THE WAY ROUND IT, AND IT IS CLEAN: a push subscription is per-DEVICE, not
+  per-identity.** Register each subscription with an explicit one-time "whose phone is
+  this" label and store that. Targeting then works **without** solving per-user auth —
+  which would otherwise have made this a much larger project.
+- **✅ SERVICE WORKER CONFIRMED PRESENT** (`public/sw.js` v4-2026-08-12) with `install`,
+  `activate`, `message` and a **deliberately empty** `fetch`. **No `push` handler and no
+  `notificationclick` handler** — both new. ⚠ And its CC-13 comment must be respected:
+  the empty fetch handler IS the fix for the Angel freeze bug and must never regain a
+  `respondWith`.
+- **✅ (d) CONFIRMED: a tap is unavoidable.** No browser permits silent auto-launch from
+  a push — by design, not by omission. Reported as acceptable, and arguably better than
+  MacroDroid's auto-open: it prompts rather than hijacks the screen.
+- **⚠ AND THE DESTINATION STILL DOES NOT EXIST**, carried from CC-73: there is no
+  receipt capture screen in the PWA to open. That is unchanged by anything here and
+  remains the prerequisite for the whole routing leg.
+- **Sequencing honoured:** Amex framed as the sole first path, Ramp recorded as
+  fallback-only in CLAUDE.md rather than as an option beside it. The detection leg is
+  the ONLY part that waits on Amex; the SW handlers, subscription registry, relay and
+  scan screen can all proceed regardless — stated explicitly so the Amex answer does not
+  become a blocker on work that does not need it.
+- **Carried forward:** Item 54 path A (`qboInvoicePdfProbe`) and path B, Item 59 (paste
+  the Lovable prompt), the Amex inquiry, Item 50.
+
+---
+
 ## CC-73 — 2026-08-14
 
 **Sent:** Deploy v7.4.126. Build the skipped-line exception email (Option 1, approved).
