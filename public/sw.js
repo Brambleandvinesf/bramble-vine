@@ -1,7 +1,7 @@
 // Minimal service worker for PWA installability.
 // Auto-activates new versions immediately and claims all clients.
 // v4 - CC-13: stopped intercepting fetch. See the fetch handler at the bottom.
-const SW_VERSION = "v4-2026-08-12";
+const SW_VERSION = "v5-2026-08-16";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -70,4 +70,34 @@ self.addEventListener("message", (event) => {
 self.addEventListener("fetch", () => {
   /* Intentionally empty. Presence satisfies installability; the browser handles
      the request. See the note above before changing this. */
+});
+
+/* Web Push (added 8/16). These do NOT touch the fetch handler above. */
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch {}
+  event.waitUntil(
+    self.registration.showNotification(d.title || "Bramble & Vine", {
+      body: d.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { url: d.url || "/messages" },
+      tag: "bv-message",
+      renotify: true,
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/messages";
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const c of all) {
+        if ("focus" in c) { await c.focus(); if ("navigate" in c) { try { await c.navigate(url); } catch {} } return; }
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
 });
