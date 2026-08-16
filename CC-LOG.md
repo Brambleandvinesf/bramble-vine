@@ -14,6 +14,62 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-76 — 2026-08-14
+
+**Sent:** Can Claude self-deploy the Supabase Edge Function? Deploy v7.4.128. Item 62
+follow-up — a practical per-macro disable/verify checklist rather than forensics. Item 63
+NEW — sign-out freezes on brandon@; check for recurrence of the Items 20/21 service-worker
+freeze first.
+
+**Response to CC-76:** **DEPLOYED @305 (v7.4.128)** — the dead-transport bug fix and Web
+Push wiring are live and still inert (no `WEB_PUSH_URL`). Item 63 findings only, nothing
+built. Item 62 checklist supplied.
+
+- **SUPABASE: I CAN DO ALL OF IT EXCEPT ONE BROWSER STEP.** The CLI is not installed on
+  the Pi but `npx` is, and `supabase functions deploy` / `secrets set` run headlessly
+  from a `SUPABASE_ACCESS_TOKEN`. **The one thing only Brandon can do: generate a
+  Personal Access Token in the Supabase dashboard in a browser.** After that, key
+  generation, deploy and secrets are all mine.
+- **⚠ BUT A SECOND MANUAL STEP EXISTS THAT THE PROMPT DID NOT ANTICIPATE: I cannot set
+  Script Properties.** There is no action for it and the editor is UI-only. So
+  `WEB_PUSH_URL` / `WEB_PUSH_KEY` are Brandon's regardless — **and that table is the
+  hazardous one (`oauth2.qbo` lives in it).** Offered to move both to `cfg_()` / the App
+  Config TAB instead, making it a sheet edit rather than a Script Properties edit.
+- **✅ ITEM 63 — BOTH OF BRANDON'S CANDIDATES ELIMINATED WITH HARD EVIDENCE, not
+  reasoning.** Fetched the **LIVE** `sw.js` from brambleandvinesf.lovable.app rather than
+  trusting the repo: it is `v4-2026-08-12`, its `fetch` handler is the empty fixed form,
+  every `respondWith` mention is inside the explanatory comment, and it is byte-identical
+  to the repo once CRLF is normalised. **The CC-13 fix is deployed and intact.**
+- **✅ AND ITEM 62 CANNOT BE THE REGRESSION: its frontend was never applied.** The live
+  `sw.js` contains **zero** `push` / `notificationclick` handlers — CC-75 delivered that
+  work as a Lovable prompt and it has not been pasted. There is no Item 62 frontend code
+  in the app to regress.
+- **`signOut` itself is trivially incapable of freezing** — two `localStorage.removeItem`
+  calls and two `setState`s. No network, no service worker, nothing blocking. So the
+  freeze is in what re-renders after `user` → null.
+- **Also eliminated honestly rather than left as a suspect:** `useBadgePoller`'s deps are
+  primitives (`email, canMessages, canReceipts, canVisits, canApprovals`), so the object
+  literal passed to it cannot drive a re-render loop — the obvious React freeze shape is
+  not present.
+- **⚠ LEADING FRESH CANDIDATE: A CHUNK-RELOAD LOOP.** `__root.tsx` carries an
+  "auto-recover from stale dynamic-import chunks after a redeploy" effect that fires a
+  hard reload. Sign-out navigates to `/login`, which is its own code-split chunk — if
+  that chunk 404s against a stale `index-*.js`, the recovery reloads, the app boots
+  signed-out, navigates to `/login` again, and loops. **On a phone a reload loop reads
+  exactly as a frozen page**, and it explains "now" (it needs a recent redeploy) better
+  than anything account-specific.
+- **Second candidate: a stale service worker ON THE DEVICE.** The live file is correct,
+  but a service worker persists client-side; a phone that has not updated since before
+  8/12 would still be running the pre-CC-13 blanket intercept. Same symptom, device-
+  scoped, and clearable in seconds.
+- **Item 62 checklist supplied** as a one-macro-at-a-time disable/verify procedure, with
+  the ordering point that it can only start once `WEB_PUSH_URL` is set and the frontend
+  is pasted — before that there is nothing to compare against.
+- **Carried forward:** Item 54 path A/B, Item 59 (paste the prompt), Item 62 frontend
+  (paste the prompt), the Amex inquiry, Item 50.
+
+---
+
 ## CC-75 — 2026-08-14
 
 **Sent:** Item 62 NEW — replace MacroDroid's new-message bubble/voice with Web Push, as
