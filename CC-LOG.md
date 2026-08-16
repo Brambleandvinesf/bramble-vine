@@ -14,6 +14,59 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-75 — 2026-08-14
+
+**Sent:** Item 62 NEW — replace MacroDroid's new-message bubble/voice with Web Push, as
+the first real target for the mechanism scoped in Item 61. Build sw.js handlers, frontend
+subscription, Push Subscriptions tab, hook the existing new-message detection, and the
+Supabase Edge Function. Report the exact diff including the Edge Function before
+deploying.
+
+**Response to CC-75:** **BACKEND STAGED v7.4.128 on HEAD, NOT deployed. Edge Function
+written to `supabase/functions/web-push/index.ts`, NOT deployed to Supabase. Frontend
+delivered as a Lovable prompt.** LIVE stays v7.4.127 @304. **Nothing is live and nothing
+sends until `WEB_PUSH_URL` is set — inert by default.**
+
+- **⚠⚠ THE BIGGEST FINDING IS NOT THE BUILD: `ntfyPushRoles_` HAD A REAL BUG, AND IT
+  BREAKS THIS ITEM'S PREMISE.** The function opened with
+  `const token = propOr_('PUSHOVER_TOKEN',''); if (!token) return;` — **a bare return at
+  the TOP.** With PUSHOVER_TOKEN empty (what CLAUDE.md records), that returned *before*
+  `macroDroidPing_` at the bottom, so **BOTH transports were dead — not just Pushover.**
+  Fixed to a per-transport guard.
+- **🚫 SO THE MACRODROID BUBBLE/VOICE CANNOT BE COMING FROM THIS BACKEND.** Which means
+  step 6 — "confirm this REPLACES the MacroDroid alert entirely" — **cannot be confirmed
+  as asked.** The likely explanation is MacroDroid watching the Quo app's OWN
+  notification locally, with no server involvement. If so, Web Push **adds** a
+  notification rather than replacing one, and that macro has to be switched off by hand.
+  Reported rather than assumed either way; it is checkable on the phone in seconds.
+- **✅ ONE WIRING POINT, NOT A NEW PATH: Web Push went INTO `ntfyPushRoles_`**, which is
+  already the "notify these roles" abstraction and is called in **26 places** with titles
+  and click URLs already supplied. So new-message alerts work without touching the
+  detection logic at all — and so do the other 25 notifications that have been silently
+  delivering nothing.
+- **⚠ WHICH IS ALSO THE THING TO DECIDE: setting `WEB_PUSH_URL` lights up ALL 26 call
+  sites at once**, not just new messages. That is a notification-volume decision, and it
+  is presented as numbered options rather than chosen quietly.
+- **TARGETING BY `Role`, CAPTURED AT REGISTRATION** — it cannot come from the app's login
+  (four shared addresses, whole assistant tier on one). `Person` is stored alongside,
+  unused by this item and exactly what Item 61's cardholder routing will need, so storing
+  it now avoids a migration later.
+- **UPSERT BY ENDPOINT, not by Person** — the endpoint is a subscription's only stable
+  identity, and one person can legitimately carry two devices.
+- **THE EDGE FUNCTION FAILS CLOSED ON A MISSING SHARED KEY.** It must be deployed
+  `--no-verify-jwt` (Apps Script has no Supabase session), which means the shared-key
+  check is the only thing standing between that URL and anyone who learns it — so an
+  unset secret returns 401 rather than defaulting open.
+- **AND IT ONLY REPORTS 404/410 AS `gone`.** Those mean permanently dead; every other
+  failure is counted but NOT reported, so a transient 500 can never cause a live
+  subscription to be pruned.
+- **sw.js: confirmed nothing in this work touches the `fetch` handler.** Its CC-13
+  comment is the Angel freeze-bug fix and the Lovable prompt says so explicitly.
+- **Carried forward:** Item 54 path A/B, Item 59 (paste the earlier prompt), the Amex
+  inquiry, Item 50.
+
+---
+
 ## CC-74 — 2026-08-14
 
 **Sent:** Deploy v7.4.127. Record that the Google Wallet button is a convenience, not

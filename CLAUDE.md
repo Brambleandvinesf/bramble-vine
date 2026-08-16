@@ -2173,6 +2173,36 @@ the minutes from arrival to assignment were simply lost.
   co-equal option** and must not be scoped or recommended as one — it is strictly
   "what we would consider if Amex's access does not work out". Brandon's outreach to
   Amex business services is the gate, and it **cannot be resolved from documentation**.
+- **⚠ ITEM 62 — WEB PUSH FOR NEW MESSAGES: BACKEND STAGED, INERT (CC-75, 8/14;
+  v7.4.128 on HEAD, not deployed).** Chosen as Web Push's first real target because it
+  needs no Amex answer and no new screen — the Messages route already exists.
+  · `PUSH_TAB` = 'Push Subscriptions' (Person | Role | Endpoint | p256dh | auth |
+    Device | Registered), header-matched, created on demand.
+  · `registerPush` / `unregisterPush` — **upsert and delete BY ENDPOINT**, the only
+    stable identity a subscription has. NOT keyed on Person: one person can carry two
+    devices and that is legitimately two rows.
+  · `webPushRoles_` POSTs to the Supabase Edge Function in
+    `supabase/functions/web-push/index.ts`.
+  ⚠ **INERT UNTIL `WEB_PUSH_URL` IS SET.** No property, no send. Deploying the backend
+  changes nothing until the function exists and is configured — dry-run by default.
+  ⚠ **TARGETING IS BY `Role`, CAPTURED ON THE ROW AT REGISTRATION.** It cannot come
+  from the app's login (four shared addresses, whole assistant tier on one). `Person` is
+  stored alongside as the free-text "whose phone is this" label — unused by Item 62 and
+  exactly what Item 61's cardholder routing needs, so storing it now avoids a migration.
+  ⚠ **IT IS WIRED INTO `ntfyPushRoles_`, WHICH HAS 26 CALL SITES.** One wiring point, no
+  sprawl — but setting `WEB_PUSH_URL` lights up all 26 at once, not just new messages.
+  That is a volume decision, not a code decision; see CC-75's options.
+- **⚠⚠ REAL BUG FOUND AND FIXED IN `ntfyPushRoles_` (CC-75, 8/14).** It opened with
+  `const token = propOr_('PUSHOVER_TOKEN',''); if (!token) return;` — **a bare return at
+  the TOP of the function.** With PUSHOVER_TOKEN empty (which is what this file records)
+  that returned before `macroDroidPing_` at the bottom too, so **BOTH transports were
+  dead and only one of them was documented as such.** The guard is now per-transport.
+  🚫 **CONSEQUENCE WORTH CHASING: whatever produces the crew's bubble/voice alert on a
+  new message, it is NOT this backend.** The most likely explanation is MacroDroid
+  watching the Quo app's OWN notification locally, with no server involvement — in which
+  case Web Push does not automatically replace it and that macro must be switched off by
+  hand. Do not record the MacroDroid message-alert dependency as retired until that is
+  confirmed on the phone.
 - **⚠ ITEM 61 — WEB PUSH: WHAT EXISTS, AND THE TWO HARD CONSTRAINTS (CC-74, 8/14 —
   findings only, nothing built).**
   ✅ THE SERVICE WORKER EXISTS: `public/sw.js`, v4-2026-08-12. It has `install`,
