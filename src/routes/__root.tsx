@@ -23,6 +23,7 @@ import {
   Folder,
   Receipt,
   Shield,
+  Settings,
   ShoppingCart,
   MoreVertical,
   Maximize2,
@@ -552,6 +553,30 @@ function HamburgerMenu() {
                 </Link>
               );
             })}
+            {/* Per-device settings — available to every role regardless of nav layout. */}
+            <Link
+              to="/more"
+              onClick={() => setOpen(false)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "12px 14px",
+                color: isActive("/more") ? LIME_TAB : "#cfcfcf",
+                textDecoration: "none",
+                fontSize: 12,
+                letterSpacing: 1.5,
+                fontWeight: "bold",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Settings
+                size={16}
+                color={isActive("/more") ? LIME_TAB : "#cfcfcf"}
+                strokeWidth={2}
+              />
+              <span style={{ flex: 1 }}>MORE</span>
+            </Link>
             {canAssignTeams && (
               <button
                 onClick={() => {
