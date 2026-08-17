@@ -14,6 +14,56 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-96 — 2026-08-14
+
+**Sent:** driveShareTest failed with "Permission denied while enabling APIs: drive for GCP
+project 431750346800" — it never reached the sharing check. Diagnose before calling it a
+dead end; likely an Advanced Drive Service enablement, possibly one-click in the editor.
+
+**Response to CC-96:** **STAGED v7.4.136 — probe rewritten to remove the one variable my
+first version introduced.** No deploy. And the leading hypothesis in the brief does not
+hold, which narrows this usefully.
+
+- **🚫 IT IS NOT AN ADVANCED DRIVE SERVICE PROBLEM.** `appsscript.json`'s
+  `enabledAdvancedServices` contains **only People** — there is no Drive advanced service
+  in this project, and `driveShareTest` never used one. `Drive.Files` / `Drive.Permissions`
+  appear nowhere in Code.js. **So "Services → Add a service → Drive API" is not the fix**,
+  and sending Brandon there would have been a wrong turn.
+- **✅ AND DriveApp ALREADY WORKS IN PRODUCTION — including `setSharing`.** Confirmed in
+  code: `getFolderById(RECEIPT_FOLDER_ID).createFile(...)` for receipt PDFs,
+  `createFolder('Visit Photos')`, crew-report uploads, `getFileById(...).setTrashed(...)`,
+  and `getRootFolder()` inside `authorizeOnce`. So Drive access is granted and the API is
+  enabled for the operations already in use.
+- **⚠⚠ WHICH MEANS THE DIFFERENCE WAS MY TEST, NOT THE PLATFORM — AND I CAN NAME IT.**
+  Existing code **always** writes via `getFolderById(...).createFile(...)`. My probe
+  called **`DriveApp.createFile(...)` with no folder, which writes to the ROOT of My
+  Drive** — something nothing else in this file does. That is the one new API surface
+  introduced, and a new surface is exactly what makes Apps Script attempt an API
+  enablement against the GCP project.
+- **✅ ALSO NOTABLE, and it sharpens the real question: existing code only ever uses
+  `DOMAIN_WITH_LINK`. `ANYONE_WITH_LINK` has never been called anywhere in this script.**
+  So the original question is still genuinely open, and there was no prior evidence either
+  way.
+- **PROBE REWRITTEN to remove the variable:** it now creates inside `RECEIPT_FOLDER_ID`
+  (a folder-by-ID write proven in production) and **tests `DOMAIN_WITH_LINK` FIRST, then
+  `ANYONE_WITH_LINK`** — so the log distinguishes "Drive is broken generally" from
+  "public sharing specifically is restricted". Those are very different answers and the
+  first version would have conflated them.
+- **AND THERE IS A CHEAPER FIRST STEP THAT ALREADY EXISTS: `authorizeOnce()`.** It is
+  editor-runnable, and it already probes `DriveApp.getRootFolder()` and reports ok/FAILED
+  — plus it re-triggers the OAuth consent screen, which is the standard remedy when a
+  script's granted authorization predates a scope it now needs. **Run that before anything
+  else.**
+- **On GCP project 431750346800:** consistent with the default auto-created Apps Script
+  project (this manifest has no explicit `oauthScopes` and no GCP link), so scope inference
+  and API enablement are automatic — and automatic enablement is what needs a permission
+  the running account may not have on that hidden project. Stated as consistent-with, not
+  confirmed, because I cannot see the GCP console.
+- **Carried forward:** `authorizeOnce()` then the revised `driveShareTest()`,
+  `invoiceMessageEndToEndTest()` dry run, Stripe MCP, Item 50.
+
+---
+
 ## CC-95 — 2026-08-14
 
 **Sent:** Option 1 re-confirmed with the accurate security model. Build the full plan,
