@@ -14,6 +14,46 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-85 — 2026-08-14
+
+**Sent:** ⚠ Formatting reminder — content appeared outside the single code block last
+batch; that is a permanent rule and it slipped. Item 54 — await the qboShareLinkTest run,
+do not guess ahead. Item 62 — write the Lovable prompt to deploy the ALREADY-WRITTEN
+Edge Function. Item 60c — Stripe is Financial Connections only, not Payments.
+
+**Response to CC-85:** **NO CODE, NO DEPLOY.** LIVE stays v7.4.129 @306; v7.4.130 and
+v7.4.131 remain staged awaiting Brandon's editor runs. One deliverable: the Item 62
+Lovable prompt.
+
+- **⚠ THE FORMATTING RULE SLIPPED AND IT WAS MINE.** CC-84 — and several before it — put
+  a summary in plain text AFTER the code block. The rule is that the ENTIRE response is
+  one copiable block with nothing outside it, **because Brandon copies it out whole, so
+  anything outside is simply lost.** Fixed from this batch on. Recorded here rather than
+  only fixed silently: a repeat slip is what makes a rule need re-stating, and the log is
+  where that becomes visible to the next session.
+- **ITEM 62 PROMPT WRITTEN — and the point of it is what it does NOT do.** It points
+  Lovable at `supabase/functions/web-push/index.ts` **as committed** and tells it to
+  deploy THAT FILE rather than write a function from a description. That preserves the
+  two properties a fresh description would silently lose: it **fails CLOSED** when
+  `BV_SHARED_KEY` is missing (the function must run `--no-verify-jwt`, so that check is
+  the only gate on a URL that can notify every crew phone), and it **only prunes a
+  subscription on 404/410**, so a transient 500 can never delete a live one.
+- **AND IT ROUTES THE SECRETS THROUGH LOVABLE'S OWN SECURE INPUT**, explicitly
+  instructing that Brandon is never asked to paste a VAPID private key into chat. That is
+  the whole reason this path is better than the CLI/token route chased for three batches.
+- **ITEM 60c — SCOPE CORRECTION ACCEPTED AND RECORDED: Financial Connections ONLY.** The
+  planner will be asked for that specifically, NOT the "Payments" prompt originally
+  pasted — a planner given "Payments" produces a client-checkout plan and says nothing
+  about bank-transaction webhooks. Client billing is deliberately deferred to its own
+  later decision. Test-mode keys only, unchanged.
+- **ITEM 54 — HELD, as instructed.** Two staged editor functions await one click each;
+  the share test is the one that matters and should be run FIRST, since a positive result
+  makes the other moot.
+- **Carried forward:** the two editor runs, the Lovable paste, the Stripe plugin/MCP
+  install, Item 50.
+
+---
+
 ## CC-84 — 2026-08-14
 
 ⚠ **CC-80 THROUGH CC-83 NEVER ARRIVED HERE.** This batch jumped from CC-79 to CC-84.
