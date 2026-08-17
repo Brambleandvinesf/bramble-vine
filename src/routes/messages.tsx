@@ -1013,16 +1013,18 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       snippet: text,
     };
     setItems((prev) => [optimistic, ...prev]);
+    pinSent({ id: optimisticId, threadId: optimisticId, participants: phones, text, item: optimistic });
     setCompose(null);
     flash("Message sent to " + nameList + " \u2713");
     const attachments = compose.attachments || [];
     const res = await postAction({ action: "replyQuo", participants: phones, text, email, ...(attachments.length ? { attachments } : {}) });
     if (!(res && res.ok && res.sent)) {
+      unpinSent(optimisticId);
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
       flash("Message NOT sent to " + nameList + "!", true);
     }
 
-  }, [compose, normalizePhone, flash, email]);
+  }, [compose, normalizePhone, flash, email, pinSent, unpinSent]);
 
 
   /* ---- file / trash / done / spam / confirm ---- */
