@@ -14,6 +14,56 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-93 — 2026-08-14
+
+**Sent:** New direction — attach the invoice PDF instead of chasing a link. Investigate:
+does Quo support MMS/attachments; is the PDF fetch reusable; is email attachment easy;
+if Quo is text-only proceed directly into scoping the Drive-link fallback (pre-approved);
+confirm no effect on Items 51/57's notification paths.
+
+**Response to CC-93:** **INVESTIGATION ONLY, no code.** 4a is NOT available — Quo's send
+is text-only — so 4b is the path, and it is scoped below with one correction to its
+stated precedent.
+
+- **🚫 4a IS OUT: QUO'S SEND ENDPOINT IS TEXT-ONLY.** Confirmed from Quo's own reference
+  rather than inferred: the complete request body is `content`, `from`, `to`,
+  `phoneNumberId` (deprecated), `userId`, `setInboxStatus`. **No `media`, `mediaUrl`,
+  `attachments` or any equivalent field exists.** Corroborated in our own code: every
+  `quoFetch_('/messages','post', …)` call site builds only `{content, from, to}`.
+- **⚠ AND THE `media` REFERENCES IN Code.js ARE ALL INBOUND, which is what makes this
+  look ambiguous at a glance.** `quoThread_` maps a `media` array on RECEIVED messages
+  (v7.1.1/v7.1.4), and the two `media_type` hits are the **Anthropic vision API**, not
+  Quo. So Quo delivers MMS in and cannot send it out — those are different capabilities
+  and the codebase touches only the first.
+- **✅ THE PDF FETCH IS REUSABLE AS-IS.** `qboDebriefInvoice_`'s gated block already does
+  `UrlFetchApp.fetch('…/invoice/<id>/pdf', {Authorization: Bearer, Accept:
+  application/pdf})` and takes `.getBlob()`. No new PDF logic needed — extract that into
+  a helper and both paths use it.
+- **⚠ BUT THE TIMING IS THE REAL DESIGN CONSTRAINT, AND IT IS NOT OBVIOUS: A DRAFT IS A
+  ROW OF TEXT IN A SHEET.** A blob cannot live in a cell, so the PDF must be fetched at
+  **SEND** time (`queueAction`), not at draft time. Recoverable, because the invoice id
+  is already in the row's Event ID key (`INV-<id>-T/-E`) — but it means the change lands
+  in `queueAction`, not only in the drafter.
+- **✅ EMAIL IS THE EASY CASE, as expected.** `queueAction`'s Email branch already calls
+  `MailApp.sendEmail({to, subject, body})`; adding `attachments: [blob]` is the same
+  shape the old info@ notification used. One field.
+- **⚠⚠ AND A CORRECTION TO 4b's STATED PRECEDENT, which matters because following the
+  wrong one produces a link no client can open:** receipt PDFs and crew screenshots are
+  shared **DOMAIN_WITH_LINK** — brambleandvinesf.com accounts only. **A client cannot
+  open those.** The genuinely client-facing precedent is the **photo gallery**:
+  `galleryTokenFor_` mints a token and the URL is
+  `ScriptApp.getService().getUrl() + '?g=' + tok`, served by the web app. That is the
+  pattern to copy, not the receipt-folder one.
+- **✅ ITEMS 51, 57 AND THE SKIPPED-LINE NOTICE ARE UNAFFECTED — checked, not assumed.**
+  All three are separate `GmailApp.sendEmail` calls to info@, in different blocks, gated
+  on disjoint conditions (nothing billable / no queue row / `skipped.length`). None reads
+  or writes the client message body, and none touches `queueAction`. Nothing here changes
+  them.
+- **Carried forward:** `invoiceMessageEndToEndTest()` dry run, `qboInvoiceLinkMatrix`
+  (confirmatory only), the 26-call-site decision, Stripe plugin/MCP, Item 50.
+
+---
+
 ## CC-92 — 2026-08-14
 
 **Sent:** qboShareLinkTest re-run, identical results — record Item 54's API path as
