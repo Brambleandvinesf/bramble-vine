@@ -14,6 +14,50 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-95 — 2026-08-14
+
+**Sent:** Option 1 re-confirmed with the accurate security model. Build the full plan,
+steps 1–7. Step 7: test ANYONE_WITH_LINK sharing BEFORE building further on top of it.
+
+**Response to CC-95:** **STAGED v7.4.135 — steps 1, 2, 3, 5 built; STEP 4 DELIBERATELY
+NOT BUILT.** Step 7 gates it and step 7 has not been answered yet, so building the token
+page now would be building on the same unverified assumption the brief warns about.
+
+- **🚫 STEP 4 IS HELD, ON THE BRIEF'S OWN INSTRUCTION.** "BEFORE wiring the link into any
+  live message: test ANYONE_WITH_LINK sharing… If it's blocked, this whole approach
+  silently fails the same way the old receipt-folder link did." That test needs one editor
+  run. **Building the Drive folder, Invoice Tokens tab and `?inv=` branch first would be
+  three new surfaces resting on an assumption we were explicitly told to check first.**
+- **✅ `driveShareTest()` WRITTEN — and it reads the permission BACK rather than trusting
+  the absence of an exception.** That is the point: some domains **accept** the
+  `setSharing` call and quietly store `DOMAIN_WITH_LINK` instead. A try/catch alone would
+  report success on exactly the configuration that breaks every client link. It creates a
+  tiny text file, attempts the change, prints what actually stuck, and **trashes the file
+  in a `finally`**.
+- **AND IT RUNS FROM APPS SCRIPT DELIBERATELY, not from any other tool I have.** Drive
+  policy can differ per account, and the production code will run as the SCRIPT's
+  identity — testing under a different identity would answer a different question and
+  could give a falsely reassuring yes.
+- **✅ STEPS 1, 2, 3, 5 BUILT, and they are genuinely independent of the Drive question.**
+  `qboInvoicePdfBlob_` extracted (fail-soft, returns null, never throws), and `queueAction`
+  now attaches the PDF for **EMAIL** clients — that half needs no Drive and no token at
+  all, so it was safe to build now and delivers the actual goal for every email client.
+- **⚠ THE INVOICE ID IS RECOVERED FROM THE ROW'S OWN KEY AT SEND TIME**, via
+  `/^INV-(\d+)-/` on the Event ID. Draft rows are text in a spreadsheet and a Blob cannot
+  live in a cell, so this could not be done at draft time. **No new column, no schema
+  change** — and confirmations are untouched by construction, because their key is a
+  calendar event id and the regex simply does not match.
+- **GATED ON `INVOICE_PDF_LINK` via `cfg_`, DEFAULT OFF**, so deploying changes nothing a
+  client receives until Brandon turns it on in App Config. Dry-run default, as standing.
+- **AND A FAILED PDF IS REPORTED, NOT SILENT:** `result.pdfAttached` and `result.pdfNote`
+  come back on the send, so the office can see WHY a client got no attachment instead of
+  discovering it later. The message still goes — a QBO hiccup must never become a client
+  who was never contacted.
+- **Carried forward:** `driveShareTest()` (gates step 4), `invoiceMessageEndToEndTest()`
+  dry run, the 26-call-site decision, Stripe MCP, Item 50.
+
+---
+
 ## CC-94 — 2026-08-14
 
 **Sent:** Both decisions made — token through the web app (NOT a raw Drive-shared link),
