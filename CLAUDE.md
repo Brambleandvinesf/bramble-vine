@@ -2030,6 +2030,30 @@ the minutes from arrival to assignment were simply lost.
   22777, 22778, 22781–22785) all drafted with NO link.** 8/8 linkless among the new,
   2/2 linked among the old. So Brandon's counter-observation is explained WITHOUT
   contradicting the create/append split; it does not by itself rescue the link.
+- 🚫🚫 **ITEM 54 — THE PUBLIC API HAS NO NON-EMAILING WAY TO MINT `InvoiceLink`.
+  CONFIRMED, NOT PROVISIONAL (CC-92, 8/14). STOP TESTING THIS QUESTION.**
+  `qboShareLinkTest` was run TWICE with identical results: **minorversion 70/75 and
+  `EmailStatus:'NeedToSend'` both returned the link ABSENT on both runs.** Combined with
+  `qboInvoiceLinkTest` (send DOES mint it), the API surface is settled:
+  · a SEND mints the link — proven twice;
+  · **no non-emailing operation mints it** — proven twice;
+  · the QBO UI's "Share invoice link" button therefore calls an **internal, non-public
+    endpoint**. Intuit's own product has the feature; the public API does not expose it.
+  🚫 DO NOT re-test minorversions, `EmailStatus`, or hunt for a `/share` sub-resource.
+  That ground is covered. The remaining routes are all non-API: escalate to Intuit,
+  accept a QBO send, accept card payment, or use a non-QBO link.
+  ⚠ **AND THE APPEND HYPOTHESIS IS NOW FALSIFIED ON NAMED EXAMPLES (CC-92).** Brandon
+  named two invoices whose PDFs show a clickable link — **Josy Amann 22784** (DocNumber
+  2707, TxnDate 8/14) and **Michael Smith 22772** (DocNumber 2772, TxnDate 8/12). Both
+  are **CREATE-branch invoices**, not appends: Josy has no other invoice since 7/1 at
+  all, and Michael's only other one (22624, dated 7/8) was in the PAST, so it could not
+  have been an append target — the append SELECT requires `TxnDate >= today`.
+  **So "only appended invoices have links" is WRONG as a general rule.** The surviving
+  explanation, and it is consistent with everything proven: **those two were SENT or
+  SHARED BY HAND from the QBO UI**, which mints the link, after which every PDF fetched
+  reflects it. That also reconciles CC-78's PDF probe (zero payable URLs) with the
+  present observation without either being wrong — CC-78 sampled invoices nobody had
+  shared yet.
   🚫 **PATH A IS A CONFIRMED DEAD END — THE INVOICE PDF CARRIES NO PAYMENT LINK
   (CC-78, 8/14). DO NOT REVISIT WITHOUT NEW EVIDENCE.** `qboInvoicePdfProbe` was run
   against the five most recently created invoices. Every URL found in every PDF is

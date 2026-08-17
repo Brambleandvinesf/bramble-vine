@@ -14,6 +14,50 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-92 — 2026-08-14
+
+**Sent:** qboShareLinkTest re-run, identical results — record Item 54's API path as
+confirmed closed. Then investigate two NAMED invoices (Josy Amann, Michael Smith) where
+Brandon sees a clickable PDF link; test the append hypothesis against real examples he
+chose, and give it real weight either way.
+
+**Response to CC-92:** **RECORDED CLOSED, AND THE APPEND HYPOTHESIS IS FALSIFIED.** No
+code, no deploy.
+
+- **🚫 API PATH CONFIRMED CLOSED.** Two identical runs of `qboShareLinkTest` — both
+  candidates absent both times — plus `qboInvoiceLinkTest` showing a send DOES mint the
+  link. Written into CLAUDE.md as **settled, with an explicit "stop testing this"**: no
+  more minorversion sweeps, no more `EmailStatus` variants, no hunting for a `/share`
+  sub-resource. The UI button calls an internal endpoint the public API does not expose.
+- **⚠⚠ AND THE APPEND HYPOTHESIS FAILS ON BOTH NAMED INVOICES. I am reporting that
+  against my own explanation rather than forcing it to fit.**
+  · **Josy Amann → 22784**, DocNumber 2707, TxnDate **8/14**, $192.17. Probing from
+    both 8/1 and 7/1 returns the SAME invoice, so it is the only one in that window —
+    there was nothing to append to. **A fresh CREATE.**
+  · **Michael Smith → 22772**, DocNumber 2772, TxnDate **8/12**, $600.55. His only other
+    invoice is **22624, dated 7/8 — in the PAST**, and the append SELECT requires
+    `TxnDate >= today`, so it could not have been the target. **Also a fresh CREATE.**
+  **So "only appended invoices have links" is wrong as a general rule**, and it held for
+  9 invoices only because none of those had been touched by hand.
+- **THE SURVIVING EXPLANATION FITS EVERY MEASUREMENT WITHOUT ANY OF THEM BEING WRONG:
+  these two were SENT or SHARED BY HAND from the QBO UI.** A send mints the link
+  (proven), and once minted every subsequent PDF fetch reflects it. That reconciles
+  CC-78's PDF probe finding zero payable URLs with Brandon seeing links today — CC-78
+  sampled invoices nobody had shared yet. **Both observations true, no contradiction.**
+- **✅ AND IT CONFIRMS THE PROMPT'S OWN POINT 3, which is the sharper framing: the PDF
+  does not generate a link, it REFLECTS one.** So a PDF link is evidence the invoice has
+  `InvoiceLink`, never evidence the PDF made it — and that distinction is what kept this
+  looking like a contradiction for three batches.
+- **DECISIVE CONFIRMATION IS ONE RUN AWAY AND NEEDS NO NEW CODE:**
+  `qboInvoiceLinkMatrix` (v7.4.124, already on HEAD) reports `InvoiceLink`, `EmailStatus`
+  and `DeliveryInfo` for the 25 most recently created invoices — which includes both
+  22784 and 22772. `EmailStatus: EmailSent` or a populated `DeliveryInfo` on either one
+  proves the hand-send outright.
+- **Carried forward:** that matrix run, `invoiceMessageEndToEndTest()` dry run, the
+  26-call-site decision, Stripe plugin/MCP, Item 50.
+
+---
+
 ## CC-91 — 2026-08-14
 
 **Sent:** Option 1 approved — write the Lovable prompt adding a "More" entry to
