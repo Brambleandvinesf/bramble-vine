@@ -111,6 +111,74 @@ type InboxItem = {
   line?: string;
   hasMedia?: boolean;
 };
+
+/**
+ * A message we have sent but the server's inbox has not caught up with yet.
+ *
+ * The poller replaces `items` wholesale with the server's list, so an
+ * optimistic send used to vanish on the next tick. A pin survives polls and is
+ * re-applied on top of the server list until the server's own item for that
+ * conversation carries the sent text (or something newer), or until the TTL
+ * expires - never permanently, so a send that genuinely failed to land ends up
+ * showing the truth rather than a stale local claim. Same shape of contract as
+ * src/lib/optimistic.ts and loading.tsx's applyPending.
+ */
+type SentPin = {
+  id: string;
+  threadId: string;
+  conversationId?: string;
+  participants?: string[];
+  text: string;
+  at: number;
+  /** Present when the conversation is not in the server feed at all yet. */
+  item?: InboxItem;
+};
+
+const SENT_PIN_TTL_MS = 600_000; // ~10 minutes
+
+function samePhones(a?: string[], b?: string[]) {
+  if (!a || !b || !a.length || a.length !== b.length) return false;
+  const s = new Set(b);
+  return a.every((p) => s.has(p));
+}
+
+function pinMatchesItem(pin: SentPin, it: InboxItem) {
+  if (pin.threadId && it.threadId === pin.threadId) return true;
+  if (pin.conversationId && it.conversationId === pin.conversationId) return true;
+  return samePhones(pin.participants, it.participants);
+}
+
+/**
+ * Non-destructive merge of the server's inbox with outstanding sent pins.
+ * Returns the list to render and the pins still worth keeping.
+ */
+function mergeSentPins(
+  server: InboxItem[],
+  pins: SentPin[],
+  now: number = Date.now(),
+): { merged: InboxItem[]; keep: SentPin[] } {
+  if (!pins.length) return { merged: server, keep: pins };
+  const merged = server.slice();
+  const keep: SentPin[] = [];
+  for (const pin of pins) {
+    if (now - pin.at > SENT_PIN_TTL_MS) continue; // expired: server's version wins
+    const idx = merged.findIndex((it) => pinMatchesItem(pin, it));
+    if (idx >= 0) {
+      const it = merged[idx];
+      const probe = pin.text.slice(0, 40);
+      const echoed = !!probe && (it.snippet || "").indexOf(probe) >= 0;
+      const newer = (Date.parse(it.date || "") || 0) >= pin.at;
+      if (echoed || newer) continue; // server has caught up: pin has done its job
+      merged[idx] = { ...it, snippet: pin.text, date: new Date(pin.at).toISOString() };
+      keep.push(pin);
+      continue;
+    }
+    // Conversation not in the feed yet - keep the whole optimistic card.
+    if (pin.item) merged.unshift(pin.item);
+    keep.push(pin);
+  }
+  return { merged, keep };
+}
 type Draft = {
   draftId: string;
   threadId?: string;
