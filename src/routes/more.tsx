@@ -67,6 +67,7 @@ function PushPanel() {
   }, []);
 
   const vapid = import.meta.env["VITE_VAPID_PUBLIC_KEY"] as string | undefined;
+  const vapidMissing = !vapid;
 
   async function turnOn() {
     if (perm === "unsupported") return;
