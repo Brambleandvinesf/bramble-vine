@@ -453,6 +453,11 @@ export function VisitsPage({
         ...prev,
         [row.eventId]: { ...prev[row.eventId], busy: true, flash: null },
       }));
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+      let errorMsg: string | null = null;
+      let success = false;
+      let alreadySent = false;
       try {
         /* (8/6) Native, not the Make.com "Visit Confirmations-Send" webhook.
            That scenario never worked and was deactivated, and because it
@@ -462,6 +467,7 @@ export function VisitsPage({
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
+          signal: controller.signal,
           body: JSON.stringify({
             action: "queueAction",
             eventId: row.eventId,
@@ -477,40 +483,43 @@ export function VisitsPage({
           alreadySent?: boolean;
         };
         if (j.ok === false) throw new Error(j.error || "Action failed");
-
-        if (action === "save") {
-          setCards((prev) => ({
-            ...prev,
-            [row.eventId]: { ...prev[row.eventId], busy: false },
-          }));
-          flash(row.eventId, "Saved.", false);
-        } else {
-          /* Previously this left the card busy:true FOREVER with no message —
-             a successful send was indistinguishable from nothing happening,
-             which is exactly how the dead webhook went unnoticed. Confirm it,
-             clear the spinner, and re-read so the row's real Status (written by
-             the backend now, not by an external scenario) reaches the screen. */
-          setCards((prev) => ({
-            ...prev,
-            [row.eventId]: { ...prev[row.eventId], busy: false, sent: true },
-          }));
-          flash(
-            row.eventId,
-            action === "skip"
-              ? "Skipped."
-              : j.alreadySent
-                ? "Already texted today — not sent again."
-                : "Sent ✓",
-            false,
-          );
-          void loadQueue();
-        }
+        success = true;
+        alreadySent = !!j.alreadySent;
       } catch (e) {
+        const isTimeout = e instanceof Error && e.name === "AbortError";
+        errorMsg = isTimeout
+          ? "Send timed out — it may or may not have gone through. Reload before trying again."
+          : e instanceof Error
+            ? e.message
+            : "Action failed — try again.";
+      } finally {
+        clearTimeout(timer);
         setCards((prev) => ({
           ...prev,
           [row.eventId]: { ...prev[row.eventId], busy: false },
         }));
-        flash(row.eventId, e instanceof Error ? e.message : "Action failed — try again.", true);
+        if (errorMsg) {
+          flash(row.eventId, errorMsg, true);
+        }
+      }
+      if (!success) return;
+      if (action === "save") {
+        flash(row.eventId, "Saved.", false);
+      } else {
+        setCards((prev) => ({
+          ...prev,
+          [row.eventId]: { ...prev[row.eventId], sent: true },
+        }));
+        flash(
+          row.eventId,
+          action === "skip"
+            ? "Skipped."
+            : alreadySent
+              ? "Already texted today — not sent again."
+              : "Sent ✓",
+          false,
+        );
+        void loadQueue();
       }
     },
     [cards, flash, loadQueue],
