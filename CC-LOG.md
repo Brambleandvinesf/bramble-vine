@@ -14,6 +14,60 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-84 — 2026-08-14
+
+⚠ **CC-80 THROUGH CC-83 NEVER ARRIVED HERE.** This batch jumped from CC-79 to CC-84.
+Per the CC-46 rule that a missing batch and a forgotten one look identical from this
+side, it is recorded rather than silently absorbed. Anything decided in those four is
+unknown to this session; the "unresolved from CC-82/83" line in CC-84 is the only trace.
+
+**Sent:** Item 54 REOPENED — the QBO UI has a separate "Share invoice link" action that
+mints a link without emailing, contradicting the send-only finding; re-investigate.
+Item 60c — follow Stripe's own onboarding prompt verbatim. Item 62/Supabase — report
+concretely on Lovable Cloud Edge Functions.
+
+**Response to CC-84:** **STAGED v7.4.131 on HEAD** — `qboShareLinkTest()`. LIVE stays
+v7.4.129 @306. Nothing deployed. Stripe not started; blocked on things only Brandon can
+do, said plainly rather than half-attempted.
+
+- **⚠⚠ ITEM 54 — BRANDON IS RIGHT, AND MY CONCLUSION WAS WEAKER THAN I STATED IT.**
+  `qboInvoiceLinkTest` showed that SEND mints a link. **That establishes send is
+  SUFFICIENT. It never tested a non-emailing trigger, so it could not establish send is
+  NECESSARY** — and I reported it as though it had. The screenshots are the
+  counter-example. **This is the fourth necessary-vs-sufficient slip in this one item**
+  (CC-68's flags, CC-70's probe verdict, CC-71's "send ruled out", now this), which is
+  no longer a coincidence — it is the failure mode this item reliably produces, and it
+  is now written into CLAUDE.md as such.
+- **NO PUBLIC "SHARE" ENDPOINT FOUND IN RESEARCH.** Two separate Intuit developer threads
+  exist titled almost exactly *"Is it possible to get/generate the share invoice link via
+  API programmatically"* — the question being asked repeatedly with no widely-cited
+  answer is itself weak evidence there is no documented one.
+- **BUT TWO CANDIDATES WERE NEVER TESTED, AND NEITHER EMAILS ANYONE**, so calling this a
+  platform limitation now would repeat the same premature-conclusion mistake:
+  **(A) minorversion 75** — every probe in this project has used 65, and Intuit adds
+  fields at minorversions; **(B) `EmailStatus: 'NeedToSend'`** via sparse update, which
+  marks an invoice queued to send *without sending it*. If the mint is keyed to that
+  state rather than to delivery, that is the entire answer.
+- **`qboShareLinkTest()` tests both**, on a throwaway, deleted in a `finally`, same
+  name-guard as CC-78. Its verdict block states plainly that all-absent means escalating
+  to Intuit is the honest next step — so a null result is a finding, not a dead end.
+- **✅ ITEM 62/SUPABASE — ANSWERED CONCRETELY AT LAST: ON LOVABLE CLOUD, LOVABLE ITSELF
+  DEPLOYS EDGE FUNCTIONS.** There is no CLI and no PAT in that path. You describe the
+  function in Lovable's chat; it writes, deploys to the underlying Supabase project, and
+  **prompts for secrets through its own secure input**. So the VAPID keys go in that
+  prompt, not into a `supabase secrets set` command. **And the function is already
+  written** — `supabase/functions/web-push/index.ts` in the repo — so this is a paste,
+  not a build.
+- **STRIPE — NOT STARTED, AND WHY.** Three of the four steps need Brandon: installing a
+  plugin, adding an MCP server with a browser OAuth prompt, and supplying keys I have
+  not been given. ⚠ Also flagged: **Stripe Financial Connections is the purchase-detection
+  need; the onboarding prompt he pasted is scoped to "Payments" (charging clients)** —
+  related but not the same product, and worth not conflating before a plan is generated
+  against the wrong one.
+- **Carried forward:** Item 50, Path B's click (CC-78), and now the share test's click.
+
+---
+
 ## CC-79 — 2026-08-14
 
 **Sent:** Deploy v7.4.129. Confirm the three Lovable prompts landed. Item 62 blocker —
