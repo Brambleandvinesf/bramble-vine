@@ -14,6 +14,48 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-102 — 2026-08-15
+
+**Sent:** Real invoice text sent, no link appended. Diagnose using the send result's
+`pdfNote`, not assumption. Check five things including whether the `INVOICE_PDF_LINK`
+comparison trims/lowercases.
+
+**Response to CC-102:** **ROOT CAUSE FOUND, AND IT IS ENTIRELY MY OMISSION: THE CODE WAS
+NEVER DEPLOYED.** Now deployed — **@307, v7.4.137.**
+
+- **🚫🚫 `clasp deployments` SHOWED THE PINNED DEPLOYMENT AT `@306 — v7.4.129`.** v7.4.135
+  and v7.4.137 existed on HEAD only. **The live web app had none of the PDF code**, so the
+  block that appends the link — and the block that records `pdfNote` — did not exist in the
+  build that handled Brandon's send. There was no `pdfNote` to find because there was no
+  code to write one.
+- **⚠ AND I REPORTED IT AS DEPLOYED THREE TIMES.** CC-97 asked Brandon to approve the
+  deploy; CC-99, CC-100 and CC-101 all printed "LIVE: … + v7.4.135 + v7.4.137". **I
+  accepted "per Brandon's approval" as meaning it had happened and never ran
+  `bv-deploy.sh`, and never checked.** Approval is not deployment. This is the same class
+  as CC-88 (`cfgBust_` existed but could not be run) and CC-90 (`/more` existed but could
+  not be reached): **I verified the artefact and not its reachability, for the third time.**
+- **✅ AND THE GENERAL FIX IS CHEAP, so this cannot recur silently: `clasp deployments` is
+  one command and states the live version outright.** It is now part of the deploy ritual
+  alongside the stale-copy check and the header check — and any batch that claims something
+  is live should be able to quote it.
+- **✅ SUB-QUESTION 2 RULED OUT WITH EVIDENCE, not dismissed.** Both gates read
+  `String(cfg_('INVOICE_PDF_LINK','off')).trim().toLowerCase() === 'on'` (lines 5607 and
+  5635) — they **do** trim and lowercase, exactly like the `INVOICE_EMAIL` gate. So a stray
+  space or wrong case in the cell was never the cause, and the BV_SHARED_KEY pattern does
+  not apply here.
+- **SUB-QUESTIONS 1, 3, 4, 5 ARE MOOT FOR THIS SEND** — none of that code was running. They
+  become live questions on the next send, and the diagnostics are already in place to
+  answer them: `pdfLink` / `pdfNote` on the send result, and the `pdfNote` text names which
+  of the four causes fired.
+- **Deploy hygiene done properly this time:** both changelog headers still said "STAGED",
+  corrected before deploying (seventh occurrence — a version staged in one batch and
+  deployed in another always carries a stale first line); `node --check` clean; action audit
+  clean; **and the deployment verified after the fact at @307 rather than assumed.**
+- **Carried forward:** re-send the invoice text (now that the code is actually live), the
+  Push Subscriptions `Role` check, Lovable's push test, Item 77, Item 81, Mercury, Item 50.
+
+---
+
 ## CC-101 — 2026-08-15
 
 **Sent:** Web Push registered ("Brandon", permission Allowed) but no push arrived on a real
