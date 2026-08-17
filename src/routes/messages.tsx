@@ -428,6 +428,30 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
   const [route, setRoute] = useState<RouteInfo>(() => cached?.route ?? {});
 
+  // Pins for messages we have sent but the server has not echoed back yet.
+  // Mirrored in a ref so the poller can merge synchronously without depending
+  // on state that may be a tick behind.
+  const [, setSentPins] = useState<SentPin[]>([]);
+  const sentPinsRef = useRef<SentPin[]>([]);
+  const commitPins = useCallback((next: SentPin[]) => {
+    sentPinsRef.current = next;
+    setSentPins(next);
+  }, []);
+  const pinSent = useCallback(
+    (p: Omit<SentPin, "at">) => {
+      commitPins([...sentPinsRef.current.filter((x) => x.id !== p.id), { ...p, at: Date.now() }]);
+    },
+    [commitPins],
+  );
+  const unpinSent = useCallback(
+    (id: string) => {
+      const next = sentPinsRef.current.filter((x) => x.id !== id);
+      if (next.length !== sentPinsRef.current.length) commitPins(next);
+    },
+    [commitPins],
+  );
+
+
 
   // Optimistic. Backed by useOptimistic so a poll that raced the write cannot
   // resurrect a handled row; see src/lib/optimistic.ts. The three views below
