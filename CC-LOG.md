@@ -14,6 +14,39 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-105 — 2026-08-15
+
+**Sent:** Deploy v7.4.138 as staged — the mint-at-creation fix. Quote `clasp deployments`
+after deploying, per the CC-102 process change.
+
+**Response to CC-105:** **DEPLOYED AND VERIFIED — `@308 - v7.4.138`.** Quoted, not
+described.
+
+- **✅ THE CC-102 PROCESS CHANGE APPLIED FOR THE FIRST TIME, AND IT IS QUOTED:**
+  `- AKfycbwZlJn9jKz… @308 - v7.4.138 — CC-104 mint at creation, off the send path; CC-105`
+  That line is the whole point of the change — CC-102's failure was five batches of
+  claiming something was live without ever reading the live version.
+- **⚠ HEADER CORRECTED BEFORE DEPLOYING, eighth occurrence.** v7.4.138's first line still
+  read "STAGED". The pattern is now fully predictable: **a version staged in one batch and
+  deployed in another ALWAYS carries a stale first line**, because the entry is written
+  before the deploy exists. It is a ritual step, not a thing to remember.
+- **Full hygiene run:** stale-copy check clean (no other writer), `node --check` clean,
+  action audit clean (only the long-standing pre-existing `placesDetails` finding), pinned
+  deployment id, propagation verified on **three** endpoints — getTodo, debriefQueue and
+  getQueue — rather than one.
+- **⚠ AND IT IS STILL INERT, WHICH IS THE IMPORTANT PART: `INVOICE_PDF_LINK` is `off`, so
+  nothing about a debrief or a send has changed yet.** The mint sits inside that gate, so
+  today's debriefs pay nothing — not even the timing mark. Item 54 is now waiting on
+  Brandon's own sequence, not on code.
+- **THE ORDER MATTERS AND IS WORTH RE-STATING: paste the CC-104 Lovable prompt BEFORE
+  turning the flag on.** It is the safety net for a stuck send button, and it protects
+  every future slow send rather than just this feature.
+- **Carried forward:** the Lovable timeout prompt, flag to `on`, one real debrief for the
+  `pdfLink` timing number, the test send, Push Subscriptions `Role`, Items 77 and 81,
+  Mercury, Item 50, and the still-unauthorised Stripe MCP server.
+
+---
+
 ## CC-104 — 2026-08-15
 
 **Sent:** Build Option 1 — mint the link at invoice creation, store the URL in the drafted
