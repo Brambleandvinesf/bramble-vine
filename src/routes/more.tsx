@@ -171,7 +171,7 @@ function PushPanel() {
         value={person}
         onChange={(e) => setPerson(e.target.value)}
         placeholder="e.g. Miguel"
-        disabled={busy || perm === "unsupported" || vapidMissing}
+        disabled={busy || perm === "unsupported"}
         style={{
           width: "100%",
           marginTop: 6,
