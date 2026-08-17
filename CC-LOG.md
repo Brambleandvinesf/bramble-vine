@@ -14,6 +14,56 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-99 — 2026-08-14
+
+⚠ **CC-98 NEVER ARRIVED HERE** (as CC-80..83 did not). Jumped CC-97 → CC-99. Recorded per
+the rule that a missing batch and a forgotten one are indistinguishable from this side.
+
+**Sent:** Stripe shelved, Mercury is the direction. ⚠ Correction: automatic scan-prompting
+is NOT optional. Priority 1 — walk Brandon through verifying Web Push and the Drive-link
+PDF; **do not proceed to new build work until both are confirmed or fixed.** Priority 2 —
+scan capture design incl. replacing the fixed 60s wait. Priority 3 — scaffold a Mercury
+webhook receiver.
+
+**Response to CC-99:** **NO CODE WRITTEN — Priority 1's gate honoured.** Stripe recorded
+as shelved. Designs and the step-3 recommendation delivered.
+
+- **⚠ I HELD PRIORITY 3's SCAFFOLD DELIBERATELY, AND SAID SO RATHER THAN QUIETLY DOING
+  BOTH.** Priority 1 states "do not proceed to new build work until both are confirmed or
+  fixed"; Priority 3 says "scaffold". Those conflict, and the gate is the stronger, more
+  specific instruction — **two unverified features are already staged, and adding a third
+  makes the eventual failure harder to localise.** Flagged as a decision, not an omission.
+- **✅ THE HONEST CEILING ON AUTO-LAUNCH IS ACCEPTED AND RESTATED, not softened:** no
+  browser can open anything with zero interaction. **One tap is the floor, permanently.**
+  The achievable win is what that tap opens — the Drive scanner directly, not the Receipts
+  screen — and that is worth building.
+- **🚫 STEP 3 RECOMMENDATION: POLLING (b), NOT DRIVE PUSH (a) — and the reason is concrete
+  rather than a preference.** Three findings, all verified:
+  · **A Drive push channel watching a FOLDER lasts a MAXIMUM OF ONE DAY** (1 hour if the
+    expiration is not set explicitly), with **no auto-renewal** — you must call `watch`
+    again. So it needs a daily renewal trigger whose own failure is silent.
+  · **Detecting NEW CHILDREN of a folder is not what `files.watch` does well** — the
+    reliable route is `changes.watch` across the whole drive plus filtering, which is a
+    much larger surface than the problem.
+  · ⚠ **AND IT NEEDS THE ADVANCED DRIVE SERVICE, WHICH THIS PROJECT DOES NOT HAVE** —
+    the manifest enables only People, and **CC-96 showed API enablement on this default
+    GCP project is exactly where things fail.** So option (a) starts by walking into the
+    wall we just hit.
+  Polling at `everyMinutes(1)` needs no renewal, no advanced service, no new endpoint, and
+  **already fixes Brandon's actual complaint** — a blind fixed 60s wait becomes detection
+  within about a minute of the scan actually finishing.
+- **✅ REAL HEADERS INSPECTED RATHER THAN INVENTED, and two traps found.** Parent
+  (Receipts) carries **`'Date '` and `'Vendor '` WITH REAL TRAILING SPACES**; child (Line
+  items) has 20+ columns including **a literal `#REF!` header** (a broken formula) and the
+  documented **formula columns that must never be written**. Any writer must be
+  header-matched and must write only the data columns.
+- **DEDUPE PROPOSAL: a processed-file-ID ledger**, recommended over moving files or
+  stamping them — moving fights the Make scenario still running, and a marker needs a write
+  to a file we may only be able to read.
+- **Carried forward:** both Priority 1 verifications, Mercury account, Item 50.
+
+---
+
 ## CC-97 — 2026-08-14
 
 **Sent:** driveShareTest confirmed ANYONE_WITH_LINK PERMITTED. Build step 4 — Invoice

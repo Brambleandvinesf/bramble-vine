@@ -143,8 +143,17 @@ single prompt/voice-driven interface that can act on the current screen directly
 collapsing today's multi-screen navigation. Recorded so it informs design
 instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
-🚫 **SUPERSEDED (CC-79, 8/14): THE CARD MOVED FROM AMEX TO US BANK, AND THE DIRECTION IS
-NOW STRIPE.** The CC-74 sequencing rule ("Amex first, Ramp only as fallback") is
+🚫 **SUPERSEDED AGAIN (CC-99, 8/14): STRIPE IS SHELVED — NOT ABANDONED. MERCURY IS THE
+DIRECTION.** Everything Stripe-shaped (Item 60c, Financial Connections, payment
+acceptance, tax segregation) is parked, and **Mercury is the confirmed direction for
+daily transaction/receipt reconciliation** and, once live, for purchase detection.
+⚠ "Shelved" is deliberate wording: the Stripe research is still valid and the Payments/
+tax questions will come back on their own schedule. Do not delete it, and do not resume
+it without a dedicated ask.
+⚠ AND BOTH **MacroDroid AND Make.com REMAIN BEING PHASED OUT** — Mercury replaces the
+detection role, not the automation platform.
+🚫 SUPERSEDED (CC-79, 8/14): the card moved from Amex to US Bank and the direction was
+STRIPE. The CC-74 sequencing rule ("Amex first, Ramp only as fallback") is
 **RETIRED** — do not follow it. The Amex investigation is moot; do not resume it.
 **Stripe Financial Connections is the confirmed direction** for purchase detection, and
 it doubles as the path toward client payments. US Bank's own developer API was rejected
