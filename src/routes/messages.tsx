@@ -111,6 +111,74 @@ type InboxItem = {
   line?: string;
   hasMedia?: boolean;
 };
+
+/**
+ * A message we have sent but the server's inbox has not caught up with yet.
+ *
+ * The poller replaces `items` wholesale with the server's list, so an
+ * optimistic send used to vanish on the next tick. A pin survives polls and is
+ * re-applied on top of the server list until the server's own item for that
+ * conversation carries the sent text (or something newer), or until the TTL
+ * expires - never permanently, so a send that genuinely failed to land ends up
+ * showing the truth rather than a stale local claim. Same shape of contract as
+ * src/lib/optimistic.ts and loading.tsx's applyPending.
+ */
+type SentPin = {
+  id: string;
+  threadId: string;
+  conversationId?: string;
+  participants?: string[];
+  text: string;
+  at: number;
+  /** Present when the conversation is not in the server feed at all yet. */
+  item?: InboxItem;
+};
+
+const SENT_PIN_TTL_MS = 600_000; // ~10 minutes
+
+function samePhones(a?: string[], b?: string[]) {
+  if (!a || !b || !a.length || a.length !== b.length) return false;
+  const s = new Set(b);
+  return a.every((p) => s.has(p));
+}
+
+function pinMatchesItem(pin: SentPin, it: InboxItem) {
+  if (pin.threadId && it.threadId === pin.threadId) return true;
+  if (pin.conversationId && it.conversationId === pin.conversationId) return true;
+  return samePhones(pin.participants, it.participants);
+}
+
+/**
+ * Non-destructive merge of the server's inbox with outstanding sent pins.
+ * Returns the list to render and the pins still worth keeping.
+ */
+function mergeSentPins(
+  server: InboxItem[],
+  pins: SentPin[],
+  now: number = Date.now(),
+): { merged: InboxItem[]; keep: SentPin[] } {
+  if (!pins.length) return { merged: server, keep: pins };
+  const merged = server.slice();
+  const keep: SentPin[] = [];
+  for (const pin of pins) {
+    if (now - pin.at > SENT_PIN_TTL_MS) continue; // expired: server's version wins
+    const idx = merged.findIndex((it) => pinMatchesItem(pin, it));
+    if (idx >= 0) {
+      const it = merged[idx];
+      const probe = pin.text.slice(0, 40);
+      const echoed = !!probe && (it.snippet || "").indexOf(probe) >= 0;
+      const newer = (Date.parse(it.date || "") || 0) >= pin.at;
+      if (echoed || newer) continue; // server has caught up: pin has done its job
+      merged[idx] = { ...it, snippet: pin.text, date: new Date(pin.at).toISOString() };
+      keep.push(pin);
+      continue;
+    }
+    // Conversation not in the feed yet - keep the whole optimistic card.
+    if (pin.item) merged.unshift(pin.item);
+    keep.push(pin);
+  }
+  return { merged, keep };
+}
 type Draft = {
   draftId: string;
   threadId?: string;
@@ -360,6 +428,30 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
   const [lastYes, setLastYes] = useState<string | null>(() => cached?.lastYes ?? null);
   const [route, setRoute] = useState<RouteInfo>(() => cached?.route ?? {});
 
+  // Pins for messages we have sent but the server has not echoed back yet.
+  // Mirrored in a ref so the poller can merge synchronously without depending
+  // on state that may be a tick behind.
+  const [, setSentPins] = useState<SentPin[]>([]);
+  const sentPinsRef = useRef<SentPin[]>([]);
+  const commitPins = useCallback((next: SentPin[]) => {
+    sentPinsRef.current = next;
+    setSentPins(next);
+  }, []);
+  const pinSent = useCallback(
+    (p: Omit<SentPin, "at">) => {
+      commitPins([...sentPinsRef.current.filter((x) => x.id !== p.id), { ...p, at: Date.now() }]);
+    },
+    [commitPins],
+  );
+  const unpinSent = useCallback(
+    (id: string) => {
+      const next = sentPinsRef.current.filter((x) => x.id !== id);
+      if (next.length !== sentPinsRef.current.length) commitPins(next);
+    },
+    [commitPins],
+  );
+
+
 
   // Optimistic. Backed by useOptimistic so a poll that raced the write cannot
   // resurrect a handled row; see src/lib/optimistic.ts. The three views below
@@ -539,7 +631,12 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       const r: InboxResponse = await fetch(url).then((x) => x.json());
       sessionCache.set(cacheKey, r);
       const its = r.inbox || [];
-      setItems(its);
+      // Merge, never replace: a sent message the server has not echoed yet stays
+      // pinned on top of the server's list. Pins resolve as soon as the server
+      // agrees, and expire on their own so nothing is pinned permanently.
+      const { merged, keep } = mergeSentPins(its, sentPinsRef.current);
+      setItems(merged);
+      if (keep.length !== sentPinsRef.current.length) commitPins(keep);
       setLabels(r.labels || []);
       if (r.contacts) setContacts(r.contacts);
       if (r.clients) setClients(r.clients);
@@ -582,7 +679,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew, email, viewAll, cacheKey, optReconcile, flash]);
+  }, [detectNew, email, viewAll, cacheKey, optReconcile, flash, commitPins]);
 
   const safeLoad = useCallback(async () => {
     try {
@@ -804,6 +901,17 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       // optimistic
       opts?.onClearField?.();
       optDecide("awaiting", it.id, false);
+      const pinId = `reply-${it.id}`;
+      pinSent({
+        id: pinId,
+        threadId: it.threadId,
+        conversationId: it.conversationId,
+        participants: it.participants,
+        text: t,
+      });
+      setItems((prev) =>
+        prev.map((x) => (x.id === it.id ? { ...x, snippet: t, date: new Date().toISOString() } : x)),
+      );
       setStaged((s) => {
         const n = { ...s };
         delete n[it.threadId];
@@ -830,13 +938,15 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       }
       // rollback: drop the override so the server's own value shows through
       optRevert("awaiting", it.id);
+      unpinSent(pinId);
+      setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, snippet: it.snippet, date: it.date } : x)));
       void wasAwaiting;
       if (attachments.length) setStaged((s) => ({ ...s, [it.threadId]: attachments }));
       if (opts?.fromViewer) setVReply(t);
       flash("Message NOT sent to " + it.from + "!", true);
       return false;
     },
-    [flash, staged, email, draftByThread, flushDraftSave, removeDraftLocal],
+    [flash, staged, email, draftByThread, flushDraftSave, removeDraftLocal, pinSent, unpinSent],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
@@ -874,11 +984,13 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
         snippet: text,
       };
       setItems((prev) => [optimistic, ...prev]);
+      pinSent({ id: optimisticId, threadId: optimisticId, text, item: optimistic });
       setCompose(null);
       flash("Email sent to " + to + " \u2713");
       const attachments = compose.attachments || [];
       const res = await postAction({ action: "composeGmail", to, subject, text, email, ...(attachments.length ? { attachments } : {}) });
       if (!(res && res.ok && res.sent)) {
+        unpinSent(optimisticId);
         setItems((prev) => prev.filter((x) => x.id !== optimisticId));
         flash("Email NOT sent to " + to + "! (Apps Script needs a composeGmail handler)", true);
       }
@@ -914,16 +1026,18 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       snippet: text,
     };
     setItems((prev) => [optimistic, ...prev]);
+    pinSent({ id: optimisticId, threadId: optimisticId, participants: phones, text, item: optimistic });
     setCompose(null);
     flash("Message sent to " + nameList + " \u2713");
     const attachments = compose.attachments || [];
     const res = await postAction({ action: "replyQuo", participants: phones, text, email, ...(attachments.length ? { attachments } : {}) });
     if (!(res && res.ok && res.sent)) {
+      unpinSent(optimisticId);
       setItems((prev) => prev.filter((x) => x.id !== optimisticId));
       flash("Message NOT sent to " + nameList + "!", true);
     }
 
-  }, [compose, normalizePhone, flash, email]);
+  }, [compose, normalizePhone, flash, email, pinSent, unpinSent]);
 
 
   /* ---- file / trash / done / spam / confirm ---- */
