@@ -14,6 +14,55 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-86 — 2026-08-14
+
+**Sent:** Edge Function deployed on Lovable Cloud, invoke URL confirmed; BV_SHARED_KEY
+still Brandon's to set. Item 62 — confirm how the VAPID public key reaches the frontend
+as an env var. Item 54 — investigate why some app-generated invoices DO have working
+links; append-branch is the leading hypothesis, confirm don't assume. Item 70 NEW — build
+a real end-to-end test that shows Brandon what a client actually receives.
+
+**Response to CC-86:** **STAGED v7.4.132 on HEAD** — `invoiceMessageEndToEndTest()`.
+LIVE stays v7.4.129 @306. Nothing deployed, nothing sent.
+
+- **✅ ITEM 62 — THE VAPID PUBLIC KEY DID NOT COME ACROSS AUTOMATICALLY, AND THE
+  MECHANISM IS A DIFFERENT ONE ENTIRELY.** On Lovable, backend secrets and frontend env
+  vars are **two separate systems**: Secrets are for Edge Functions and are deliberately
+  NOT exposed to the browser, while frontend values must be `VITE_`-prefixed and live in
+  the repo's **`.env`** — which Lovable requires to be COMMITTED, not gitignored, because
+  build-time `VITE_*` values are read when the preview and published bundles are
+  generated. So the key Lovable stored as a secret during the deploy is, correctly,
+  invisible to the frontend.
+- **AND THE `VITE_` DISTINCTION IS THE SAFE ONE HERE, not a workaround:** a VAPID PUBLIC
+  key is designed to ship in the client bundle. The PRIVATE half must stay a Secret and
+  must never gain a `VITE_` prefix — that prefix is precisely what would publish it.
+- **⚠ ITEM 54 — THE HYPOTHESIS HOLDS ON EVERY INVOICE I CAN SEE, now 9 for 9.** The only
+  two link-bearing drafts remain **INV-22732** (A&G's future-dated monthly) and
+  **INV-22287** (an old Mada invoice) — both OLD ids, both append targets. Every
+  CREATE-branch invoice has no link: 22776, 22777, 22778, 22781, 22782, 22783, 22784,
+  22785 — **and now 22797, Brandon's own recent test invoice, which is also empty.**
+- **⚠ BUT HIS WORDING SAYS "PDFs", AND THAT MAY BE A DIFFERENT CLAIM.** CC-78's PDF probe
+  found zero payable URLs in five invoice PDFs — only Adobe XMP boilerplate. A link
+  visible *on a PDF* and an `InvoiceLink` *in a message* are different artefacts, and
+  conflating them is how this item has gone wrong four times already. **Asked which
+  specific invoice he is looking at rather than assuming which claim he means.**
+- **✅ ITEM 70 BUILT, AND IT IS THE RIGHT INSTINCT — it stops the arguing and produces
+  the artefact.** It uses the REAL functions end to end (`qboDebriefInvoice_` →
+  `invoiceMsgBody_`), so if the composed message has no link that IS what a client would
+  receive today, not an approximation.
+- **⚠ AND THE SAFETY DECISION WORTH SEEING: NO DESTINATION IS EVER GUESSED.** Dry run is
+  the default — called with no arguments it emails the composed body to info@ and sends
+  nothing to anyone. A real text requires the number to be passed explicitly. **The crew
+  line numbers are constants in this same file and defaulting to one would have been
+  trivial; deliberately not done, because a test that picks its own recipient is one typo
+  away from texting a client.**
+- **Stated limit rather than left to be over-read:** it shows the CONTENT a client
+  receives, not the Message Queue review workflow around it.
+- **Carried forward:** BV_SHARED_KEY on both sides, `cfgBust_()` after App Config, the
+  qboShareLinkTest run, the Stripe plugin/MCP install, Item 50.
+
+---
+
 ## CC-85 — 2026-08-14
 
 **Sent:** ⚠ Formatting reminder — content appeared outside the single code block last
