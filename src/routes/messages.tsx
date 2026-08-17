@@ -971,11 +971,13 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
         snippet: text,
       };
       setItems((prev) => [optimistic, ...prev]);
+      pinSent({ id: optimisticId, threadId: optimisticId, text, item: optimistic });
       setCompose(null);
       flash("Email sent to " + to + " \u2713");
       const attachments = compose.attachments || [];
       const res = await postAction({ action: "composeGmail", to, subject, text, email, ...(attachments.length ? { attachments } : {}) });
       if (!(res && res.ok && res.sent)) {
+        unpinSent(optimisticId);
         setItems((prev) => prev.filter((x) => x.id !== optimisticId));
         flash("Email NOT sent to " + to + "! (Apps Script needs a composeGmail handler)", true);
       }
