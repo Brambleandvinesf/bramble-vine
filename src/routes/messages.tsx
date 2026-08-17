@@ -631,7 +631,12 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       const r: InboxResponse = await fetch(url).then((x) => x.json());
       sessionCache.set(cacheKey, r);
       const its = r.inbox || [];
-      setItems(its);
+      // Merge, never replace: a sent message the server has not echoed yet stays
+      // pinned on top of the server's list. Pins resolve as soon as the server
+      // agrees, and expire on their own so nothing is pinned permanently.
+      const { merged, keep } = mergeSentPins(its, sentPinsRef.current);
+      setItems(merged);
+      if (keep.length !== sentPinsRef.current.length) commitPins(keep);
       setLabels(r.labels || []);
       if (r.contacts) setContacts(r.contacts);
       if (r.clients) setClients(r.clients);
