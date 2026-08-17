@@ -14,6 +14,37 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-91 — 2026-08-14
+
+**Sent:** Option 1 approved — write the Lovable prompt adding a "More" entry to
+HamburgerMenu linking to `/more`, visible to every role, NOT gated by
+LAYOUTS/NAV_CAPABILITY. Confirm it doesn't need a new nav tab. Report before pasting.
+
+**Response to CC-91:** **PROMPT WRITTEN. No code, no deploy** — frontend only, and
+Brandon pastes it.
+
+- **✅ CONFIRMED: IT DOES NOT NEED A `NAV_CAPABILITY` ENTRY, AND THERE IS ALREADY A
+  PRECEDENT FOR EXACTLY THIS IN THE SAME COMPONENT.** `HamburgerMenu` renders
+  `{tabs.map(...)}` — the role-filtered nav tabs — and then renders **"Assign Teams" as a
+  separate conditional entry AFTER the map**, outside `LAYOUTS` and outside
+  `NAV_CAPABILITY` entirely. So a static "More" link appended after the map is the
+  established pattern here, not a new one.
+- **AND THAT MATTERS BEYOND TIDINESS:** routing it through `LAYOUTS[effectiveRole]` would
+  tie a per-DEVICE settings screen to per-ROLE tab configuration — the precise coupling
+  that hid it in the first place, and it would have to be added to four role layouts and
+  kept in sync. A static entry cannot drift out of sync because there is nothing to sync.
+- **THE PROMPT PINS THE PLACEMENT EXPLICITLY — after the map, before the Assign Teams
+  block** — because appending "somewhere in the menu" is how it ends up inside
+  `tabs.map` and quietly role-gated again.
+- **IT ALSO FORBIDS THE BADGE PATH:** `badgeFor()` is keyed by route and returns 0 for
+  anything unknown, so a naive copy of the tab markup would render badge logic that can
+  never fire. The prompt says to omit it rather than leave dead code.
+- **Carried forward:** register a phone via `/more`, the qboShareLinkTest run, which
+  invoice shows a PDF link, `invoiceMessageEndToEndTest()` dry run, the 26-call-site
+  decision, Stripe plugin/MCP, Item 50.
+
+---
+
 ## CC-90 — 2026-08-14
 
 **Sent:** Brandon cannot find the "Notifications on this phone" control. CC-79 verified
