@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-104 — 2026-08-15
+
+**Sent:** Build Option 1 — mint the link at invoice creation, store the URL in the drafted
+row, get SEND back to a fast Quo call. Measure the debrief's added latency with
+report.timingsMs. Also fix the frontend so a send that never completes surfaces an error
+and always recovers the button. Report the diff including the measurement.
+
+**Response to CC-104:** **BACKEND BUILT — STAGED v7.4.138 on HEAD, NOT deployed.** Frontend
+delivered as a Lovable prompt. ⚠ The timing measurement **cannot be produced by me** and
+the reason is structural, said plainly rather than estimated.
+
+- **✅ THE SEND PATH IS NOW A QUO CALL AND NOTHING ELSE — verified by grep, not by
+  intention:** `invoicePdfUrlFor_` appears **zero** times in `queueAction`'s text branch.
+  The four IO calls are gone from the click.
+- **THE MINT MOVED INTO `qboDebriefInvoice_` at creation**, `out.pdfLinkUrl` travels through
+  `saveDebrief` into `invoiceDraft`, and `mqDraftInvoice_` appends it to the draft text.
+  **So the link is plain text in the row before anyone sends** — and therefore visible in
+  the Item 59 preview, which is what that preview was built for.
+- **⚠ I LEFT A LOUD COMMENT ON THE SEND PATH SAYING WHY IT IS EMPTY**, naming the hang and
+  the `busy`-never-clears mechanism. The next person to think "the link should be minted
+  here, that's where it's used" needs to meet that reasoning first — this failure is far
+  easier to reintroduce than to diagnose.
+- **⚠⚠ THE MEASUREMENT: I CANNOT TAKE IT. `qMark('pdfLink')` IS INSTRUMENTED AND THE NUMBER
+  ARRIVES ON BRANDON'S NEXT DEBRIEF.** Producing it myself would mean running a real debrief
+  against live QBO and the live books, which is not a thing to do for a benchmark. **So the
+  brief's "measure before finalizing" is answered by instrumenting rather than by asserting
+  a figure** — `report.invoiceTimingsMs.pdfLink` will show the real cost in ms, and the flag
+  stays OFF until Brandon has seen it.
+- **AND THE COST IS ZERO WHILE THE FLAG IS OFF** — the mint sits inside the
+  `INVOICE_PDF_LINK === 'on'` gate, so a debrief today pays nothing, not even the mark.
+- **⚠ THE EMAIL ATTACHMENT DELIBERATELY STAYS AT SEND TIME, and that is not an inconsistency:
+  a Blob genuinely cannot be stored in a sheet cell.** It is ONE QBO fetch inside an existing
+  `try/catch`, not four calls — the cheap half. Recorded so it does not look like a missed
+  case.
+- **FRONTEND PROMPT WRITTEN, and it is worth doing on its own merits:** `visits.tsx`'s
+  `doAction` sets `busy: true` and clears it only on completion, so **any** slow or failed
+  send — not just this feature — can leave that button dead. A timeout, an error state and a
+  guaranteed recovery fix a pre-existing hazard this feature merely exposed.
+- **Carried forward:** deploy approval, the timing number, flag back to `on`, the real test
+  send, Push Subscriptions `Role`, Items 77 and 81, Mercury, Item 50.
+
+---
+
 ## CC-103 — 2026-08-15
 
 **Sent:** URGENT — SEND button darkened and never completed, no confirmation and no error,
