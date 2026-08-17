@@ -14,6 +14,48 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-94 — 2026-08-14
+
+**Sent:** Both decisions made — token through the web app (NOT a raw Drive-shared link),
+permanent token. Build the full Drive-link plan from CC-93.
+
+**Response to CC-94:** **NOT BUILT — the plan rests on a premise I got wrong in CC-93,
+and I found it while reading the gallery to copy it.** Reporting the constraint and the
+corrected design instead of writing code that would not do what Brandon chose.
+
+- **🚫 APPS SCRIPT CANNOT SERVE A PDF BYTE STREAM.** `ContentService`'s MimeType enum is
+  ATOM / CSV / ICAL / JAVASCRIPT / JSON / RSS / TEXT / VCARD / XML — **there is no PDF**,
+  and `HtmlService` returns HTML. So a `?inv=<token>` branch cannot hand the client the
+  file the way I described in CC-93.
+- **⚠⚠ AND THE GALLERY DOES NOT AVOID DRIVE SHARING EITHER — I OVERSTATED THAT.**
+  `galleryHtml_` embeds `https://drive.google.com/thumbnail?id=<fileId>`, which only
+  renders if the underlying Drive file is link-readable. **So the gallery's token controls
+  discovery of the PAGE, not access to the FILE.** In CC-93 I presented "token through the
+  web app" and "raw Drive-shared link" as alternatives at the file level. They are not.
+  Brandon chose option 1 on a distinction that does not exist as I framed it.
+- **WHAT THE TOKEN GENUINELY BUYS, stated accurately this time:** the advertised URL is on
+  our own domain, it is revocable via a Disabled column (kills the page, though not the
+  underlying file), the raw Drive id never appears in a client message, and the file id
+  is not guessable from the link. **What it does NOT buy: the Drive file still has to be
+  readable by an anonymous visitor.**
+- **⚠ AND A SECOND CORRECTION: `galleryTokenFor_` CANNOT BE REUSED AS THE REGISTRY.** It
+  is keyed **per CLIENT**, one row per client (`Client | Token | Created | Disabled`).
+  Invoices need one token **per INVOICE**. What IS reusable verbatim is
+  **`galleryNewToken_()`**, the generator — two UUIDs, dashes stripped, 28 chars. So
+  "reuse the existing helper" holds for the generator and not for the registry, which
+  needs its own tab.
+- **STEPS 1, 2, 3 AND 5 ARE UNAFFECTED and remain exactly as scoped** — the
+  `qboInvoicePdfBlob_` extraction, recovering the invoice id from the `INV-<id>-…` key at
+  send time, attaching to `MailApp` for email clients, and fail-soft throughout. Only
+  step 4's serving mechanism is in question.
+- **THREE CORRECTED OPTIONS presented, with the honest trade in each**, since the choice
+  Brandon already made cannot be implemented as stated and picking one for him would be
+  guessing at which property he actually cared about.
+- **Carried forward:** `invoiceMessageEndToEndTest()` dry run, the 26-call-site decision,
+  Stripe MCP, Item 50.
+
+---
+
 ## CC-93 — 2026-08-14
 
 **Sent:** New direction — attach the invoice PDF instead of chasing a link. Investigate:
