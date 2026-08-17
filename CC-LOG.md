@@ -14,6 +14,46 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-90 — 2026-08-14
+
+**Sent:** Brandon cannot find the "Notifications on this phone" control. CC-79 verified
+it present in more.tsx; investigate rather than assume either side is right, and give
+exact plain-language navigation.
+
+**Response to CC-90:** **`/more` IS AN ORPHANED ROUTE. NOTHING IN THE APP LINKS TO IT.**
+Not a stale build, not user error. Findings only; no code written.
+
+- **✅ THE CONTROL EXISTS AND IS DEPLOYED. THE SCREEN IS UNREACHABLE.** `/more` is
+  referenced **nowhere in `src` except its own route definition** — not in `__root.tsx`,
+  not in the hamburger menu, not in any component. It is registered in
+  `routeTree.gen.ts` (13 references), so **the URL loads if typed directly**; there is
+  simply no link to it anywhere in the UI.
+- **⚠⚠ AND THIS IS THE SAME MISTAKE AS CC-88, TWO BATCHES AGO.** There I confirmed
+  `cfgBust_` existed and stopped, when the real question was whether it could be RUN.
+  Here CC-79 confirmed the control existed in `more.tsx` and stopped, when the real
+  question was whether the screen could be REACHED. **"Present in the code" is not
+  "available to the user", and I have now conflated those twice in three batches.**
+  Recorded as a checking rule, not an apology: for anything Brandon is asked to USE, the
+  verification is the navigation path, not the grep.
+- **✅ WHAT THE 3-DOT ICON ACTUALLY IS:** `HamburgerMenu` in `__root.tsx`, pinned at
+  top-left. It builds its items from `LAYOUTS[effectiveRole]` — `layout.row` plus
+  `layout.more` — filtered by `NAV_CAPABILITY`. So it shows ROLE-CONFIGURED TABS only.
+- **⚠ AND THE NAMING IS A TRAP THAT MADE THIS HARDER: `layout.more` MEANS "OVERFLOW
+  TABS", NOT "the More screen".** Two unrelated things called `more`. `layout.more`
+  is a list of secondary nav keys; `/more` is a route file. Nothing connects them, and
+  there is no `more:` entry in the TABS/LAYOUTS config pointing at that route.
+- **STALE-BUILD RULED OUT rather than offered as a maybe:** the route is in the
+  generated tree and the control is in the committed source, so the build is current.
+  A hard refresh would change nothing, because there is no link to render.
+- **IMMEDIATE WORKAROUND CONFIRMED WORKING BY CONSTRUCTION:** navigate directly to
+  `https://brambleandvinesf.lovable.app/more`. The route resolves; only the link is
+  missing.
+- **Carried forward:** qboShareLinkTest, which invoice shows a PDF link,
+  `invoiceMessageEndToEndTest()` dry run, the 26-call-site decision, Stripe plugin/MCP,
+  Item 50.
+
+---
+
 ## CC-89 — 2026-08-14
 
 **Sent:** WEB_PUSH_URL/KEY resolve empty despite B21/B22 being set. Diagnose before
