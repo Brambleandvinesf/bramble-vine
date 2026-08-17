@@ -143,6 +143,18 @@ single prompt/voice-driven interface that can act on the current screen directly
 collapsing today's multi-screen navigation. Recorded so it informs design
 instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
+🚫 **SUPERSEDED (CC-79, 8/14): THE CARD MOVED FROM AMEX TO US BANK, AND THE DIRECTION IS
+NOW STRIPE.** The CC-74 sequencing rule ("Amex first, Ramp only as fallback") is
+**RETIRED** — do not follow it. The Amex investigation is moot; do not resume it.
+**Stripe Financial Connections is the confirmed direction** for purchase detection, and
+it doubles as the path toward client payments. US Bank's own developer API was rejected
+without a trial on the same grounds Amex was: certificate exchange, support-ticket
+onboarding, no self-serve signup. **Ramp survives ONLY as a fallback if Stripe's
+Financial Connections turns out not to cover US Bank well in practice** — not as a
+co-equal option.
+⚠ NOTHING IS BUILT AGAINST STRIPE AND NOTHING SHOULD BE until a real connection to the
+real US Bank business account is proven to deliver transaction-level data.
+
 FUTURE DIRECTION ONLY, NOT SCOPED WORK (CC-73, 8/14 — Item 60c): REAL-TIME PURCHASE
 DETECTION FROM THE CARD ITSELF, which would make the receipt pipeline trigger-free on
 the phone entirely. Brandon confirmed the card platform: **a dedicated AMEX BUSINESS

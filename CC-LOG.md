@@ -14,6 +14,63 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-79 — 2026-08-14
+
+**Sent:** Deploy v7.4.129. Confirm the three Lovable prompts landed. Item 62 blocker —
+Lovable Cloud vs self-managed Supabase. Path A closed, Path B proceed. Item 60c
+superseded — Stripe, not Amex. Item 63 not reproducing. Item 64 confirmed, build the
+fix. Items 66/67/68/69 findings first.
+
+**Response to CC-79:** ⚠ **PARTS OF THIS BATCH WERE ALREADY DONE IN CC-78** — v7.4.129
+deployed @306, Path A recorded, Item 63 marked, Item 66 answered. Said plainly rather
+than re-run. New work: Supabase answered, Items 67/68/69 root-caused, Item 64 prompt
+written.
+
+- **✅ ALL THREE LOVABLE PROMPTS LANDED**, verified in the pulled repo: `sw.js` has both
+  `push` and `notificationclick`; `more.tsx` has `pushManager.subscribe` + `registerPush`
+  + `unregisterPush`; `visits.tsx` has `MessagePreview` at BOTH sites (composer 607,
+  review card 727); `messages.tsx` has the `isInternal` branches.
+- **✅✅ AND THE CC-13 GUARD SURVIVED THE PASTE** — checked specifically because Item 63's
+  history makes it the thing to check: `sw.js`'s `fetch` handler is still the empty form
+  and there is no `respondWith` outside the comment. The push handlers were added
+  alongside it, not through it.
+- **⚠ ITEM 62 BLOCKER — THE EVIDENCE POINTS TO LOVABLE CLOUD, AND THE PANEL IS A TRAP.**
+  Project `vyrlkgwyncpfofluxjam` is REAL and live (its REST endpoint answers 401, which
+  is a project that exists and wants a key). `client.ts` is marked "automatically
+  generated". Lovable's Connectors → Supabase reading **"Not enabled"** is consistent
+  with the SELF-MANAGED connector being off while a Lovable-provisioned project backs the
+  app.
+  🚫 **DO NOT CLICK "CONNECT SUPABASE".** On a project already backed by Lovable Cloud
+  that attaches a DIFFERENT, EMPTY project and regenerates `client.ts` to point at it —
+  a second disconnected backend, and the app's existing integration pointed at nothing.
+  **The safe test costs nothing: log into supabase.com and look for
+  `vyrlkgwyncpfofluxjam` in the project list.** Listed ⇒ self-managed, a PAT works.
+  Absent ⇒ Lovable Cloud, and the Edge Function deploys through Lovable, not the CLI.
+- **PATH B STILL NEEDS ONE CLICK.** `qboInvoiceLinkTest()` is on HEAD; the QBO token is
+  only reachable from inside Apps Script, so I cannot run it. Unchanged from CC-78.
+- **⚠⚠ ITEM 69 ROOT-CAUSED, AND IT IS NOT A FILTER BUG — IT IS ONE FIELD DOING TWO
+  JOBS.** The backend sets `awaiting: !!(last && last.direction === 'incoming')` —
+  literally "the last message came in". The default view then filters on
+  `visibleItems.filter(i => i.awaiting && !hidden.has(i.id))`. **So replying makes the
+  last message outgoing, `awaiting` flips false, and the conversation vanishes — because
+  it was answered, not because it was filed.** `awaiting` is serving as both "response
+  owed" and "should be visible", and those are different questions.
+- **⚠ ITEM 68 ROOT-CAUSED: the Quo snippet is CONDITIONAL on `last`.** It is built as
+  `last ? (…) + ': ' + last.text : ''`, where `last` comes from the conversation's
+  embedded messages. Gmail cards build their snippet directly from `getPlainBody()` and
+  therefore always have one. **If Quo's conversations list returns no embedded messages,
+  every text card gets `''` and every email card gets text** — exactly what Brandon
+  observed. `getSearch` makes the same `c.messages` assumption, so both would be affected.
+- **ITEM 67:** the list sorts `b.ts - a.ts` — newest first — on a `ts` derived from the
+  receipt's own date string, not the added date. So the ordering field is right and the
+  DIRECTION is wrong; one comparator flip, pending confirmation of which header `dateStr`
+  reads.
+- **ITEM 60c recorded and the CC-74 sequencing rule explicitly RETIRED in CLAUDE.md**, so
+  a future session cannot follow "Amex first" against a card that no longer exists.
+- **Carried forward:** Item 50, the Supabase determination above, Path B's click.
+
+---
+
 ## CC-78 — 2026-08-14
 
 **Sent:** Deploy v7.4.129. Item 54 path A closed as a dead end (PDF URLs are all Adobe
