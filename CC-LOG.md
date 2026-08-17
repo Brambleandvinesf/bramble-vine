@@ -14,6 +14,48 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-103 — 2026-08-15
+
+**Sent:** URGENT — SEND button darkened and never completed, no confirmation and no error,
+and no link attached. Brandon suspects one combined failure. Trace the real send.
+
+**Response to CC-103:** **HE IS RIGHT — ONE FAILURE, NOT TWO. AND THE DESIGN FAULT IS
+MINE.** Immediate unblock given first; no code changed pending the execution log.
+
+- **🚫 IMMEDIATE UNBLOCK, BEFORE ANY DIAGNOSIS: set `INVOICE_PDF_LINK` = `off` in App
+  Config and run `bustAppConfigCache`.** That restores the previous, working send path
+  in under a minute. **Nothing else needs reverting** — the flag exists precisely so this
+  is a config change rather than a deploy, and sending is the thing that must not stay
+  broken while we investigate.
+- **⚠⚠ THE DESIGN FAULT: I PUT FOUR NETWORK/IO OPERATIONS SYNCHRONOUSLY INSIDE A
+  USER-FACING SEND.** `invoicePdfUrlFor_` does, inline, on the click: a QBO PDF fetch, a
+  Drive `createFile`, a `setSharing` call, and two sheet operations for the token — on a
+  platform where CLAUDE.md already records the bare round trip at **2,277–4,792ms**. CC-93
+  even identified the timing constraint ("a Blob cannot live in a cell, so the PDF must be
+  fetched at SEND time") and I treated that as a fact to accommodate rather than a warning
+  about where the work belonged.
+- **⚠ AND THE FRONTEND HAS NO TIMEOUT, WHICH IS WHY IT LOOKS LIKE A HANG RATHER THAN A
+  SLOW SEND.** `visits.tsx`'s `doAction` sets `busy: true` and clears it only on
+  completion. If the fetch never resolves, **`busy` stays true forever and the button is
+  darkened permanently** — exactly the reported symptom. So the two things Brandon saw are
+  one failure: the backend is slow or erroring, and the button has no way to recover.
+- **⚠ ONE ASYMMETRY I INTRODUCED AND SHOULD HAVE CAUGHT: the Email branch of `queueAction`
+  is wrapped in `try/catch`; the TEXT branch is not.** `invoicePdfUrlFor_` swallows its own
+  failures so it cannot throw — but that asymmetry means any future throw on the text side
+  escapes to the global handler instead of being reported per-send.
+- **THE EXECUTION LOG IS THE ONE THING THAT SEPARATES SLOW FROM BROKEN**, and only Brandon
+  can read it: **success (slow), an error, or still-running/timed-out.** Each points at a
+  different fix, and guessing between them is what this project has repeatedly paid for.
+- **PROPOSED DIRECTION, NOT BUILT: get the Drive work OFF the send path entirely.** The
+  link should be minted when the invoice is created or drafted, with the token URL stored
+  in the queue row — then SEND is a Quo call again, as fast as it was. Presented as
+  numbered options because the draft-time route was previously ruled out for a reason
+  (`out.invoiceUrl` timing) that needs re-checking rather than assuming.
+- **Carried forward:** the execution log, the flag-off unblock, Push Subscriptions `Role`,
+  Lovable's push test, Items 77 and 81, Mercury, Item 50.
+
+---
+
 ## CC-102 — 2026-08-15
 
 **Sent:** Real invoice text sent, no link appended. Diagnose using the send result's
