@@ -67,6 +67,7 @@ function PushPanel() {
   }, []);
 
   const vapid = import.meta.env["VITE_VAPID_PUBLIC_KEY"] as string | undefined;
+  const vapidMissing = !vapid;
 
   async function turnOn() {
     if (perm === "unsupported") return;
@@ -157,6 +158,12 @@ function PushPanel() {
         Permission: <span style={{ color: TEXT }}>{permLabel}</span>
       </div>
 
+      {vapidMissing ? (
+        <div style={{ color: MUTED, fontSize: 12, marginTop: 14, lineHeight: 1.5 }}>
+          Push is not configured on this build.
+        </div>
+      ) : null}
+
       <label style={{ display: "block", color: MUTED, fontSize: 11, letterSpacing: 1, marginTop: 14 }}>
         WHOSE PHONE IS THIS?
       </label>
@@ -189,7 +196,7 @@ function PushPanel() {
       ) : (
         <button
           onClick={turnOn}
-          disabled={busy || perm === "unsupported"}
+          disabled={busy || perm === "unsupported" || vapidMissing}
           style={{
             width: "100%",
             marginTop: 14,
@@ -202,7 +209,7 @@ function PushPanel() {
             fontWeight: "bold",
             padding: "12px 10px",
             borderRadius: 999,
-            opacity: busy || perm === "unsupported" ? 0.5 : 1,
+            opacity: busy || perm === "unsupported" || vapidMissing ? 0.5 : 1,
           }}
         >
           {busy ? "WORKING…" : "TURN ON NOTIFICATIONS"}
