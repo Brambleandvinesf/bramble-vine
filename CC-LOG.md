@@ -14,6 +14,49 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-88 — 2026-08-14
+
+**Sent:** Brandon cannot find `cfgBust_` in the Apps Script function dropdown. Verify it
+exists and is pushed before assuming user error; give the exact name, or push it if
+missing; report the simplest correct path.
+
+**Response to CC-88:** **STAGED v7.4.133 on HEAD** — `bustAppConfigCache()`, a public
+wrapper. One-line fix, and the cause was mine.
+
+- **✅ `cfgBust_` EXISTS AND HAS ALWAYS BEEN PUSHED.** Line 2781 of current HEAD, verified
+  after a clean `clasp pull`. Not missing, not mis-named, not a typo.
+- **⚠⚠ THE CAUSE: IT ENDS WITH AN UNDERSCORE, AND APPS SCRIPT DELIBERATELY HIDES
+  TRAILING-UNDERSCORE FUNCTIONS FROM THE RUN DROPDOWN.** That is the documented "private
+  function" convention — such functions cannot be invoked from the editor UI at all.
+  **So it was never runnable that way, and every batch that told Brandon to "run
+  cfgBust_() from the editor" was giving an impossible instruction. That was mine,
+  repeated across CC-77, CC-84, CC-85, CC-86 and CC-87** — five times, never once
+  checked, because "the function exists" felt like the whole answer.
+- **NOT USER ERROR, and worth stating plainly** given the brief's opening: Brandon looked
+  in the right place for the right name and it genuinely was not there.
+- **THE FIX IS ONE WRAPPER: `bustAppConfigCache()`** — no trailing underscore, therefore
+  visible. It calls `cfgBust_()` and then **logs what the config now resolves to**,
+  because a function that appears to do nothing is indistinguishable from one that
+  failed.
+- **⚠ AND IT PRINTS THE KEY'S LENGTH AND LAST 4 CHARACTERS, NEVER THE KEY.** That is
+  enough to catch the two things that actually go wrong — a truncated paste or a trailing
+  space — without writing a secret into an execution log that persists.
+- **THE GENERAL TRAP IS NOW IN THE CHANGELOG:** anything ending in `_` cannot be run from
+  the editor. Every probe in this file was named without one deliberately —
+  `qboShareLinkTest`, `qboInvoiceLinkTest`, `invoiceMessageEndToEndTest`,
+  `qboInvoicePdfProbe`, `clientPhoneAudit`, `qboInvoiceNumberProbe` — and all were
+  verified visible in this batch, so none of them has the same problem.
+- **ALTERNATIVE PATHS CHECKED rather than assumed:** the cache is a 6-hour
+  `CacheService` TTL, so it does **not** clear on deploy and there is no other public
+  function that clears it. `cfgBust_` is called automatically in exactly one place — a
+  non-dry-run branch at line 8995 — which does not help here. **The wrapper is the only
+  clean route**, short of waiting six hours.
+- **Carried forward:** the qboShareLinkTest run, which invoice shows a PDF link,
+  `invoiceMessageEndToEndTest()` dry run, the 26-call-site decision, the Stripe
+  plugin/MCP install, Item 50.
+
+---
+
 ## CC-87 — 2026-08-14
 
 **Sent:** Item 62 — Brandon may have set a REUSED PASSWORD as BV_SHARED_KEY; generate a
