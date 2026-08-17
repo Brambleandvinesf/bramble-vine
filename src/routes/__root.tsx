@@ -23,6 +23,7 @@ import {
   Folder,
   Receipt,
   Shield,
+  Settings,
   ShoppingCart,
   MoreVertical,
   Maximize2,
