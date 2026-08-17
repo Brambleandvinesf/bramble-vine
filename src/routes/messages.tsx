@@ -901,6 +901,17 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       // optimistic
       opts?.onClearField?.();
       optDecide("awaiting", it.id, false);
+      const pinId = `reply-${it.id}`;
+      pinSent({
+        id: pinId,
+        threadId: it.threadId,
+        conversationId: it.conversationId,
+        participants: it.participants,
+        text: t,
+      });
+      setItems((prev) =>
+        prev.map((x) => (x.id === it.id ? { ...x, snippet: t, date: new Date().toISOString() } : x)),
+      );
       setStaged((s) => {
         const n = { ...s };
         delete n[it.threadId];
@@ -927,6 +938,8 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       }
       // rollback: drop the override so the server's own value shows through
       optRevert("awaiting", it.id);
+      unpinSent(pinId);
+      setItems((prev) => prev.map((x) => (x.id === it.id ? { ...x, snippet: it.snippet, date: it.date } : x)));
       void wasAwaiting;
       if (attachments.length) setStaged((s) => ({ ...s, [it.threadId]: attachments }));
       if (opts?.fromViewer) setVReply(t);
