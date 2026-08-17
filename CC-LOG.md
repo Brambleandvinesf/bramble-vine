@@ -14,6 +14,57 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-101 — 2026-08-15
+
+**Sent:** Web Push registered ("Brandon", permission Allowed) but no push arrived on a real
+text — only the Quo message and the still-active MacroDroid alert. Trace the full chain.
+Item 81 NEW — Confirm Daily Load skipping to Confirm Special for Lead; check whether it is
+an Item 15 regression. Item 77 still queued.
+
+**Response to CC-101:** **CHAIN TRACED, AND THE LEADING CAUSE IS A DESIGN FLAW I
+INTRODUCED — not a delivery failure.** No code. Item 81 deferred, said plainly.
+
+- **✅ STEP 2 CLEARS: the path IS genuinely wired.** The Quo webhook calls
+  `ntfyPushRoles_([role], urgent ? 'URGENT text' : 'New text', …)` at line 4689 on a new
+  message, and `ntfyPushRoles_` calls `webPushRoles_` first and unconditionally (CC-75). So
+  the wiring is real, not theoretical.
+- **⚠⚠ BUT `webPushRoles_` TARGETS BY THE *LINE OWNER'S* ROLE, NOT BY WHO WANTS THE
+  NOTIFICATION — AND THAT IS THE LIKELY ANSWER.** The webhook sets
+  `role = lineOwnerRole_(hit.number)` — the role that OWNS the B&V line the text landed on.
+  `pushSubsForRoles_` then returns only subscriptions whose stored Role matches. **So
+  Brandon, registered as management, receives a push ONLY for texts to the management
+  line.** A client texting the lead or assistant line pushes to lead/assistant devices and
+  silently skips him. The code is behaving exactly as written; **what I wrote does not match
+  what "notify me on a new message" means.**
+- **⚠ TWO SUPPRESSION GATES THAT WOULD ALSO PRODUCE EXACTLY THIS SYMPTOM**, both upstream
+  of any delivery: `role` is set to `''` when `evDup` (a repeat webhook delivery) or
+  **`fromInternal`** (the sender is one of B&V's own lines) is true, and `if (role)` then
+  skips the push entirely. **If Brandon sent the test text from a B&V line or the Quo app,
+  `fromInternal` is true and no push was ever attempted.**
+- **⚠ AND MACRODROID FIRING PROVES NOTHING ABOUT OUR CHAIN** — it watches the Quo app's own
+  notification on the phone, with no backend involvement (CC-75's finding that
+  `ntfyPushRoles_` was dead for both legacy transports and the alert still fired). So "the
+  text arrived and MacroDroid alerted" is consistent with our push never being attempted.
+- **🚫 STEP 1 IS BLOCKED BY ANOTHER OMISSION OF MINE: there is no read action for the Push
+  Subscriptions tab.** I built `registerPush` and `unregisterPush` and no way to inspect
+  the result. So I cannot confirm the row exists, nor — the thing that matters most —
+  whether its **Role** cell is populated. **A blank Role never matches any requested role
+  and is silently filtered out**, which is candidate (c) and indistinguishable from a
+  delivery failure without that read.
+- **STEP 4 IS THE RIGHT NEXT MOVE AND ISOLATES THE HALVES CLEANLY:** Lovable's "Run a push
+  test" button goes relay → device, bypassing the trigger. **Arrives ⇒ the relay, the
+  subscription and the phone are all fine and the fault is the role targeting or a
+  suppression gate. Does not arrive ⇒ the fault is below that, in the relay or the
+  subscription record.** One button, two very different conclusions.
+- **ITEM 81 NOT INVESTIGATED**, and deferred deliberately rather than answered thinly — it
+  asks specifically whether this is an Item 15 regression, and that needs the routing logic
+  and Item 15's actual fix read side by side. Guessing "probably a regression" because the
+  symptom rhymes is precisely what the brief warned against.
+- **Carried forward:** Item 77 (still the recommended next), Item 81, Item 54's App Config
+  check, Mercury, Item 50.
+
+---
+
 ## CC-100 — 2026-08-15
 
 **Sent:** Nine items — 72 (Tool Maintenance in Debrief Queue), 73 (inline trash on queue
