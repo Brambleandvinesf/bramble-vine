@@ -14,6 +14,44 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-87 — 2026-08-14
+
+**Sent:** Item 62 — Brandon may have set a REUSED PASSWORD as BV_SHARED_KEY; generate a
+fresh random 32+ char value and hand it over. Item 62 — write the Option 1 Lovable prompt
+for wiring the VAPID public key.
+
+**Response to CC-87:** **NO CODE, NO DEPLOY.** Two deliverables: a freshly generated
+shared key and the VAPID wiring prompt.
+
+- **⚠ THE CONCERN IS CORRECT AND THE FIX IS BIGGER THAN A REPLACEMENT.** `BV_SHARED_KEY`
+  sits in plain text in **two places that are not credential vaults** — a Supabase
+  secrets panel and a **spreadsheet cell (App Config B22)** that anyone with sheet access
+  can read, that syncs to devices, and that appears in backups and version history.
+  **So if the current value is a password reused anywhere else, replacing it here does
+  NOT undo the exposure** — it has already been written into a shared spreadsheet, and
+  that password should be changed wherever else it is used. Said plainly because the
+  brief asked only for a replacement string, and a replacement alone would leave the real
+  risk in place.
+- **Key generated from `/dev/urandom`** — 44 base64url characters, ~256 bits. Not a
+  passphrase, not memorable, and never typed twice by a human.
+- **THE FAILURE MODE IF THE TWO SIDES DIFFER IS SILENT**, which is why it is called out
+  hard: the Edge Function returns **401** and `webPushRoles_` swallows it, so a mismatch
+  looks exactly like "push isn't working" with nothing in any log Brandon reads. One
+  wrong character produces a dead feature with no error surfaced anywhere.
+- **VAPID PROMPT WRITTEN (Option 1).** The part that matters is the failure state: it
+  instructs Lovable to render a plain "push is not configured on this build" message when
+  `VITE_VAPID_PUBLIC_KEY` is absent, **instead of letting `pushManager.subscribe` throw**
+  — an opaque subscribe error reads as a broken phone rather than missing config, and
+  this project has already lost time twice to exactly that shape of confusion.
+- **AND IT NAMES THE PUBLIC/PRIVATE DISTINCTION EXPLICITLY**, telling Lovable to take the
+  PUBLIC half only and never to give the private key a `VITE_` prefix — because that
+  prefix is the precise thing that would publish a private key into the browser bundle.
+- **Carried forward:** the qboShareLinkTest run, which invoice shows a PDF link,
+  `invoiceMessageEndToEndTest()` dry run, WEB_PUSH_URL + `cfgBust_()`, the 26-call-site
+  decision, the Stripe plugin/MCP install, Item 50.
+
+---
+
 ## CC-86 — 2026-08-14
 
 **Sent:** Edge Function deployed on Lovable Cloud, invoke URL confirmed; BV_SHARED_KEY
