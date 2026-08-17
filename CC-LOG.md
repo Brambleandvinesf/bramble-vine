@@ -14,6 +14,52 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-100 — 2026-08-15
+
+**Sent:** Nine items — 72 (Tool Maintenance in Debrief Queue), 73 (inline trash on queue
+entries), 54 regression (dummy invoice had no link), 74 (submit gated too long), 75/76
+(Load Vehicle: checkboxes dead for assistant, extraneous buttons), 77 (cross-role parity
+audit), 78 (project-less loading items), 79 (Add 2nd Loading button), 80 (Confirm Special
+UI). All findings-first.
+
+**Response to CC-100:** **THREE ITEMS SETTLED, SIX NOT INVESTIGATED — and I said which,
+rather than answering nine shallowly.** No code, no deploy.
+
+- **⚠⚠ ITEM 54 — I CANNOT ANSWER IT, AND THE REASON IS AN OMISSION IN WHAT I BUILT.**
+  `configAudit` returns 22 keys and **`INVOICE_PDF_LINK` / `INVOICE_PDF_FOLDER_ID` are not
+  among them** — because I added `WEB_PUSH_URL/KEY` to `CONFIG_MIGRATED` in CC-77 and
+  **never added these two** when introducing them in CC-95/CC-97. And
+  `bustAppConfigCache`'s direct sheet read is **hardcoded to the two WEB_PUSH keys**. So
+  **neither diagnostic I built can see the values Brandon's question is about.** Two
+  one-line fixes, both mine, and the reason the question could not be closed from here.
+- **AND THE LIKELY ANSWER IS THE DESIGN WORKING AS SPECIFIED, NOT A BUG:** if
+  `INVOICE_PDF_FOLDER_ID` is unset, `invoicePdfUrlFor_` returns `''` **by design** and
+  records `pdfNote: "INVOICE_PDF_FOLDER_ID not set — run setupInvoicePdfFolder()"`. That
+  matches the reported symptom exactly — no link, no attachment indication. **Brandon can
+  settle it in five seconds by looking at those two rows in App Config**, which is faster
+  than any code I could add.
+- **✅ WEB_PUSH CONFIG CONFIRMED CORRECT AND LIVE** — both `WEB_PUSH_URL` and
+  `WEB_PUSH_KEY` resolve to the right values. So the blocked notification permission is
+  genuinely the only thing in the way of Priority 1's test 1, as Brandon already
+  identified.
+- **✅ ITEM 79 — NO PRIOR HISTORY. It is a NEW request, not something scoped and dropped.**
+  Zero hits for "2nd loading" / "second loading" / "add 2nd" / "two loadings" across the
+  whole of CC-LOG.md and CLAUDE.md. Worth knowing before anyone hunts for a lost decision.
+- **⚠ AND THE HONEST SCOPE PROBLEM, STATED RATHER THAN PAPERED OVER: nine findings-first
+  items in one batch is more than one pass can investigate properly.** Items 72, 73, 74,
+  75, 76, 77, 78 and 80 each need real code reading, and 76 and 80 explicitly need Brandon
+  to confirm what he is looking at first. **Guessing at eight of them would produce eight
+  plausible-sounding answers of the kind this project has already been burned by four
+  times in Item 54 alone.** A proposed order is in the response.
+- **⚠ ITEM 77 IS THE ONE I WOULD DO FIRST REGARDLESS**, because it is not a bug report —
+  it is the hypothesis that several of the others are the same fault. If frontend changes
+  are landing per-role rather than globally, then 75, 76 and 78 may be symptoms of it, and
+  fixing them individually would be treating symptoms.
+- **Carried forward:** Priority 1's two verifications (notification permission is
+  Brandon's), Mercury account, Item 50.
+
+---
+
 ## CC-99 — 2026-08-14
 
 ⚠ **CC-98 NEVER ARRIVED HERE** (as CC-80..83 did not). Jumped CC-97 → CC-99. Recorded per
