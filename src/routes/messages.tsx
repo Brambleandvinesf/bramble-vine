@@ -946,7 +946,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       flash("Message NOT sent to " + it.from + "!", true);
       return false;
     },
-    [flash, staged, email, draftByThread, flushDraftSave, removeDraftLocal],
+    [flash, staged, email, draftByThread, flushDraftSave, removeDraftLocal, pinSent, unpinSent],
   );
 
   /* ---- compose new outbound (Quo only) ---- */
