@@ -14,6 +14,50 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-89 — 2026-08-14
+
+**Sent:** WEB_PUSH_URL/KEY resolve empty despite B21/B22 being set. Diagnose before
+sending Brandon back to the sheet — check the exact column A text, cfg_'s matching logic,
+whether CONFIG_MIGRATED is genuinely deployed, and whether the VALUE cells are actually
+non-empty.
+
+**Response to CC-89:** **DIAGNOSED WITHOUT GUESSING, AND IT IS NOT A CODE BUG.** Staged
+v7.4.134 — a diagnostic upgrade that names the exact cell. Nothing deployed.
+
+- **✅ THE KEY NAMES IN COLUMN A ARE CORRECT AND ARE BEING MATCHED. THE VALUE CELLS ARE
+  EMPTY.** Proven two independent ways rather than inferred: `configAudit` returns
+  `{"key":"WEB_PUSH_URL","tab":"","property":null}` and a **dry-run `setupAppConfig`**
+  returns `{"key":"WEB_PUSH_URL","inTab":true,"tabValue":""}`. **`inTab:true` is the
+  decisive bit** — the row exists and the key text matches; only column B is blank. A
+  wrong or misspelled key would have produced `inTab:false` / `tab:null`, which is what
+  `PLACES_API_KEY` shows for comparison.
+- **✅ MATCHING LOGIC CONFIRMED, and it is not the culprit:** `cfgMap_` reads
+  `getRange(2, 1, lastRow-1, 2)` — **columns A and B ONLY, from row 2 down** — keys via
+  `String(r[0]).trim()`, so **leading/trailing spaces in the key are already tolerated**.
+  Matching is exact and CASE-SENSITIVE after that trim. `cfg_` then trims the value and
+  falls back to the Script Property when blank, which is why both read empty.
+- **✅ CONFIG_MIGRATED VERIFIED ON HEAD AFTER A CLEAN `clasp pull`** — line 2845 literally
+  begins `['WEB_PUSH_URL', 'WEB_PUSH_KEY',` — and it is live, since `configAudit`
+  (running on the deployed build) audits 22 keys including both. Not just described in a
+  diff.
+- **⚠ SO THE VALUES DID NOT LAND WHERE `cfgMap_` READS.** The likeliest causes, in order:
+  the value typed into **column C** rather than B; typed onto a row whose column A is
+  blank; or the edit not committed before `bustAppConfigCache` ran. **Nothing anywhere
+  reports any of these**, which is precisely why it presented as a code fault.
+- **RATHER THAN SEND HIM HUNTING, THE DIAGNOSTIC NOW NAMES THE CELL.**
+  `bustAppConfigCache` reads the **sheet directly**, bypassing the cache and `cfgMap_`
+  entirely — going through the map would re-cache and, worse, **collapses "no such row"
+  and "row exists, value blank" into the same empty string**, which is the exact
+  distinction that was missing while this was being diagnosed.
+- **AND IT READS COLUMNS A–D, not A–B**, so a value typed one column too far right is
+  VISIBLE and flagged rather than silently absent. It prints the row number, column A
+  quoted (so a trailing space shows), and column B's LENGTH.
+- **Carried forward:** the qboShareLinkTest run, which invoice shows a PDF link,
+  `invoiceMessageEndToEndTest()` dry run, the 26-call-site decision, Stripe plugin/MCP,
+  Item 50.
+
+---
+
 ## CC-88 — 2026-08-14
 
 **Sent:** Brandon cannot find `cfgBust_` in the Apps Script function dropdown. Verify it
