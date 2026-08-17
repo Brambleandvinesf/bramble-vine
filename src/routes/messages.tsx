@@ -679,7 +679,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     } finally {
       setRefreshing(false);
     }
-  }, [detectNew, email, viewAll, cacheKey, optReconcile, flash]);
+  }, [detectNew, email, viewAll, cacheKey, optReconcile, flash, commitPins]);
 
   const safeLoad = useCallback(async () => {
     try {
