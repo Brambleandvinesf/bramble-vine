@@ -14,6 +14,51 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-97 — 2026-08-14
+
+**Sent:** driveShareTest confirmed ANYONE_WITH_LINK PERMITTED. Build step 4 — Invoice
+Tokens tab, invoiceTokenFor_, folder by ID, ?inv= branch, text link in queueAction, still
+behind INVOICE_PDF_LINK. Report the diff.
+
+**Response to CC-97:** **STAGED v7.4.137 — step 4 built in full.** Nothing deployed, and
+still inert: `INVOICE_PDF_LINK` defaults OFF. Item 54's build is now complete pending one
+real test send.
+
+- **⚠ ONE THING THE SPEC COULD NOT SUPPLY, AND I DID NOT INVENT: THE FOLDER ID.** The
+  brief requires the folder be referenced BY ID and not by name lookup — correct, per the
+  receipt-folder duplicate — **but no such folder exists yet, so there was no id to
+  hardcode.** Resolved by reading `cfg_('INVOICE_PDF_FOLDER_ID')` and adding
+  **`setupInvoicePdfFolder()`**, an editor-only one-shot that creates the folder and prints
+  the id to paste into App Config. **Unset id = the text link is inert and SAYS SO in the
+  send result** — it never falls back to a name lookup, which is the failure the rule
+  exists to prevent.
+- **✅ `invoiceTokenFor_` MIRRORS `galleryTokenFor_` including the Disabled check**, so
+  revoking an invoice link is the same gesture as revoking a gallery link. Tokens come from
+  **`galleryNewToken_()` reused verbatim**, as instructed. ⚠ And noted in-code that they
+  are PERMANENT by decision with no expiry column — adding one later is a schema change,
+  worth knowing before someone assumes it expires.
+- **⚠ WHY IT IS NOT LITERALLY `galleryTokenFor_`, recorded so it does not read as
+  duplication:** that function is keyed per CLIENT, one row each. An invoice needs one
+  token per INVOICE, so the registry genuinely differs; the generator is the shareable part.
+- **✅ THE `?inv=` BRANCH SITS BESIDE `?g=` AND RETURNS HTML EARLY**, for the identical
+  reason documented there — it returns HTML, not JSON, so it must not fall through into the
+  action dispatcher. `noindex, nofollow`, and a real invalid-token page that tells a client
+  what to do rather than showing a bare error.
+- **⚠ AND IT EMBEDS RATHER THAN SERVES, WITH THE REASON IN THE CODE: Apps Script cannot
+  return PDF bytes.** The page frames Drive's own preview and offers a direct download.
+  **So the token hides and revokes the PAGE; it does not gate the FILE** — that sentence is
+  in the comment specifically so nobody later reads the token as access control.
+- **TEXT SENDS APPEND THE URL, EMAIL ATTACHES THE BLOB (v7.4.135), both fail-soft**, both
+  recovering the invoice id from the row's own `INV-<id>-` key at send time, and both
+  reporting failure on the result (`pdfLink` / `pdfNote`) rather than swallowing it. **An
+  existing token short-circuits everything** — no refetch, no second Drive file per invoice.
+- **⚠ STRIPE MCP IS PRESENT BUT UNAUTHORISED and I cannot complete OAuth in this session.**
+  Reported to Brandon plainly rather than attempted.
+- **Carried forward:** `setupInvoicePdfFolder()`, the flag-on test send,
+  `invoiceMessageEndToEndTest()` dry run, Stripe auth, Item 50.
+
+---
+
 ## CC-96 — 2026-08-14
 
 **Sent:** driveShareTest failed with "Permission denied while enabling APIs: drive for GCP
