@@ -306,6 +306,64 @@ DEPLOYED.**
 
 ---
 
+## CC-121 — 2026-08-18
+
+**Sent:** Before approving the Drive-link deletion, confirm what TEXT-preferred clients
+actually get under the new system — plain Stripe link (option 1), or do they still need a
+hosted PDF view (option 2)? And what does the TEXT branch do today (option 3)?
+
+**Response to CC-121:** **NONE OF THE THREE, AND THE PREMISE NEEDS CORRECTING: THE NEW
+SYSTEM IS NOT WIRED TO ANYTHING.** Deletion is still safe and I recommend it — but not for
+the reason the question assumes, so I did NOT act on the conditional pre-approval.
+
+- **⚠⚠ THE THREE STRIPE FUNCTIONS ARE REACHABLE ONLY FROM `cc107InvoicePdfProbe()`, AN
+  EDITOR-ONLY PROBE.** `invoiceHtml_`, `invoicePayPdf_` and `stripePaymentLinkFor_` call each
+  other and nothing else calls them. **A grep for `payUrl|stripe|Stripe|STRIPE` across the
+  whole file returns ZERO hits outside that block** — no draft, queue or send function
+  touches Stripe. The new system is a working prototype, not a live path.
+- **⚠⚠ CORRECTION TO THE PREMISE: THE CUSTOM PDF IS NOT THE PDF THAT GETS EMAILED.** CC-121
+  says the Stripe-link PDF "gets attached to EMAIL messages via qboInvoicePdfBlob_". Those
+  are TWO DIFFERENT PDFs. `qboInvoicePdfBlob_` fetches **QuickBooks' own** rendered PDF. The
+  custom Stripe-link PDF has only ever existed as a Drive file created by the probe — it is
+  attached to nothing, on any channel.
+- **OPTION 3, FACTUALLY:** the TEXT body is greeting + lead sentence + **the bare QBO
+  `invoiceUrl`** + photos + client message. No Stripe link. The ONLY reference to the
+  hosted-PDF mechanism is the draft-time append already staged for removal, and it is gated
+  OFF. So the TEXT branch neither already sends a Stripe link nor expects the old page.
+- **⚠ AND `out.invoiceUrl` IS OFTEN EMPTY — that is the original Item 54 bug, still recorded
+  in the code's own comments at 13429 and 13569.** So a texted client today may receive a
+  message with NO payment route at all. That is the live invoicing problem, and it is bigger
+  than the deletion.
+- **OPTION 2, ANSWERED PROPERLY: TEXT clients need a hosted PAY page, and STRIPE ALREADY IS
+  ONE.** `stripePaymentLinkFor_` returns a Stripe-hosted URL — textable, tappable, needs no
+  Drive, no token, no `?inv=` branch. **The Drive-token architecture is not what fills this
+  gap.** What text clients would lack is ITEMISATION: verified, the Stripe page is built as
+  ONE line item (`'Invoice <n> - <client>'` at the full total), so it shows a lump sum.
+- **Therefore the open question is a business one, not an architectural one** — do texted
+  clients need to see line items? Three answers, and the Drive page is the worst: (1) put the
+  itemisation in the text body, (2) build Stripe's `line_items` from the real invoice lines
+  so its own page itemises, (3) host a PDF. Options 1 and 2 need no hosting mechanism.
+- **⚠ `INVOICE_PDF_LINK` IS STILL OFF per the log's own carried-forward list, and the Drive
+  link was NEVER confirmed to reach a client** — CC-102/103 it produced nothing and hung the
+  send, CC-104 restructured it, and it was never verified after. So deleting it is invisible
+  to clients. **⚠ I am reading the LOG, not live App Config — if the flag has since been
+  flipped on, confirm before deploying.**
+- **⚠ I DID NOT DEPLOY ON THE CONDITIONAL PRE-APPROVAL.** CC-121 authorised proceeding "if
+  option 1", where option 1 was described as the TEXT branch already sending the Stripe link.
+  **It does not.** The condition's premise is false, so the authorisation it was attached to
+  does not apply. Invoicing path, so: report, recommend, wait.
+- **RECOMMENDATION: DELETE AS STAGED.** Nothing references it, the flag is off, it never
+  worked in production, its job is better done by Stripe's own hosted link, and keeping 195
+  lines of gated-off dead code as insurance is the sprawl the standing rules forbid. `git
+  show` recovers every line if it is ever wanted.
+- **Carried forward:** the real Item 54 blocker — nothing wires Stripe into the send path and
+  `STRIPE_RK` is still unset, so `stripePaymentLinkFor_` throws on call; sheet rows 415-429;
+  Lovable build-history check for 047ba0a; the 4 UUID-project rows; Item 80; Item 77
+  extraction; hqScreenFor/redirect tidy; invoiceHtml_ QBO restyle; Item 62 push delivery;
+  Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP unauthorised.
+
+---
+
 ## CC-120 — 2026-08-18
 
 **Sent:** Run the test push to settle whether Lovable rebuilds from an external push.
