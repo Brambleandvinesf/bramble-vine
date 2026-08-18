@@ -306,6 +306,71 @@ DEPLOYED.**
 
 ---
 
+## CC-124 — 2026-08-18
+
+**Sent:** Both channels must send the CUSTOM PDF with the embedded Stripe link, not QBO's.
+Build the full wiring with the confirmed guard (creation-time + send-time).
+
+**Response to CC-124:** **BUILT, VERIFIED, STAGED — NOT DEPLOYED.** 239 lines added, 3
+removed, `node --check` PASS. **One design correction: the PDF is rendered at SEND, not at
+creation** — and the reason is the guard itself.
+
+- **⚠⚠ THE PDF CANNOT BE BUILT AT CREATION, AND THE SECOND REASON IS THE DECISIVE ONE.**
+  (1) A PDF is a Blob and **a Blob cannot live in a sheet cell**, so creating it at creation
+  means persisting it to Drive — the machinery CC-123 just deleted 195 lines of. (2) **The
+  guard exists precisely because an invoice can change after creation. A PDF built before
+  that change shows a stale price — so a creation-time PDF is wrong exactly when it matters
+  most.** It costs no extra round trip: `invoicePayCheck_` has already fetched the invoice
+  the PDF is rendered from.
+- **✅ ONE QBO READ SERVES BOTH THE GUARD AND THE PDF.** `payChk.inv` is handed to
+  `invoicePayPdfFrom_`, so the email branch renders without a second fetch.
+- **⚠ ONE GUARD, BEFORE THE CHANNEL SPLIT, NOT ONE PER BRANCH.** Both channels now carry a
+  payment link, a single guard cannot drift out of sync with itself, and placing it above the
+  split is what lets email reuse the fetch.
+- **⚠⚠ THE GUARD FAILS CLOSED — the only fail-closed path in this file, deliberately.**
+  Everywhere else a missing artefact degrades the message and sending beats silence. **Here
+  the artefact is a PRICE.** Asking a client for the wrong amount is a refund and an apology;
+  not sending is a retry. **On mismatch: `ok:false`, `paidBlocked:true`, the reason on the
+  result, and the row stays Pending** so the office can fix the invoice and send again.
+  Nothing is lost.
+- **⚠ MINTED AGAINST THE BALANCE OWED, NOT TotalAmt.** With a credit or part payment those
+  differ and the client should be asked for what is actually outstanding. The creation-time
+  guard (Option 3) is that the balance must be a positive number — zero means nothing is
+  owed, absent means QBO did not say, and minting in either case would be inventing a price.
+- **⚠ NEW FLAG `INVOICE_STRIPE_PAY`, DEFAULT OFF — verified `'off'` at all three read sites.
+  Deploying changes nothing a client receives.** `INVOICE_PDF_LINK` still gates the legacy
+  QuickBooks attachment, kept **only** so switching the new flag off is a real rollback
+  rather than a cliff where email clients suddenly get no attachment at all.
+- **Two new MQ columns, `Pay URL` and `Pay Amount`, matched BY HEADER** via a `mqPayCols_`
+  helper mirroring `mqKindCol_`/`mqDebriefEventCol_`. Pre-CC-124 rows: `col()` returns -1,
+  reads resolve to `''`, and they send exactly as they do today.
+- **⚠ CLARIFICATION WORTH HAVING: THE CUSTOM PDF *IS* ITEMISED.** `invoiceHtml_` renders
+  `d.items`, so email clients get full line detail. Only the **Stripe checkout page** is the
+  single lump-sum line (Option 1). So the itemisation gap is narrower than it sounded — it
+  affects TEXT clients only, who get the link with no line detail.
+- **⚠ A BUG I HIT AND FIXED, worth recording because it will recur: `String.replace` treats
+  `$'`, `$&` and `$1` as substitution patterns in a STRING replacement.** My money formatting
+  `' is now $' + live` had its `$'` silently replaced with "everything after the match",
+  producing a syntax error. Fixed by passing a FUNCTION replacer, which disables `$`
+  interpretation. `node --check` caught it; a grep would not have.
+- **⚠ RISK TO WEIGH BEFORE FLIPPING THE FLAG: this adds ONE QBO read to the TEXT send path,
+  which previously had ZERO IO.** `visits.tsx` clears `busy` only on completion, and whether
+  that CC-104 frontend fix ever landed is **unconfirmed**. A slower send could re-create
+  CC-103's permanently dead button.
+- **⚠ KNOWN GAP, NOT BUILT: a blocked-and-re-minted invoice leaves the OLD Stripe link live.**
+  `restrictions[completed_sessions][limit]=1` limits it to one use but does not deactivate
+  it, so a client holding the old text could still pay the old amount. Deactivating would be
+  an extra Stripe call.
+- **⚠ Staged at `/home/info/bv-scratch/Code.cc124.js`, NOT in the project directory** — the
+  CC-123 lesson applied.
+- **Carried forward:** deploy approval; `STRIPE_SECRET_KEY` (rk_test_) then flip
+  `INVOICE_STRIPE_PAY`; confirm the visits.tsx timeout fix; old-link deactivation; TEXT
+  itemisation; the Invoice Tokens row count; sheet rows 415-429; Lovable build history for
+  047ba0a; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy;
+  Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-123 — 2026-08-18
 
 **Sent:** Deploy the Drive-link removal (clasp pull, diff, deploy). Land the STRIPE_RK
