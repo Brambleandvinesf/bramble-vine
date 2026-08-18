@@ -306,6 +306,50 @@ DEPLOYED.**
 
 ---
 
+## CC-114 — 2026-08-17
+
+**Sent:** Build the real fix (Option 1) — extract one shared loading component following the
+StateDebrief precedent; the assistant's screen should behave identically. Investigate whether
+the redirect-to-/field is still needed. Report the design and diff before deploying.
+
+**Response to CC-114:** **NOT BUILT — I FOUND AN ERROR IN MY OWN CC-113 DIAGNOSIS AND STOPPED
+RATHER THAN MERGING TWO COMPONENTS I HAD MISIDENTIFIED.** No code.
+
+- **🚫 CC-113's "THREE `setLoaded` COPIES OF ONE SCREEN" WAS PARTLY WRONG. `field.tsx:1641`
+  IS NOT THE LOADING SCREEN.** Its surrounding props are `onEndVisit`, `onCrossProject`,
+  `onVisitComplete`, `onNoShow`, `stopNotes`, `clockSlot`, `onBreak`, `onOnsiteLunch` — **it
+  is the VISIT screen's tool checklist**, crew ticking tools off during a client visit. A
+  genuinely different feature that happens to call the same backend action.
+- **⚠ SO THE `{ silent: true }` FINDING DOES NOT EXPLAIN THE LOAD VEHICLE CHECKBOXES EITHER.**
+  I attached it to the wrong screen. It may still be worth removing on the visit checklist,
+  but it is **not** the cause of Item 75, and CC-113 presented it as the smoking gun.
+- **⚠⚠ AND A REAL CONTRADICTION SURFACED THAT NOBODY HAS EXPLAINED YET: `hqScreenFor('loading')`
+  RETURNS `/loading` FOR EVERY ROLE** (day-state.tsx:303, no role parameter at all) — **while
+  `loading.tsx` immediately redirects any assistant to `/field`.** The day-state machine sends
+  the assistant to a screen that bounces them straight back out. **That ping-pong is a
+  plausible cause of "crew members cannot progress through the app" in its own right**, and it
+  is a better fit for that symptom than a checkbox handler.
+- **WHY I STOPPED RATHER THAN BUILDING: the merge Brandon approved is between `loading.tsx`'s
+  component and "the assistant's loading implementation in field.tsx" — and I have now
+  established that I never actually identified the latter.** `field.tsx:342` is the remaining
+  candidate and I have not confirmed what screen it belongs to. **Extracting a shared
+  component from a pair where one half is misidentified would produce a merge that breaks a
+  live crew screen mid-field-work** — the exact opposite of the brief's "verify carefully
+  before shipping".
+- **AND THIS IS THE FOURTH TIME IN THIS PROJECT that I have reported a confident conclusion
+  from a partial read** (CC-68 flags, CC-70 probe verdict, CC-84 necessary-vs-sufficient, now
+  this). The difference here is that it was caught before it reached the crew's screen rather
+  than after — which is the only reason not to have built it.
+- **WHAT THE NEXT PASS NEEDS, precisely and narrowly:** identify what the assistant actually
+  sees during the `loading` sub-step — the component name, where it renders, and whether
+  `field.tsx:342` belongs to it — then confirm whether the `/field` redirect is load-bearing
+  given `hqScreenFor` already routes everyone to `/loading`. **That is one focused
+  investigation, not a batch of items.**
+- **Carried forward:** the Item 77 fix (pending the above), the redirect contradiction,
+  Drive-link removal, `invoiceHtml_` redesign, Item 79, Item 82, Item 81, Mercury, Item 50.
+
+---
+
 ## CC-113 — 2026-08-17
 
 **Sent:** ⚠ PRIORITY OVERRIDE — Item 77 is actively blocking crew in the field. Then: remove
