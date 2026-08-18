@@ -14,6 +14,79 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-144 — 2026-08-18
+
+**Sent:** Build the approved CC-143 design. Confirm the pay link is still inside the document.
+Branding pass, light not dark. Test, report the diff, do not deploy.
+
+**Response to CC-144:** **BUILT — 385 added, 11 removed, `node --check` PASS, 19 behavioural tests
+pass. NOT DEPLOYED.** ⚠⚠ **I caught a real gap in my own build midway: patch A defined
+`invoicePdfUrlFor_` and never called it**, so the text would have sent "Invoice Link: undefined".
+Found by grepping my own output rather than trusting it.
+
+- **⚠⚠ THE GAP, AND HOW IT WAS FOUND: `invoicePdfUrlFor_(` appeared exactly ONCE — the definition.
+  Nothing called it, and `inv.pdfUrl` was read with nothing ever setting it.** A syntax check
+  passed cleanly on that. Patch B closed it: init, **mint the token at creation (token-only — no
+  render, no Drive write)**, carry through `saveDebrief`, and **regenerate the bytes at send**. Now
+  3 call sites.
+- **⚠ AND TWO MORE OF MY OWN ERRORS IN THE SAME PASS:** patch A gated the body on `payUrl` rather
+  than `pdfUrl`, which would have appended **"Invoice Link: " with nothing after it** whenever a
+  pay link existed but the document did not — a broken message rather than a degraded one. And it
+  left a **duplicated `payUrlForPdf` assignment**. Both fixed.
+- **✅ PRIORITY 1 — WHERE THE PAY LINK IS: directly beneath TOTAL, inside `payBlock`, above the
+  memo** — "near the balance due" as CC-112 specifies. Styled as a filled button, `#4a7a1e`, white
+  bold text.
+- **⚠⚠ BUT I CANNOT CONFIRM TAPPABILITY IN THE RENDERED PDF, AND I WILL NOT CLAIM IT.** That needs
+  a PDF rendered and opened; I can read the HTML and nothing more. Google's converter usually
+  preserves anchors, but "usually" is not a confirmation and the prompt asked specifically for one.
+- **✅ SO I ADDED A MITIGATION THAT WAS NOT ASKED FOR: the URL now PRINTS AS VISIBLE TEXT beneath
+  the button** ("or paste this link: …"). **A button that cannot be tapped and shows no address is
+  a dead end on a printed or non-interactive PDF.** This is the difference between a link that
+  might work and a document that always works. `cc107InvoicePdfProbe` renders a real PDF to Drive
+  and settles the tappability question in one run.
+- **✅ PRIORITY 2 — CONFIRMED RATHER THAN ASSUMED: `invoiceHtml_` WAS ALREADY LIGHT.** It set no
+  background at all (so white) with `#333`/`#555` text. **No dark-mode fix was needed**; branding
+  was added without darkening anything.
+- **⚠ THE LOGO CHOICE WAS MEASURED, NOT GUESSED: `logo.png` is 824KB (1.1MB base64) and
+  `bvlogo-circle-full.png` 464KB — both far too large to inline into every invoice.
+  `bvlogo-card-128.png` is 31KB (~41KB base64), fits under CacheService's 100KB per-item limit, and
+  is already header-sized.** All three URLs returned HTTP 200, so the assets are real.
+- **⚠ INLINED AS A DATA URI, NOT A REMOTE `<img>`, because Apps Script's HTML-to-PDF conversion is
+  not reliably network-enabled and a silently-broken image would appear on every client invoice.
+  ⚠ I could not verify the converter honours data URIs either — so it FAILS SOFT to the text
+  wordmark**, making the worst case exactly today's header. Cached 6h: one fetch per six hours, not
+  per invoice.
+- **⚠ ACCENT `#4a7a1e`, chosen on evidence: it is already in the frontend palette (18 uses), high
+  contrast on white, print-safe. Deliberately NOT the app's `#7cff00` lime**, which is illegible on
+  a white document and brushes the standing no-yellow rule.
+- **✅ THE REBUILD MIRRORS THE GALLERY rather than inventing a second pattern**, and
+  `invoiceFileForToken_` refuses on **three** grounds — unknown/stub token, Disabled set, or
+  Expires passed. **The expiry check is deliberately duplicated in the lookup as well as the purge,
+  so an expired link dies even if the trigger never runs** — the old design's fatal assumption
+  inverted.
+- **✅ 19 TESTS PASS, exercising exactly what the rebuild is for:** re-mint keeps the token and
+  repoints the file (proving the creation/send split), a token-only re-mint does not blank the file
+  id, a Disabled token is refused *and* not handed back out by the mint, **an EXPIRED token is
+  refused with Disabled still blank**, stubs under 12 chars are refused without scanning, and
+  expiry lands at exactly 45 days.
+- **✅ THE PURGE + ITS VERIFICATION: `invoicePdfPurge_` (QBO Balance 0, or 45 days, whichever
+  first), `installInvoicePdfPurgeTrigger()`, and `listInstalledTriggers()`** — the last of which
+  exists because a `newTrigger` call in source is not an installed trigger, and this project has
+  been burned by exists-vs-reachable four times.
+- **⚠ COSTS STATED, NOT HIDDEN:** one Drive write on the send path (reusing the invoice `payChk`
+  already fetched, so no extra QBO read), and one cached logo fetch per 6h. CC-126 confirmed
+  `visits.tsx` has a 45s timeout with `busy` cleared in a `finally`.
+- **✅ `Pay online: ` is now 0 OCCURRENCES — the bare Stripe link is gone from the body.**
+- **⚠ NOT DEPLOYED. Live remains @317 / v7.4.147.**
+- **Carried forward:** deploy approval; **then Brandon must run `installInvoicePdfPurgeTrigger()`
+  and `listInstalledTriggers()` — the purge does nothing until installed**; `cc107InvoicePdfProbe`
+  to settle the tappable-link and data-URI questions; **Item 83 next**; invoice 22804 cleanup;
+  Lovable build history for 047ba0a; Stripe Dashboard branding; gallery-file purge (future batch);
+  the 109 empty catches; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect
+  tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-143 — 2026-08-18
 
 **Sent:** Option 1 chosen — rebuild PDF hosting properly. Design first, report before building.
