@@ -306,6 +306,47 @@ DEPLOYED.**
 
 ---
 
+## CC-118 — 2026-08-17
+
+**Sent:** Ship the one-line guard fix in field.tsx plus a toast on the remaining `!it` case;
+mark Items 75/78 closed once confirmed. Delete the 15 empty trailing rows after confirming no
+side effects.
+
+**Response to CC-118:** **THE FIX IS A LOVABLE PROMPT (frontend — I cannot deploy it), and the
+row deletion is CONFIRMED SAFE with one off-by-one warning.** No backend change, nothing
+deployed.
+
+- **⚠ THE FIX IS FRONTEND-ONLY, SO IT IS A PROMPT, NOT A DEPLOY.** `field.tsx` is
+  Lovable-managed; the change is one guard plus a toast. **Items 75/78 therefore cannot be
+  marked CLOSED by me** — they close when Brandon pastes it and an assistant confirms a
+  checkbox ticks. Recorded as "fix delivered, awaiting confirmation" rather than closed,
+  because CC-102 was exactly the failure of calling something done before it was live.
+- **✅ ROW DELETION CONFIRMED SAFE, AND THE RISK I WAS CHECKING FOR IS REAL BUT DOES NOT
+  APPLY.** The 15 blank rows are data indices **414–428 — a perfectly contiguous block at the
+  very end**, with **zero non-blank rows below the first blank**. So deleting them shifts no
+  surviving row.
+- **⚠⚠ WHY THAT MATTERED RATHER THAN BEING A FORMALITY: `setLoaded` FALLS BACK TO THE ROW
+  NUMBER** — that fallback is the very mechanism this fix relies on. **Had the blanks been
+  interleaved among real rows, deleting them would have shifted row numbers underneath a
+  frontend holding cached ones, and a crew member's next tick could have written to the wrong
+  item.** Being a tail block is what makes it harmless, and that is the specific thing worth
+  confirming before any row deletion in this project.
+- **⚠ AND AN OFF-BY-ONE WARNING ON THE DELETION ITSELF: `tabToObjects_` returns `row: i+1`
+  over the data rows only, so data row 414 is SHEET ROW 415** (header occupies row 1). **The
+  rows to delete are sheet rows 415–429, not 414–428.** Deleting one row too high would remove
+  a real item — worth stating explicitly given the whole point is not to break live data.
+- **RECOMMENDED VERIFICATION BEFORE DELETING: confirm those sheet rows are visibly empty**,
+  since the audit only proves four key fields are blank, not that every column is. Cheap, and
+  it converts "the data says blank" into "I can see it is blank".
+- **✅ AND THE DELETION IS OPTIONAL, NOT PART OF THE FIX.** With the guard corrected, blank
+  rows are harmless — they carry no client so they never match a client's loading set. This is
+  tidying, and it can wait for a calm moment rather than riding an urgent change.
+- **Carried forward:** paste the prompt, confirm with an assistant, then close 75/78; the
+  optional row deletion; the 4 UUID-project rows; Item 80; the Item 77 extraction; the redirect
+  tidy; Drive-link removal; `invoiceHtml_` redesign; Items 79/81/82; Mercury; Item 50.
+
+---
+
 ## CC-117 — 2026-08-17
 
 **Sent:** Origin confirmed as pre-app legacy data. Sanity-check that, confirm no active write
