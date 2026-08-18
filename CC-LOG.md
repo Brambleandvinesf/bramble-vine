@@ -306,6 +306,72 @@ DEPLOYED.**
 
 ---
 
+## CC-131 — 2026-08-18
+
+**Sent:** Candidate (a) ruled out — diagnose INV-22810-T from existing data. Delete the one
+exposed invoice PDF and its row. Optionally fix the 7 stale STAGED headers.
+
+**Response to CC-131:** **⚠⚠ PRIORITY 3 IS NOT ANSWERABLE FROM EXISTING DATA — `payNote` and
+`invoiceTimingsMs` were never persisted.** But I found a specific, named cause for candidate
+(c) that one question confirms. **Docs cleanup DONE (staged, not deployed). Both deletions are
+Brandon's, and the ORDER MATTERS.**
+
+- **⚠⚠ THE EVIDENCE FOR INV-22810-T IS GONE, AND THIS CORRECTS THE PROMPT'S PREMISE.**
+  `out.payNote` (14222, 14239), `result.payNote` (5737, 5746) and `report.invoiceTimingsMs`
+  (8427) are all set on objects **RETURNED TO THE CALLER**. **Nothing writes them to any
+  sheet.** The frontend consumed that response and discarded it. There is no log to re-read.
+- **⚠⚠ BUT THE TWO CONFIG STORES ARE NOT THE SAME, AND THAT IS VERY LIKELY THE BUG:**
+  · `cfg_(key)` reads the **App Config TAB first, then a Script Property** — which is exactly
+    why `INVOICE_STRIPE_PAY` works from the tab.
+  · `stripePaymentLinkFor_` (21328) and `stripeDeactivateLink_` (21198) call
+    **`PropertiesService.getScriptProperties().getProperty('STRIPE_SECRET_KEY')` DIRECTLY.
+    They never touch `cfg_`. A value in the App Config tab is INVISIBLE to them.**
+- **HYPOTHESIS, and it fits every observation:** the key went into the App Config tab — the
+  natural place, since that is where `INVOICE_STRIPE_PAY` had just been added — so
+  `getProperty` returned null, `stripePaymentLinkFor_` threw `'STRIPE_SECRET_KEY not set'`, the
+  try/catch set `payNote = 'pay link failed: …'`, and `payUrl` came out empty. **That is
+  candidate (c) with a named cause, not a guess between three.**
+- **⚠ ONE QUESTION SETTLES IT, FROM THE LOG BRANDON ALREADY HAS: did `STRIPE_SECRET_KEY` appear
+  in the `bustAppConfigCache` listing?** Appeared ⇒ it is in the tab ⇒ (c) confirmed. Absent ⇒
+  it is a Script Property, the key is fine, and the cause is (b) or a Stripe API error — which
+  then does need one fresh debrief.
+- **⚠⚠ AND IF IT IS IN THE TAB, THE KEY MUST BE ROTATED, NOT JUST MOVED.** A restricted key
+  sitting in a spreadsheet is readable by anyone with sheet access — the same class of leak
+  CC-123's rename was built to prevent, arriving by a different route.
+- **⚠ I DELIBERATELY DID NOT FIRE `snapshotProps` to check.** It is a POST action that
+  **appends a row** — a write to a live sheet — and the standing rule is to pause before writes.
+  Brandon can answer from a log already in front of him.
+- **⚠ THE DESIGN WART WORTH FIXING LATER: nothing enforces the "Script Property" requirement.**
+  The changelog says it, and the diagnostic I shipped in CC-129 lists App Config rows — so a key
+  in the wrong store looks perfectly correct in the very tool built to check config.
+- **⚠⚠ ITEM 54 — BOTH DELETIONS ARE BRANDON'S, AND ORDER IS LOAD-BEARING.** I cannot read the
+  Invoice Tokens tab (CC-123 removed every reader, and I have no sheet access) and cannot touch
+  Drive. **The tab row is the ONLY RECORD OF WHICH DRIVE FILE TO DELETE.** So: read the Drive
+  File ID → delete the Drive FILE → then the row → then the tab. **Deleting the row or the tab
+  first orphans a publicly-shared file with no way left to identify it.**
+- **⚠ AND ONLY THE FILE DELETION REMOVES THE EXPOSURE.** The file was `ANYONE_WITH_LINK`;
+  deleting the row changes nothing about who can read it.
+- **RECOMMEND DELETING THE TAB TOO, AFTER THE FILE.** Nothing reads it, and `ensureTab_` no
+  longer runs on that path so it cannot reappear. Keeping an empty artifact is sprawl.
+- **✅ DOCS CLEANUP DONE: all 7 headers corrected, "no occurrences of STAGED remain",
+  `node --check` PASS.** All 17 changed lines sit at 40/114/135/147/157/166/176 — **inside the
+  leading comment block, zero functional change**, verified by diff.
+- **⚠ I USED "SHIPPED", NOT "DEPLOYED under CC-NN", for the six older entries — deliberately.**
+  They went out somewhere in CC-100..CC-105 and I cannot verify which batch each one belongs
+  to. **Writing an unverified batch number into the file people trust for provenance is the
+  exact failure this cleanup is fixing.** The duplicate v7.4.141 is labelled as the earlier half
+  rather than deleted, so the pair reads as a sequence instead of a contradiction.
+- **⚠ NOT DEPLOYED: it rides with the next functional deploy.** A deploy whose only content is
+  comments is churn on a live invoicing system, and CC-130 just showed post-deploy propagation
+  can mislead.
+- **Carried forward:** the STRIPE_SECRET_KEY store question (then possibly rotate); the invoice
+  22804 file/row/tab deletions; the staged docs fix riding along; Lovable build history for
+  047ba0a; TEXT itemisation; the 4 UUID-project rows; Item 80; Item 77 extraction;
+  hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50;
+  Mercury; Stripe MCP. **(Sheet rows 415-429: DONE by Brandon.)**
+
+---
+
 ## CC-130 — 2026-08-18
 
 **Sent:** Deploy both fixes, run the smoke test, report all three results, then remind Brandon
