@@ -306,6 +306,53 @@ DEPLOYED.**
 
 ---
 
+## CC-116 — 2026-08-17
+
+**Sent:** Build the Item 75/78 fix — tag project-less items with a sentinel project value
+"Load" so they drop out of the Load Vehicle checklist but stay visible on Confirm Special.
+Check the Item 80 interaction and sequencing first. Confirm where such items originate and
+whether the tag is prevention, cleanup, or both.
+
+**Response to CC-116:** **NOT BUILT — one field-level correction changes the premise, and the
+Item 80 collision the brief worried about probably does not exist.** Findings only.
+
+- **⚠⚠ THE DEAD CHECKBOX IS A MISSING *MATERIAL ID*, NOT A MISSING PROJECT. Those are
+  different fields.** The guard is `if (!it || !it.materialId) return;`, and `materialId` is
+  the row's own **Material ID** in `TM_TAB` ('Project Tools & Materials') — `setLoaded` locates
+  a row by scanning column A for it (`String(ids[i][0]) === String(data.materialId)`). **A row
+  can have a project and still lack a Material ID**, and tagging the *project* with "Load"
+  would not give it one.
+- **✅ THE FIX STILL WORKS FOR THE SYMPTOM, and it is worth being clear why:** tagging removes
+  the row from the checklist entirely, so there is no checkbox left to be dead. It fixes the
+  reported problem without touching the guard. **But it fixes it by removal, not by making the
+  row valid** — so if a project-less row ever reappears in a client's set, the dead checkbox
+  returns. Worth knowing before it reads as a permanent cure.
+- **✅ AND THE ITEM 80 COLLISION LIKELY DOES NOT EXIST: "Load" would be a PROJECT value, while
+  Item 80's confusing dropdowns are CATEGORY and GARDEN.** `confirm.tsx` reads `Category` and
+  `Garden` per project and builds its option lists from those two fields
+  (`buildCategoryOptions`, `buildGardenOptions`). **A project named "Load" does not become a
+  category option** — it appears as a project ROW on the Confirm Special list, which is
+  exactly where Angel would see it. So the sequencing worry dissolves and there is no need to
+  do Item 80 first.
+- **RECOMMENDATION: build the tag now, keep Item 80 separate.** They touch different fields on
+  the same screen and neither blocks the other — and Item 80 is a design pass while this is
+  the thing blocking the crew.
+- **ON PREVENTION vs CLEANUP: BOTH, and cleanup as a DRY-RUN AUDIT FIRST.** Prevention alone
+  leaves today's bad rows dead on the checklist; cleanup alone lets the next one through. And
+  per the standing dry-run rule, **a data-mutating backfill should report what it would change
+  before changing it** — this project has an established pattern for that (Item 33's migration
+  audit, `toolCandidateAudit`) and there is no reason to depart from it on live crew data.
+- **⚠ WHAT I COULD NOT ESTABLISH THIS BATCH: where project-less rows actually come from.**
+  `TM_TAB` is written by `saveDebrief`'s `newProjects` section and by `confirmDay`, both of
+  which attach a project by construction — so the likely origins are hand edits or an older
+  writer, but **I did not confirm it and will not guess.** That answer decides whether
+  prevention belongs at one write site or several, so it needs the read before the build.
+- **Carried forward:** the origin question, then the tag build; Item 80; the Item 77
+  extraction; the redirect tidy; Drive-link removal; `invoiceHtml_` redesign; Items 79/81/82;
+  Mercury; Item 50.
+
+---
+
 ## CC-115 — 2026-08-17
 
 **Sent:** Screenshot of an assistant (Miguel) on Load Vehicle shows the SAME layout as
