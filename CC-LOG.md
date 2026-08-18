@@ -306,6 +306,54 @@ DEPLOYED.**
 
 ---
 
+## CC-130 — 2026-08-18
+
+**Sent:** Deploy both fixes, run the smoke test, report all three results, then remind Brandon
+to run the diagnostic.
+
+**Response to CC-130:** **DEPLOYED AND VERIFIED LIVE: @312 / v7.4.142. BOTH DOORS CLOSED and
+nothing broke.** ⚠⚠ **But the first smoke test reported a FALSE FAILURE and I nearly reported
+the fix as broken** — the cause is a new standing hazard, now in CLAUDE.md.
+
+- **✅ SAFE SEQUENCE:** `clasp pull` showed the editor IDENTICAL to the CC-129 baseline. Only 2
+  files pushed. `clasp deployments` → **@312, 2026-08-18T17:36Z.**
+- **✅ THE HOLE IS CLOSED — MEASURED:**
+  · bare GET → **48 bytes**, `{"ok":false,"error":"unknown or missing action"}` (was 355,775)
+  · `?action=bogus` → **48 bytes**, same error (the second door)
+  · `?action=ping` → **110 bytes**, working normally
+- **✅ AND NOTHING LEGITIMATE BROKE — four real actions verified:** `getData` 356,275 bytes,
+  `getField` 22,521, `getQueue` 30,791, `getDayState` 950. All real payloads. The no-allowlist
+  approach did what it was supposed to: **not one of the 155 named actions was touched.**
+- **⚠⚠ THE FALSE FAILURE, AND IT IS WORTH MORE THAN THE FIX ITSELF: my first smoke test ran
+  seconds after `clasp deploy` and the bare GET STILL RETURNED 356,275 BYTES.** I was on the
+  verge of reporting the deploy as ineffective. **The deployed project was already correct** —
+  I pulled it into a throwaway directory and confirmed `|| 'getData';` 0, `let out;` 0,
+  `action === 'getData'` 1, `unknown or missing action` 1. **The `/exec` URL simply had not
+  propagated yet.** A retest ~1 minute later returned the 48-byte error.
+- **⚠ AND THE RESPONSE LOOKED FRESH, WHICH IS WHY IT WAS CONVINCING: 356,275 bytes vs the
+  earlier 355,775 — the count moved WITH THE SHEET DATA.** So it was a live execution of the
+  OLD code, not a cached body. Freshness is not evidence of the new version.
+- **⚠ THIS IS THE MIRROR IMAGE OF CC-102** (deployed-but-not-live, where the deploy step never
+  ran). This is live-but-not-yet-propagated. **By symmetry, a probe run too soon after a
+  ROLLBACK would produce a false PASS** — the more dangerous direction. Recorded in CLAUDE.md.
+- **⚠ SEVEN STALE "STAGED" HEADERS REMAIN, and I deliberately did NOT touch them in a security
+  deploy.** All seven describe versions that ARE live: v7.4.130, .131, .132, .133, .134, .136
+  and .141. **And v7.4.141 appears TWICE** — CC-125's patch prepended a new entry above CC-124's
+  rather than replacing it, so there are two entries for one version, one of them saying
+  STAGED. Changelog prose only, no functional effect, but it should be cleaned up as its own
+  item rather than smuggled into this diff.
+- **⚠ BRANDON'S ACTION, AND PRIORITY 3 IS BLOCKED ON IT: run `bustAppConfigCache` in the Apps
+  Script editor and paste the log.** It is now the generic version. Read it as two sections —
+  if the sheet shows `INVOICE_STRIPE_PAY = "on"` but `cfg_` resolves `(EMPTY)`, that is
+  candidate (a); if `cfg_` resolves `"on"`, the flag is fine and it is (b) or (c).
+- **Carried forward:** the diagnostic run then INV-22810-T; the 7 stale STAGED headers + the
+  duplicate v7.4.141 entry; the Invoice Tokens row count; sheet rows 415-429; Lovable build
+  history for 047ba0a; TEXT itemisation; the 4 UUID-project rows; Item 80; Item 77 extraction;
+  hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50;
+  Mercury; Stripe MCP.
+
+---
+
 ## CC-129 — 2026-08-18
 
 **Sent:** No real client ever received a link, so no emergency — build the two doGet guards and

@@ -194,6 +194,19 @@ deploy while the Pi is behind silently overwrites whatever is in the web editor.
 pull` + diff before deploying is not a formality** — it is the only thing standing between
 a deploy and someone else's untracked work.
 
+🚫🚫 **A THIRD ONE, PROVEN IN CC-130: A SMOKE TEST RUN IMMEDIATELY AFTER `clasp deploy` CAN
+REPORT A FALSE FAILURE.** The CC-129 security fix was verified present in the deployed project
+(`clasp pull` into a throwaway dir confirmed the guards, and the old default gone) while the
+`/exec` URL was **still serving the old behaviour** — a full 356KB dump. A retest ~1 minute
+later returned the 48-byte error. **The deployment had not propagated yet.**
+- **Wait, then re-test, before concluding anything from a post-deploy probe.** A fresh-looking
+  response is not proof: the byte count even moved with the sheet data, so it was a live
+  execution of the OLD code, not a cache.
+- ⚠ **This is the MIRROR IMAGE of CC-102's lesson.** That one was deployed-but-not-live (the
+  deploy step never ran). This one is live-but-not-yet-propagated. **By symmetry a probe run
+  too early after a ROLLBACK would produce a false PASS**, which is the more dangerous
+  direction.
+
 🚫🚫 **AND A SECOND, WORSE ONE, PROVEN LIVE IN CC-123: `/home/info/appsscript` IS A `clasp
 push` SOURCE DIRECTORY. EVERY `.js` FILE IN IT GOES INTO THE APPS SCRIPT PROJECT.** There was
 no `.claspignore`, so a deploy pushed **7 files** — `Code.js` plus staged copies
