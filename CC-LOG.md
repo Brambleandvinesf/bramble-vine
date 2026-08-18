@@ -306,6 +306,60 @@ DEPLOYED.**
 
 ---
 
+## CC-138 — 2026-08-18
+
+**Sent:** Confirm the Script ID matches, then dig deeper — the mystery is real. Check the property
+name, the possibility of a different settings panel, and concurrent tabs.
+
+**Response to CC-138:** **✅ SCRIPT ID IS AN EXACT MATCH — wrong-project is ruled out and Brandon
+was right that it is the long-standing correct project.** Nothing changed this batch. **With code
+deletion, quota, and wrong-project all eliminated, the strongest remaining explanation is the
+multi-tab one Brandon raised himself — and there is a specific mechanism that makes it fit better
+than anything else.**
+
+- **✅ STEP 1, PLAINLY: EXACT MATCH.**
+  · Pi `.clasp.json`: `1HKkYRGNqxTDwMQccKbgTlBb3jfIjjwLV2Ov5fO_nwYtF_rhyx1Wrz3OD`
+  · Brandon's editor: `1HKkYRGNqxTDwMQccKbgTlBb3jfIjjwLV2Ov5fO_nwYtF_rhyx1Wrz3OD`
+  · Also `projectId: bramble-vine-appscript`. Same project, no duplicate, no copy-of-the-sheet
+    problem.
+- **✅ THE PROPERTY NAME IS CLEAN: `STRIPE_SECRET_KEY` is A-Z and underscores only** — no spaces,
+  no punctuation, no non-ASCII, nothing that could be silently rejected or normalised. Ruled out
+  as a factor.
+- **✅ AND THE EVIDENCE IS FROM INSIDE THE RUNNING PROJECT: CC-135's diagnostic lists EVERY script
+  property by name**, and Brandon's run did not show it. That is `getScriptProperties()` itself
+  reporting absence in the same project the code runs in — not an inference from the UI.
+- **⚠⚠ SO WHAT REMAINS, AND WHY THE MULTI-TAB THEORY FITS: the Apps Script Project Settings page
+  holds the ENTIRE property list in memory and a save writes THE WHOLE LIST BACK.** So: tab A is
+  open showing the list *without* the key → tab B adds the key and saves → then anything that
+  causes tab A to save writes its stale list over the top, **and the key is gone**. That is
+  precisely "I add it, click Save, and it disappears afterward".
+- **⚠ AND IT EXPLAINS THE SPECIFICITY, which nothing else does: why THIS property and no other.**
+  Every other property either predates the open tabs or is written by CODE (`setProperty` on a
+  single key, which cannot clobber siblings). **Only a brand-new, hand-added property exists
+  solely in one tab's view — so only it can be lost this way.**
+- **⚠ Document/User Properties ruled out as a mix-up: the Project Settings panel exposes ONLY
+  Script Properties.** There is no Document or User Properties UI to wander into. Worth one
+  confirmation that he is in Project Settings rather than somewhere else, but the panel itself
+  cannot be the wrong store.
+- **⚠ QUESTION FOR BRANDON, HIS OWN STEP (c), ASKED DIRECTLY: is this Apps Script project open in
+  more than one browser tab or window right now — or has it been across the recent attempts?**
+  Even a background tab left open from an earlier attempt is enough.
+- **THE TEST I RECOMMEND FIRST COSTS NOTHING AND NEEDS NO CODE: close EVERY Apps Script tab, open
+  ONE fresh tab, add the property, save, then run `bustAppConfigCache` IN THAT SAME TAB.** If it
+  appears, the cause is confirmed and the fix is procedural.
+- **FALLBACK IF THAT FAILS: set the property FROM CODE, bypassing the IDE entirely** — an
+  editor-only function that reads the key from a temporary App Config cell, writes it to Script
+  Properties, and clears the cell in the same execution. **⚠ I would flag one real cost up front:
+  Google Sheets keeps REVISION HISTORY, so the key would remain recoverable from it. Acceptable
+  for an `rk_test_` key; it would need rotating before going live.**
+- **Carried forward:** Brandon's tab answer + the single-fresh-tab test; the code-set fallback if
+  needed; one fresh debrief for the Pay Note reading; the invoice 22804 deletions (**file FIRST**);
+  the 109 empty catches as a standing observation; Lovable build history for 047ba0a; TEXT
+  itemisation; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy;
+  Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-137 — 2026-08-18
 
 **Sent:** Deploy the MSG_QUEUE fix; verify by content check against the remote.
