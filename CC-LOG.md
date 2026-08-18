@@ -14,6 +14,80 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-141 — 2026-08-18
+
+**Sent:** Generalise the inbox setter. Investigate QUO_DONE_IDS (9629 chars) for the MSG_QUEUE
+failure class — verify, don't assume. Bundle and deploy.
+
+**Response to CC-141:** **DEPLOYED @317 / v7.4.147.** **⚠⚠ QUO_DONE_IDS IS *NOT* THE MSG_QUEUE
+BUG — verified against real code — BUT THERE IS A REAL, DIFFERENT BUG: THE 300-ENTRY PRUNE COULD
+NEVER FIRE.** 20 behavioural tests pass, one of which found a side effect I had introduced. Also
+fixed a false positive in my own CC-129 diagnostic.
+
+- **✅ PRIORITY 1: `setPropertyFromInbox` replaces `cc139SetStripeKeyFromInbox`.** Any App Config
+  row whose column A ends in `_INBOX` is a pending write, all drained in one pass; suffix stripped
+  to get the real name; blank cells skipped with a message; cell cleared in a `finally`; length-only
+  logging; the four distinguishable outcomes **parameterised per key** rather than hardcoded.
+  **Verified the old function is superseded, not dangling: `function cc139` = 0**, and its two
+  remaining mentions are prose (CC-140's changelog and the new doc comment's "Supersedes" line).
+- **✅ PRIORITY 2 VERDICT — NOT THE MSG_QUEUE FAILURE CLASS, and I checked rather than pattern-
+  matched on the similar size:** `quoDoneLedger_`'s parse **is** guarded and self-heals to `{}`;
+  the writes use plain `JSON.stringify` with **no `substring` cut**; and the live log line says
+  **"all JSON-shaped properties parse cleanly"**. Nothing is corrupt.
+- **⚠⚠ BUT THE REAL BUG, QUANTIFIED FROM LIVE DATA: THE 300-ENTRY CAP IS DEAD CODE.** A measured
+  entry is ~64 chars (34-char conversation id + 24-char ISO stamp + quoting), so the **9KB property
+  ceiling arrives at ~144 entries — half of the 300 the prune waited for.** Observed live at
+  **9,629 chars**, ~150 entries, oldest stamp **2026-07-27**, so ~7/day. **The byte limit always
+  wins first, meaning the prune could never once have run.**
+- **⚠⚠ AND THE GENUINELY UNBOUNDED PATH WAS `syncQuoDoneStatus`, which had NO PRUNE AT ALL and
+  runs every 5 minutes.** Only `quoDoneStamp_` pruned. Its own comment — *"No cutoff - the done
+  ledger wants every done conversation, not just a recent window"* — **is the assumption that
+  broke**: it treats property storage as unbounded, and it is capped at 9KB.
+- **⚠ THE FAILURE MODE IS A REFUSED WRITE, NOT CORRUPTION — and it was silent where it mattered:**
+  `quoDoneStamp_` and `quoDoneUnstamp_` both wrapped their writes in **`catch (e) {}`**, so once
+  the value passed 9KB the kiosk's **Done / Un-done would silently do nothing**.
+  `syncQuoDoneStatus` at least logged its error.
+- **⚠ HONEST LIMIT ON THE EVIDENCE: I could NOT confirm whether writes are failing RIGHT NOW.**
+  `clasp logs` returned only 101 lines, all from the 12:59 `bustAppConfigCache` run — **no trigger
+  executions fell inside that window, so the absence of error lines there is not evidence.** The
+  Executions panel filtered to `syncQuoDoneStatus` would settle it.
+- **✅ THE FIX: all three writers now route through one `quoDoneSave_`**, which drops **oldest-first
+  by timestamp until the SERIALISED value fits** under 8500 chars — measured on real
+  `JSON.stringify` output after each removal, so what is stored is always complete valid JSON,
+  never a character cut. It **logs instead of swallowing**, and `quoDoneLedger_` now **logs** when
+  it self-heals instead of doing it invisibly.
+- **✅ 20 BEHAVIOURAL TESTS PASS — AND ONE CAUGHT A SIDE EFFECT I HAD JUST INTRODUCED:
+  `quoDoneSave_` was pruning the caller's object in place.** Harmless in all three current callers
+  (each reads a fresh ledger and discards it), but a caller that logged its ledger after saving
+  would have been quietly lied to. **Fixed with a copy**, and the test now asserts the caller's
+  object is untouched. My first assertion failed because it compared against an already-mutated
+  original — the test found the bug by being wrong about it.
+- **⚠⚠ FLAGGED, NOT DECIDED: the size prune may fight the sync.** `syncQuoDoneStatus` re-adds every
+  done conversation Quo still reports, so a pruned entry can come straight back — prune, re-add,
+  prune. **The ceiling stops the hard failure either way**, but whether to give that sync a cutoff
+  changes which conversations show as Done, which is user-visible. Options in the response;
+  Brandon's call.
+- **⚠⚠ AND A BUG IN MY OWN CC-129 DIAGNOSTIC, found in Brandon's log dump: it flagged ANY column-C
+  value as "VALUE MAY BE IN THE WRONG COLUMN" — but the App Config schema is
+  `['Key','Value','Notes']`, so C IS THE NOTES COLUMN**, and `setupAppConfig` itself writes
+  *"migrated from Script Properties &lt;date&gt;"* there. **Nine perfectly normal rows were being
+  reported as suspicious in the very tool used to diagnose config.** Now shown as `Notes:`, with
+  warnings only from column D onward.
+- **⚠ NEW CAPABILITY DISCOVERED: `clasp logs` works from the Pi.** That is how the 9,629 figure and
+  the "parse cleanly" line were confirmed independently rather than taken from the pasted dump.
+  Worth remembering — it removes a whole class of "ask Brandon to paste the log" round trips.
+- **✅ PRIORITY 4 — NOTHING FOR BRANDON TO REDO.** The log shows
+  `ROW 26 A="STRIPE_SECRET_KEY_INBOX" B=0 chars ← EMPTY`: the CC-140 run already consumed and
+  cleared it, and `STRIPE_SECRET_KEY` is confirmed persisting at 107 chars. **The rename does not
+  touch the stored property.** His only remaining step is the debrief.
+- **Carried forward:** ONE FRESH DEBRIEF → read the **Pay Note** column (now unblocked); the
+  sync-cutoff decision; invoice 22804 cleanup (**file FIRST**); Lovable build history for 047ba0a;
+  the 109 empty catches; Item 83 (RECURRING items in Load Vehicle); TEXT itemisation; the 4
+  UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery;
+  Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-140 — 2026-08-18
 
 **Sent:** Fix the two bugs in CC-139's delivered function and deploy it. Standby for the 2x2
