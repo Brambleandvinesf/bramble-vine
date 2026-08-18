@@ -145,6 +145,33 @@ instincts. **Do NOT start any part of this without an explicit, dedicated ask.**
 
 ## STRIPE + THE INVOICE PAYMENT LINK — SETTLED DECISIONS (CC-112, 8/17)
 
+🚫🚫🚫 **IRON RULE — THE CLIENT INVOICE MESSAGE LINKS TO THE INVOICE DOCUMENT, NEVER TO THE BARE
+STRIPE PAYMENT LINK. THE PAYMENT LINK LIVES *INSIDE* THAT DOCUMENT.**
+- The client receives something that reads like a duplicate of the real QuickBooks invoice — line
+  items, totals, client info — with a Pay Now link embedded near the balance due. That is what
+  `invoiceHtml_` / `invoicePayPdf_` exist for.
+- **A raw `buy.stripe.com` URL standing alone in a message is WRONG.** It shows a client an amount
+  with no itemisation and nothing to check it against.
+- **The Message Queue `Pay URL` / `Pay Link ID` columns may keep the raw link as an INTERNAL audit
+  field. That is fine. It must never be what is sent.**
+- ⚠ **THIS HAS NOW BEEN CORRECTED MORE THAN ONCE (CC-112 set it; CC-124 broke it for the TEXT
+  channel by appending the bare link to the body; CC-142 caught it again). It should not need
+  re-explaining. Do not re-litigate it — if a channel cannot carry the document, that is a
+  blocker to raise, NOT a licence to send the bare link.**
+- ⚠ **KNOWN CONSTRAINT THAT MAKES THIS HARD FOR TEXT, AND THE REASON CC-124 DRIFTED:** Quo's send
+  endpoint is text-only (no media field), and CC-123 deleted the only PDF hosting that existed
+  (Drive + the `?inv=` token page). **Apps Script also cannot serve PDF bytes** — `ContentService`
+  has no PDF MimeType — so hosting genuinely requires Drive or an equivalent. EMAIL is already
+  compliant: the custom PDF is attached. TEXT has no compliant delivery path at present.
+
+⚠ **STATUS OF THE PROPERTY-PERSISTENCE BLOCKER: RESOLVED (CC-141).** A real debrief produced
+Message Queue row 30 with a live Pay URL, `Pay Link ID plink_1U5tV8EV7amXHJgKVNyRRvE4`, and
+`Pay Note "pay link minted for $30.75"`. The Stripe mint works end to end.
+- The standing constraint remains: **the editor's Script Properties panel persists NOTHING** —
+  `setPropertyFromInbox` is the mechanism (see the clasp hazard section).
+- ⚠ **THE LIVE KEY IS STILL `rk_test_`.** Rotating to a live key is a SEPARATE step needing its
+  own explicit go-ahead, and the Sheets revision-history caveat on the `_INBOX` row applies.
+
 ⚠ **THIS SECTION EXISTS BECAUSE THE WORK HAPPENED IN A SEPARATE CLAUDE CODE CONVERSATION
 THAT HAD NO CLAUDE.md, NO CC-LOG.md AND NO PI ACCESS.** None of it was recorded anywhere
 durable until now. Treat the decisions below as settled; treat the absence of them from

@@ -14,6 +14,73 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-142 — 2026-08-18
+
+**Sent:** ⚠ PRIORITY 0 regression — the client message links to the bare Stripe link, against
+CC-112. Fix it. Plus investigate the 15 empty App Config rows (report only) and close out the docs.
+
+**Response to CC-142:** **⚠⚠ THE REGRESSION IS CONFIRMED AND IT IS MINE — CC-124 line 18188. But
+THE FIX IS BLOCKED BY A CAPABILITY CC-123 DELETED, so I did NOT deploy a guess.** CLAUDE.md iron
+rule and Stripe close-out written. Priority 1 answered in full: **all 15 rows are category (a)**.
+
+- **✅ PRIORITY 0.1 — CONFIRMED EXACTLY WHAT THE CLIENT GETS, not assumed:** the TEXT body is
+  `text + '\n\nPay online: ' + inv.payUrl` at **18188** (draft time) with a send-time swap at
+  **6077**. `inv.payUrl` is `stripePaymentLinkFor_`'s raw `buy.stripe.com` URL. **So yes — the
+  client receives a bare payment link. I wired that in CC-124.**
+- **✅ PRIORITY 0.2 — `invoicePayPdfFrom_` IS called, but ONLY at 6142, inside the EMAIL branch.**
+  So **EMAIL IS ALREADY CC-112-COMPLIANT** (custom PDF attached, pay link embedded). The text
+  channel was never wired to the PDF at all.
+- **⚠⚠ PRIORITY 0.3 — THE BLOCKER, AND IT IS NOT A CODING PROBLEM: THERE IS NOWHERE TO PUT THE PDF
+  FOR A TEXT CLIENT.** Three facts, all verified: **Quo's send endpoint is text-only** (no media
+  field, CC-93); **`e.parameter.inv` = 0** — CC-123 deleted the Drive + token-page hosting, and the
+  three remaining mentions of `invoicePdfUrlFor_`/`invoiceTokenFor_` are changelog PROSE at lines
+  155/156/194; and **Apps Script cannot serve PDF bytes** (`ContentService` has no PDF MimeType,
+  CC-93/94), so hosting genuinely requires Drive.
+- **⚠⚠ AND I OWN THE SEQUENCING ERROR THAT CAUSED THIS. In CC-121 I called the Drive-hosted page
+  "the worst of three answers" and recommended the Stripe link for text; Brandon approved it in
+  CC-123 and I deleted the hosting. CC-112's rule already existed and said the opposite. I should
+  have surfaced the CONFLICT with CC-112 then, instead of presenting it as an open question.**
+- **⚠ AND REBUILDING THE DELETED SYSTEM RE-CREATES THE EXPOSURE JUST CLEANED UP:** those files were
+  `ANYONE_WITH_LINK`, which is precisely the invoice-22804 leftover Brandon is deleting by hand.
+  **That tradeoff is his to make, not mine** — so options, no deploy.
+- **✅ PRIORITY 0.4 — IRON RULE WRITTEN INTO CLAUDE.md**, at the top of the Stripe section, stating
+  that the client message links to the DOCUMENT and never the bare link, that the raw link may stay
+  as an internal audit field, that this has now been corrected more than once (CC-112 set it,
+  CC-124 broke it, CC-142 caught it), and — importantly — **that a channel which cannot carry the
+  document is a BLOCKER TO RAISE, not a licence to send the bare link.**
+- **✅ PRIORITY 1 — ALL 15 ROWS ARE CATEGORY (a): SANE FALLBACK, HARMLESS. Nothing in (b) or (c).**
+  Every one is an *override slot* whose code default is a real working value, not a placeholder:
+  `HQ_ADDRESS_FILTER`→`'1922 29th'`, `CREW_NUMBERS`→two real numbers, `GITHUB_REPO`→the correct
+  repo, `TEXT_FROM`→`+14152343696` (3 sites), `BRANDON_NUMBER`→`+14152343695`,
+  `CONFIRM_NUDGE_NUMBER`→`+16507105061`, `ADD_STOP_MIN`→30, `NEAR_THRESHOLD_M`→150,
+  `VENDOR_FILL_DAYS`→7, `TEXT_ARRIVED`/`TEXT_DONE`/`TEXT_ETA`→real client-facing strings.
+- **⚠ THE TWO THAT DEFAULT TO `''` ARE STILL FINE, and I checked rather than assuming from the
+  empty default: `LINE_OWNER` has a HARDCODED four-number→role map at 2871-2875 and only
+  `JSON.parse`s the config when non-empty; `BREAK_TIMES` likewise has a hardcoded breaks array.**
+  So `LINE_OWNER` being blank is **NOT** an Item 62 cause — the map is populated in code.
+- **✅ AND THE REASON THEY ARE ALL BLANK IS BENIGN AND DOCUMENTED: `setupAppConfig`'s migration
+  seeded a row per key from whatever Script Properties held at cutover, and these were unset — its
+  own plan text says "no property value - row seeded blank, read falls back".** They are working
+  exactly as designed.
+- **⚠ WHICH MAKES MY CC-129 "← EMPTY" MARKER NOISE FOR THESE 15 TOO** — same family as the
+  column-C false positive fixed in CC-141, though milder: it reports a fact rather than alleging a
+  problem. Not changing it; noting it so the next reader does not chase 15 non-issues.
+- **✅ PRIORITY 2 — STRIPE SECTION CLOSED OUT** in CLAUDE.md: blocker marked RESOLVED citing the
+  row-30 proof (`plink_1U5tV8EV7amXHJgKVNyRRvE4`, "pay link minted for $30.75"), the panel
+  constraint restated with `setPropertyFromInbox` as the mechanism, and **the key flagged as still
+  `rk_test_` with rotation needing its own go-ahead.**
+- **✅ syncQuoDoneStatus churn recorded as SETTLED — left as-is**, reopen only if rewrite frequency
+  becomes a measured problem.
+- **⚠ NOTHING DEPLOYED THIS BATCH. Live remains @317 / v7.4.147.**
+- **Carried forward:** ⚠ the Priority 0 delivery decision (options in the response); **Item 83
+  (RECURRING items missing from Load Vehicle) is next up by Brandon's explicit elevation — real
+  operational risk, a truck leaving without what it needs**; invoice 22804 cleanup (**file FIRST**);
+  Lovable build history for 047ba0a; the 109 empty catches; TEXT itemisation (**now entangled with
+  Priority 0**); the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy;
+  Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-141 — 2026-08-18
 
 **Sent:** Generalise the inbox setter. Investigate QUO_DONE_IDS (9629 chars) for the MSG_QUEUE
