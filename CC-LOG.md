@@ -14,6 +14,64 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-147 — 2026-08-18
+
+**Sent:** Preview links must work before send. And the pay button still isn't reading as a pill —
+check first whether that PDF was stale, then fall back to a generated image if not.
+
+**Response to CC-147:** **DEPLOYED @320 / v7.4.150. ⚠⚠ PRIORITY 2 WAS A STALE FILE AND ITS OWN
+WORDING PROVES IT — so I did NOT build the image fallback**, because the condition CC-147 set for
+that ("if it WAS rendered under current code") is not met. Priority 1 built and deployed.
+
+- **⚠⚠ THE STALE-FILE EVIDENCE IS IN BRANDON'S OWN DESCRIPTION: he reported "pay…ach" wording
+  "rather than a clear lime pill labeled Pay Now".** Verified against the deployed code:
+  **`Pay Now — ` is present (1) and the old `online</a>` wording is GONE (0).** The current code
+  **cannot** produce a document lacking "Pay Now". **So that PDF was rendered by pre-@319 code** —
+  bytes are only rewritten at send, so an invoice sent before @319 keeps its old dark-green
+  plain-text block. **One fact explains both the missing fill AND the old wording.**
+- **✅ SO THE TABLE/bgcolor BUTTON HAS NEVER ACTUALLY BEEN RENDERED YET.** Building an image-based
+  fallback now would be solving an unmeasured problem, adding image generation and IO to fix
+  something that may already work. **Held deliberately, per CC-147's own condition.**
+- **✅ AND PRIORITY 1 IS WHAT MAKES IT TESTABLE IN ONE STEP: creation now renders**, so a freshly
+  created invoice's preview link shows the current button immediately — no send required.
+- **✅ PRIORITY 1 BUILT: `invoicePdfUrlFor_(acSS, saved.Id, saved, out.payUrl)` at creation.**
+  CC-144 minted a token only — right about staleness, wrong about workflow, since a token with no
+  file behind it cannot be QA'd.
+- **✅ COSTS NO EXTRA QBO CALL, which is the part worth knowing: `saved` is the FULL Invoice entity
+  returned by the create/update response** (`up.body.Invoice` / `cr.body.Invoice`), so it already
+  carries `Line[]`, `TotalAmt`, `CustomerRef`, `TxnDate`, `DueDate`. Nothing is re-fetched.
+- **✅ AND THE LATENCY LANDS ON THE RIGHT PATH: a render plus one Drive write is exactly what CC-103
+  punished ON THE SEND CLICK, and CC-104 moved to creation for that reason.** A debrief submission
+  is a path the crew already expects to take a moment.
+- **✅ TRADEOFF CONFIRMED AS ASKED: the send still re-renders and overwrites, so what the CLIENT
+  receives is always current. If the invoice is edited in QBO between creation and send, the
+  PREVIEW shows pre-edit figures until that re-render.** A preview may be briefly stale; a sent
+  document may not.
+- **⚠ AND I CAUGHT A REGRESSION MY OWN CHANGE WOULD HAVE INTRODUCED: before this, creation always
+  minted a token, so a URL existed no matter what. Rendering at creation means a failed render
+  returns `''` — and the drafted message would have carried NO Invoice Link at all.** Added a
+  token-only fallback, so the office still gets a URL and the page says the document is not ready
+  rather than the message silently losing its link. **4 call sites now.**
+- **✅ `pending` REWORDED — it no longer means "unsent".** Creation renders, so a token with no file
+  means the render did not complete. Saying "not sent yet" would point at the wrong cause, which is
+  the exact class of mistake CC-146 existed to fix. Verified live: `has not been sent yet` = **0**.
+- **✅ DEPLOYED AND PROBED:** `clasp pull` IDENTICAL first; 54 added, 9 removed; content verified
+  against the remote (`saved, out.payUrl` 1, `not ready yet` 1, `#7cff00` 12, 4 call sites,
+  v7.4.150); unknown token → "is not valid" with the lime rule; CC-129 guard still 48 bytes.
+- **⚠⚠ WHAT I DID NOT DO, AND WILL NOT: CC-147 asked me to test against "a real invoice preview +
+  real send". I cannot — creating an invoice writes to QBO and sending messages a real client.**
+  Those are Brandon's actions, not mine to take unilaterally. I tested every state reachable
+  without them.
+- **Carried forward:** ⚠ **create ONE fresh invoice and open its link — that is now the whole test
+  of the lime button, and the first genuine look at it**; the two MANDATORY purge steps still
+  outstanding from CC-145 (`installInvoicePdfPurgeTrigger()` then `listInstalledTriggers()`, seen
+  not assumed); **Item 83 next**; invoice 22804 cleanup; Lovable build history for 047ba0a; Stripe
+  Dashboard branding; gallery-file purge; the 109 empty catches; the 4 UUID-project rows; Item 80;
+  Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82;
+  Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-146 — 2026-08-18
 
 **Sent:** Two bugs from the live dry run — the "no longer valid" refusal on a real link, and the pay
