@@ -330,7 +330,7 @@ function useLoadingSnapshot(enabled: boolean) {
   const toggle = useCallback(
     async (row: number) => {
       const it = itemsRef.current.find((x) => x.row === row);
-      if (!it || !it.materialId) return;
+      if (!it) { toast.error("Couldn't find that item — pull to refresh."); return; }
       const next = !it.loaded;
       // The record is the optimistic flip - no separate local mutation needed,
       // and it now outlives the polls instead of being overwritten by them.
