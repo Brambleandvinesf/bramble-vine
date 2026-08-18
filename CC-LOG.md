@@ -306,6 +306,59 @@ DEPLOYED.**
 
 ---
 
+## CC-125 — 2026-08-18
+
+**Sent:** Stripe prices are immutable, so change the guard from block to auto-replace:
+deactivate the stale link, mint a fresh one at the current total, send with it.
+
+**Response to CC-125:** **⚠⚠ THE PREMISE IS WRONG IN A GOOD WAY: CC-124 WAS NEVER DEPLOYED.**
+Live is @310 / v7.4.140 with **ZERO** CC-124 symbols, so the blocking guard has never run and
+no client message has been affected. Auto-replace is built on top of the staged patch and
+ships as ONE coherent feature. **366 lines added, 5 removed, `node --check` PASS. Not
+deployed.**
+
+- **⚠⚠ VERIFIED, NOT ASSUMED: `INVOICE_STRIPE_PAY` 0, `invoicePayCheck_` 0,
+  `invoicePayPdfFrom_` 0, `MQ_PAY_URL_COL` 0, `v7.4.141` 0 in the live Code.js.** So if the
+  App Config row was set to `on`, **nothing read it** — there is no code live that does.
+  Nothing to unwind.
+- **⚠⚠ GAP 1 — AUTO-REPLACE WAS IMPOSSIBLE AS SPECIFIED, AND I HAD CAUSED IT. CC-124 stored
+  only `payUrl`, never the Payment Link ID**, and a checkout URL is an opaque
+  `buy.stripe.com` slug from which the `plink_` id cannot be recovered. **There would have
+  been nothing to deactivate.** Fixed with a third MQ column, `Pay Link ID`, matched by
+  header.
+- **⚠⚠ GAP 2 — THE ONE THAT WOULD HAVE CAUSED THE EXACT HARM THE FEATURE PREVENTS: THE DRAFT
+  BODY ALREADY CONTAINS THE OLD URL.** The link is appended at draft time. Replacing the link
+  at send without rewriting the body would have **sent clients a DEACTIVATED link** —
+  strictly worse than the stale-price problem, because a dead link cannot be paid at all.
+  Fixed: `sendText` carries the corrected body via a **literal** `split/join` swap (a URL
+  contains regex- and substitution-significant characters, so `replace()` is the wrong tool),
+  and the row's Draft Text is updated so it records what the client actually received.
+- **⚠ ORDER IS MINT FIRST, DEACTIVATE SECOND — verified in the output (mint at 21174,
+  deactivate at 21193).** Reversed, a failed mint would leave the invoice with **no usable
+  link at all**, which is worse than a stale one. Worst case this way is two live links for
+  an instant, and the wrong one is retired immediately.
+- **⚠ ONE FAIL-CLOSED CASE REMAINS AND MUST: if minting the replacement fails, nothing
+  sends** — because the only link left charges the wrong amount, which is the whole harm.
+- **⚠ A FAILED DEACTIVATION DOES NOT BLOCK, deliberately.** The outgoing link is already
+  correct, so the message is not wrong. It reports loudly **with the `plink_` id** so the old
+  one can be retired by hand. Judgment call, offered as an option.
+- **ITEM 3 ANSWERED, AND IT IS HALF TRUE.** The custom PDF's **total is automatic** — it
+  reads `inv.Balance` from the same live fetch, so the corrected amount needs no handling.
+  **But the LINK was not automatic:** CC-124 passed the stale `qaPayUrl` into
+  `invoicePayPdfFrom_`, so the PDF would have embedded the dead link. Now passes
+  `payUrlForPdf`.
+- **ITEM 4:** `result.payReplaced`, `payWas`, `payNow` and a full `payNote` sentence, plus the
+  persisted row — visible even though nothing is blocked.
+- **Still gated on `INVOICE_STRIPE_PAY`, DEFAULT OFF.** Deploying changes nothing a client
+  receives.
+- **Carried forward:** deploy approval; `STRIPE_SECRET_KEY` (rk_test_) then flip the flag;
+  confirm the visits.tsx busy-timeout fix (this still adds one QBO read to the TEXT path);
+  TEXT itemisation; the Invoice Tokens row count; sheet rows 415-429; Lovable build history
+  for 047ba0a; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect
+  tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-124 — 2026-08-18
 
 **Sent:** Both channels must send the CUSTOM PDF with the embedded Stripe link, not QBO's.
