@@ -14,6 +14,54 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-145 — 2026-08-18
+
+**Sent:** Deploy CC-144's build. Remind Brandon plainly of his two mandatory post-deploy steps.
+
+**Response to CC-145:** **DEPLOYED AND VERIFIED LIVE: @318 / v7.4.148.** ⚠ **And unlike the last
+few deploys this one IS observable over HTTP — the probe confirms the `?inv=` branch is live and
+refusing unknown tokens, with CC-129's security guard intact.**
+
+- **✅ SAFE SEQUENCE:** `clasp pull` showed the editor IDENTICAL to the staged baseline. Header
+  corrected to "DEPLOYED under CC-145" before pushing; the only remaining `STAGED` is prose (line
+  114, describing CC-131's cleanup). **Tests re-run AFTER the header edit — still all passing.**
+- **✅ `clasp deployments` → @318, 2026-08-18T21:15Z.**
+- **✅ DEPLOYED CONTENT VERIFIED against the remote with fixed-string greps:** all seven new
+  functions present 1 each (`invoiceTokenFor_`, `invoiceFileForToken_`, `invoicePdfUrlFor_`,
+  `invoicePdfPurge_`, `installInvoicePdfPurgeTrigger`, `listInstalledTriggers`, `bvLogoDataUri_`);
+  `invoicePdfUrlFor_(` at **3 call sites** (definition + creation mint + send regen — the gap I
+  caught in CC-144 stays closed); `e.parameter.inv` 2; `INV_PDF_EXPIRY_DAYS = 45`;
+  `bvlogo-card-128.png` 3; `#4a7a1e` 5; `or paste this link: ` 1.
+- **✅✅ AND `Pay online: ` IS 0 OCCURRENCES IN THE LIVE CODE. The bare Stripe link is gone from
+  the client-facing body — the CC-124 regression is closed on the deployed version, not just in a
+  staged file.**
+- **✅✅ THE HTTP PROBE — GENUINELY OBSERVABLE THIS TIME, which CC-132/137 were not:**
+  · `?inv=zzzzzzzzzzzzzzzz` → **200, 9,625 bytes, contains "no longer valid" (1), contains a tools
+    dump (0)**. So the branch is live AND correctly refuses an unknown token.
+  · **⚠ WORTH NOTING BOTH FIXES SHOW IN ONE PROBE: before CC-129 that same URL returned the
+    355,775-byte operational dump.** It now returns a proper client-facing page.
+  · bare GET → **48 bytes, `{"ok":false,"error":"unknown or missing action"}`** — CC-129's guard
+    intact, **no regression from this deploy.**
+- **⚠⚠ TWO MANDATORY STEPS ARE BRANDON'S AND THE PURGE IS DECORATION WITHOUT THEM — which is
+  precisely the failure mode of the design this replaced:**
+  1. run **`installInvoicePdfPurgeTrigger()`**
+  2. run **`listInstalledTriggers()`** and **SEE `invoicePdfPurge_` in the output** — not assume it
+  Until step 2 is confirmed, hosted invoice PDFs will never be disabled or trashed, and the 45-day
+  expiry is the only thing bounding them. **The lookup-side expiry check means links still die on
+  schedule even without the trigger — but the FILES would accumulate.**
+- **⚠ AND ONE PROBE RUN THAT SETTLES WHAT I COULD NOT VERIFY: `cc107InvoicePdfProbe` writes a real
+  PDF to Drive.** Opening it answers both open questions — is the Pay button **tappable**, and did
+  the **logo render** from its data URI. Both fail soft, so a "no" degrades the document rather
+  than breaking it, but I would rather know than assume.
+- **Carried forward:** Brandon's two mandatory steps + the PDF probe; **Item 83 (RECURRING items
+  missing from Load Vehicle) is NEXT UP**; invoice 22804 cleanup; Lovable build history for
+  047ba0a; Stripe Dashboard branding (separate from the document branding now shipped); gallery-file
+  purge as a future batch; the 109 empty catches; the 4 UUID-project rows; Item 80; Item 77
+  extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item
+  50; Mercury; Stripe MCP still needs OAuth from an interactive session.
+
+---
+
 ## CC-144 — 2026-08-18
 
 **Sent:** Build the approved CC-143 design. Confirm the pay link is still inside the document.
