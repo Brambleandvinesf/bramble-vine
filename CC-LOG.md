@@ -14,6 +14,68 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-146 — 2026-08-18
+
+**Sent:** Two bugs from the live dry run — the "no longer valid" refusal on a real link, and the pay
+button rendering as plain grey text — plus change the button and rules to lime.
+
+**Response to CC-146:** **DEPLOYED @319 / v7.4.149.** ⚠⚠ **PRIORITY 1 WAS NONE OF THE FOUR CAUSES
+LISTED — it was a fifth, and it was my bug: the token was real, live and correct, but its File ID
+cell was EMPTY because the invoice had not been SENT yet.** 14 behavioural tests pass. Lime shipped
+with one deliberate exception.
+
+- **⚠⚠ PRIORITY 1 ROOT CAUSE, from code not guesswork: creation mints a TOKEN-ONLY row with an
+  empty File ID** — by design, because CC-144 writes the PDF bytes at SEND so the document cannot
+  show a stale price. `invoiceFileForToken_` returned `''` for that row, and doGet reads `''` as
+  *"no longer valid — it may have been paid already, or the link may have expired."*
+- **⚠⚠ SO EVERY DRAFTED-BUT-UNSENT LINK CLAIMED IT WAS PAID OR EXPIRED.** Brandon's closest
+  hypothesis was the "stub/placeholder row" one — nearly right: the row is real, only the File ID is
+  blank until send. **Not Disabled, not expired, not the probe token, and nothing wrong with the
+  invoice.** Four genuinely different states were collapsed into one sentence and the one that fired
+  was the least accurate.
+- **✅ NO ROW SURGERY NEEDED, which is the good news: send that invoice and the bytes get written and
+  the link works.** The row was never bad.
+- **✅ FIXED SYSTEMICALLY: `invoiceFileForToken_` now returns `{ fileId, state }` across FIVE states
+  — `ok` / `pending` / `disabled` / `expired` / `unknown` — and doGet renders an accurate page for
+  each.** The `pending` page says the invoice has not been sent yet and what to do about it. **A
+  client can never reach `pending`: they only receive the link after a send, and the send is what
+  writes the bytes.**
+- **✅ PRIORITY 2 — THE BUTTON, AND BRANDON'S SCREENSHOT IS THE EVIDENCE I LACKED IN CC-144.** Plain
+  grey text proves `background`, `padding` and `border-radius` on an inline `<a>` do **not** survive
+  Google's HTML-to-PDF conversion. **And the same screenshot proves the fix: the line-items TABLE
+  renders correctly, so tables survive.** Rebuilt as a table cell with the legacy `bgcolor`
+  ATTRIBUTE on the cell plus a CSS fallback — presentational attributes are what that converter
+  honours.
+- **⚠ HONEST LIMIT KEPT: `border-radius` still probably will not render, so expect a lime RECTANGLE
+  rather than a true pill.** Saying so beats promising a shape neither of us can verify.
+- **✅ PRIORITY 3 — LIME SHIPPED, AND BRANDON IS RIGHT ABOUT THE DISTINCTION CC-144 GOT WRONG.** My
+  objection was that lime is illegible on white — true of lime **TEXT**, irrelevant to **dark text on
+  a lime FILL**. `#0a0a0a` on `#7cff00` is roughly **15:1**. Button now reads "Pay Now — $30.75".
+- **✅ AND IT DOES NOT CROSS THE NO-YELLOW/ORANGE/RED RULE, confirmed rather than waved through:
+  `#7cff00` is hue 111° — green. Yellow is 60°, orange 30°, red 0°.**
+- **⚠⚠ BUT THE RULE LINES ARE FLAGGED WITH THE ACTUAL NUMBER: `#7cff00` against white is ~1.25:1
+  contrast** — one of the brightest colours in sRGB. **A thin lime line WILL look washed out.**
+  Mitigated by widening every rule from 3px to **5px** so area compensates for the weak edge. **If
+  they still read faint in the next PDF, the answer is a two-tone rule (lime bar over a 1px dark
+  hairline), not a darker lime.**
+- **✅ ONE DELIBERATE EXCEPTION, applying Brandon's own distinction: the token page's "Download PDF"
+  LINK TEXT stays `#4a7a1e`.** Lime text on white is the unreadable case. Its rule went lime; its
+  text did not. Every other lime use is a fill or a rule — 12 occurrences.
+- **✅ 14 TESTS PASS, and the decisive one is new: a minted-but-unsent token reports `pending` and
+  is NOT reported as disabled or expired** — the exact bug. Plus: it flips to `ok` once a file id
+  lands, expired beats having a file, and CC-144's mint contract still holds.
+- **✅ LIVE PROBE: unknown token → "is not valid" (1), "no longer valid" (0) — the misleading
+  sentence is gone from the deployed page — lime rule present, and the CC-129 security guard still
+  returns its 48-byte error.**
+- **Carried forward:** ⚠ **the two MANDATORY purge steps are still outstanding from CC-145 —
+  `installInvoicePdfPurgeTrigger()` then `listInstalledTriggers()`, seen not assumed**; a fresh
+  `cc107InvoicePdfProbe` to check the lime button and the logo; **Item 83 next**; invoice 22804
+  cleanup; Lovable build history for 047ba0a; Stripe Dashboard branding; gallery-file purge; the 109
+  empty catches; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy;
+  Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-145 — 2026-08-18
 
 **Sent:** Deploy CC-144's build. Remind Brandon plainly of his two mandatory post-deploy steps.
