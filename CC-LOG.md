@@ -306,6 +306,49 @@ DEPLOYED.**
 
 ---
 
+## CC-137 — 2026-08-18
+
+**Sent:** Deploy the MSG_QUEUE fix; verify by content check against the remote.
+
+**Response to CC-137:** **DEPLOYED AND VERIFIED LIVE: @315 / v7.4.145.** The old bug is gone from
+the live code and the new logic is present. Tests re-run after the header edit — still 16/16.
+
+- **✅ SAFE SEQUENCE:** `clasp pull` showed the editor IDENTICAL to the staged baseline. Header
+  corrected to "DEPLOYED under CC-137" **before** pushing. Only the prose mention of "STAGED"
+  remains (line 48, describing CC-131's cleanup).
+- **✅ I RE-RAN THE BEHAVIOURAL TESTS AFTER THE HEADER EDIT, not just before it** — "all checks
+  passed" — because the edit touched the same file the tests extract their functions from.
+- **✅ `clasp deployments` → @315, 2026-08-18T18:51Z.**
+- **✅ VERIFIED AGAINST THE REMOTE (pulled into a throwaway dir, fixed-string greps):**
+  · **the MSG_QUEUE write now reads `props.setProperty('MSG_QUEUE', ser);`** at 2935 — the
+    validated serialisation, not a character cut
+  · `function msgQueueRead_` 1, `MSG_QUEUE_MAX = 8500` 1, `MSG_QUEUE was unreadable` 1,
+    `q.shift();` 1, `msgQueuePush_ failed` 1, `msgQueueFlush_ failed` 1, `v7.4.145` 1
+- **⚠ TWO COUNTS THAT LOOKED WRONG AND ARE NOT — I checked rather than assuming:**
+  · **`substring(0, 9000)` = 3.** All three are PROSE — two changelog lines and the inline comment
+    at 2876, all describing the bug that was removed. **The real write is gone.** Had I stopped at
+    the count I would have reported a failed deploy.
+  · **`catch (err) {}` = 109.** That is the **codebase-wide** count of empty catches, not
+    MSG_QUEUE's. The two that mattered are fixed. **Worth noting as an observation, not an alarm:
+    there are 109 silent catches in this file, and this bug is a case study in what they cost** —
+    it ran invisibly because two of them swallowed everything.
+- **⚠ NO HTTP PROBE RUN, DELIBERATELY.** This change is a property-store behaviour on the push
+  path and is not observable over HTTP, so a probe could not distinguish @314 from @315 and would
+  have been ceremony. The content check is the real verification; **the functional confirmation is
+  Brandon's `bustAppConfigCache` run.**
+- **⚠ WHAT THAT RUN WILL NOW SHOW: if MSG_QUEUE had been sitting bricked, the first read after this
+  deploy CLEARS it and LOGS "MSG_QUEUE was unreadable (9000 chars) and has been reset".** So the
+  evidence may appear as a log line rather than as a parse-failure entry — and either way it
+  retro-explains Item 62 if it fires.
+- **Carried forward:** Brandon runs `bustAppConfigCache` — settles the STRIPE_SECRET_KEY store-size
+  question **and** whether MSG_QUEUE was bricked; one fresh debrief for the Pay Note reading; the
+  invoice 22804 deletions (**file FIRST**); ledger pruning if the store is tight; the 109 empty
+  catches as a standing observation; Lovable build history for 047ba0a; TEXT itemisation; the 4
+  UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery;
+  Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-136 — 2026-08-18
 
 **Sent:** Confirm the version blocker is cleared, then build the MSG_QUEUE fix (Option 1+2) and
