@@ -57,12 +57,23 @@ Properties PANEL IS BROKEN FOR EVERYTHING.** `ZZZ_TEST` vanishing on refresh exa
   proves `setProperty` worked, not that the value survives a refresh — the behaviour that has been
   failing. The success branch says so in its own log line. **`bustAppConfigCache` after closing the
   tab is the real proof.**
+- **⚠ NEW — Item 83, added by Brandon after this response: "Items belonging to RECURRING projects
+  do not appear in the Load Vehicle list."** Not investigated yet; queued. **One lead to start from,
+  flagged as an UNVERIFIED hypothesis rather than a finding:** `RECURRING` is a **project Type** in
+  `CP_TAB` (values `RECURRING` / `SPECIAL` / blank), and the review screens gate on it explicitly —
+  `reviewable-today.tsx:37` reads `if ((type === "RECURRING" || type === "") && items.length > 0)`,
+  matching the backend's `showOnReview` rule. **But Load Vehicle does not read project items at all
+  — it renders `tools` from `TM_TAB`, filtered to today's clients by `getField`.** So the likely
+  shape is two different data sources rather than a broken filter: recurring work carries its items
+  as PROJECT items, while Load Vehicle only shows TOOL MANIFEST rows. **Verify that before
+  designing anything** — and note it may interact with Item 80 and the 4 UUID-project rows, which
+  are also `CP_TAB`/`TM_TAB` join problems.
 - **Carried forward:** Brandon runs the function, then re-runs `bustAppConfigCache` after a
   refresh; then one fresh debrief reads the **Pay Note** column and closes the Stripe blocker; the
   generalised property-setter as an option; invoice 22804 cleanup (**file FIRST**); Lovable build
-  history for 047ba0a; the 109 empty catches; TEXT itemisation; the 4 UUID-project rows; Item 80;
-  Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82;
-  Item 50; Mercury; Stripe MCP.
+  history for 047ba0a; the 109 empty catches; TEXT itemisation; the 4 UUID-project rows; **Item 83
+  (new, above)**; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery;
+  Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
 
 ---
 
