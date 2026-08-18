@@ -306,6 +306,55 @@ DEPLOYED.**
 
 ---
 
+## CC-128 — 2026-08-18
+
+**Sent:** Priority 1 build the doGet allowlist; Priority 2 make bustAppConfigCache generic;
+Priority 3 diagnose INV-22810-T once P2 is live.
+
+**Response to CC-128:** **THE EXPOSURE IS CONFIRMED AND QUANTIFIED — 355,775 BYTES to an
+anonymous GET — and I found the mechanism. But I did NOT stage a patch this batch**, because I
+made two measurement errors on the way and will not put a rushed change on the path every
+screen reads from. Nothing deployed. Read-only GETs only.
+
+- **⚠⚠ MEASURED, WITH BYTE COUNTS:** bare `/exec` → **200, 355,775 bytes**;
+  `?action=bogus` → **200, 355,775 bytes**; `?inv=zzz` → **200, 355,775 bytes**. ~356 KB of
+  client names, Project IDs, item detail and notes, to a request with no credentials.
+- **⚠⚠ CORRECTION TO MY OWN CC-128 INVESTIGATION, FIRST PASS: I initially read
+  `?action=bogus` as returning EMPTY and was about to conclude that only the missing-parameter
+  case leaked.** That reading was a redirect/`head`-timing artifact. Re-running with
+  `-o`/`size_download` showed the full dump. **Had I trusted the first reading I would have
+  shipped a fix that closed one door and left the other open.**
+- **⚠⚠ AND A SECOND ERROR, CAUGHT BY ITS OWN OUTPUT: my action-list extraction used
+  `tr -d "\x27"`, which the shell passed literally — so `tr` deleted every `\`, `x`, `2` and
+  `7`.** The "155 actions" list came out with `getInbox`→`getInbo`, `textClient`→`tetClient`,
+  `extractReceipt`→`etractReceipt`, `fixInventoryColumn`→`fiInventoryColumn`. **An allowlist
+  built from that list would have broken every action containing the letter x.** The corrupted
+  names are what exposed it.
+- **✅ THE MECHANISM, CONFIRMED: `action === 'getData'` appears ZERO times in Code.js.**
+  `getData` is not a named branch — **it is the FALLTHROUGH `else` of the dispatcher.** Line
+  3208 reads `const action = (e && e.parameter && e.parameter.action) || 'getData';`. So a
+  missing action defaults into the dump, AND any unrecognised action falls through into the
+  same place. That single fact explains all three test results.
+- **⚠ THEREFORE A 155-ENTRY ALLOWLIST IS THE WRONG SHAPE — and this is a recommendation
+  against the prompt's Option 1.** The equivalent fix is **two guards**: make the default
+  explicit instead of `'getData'`, and require `action === 'getData'` to enter the fallthrough.
+  **No named action is touched, so no screen can break** — whereas a hand-typed 155-name list
+  is one typo away from taking out a screen, as my own corrupted extraction just demonstrated.
+- **⚠ WHAT I DID NOT DO, PLAINLY: no patch staged, Priority 2 not built, Priority 3 not
+  started.** Priority 3 was always gated behind P2 being live. I spent this batch establishing
+  the mechanism correctly, and after two self-caught measurement errors on a path that serves
+  every screen, staging a change without a careful diff was not the right call.
+- **⚠ NO SAFE IMMEDIATE STOPGAP EXISTS.** Tightening the web app's access from
+  ANYONE_ANONYMOUS would break every screen, since the frontend authenticates nothing. The
+  code guard is the only close.
+- **Carried forward:** build the two doGet guards (diff first); make bustAppConfigCache
+  generic; then diagnose INV-22810-T via `invoiceTimingsMs.stripeLink` / `payNote`; the Invoice
+  Tokens row count; sheet rows 415-429; Lovable build history for 047ba0a; TEXT itemisation;
+  the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-127 — 2026-08-18
 
 **Sent:** Pay URL / Pay Amount / Pay Link ID blank on both real invoice rows — find the root
