@@ -83,298 +83,6 @@ no push, no deploy, nothing executed remotely.
 
 ---
 
-## CC-111 — 2026-08-17
-
-**Sent:** Now that Pi/SSH works, why does the STRIPE_RK diagnostic still need pasting into
-the web editor by hand? Does clasp support remote execution with Logger capture, or only
-file operations? Check it against how clasp is actually configured rather than asserting.
-
-**Response to CC-111:** **HALF THE ASSUMPTION WAS WRONG AGAIN. Remote EXECUTION is
-genuinely blocked. Remote LOG READING WORKS AND HAS NEVER BEEN USED — and using it found
-the probable cause of the STRIPE_RK failure in minutes.**
-
-- **`clasp run` IS BLOCKED, proven by attempt rather than by memory.** `clasp run
-  zzzNoSuchFunction_cc111` returns `Script function not found. Please make sure script is
-  deployed as API executable.` Four concrete, independently-blocking reasons:
-  `appsscript.json` has **0** occurrences of `executionApi` and **0** of `oauthScopes`;
-  `~/.clasprc.json` holds a default login (**no** `isLocalCreds`, **no** `clientId`) rather
-  than `clasp login --creds`; and the GCP projects **do not match** — the script's is
-  `bramble-vine-appscript` while `client_secret.json` is `bramble-vine-clasp`.
-- **⚠ AND FIXING IT WOULD REQUIRE A PUSH, WHICH IS CURRENTLY THE DANGEROUS OPERATION.**
-  Adding `executionApi` means editing `appsscript.json` and pushing — and CC-110 Finding B
-  says the Pi is behind live. Not worth doing for a capability that log-reading now covers.
-- **⚠⚠ `clasp tail-logs` WORKS. Cloud Logging is linked and I read real Logger output,
-  including Brandon's own two failures:** `cc107InvoicePdfProbe Error: STRIPE_RK not set` at
-  **21:01:59** and **21:03:23**, with the trace `stripePaymentLinkFor_(Code:21060)` /
-  `cc107InvoicePdfProbe(Code:21111)`. **Every batch has asked Brandon to paste, run AND
-  report output that I could have read myself.** Same unchecked-assumption class as
-  CC-106-108. I can only prove it works today, not retroactively.
-- **HARD PROOF FOR CC-110 FINDING B: the Pi's `Code.js` is 20,967 lines, but the live stack
-  trace cites lines 21060 and 21111.** Live carries code the Pi does not. `bv-deploy.sh`
-  would delete it.
-- **⚠⚠ PROBABLE CAUSE OF THE STRIPE_RK FAILURE, FOUND IN THE LOGS: the App Config tab grew
-  from `rows 2..23` at 10:08:18 to `rows 2..24` by 13:01:08 and has stayed at 24.** A row
-  was added in exactly that window. **CC-108's code calls
-  `getScriptProperties().getProperty('STRIPE_RK')` DIRECTLY and bypasses `cfg_`, so an App
-  Config row is invisible to it.** Circumstantial, not conclusive — the dump only prints
-  rows 21-22 — but it fits, and it matches this project's own convention note at 18398 that
-  "Config is edited in the App Config tab."
-- **AND IF THAT IS WHAT HAPPENED, THE KEY IS SITTING IN A SPREADSHEET ROW RIGHT NOW.**
-  Combined with CC-110's `SECRET_KEY_RE` gap, that is two exposures on the same secret.
-  Recommendation unchanged and now urgent: delete the App Config row, set
-  `STRIPE_SECRET_KEY` in Script Properties instead.
-- **NEW WORKING LOOP, ADOPTED FROM NOW ON: Brandon clicks Run; I read the output via
-  `clasp tail-logs`.** No transcription, no reporting burden. Applies immediately to
-  `cc110PropsProbe`.
-- **Nothing pushed, nothing deployed, nothing executed remotely. Read-only. The key value
-  was never requested or seen, and log output was redacted defensively on the way through.**
-- **Carried forward:** everything from CC-105/107/108/110, plus the Pi-vs-live
-  reconciliation still blocking any deploy.
-
----
-
-## CC-110 — 2026-08-17
-
-**Sent:** STRIPE_RK keeps reading as unset despite being set repeatedly. Diagnose the
-mechanism — name match, caching, Save button, wrong project — and supply a length-only
-verification snippet. Do not handle the key value.
-
-**Response to CC-110:** **TWO CAUSES RULED OUT FROM SOURCE, THREE LEFT STANDING, AND TWO
-PROBLEMS FOUND THAT THE BRIEF DID NOT ASK ABOUT — ONE OF THEM A LEAK THAT FIRES THE MOMENT
-THE KEY STARTS WORKING.**
-
-- **CACHING IS DEFINITIVELY NOT THE CAUSE, and this is read from HEAD rather than
-  assumed.** `propOr_` (line 2820) is a bare
-  `PropertiesService.getScriptProperties().getProperty(key) || dflt` — no CacheService, no
-  memo. The six-hour cache is `cfgMap_` alone, on the App Config *sheet*, and `cfg_` falls
-  through to `propOr_` when the sheet has nothing. Script Property reads are live.
-- **TWO APPS SCRIPT PROJECTS IS ALSO RULED OUT.** Both clasp dirs on the Pi
-  (`appsscript` and `appsscript-v1-backup`) carry the **same scriptId** — compared by hash
-  so the id itself never left the Pi. One project, not two. And the probe reaching my own
-  `throw` proves the paste and the run are in the same project.
-- **STILL STANDING, in order:** Save not clicked in the Script Properties panel; a
-  trailing space or case difference in the KEY; the wrong panel entirely. A single-key
-  probe cannot tell these apart, so the snippet enumerates **every** key inside delimiters
-  with lengths — a trailing space is invisible until you bracket it.
-- **⚠ FINDING THE BRIEF DID NOT ASK FOR, AND IT IS THE SHARPEST ONE: `SECRET_KEY_RE` DOES
-  NOT MATCH `STRIPE_RK`.** The regex at 18396 is
-  `/key|secret|token|password|oauth2|_pat\b|credential|^QBO_CLIENT_ID$/i`. `STRIPE_RK`
-  contains none of those. So the moment the key IS set correctly, `propSnapshot_` (18407)
-  drops it in the **safe** bucket and writes the **plaintext value** into the PS_TAB sheet,
-  and the `confirm:'SNAP'` action returns it in an API response. **Recommendation: name the
-  property `STRIPE_SECRET_KEY`.** One word changed in the pasted function, matches the
-  existing regex, no live-path edit, and it sidesteps the name confusion at the same time.
-- **⚠ SECOND FINDING: `stripePaymentLinkFor_` HAS ZERO OCCURRENCES IN THE PI's Code.js.**
-  Brandon pasted CC-107/108 straight into the web editor, so **the Pi is now BEHIND live
-  and `bv-deploy.sh` would clasp-push over the pasted functions and delete them.** This is
-  the "other writers exist" hazard CLAUDE.md warns about, pointing the other way for once.
-  Do not deploy until the two are reconciled.
-- **THE BRIEF'S BV_SHARED_KEY PRECEDENT DOES NOT EXIST — 0 occurrences at HEAD.** The real
-  established pattern is `WEB_PUSH_KEY` at 2912 (`length + ' chars, ends ' + slice(-4)`,
-  with an in-code note on why) and `propSnapshot_`'s `k + '(' + length + ')'`. The snippet
-  mirrors those.
-- **No existing public editor function enumerates property keys** — `ntfyPropsDebug` is
-  Pushover-scoped — so a throwaway snippet is justified rather than sprawl.
-- **Nothing deployed, nothing staged, nothing pushed. Read-only on the Pi. The key value
-  was never requested, seen, or handled.**
-- **Carried forward:** everything from CC-105/107/108, plus the Pi-vs-live reconciliation
-  now blocking any deploy.
-
----
-
-## CC-109 — 2026-08-17
-
-**Sent:** Why does this session report no Pi/backend access when earlier batches clearly
-had it? Is this a different environment, expired credentials, or something else? Answer
-before choosing between restoring access and the repo-commit workaround. ACH retry
-confirmed at limit 1.
-
-**Response to CC-109:** **THE ACCESS WAS THERE THE WHOLE TIME. CC-106, CC-107 AND CC-108
-WERE WRONG, AND THE ERROR WAS MINE, NOT THE ENVIRONMENT'S.**
-
-- **SSH TO THE PI WORKS FROM THIS SESSION, RIGHT NOW.** `ssh -i ~/.ssh/edaphos_clock
-  info@192.168.4.106` returns `CONNECTED as info@Edaphos`. Same machine, same LAN
-  (this box is 192.168.4.42), same key, `known_hosts` already carrying 192.168.4.106 from
-  Jul 24. Nothing expired, nothing revoked, no new grant needed.
-- **THE ROOT CAUSE, NAMED PLAINLY: I inferred "no backend access" from "no `.gs` files and
-  no clasp ON THE WINDOWS BOX" and never tested the Pi.** CLAUDE.md gives the host, the
-  user and the key at lines 218-219, and the deploy ritual at 224. I read that file for
-  other things in CC-106 and did not act on it. Three batches were spent on a blocker that
-  did not exist.
-- **`/home/info/appsscript/Code.js` is readable — 1,111,592 bytes, Aug 17 13:42, first
-  line `v7.4.138: CC-104 (8/15), DEPLOYED under CC-105`.** That matches CC-105's deploy
-  exactly. All Item 54 functions present: `invoiceTokenFor_` 4, `invoicePdfUrlFor_` 3,
-  `mqDraftInvoice_` 10, `INVOICE_PDF_LINK` 5, `qboDebriefInvoice_` 20.
-- **CC-106's FINDING HOLDS AT REAL HEAD, which is the one piece of good news in this.**
-  `Utilities.newBlob(html, 'text/html', 'r.html')` is at line 5294 inside the real
-  `saveReceipt`, and `DocumentApp` is still **0** occurrences. The mechanism conclusion was
-  right despite being read from a Jul 27 file.
-- **Item 54's live structures now located, not inferred:** `invoiceTokenFor_(ss, invoiceId,
-  fileId, createIfMissing)` at 12400, the `?inv=` doGet branch at 3143 via
-  `invoiceFileForToken_`, and the flag read as `cfg_('INVOICE_PDF_LINK','off')` at 5626
-  and 14148 — **App Config, not Script Properties.**
-- **CC-108's STRIPE_RK guidance CONFIRMED CORRECT by convention check:** API keys live in
-  Script Properties here (`ANTHROPIC_API_KEY`, `QUO_API_KEY`, `QBT_API_KEY`, `HOOK_KEY`),
-  while `cfg_` holds feature flags. So secrets in Script Properties, flags in App Config.
-  Note `BV_SHARED_KEY` does not exist under that name at HEAD.
-- **CC-108 PART 6 IS WITHDRAWN AS A BLOCKER FIX.** No new access surface is needed and no
-  repo-commit workaround is needed to unblock the wiring. Committing the backend to the
-  repo still has independent merit as a backup — outside Google the only copies are the Pi
-  and a Jul 27 file in Downloads — but it is now optional and low priority, not a
-  prerequisite.
-- **CLAUDE.md IS STALE AND IT CONTRIBUTED.** Its header still says LIVE v7.4.84 @271 while
-  the Pi and CC-105 both say v7.4.138 @308. Worth a correction pass.
-- **ACH retry: no change. `restrictions[completed_sessions][limit]` stays 1**; CC-108's
-  code already reflects it.
-- **Nothing deployed, nothing staged, nothing pulled or pushed on the Pi — read-only
-  commands only.** The wiring diff still waits for explicit go-ahead per CC-108.
-- **Carried forward:** everything from CC-105/107/108 minus the backend-readability item,
-  which is closed.
-
----
-
-## CC-108 — 2026-08-17
-
-**Sent:** cc107InvoicePdfProbe passed in the real layout; Gap 1 Option 1 approved (manual
-QBO reconciliation). Do steps 1-3: create the `rk_` restricted key and store it as
-`STRIPE_RK`, enable `us_bank_account` in TEST mode with card as fallback, then run the
-probe with `LIVE_STRIPE = true` and report with confirmation. Pause before the live
-wiring, and settle how to get a readable backend HEAD.
-
-**Response to CC-108:** **STEPS 1-3 ARE ALL OWNER ACTIONS. I CANNOT PERFORM ANY OF THEM,
-AND I DID NOT SIMULATE THEM.** What I could do instead was verify the API assumptions
-already baked into CC-107's code — that work is done and it changed the code.
-
-- **THE KEY: I MUST NOT AND CANNOT TAKE IT.** Two independent reasons, both absolute.
-  Handling an API key value is off-limits to me regardless of transport, and separately
-  there is no mechanism here to reach Script Properties — the backend lives on the Pi.
-  **The secure input mechanism for this project IS Brandon setting it himself in the
-  Apps Script editor.** No paste in chat, no file, no intermediary. There is no version
-  of step 1 that routes through me.
-- **NO SCREENSHOTS. I have no view of the Stripe Dashboard and no way to run an Apps
-  Script function.** cc107InvoicePdfProbe was never staged into the backend — CC-107
-  delivered it as text and said so — so the probe runs where the last two ran: pasted
-  into the editor by Brandon.
-- **VERIFIED AGAINST THE DOCS, NOT ASSUMED — all three assumptions in CC-107's
-  `stripePaymentLinkFor_` hold:** `price_data` on `payment_links` line_items is real and
-  the guide's curl matches the exact param shape used; `restrictions[completed_sessions]
-  [limit]` is real and quoted verbatim; and ACH Direct Debit is confirmed **Supported**
-  on Payment Links in the payment-method support matrix.
-- **⚠ MY FIRST GREP SUGGESTED `price_data` WAS NOT SUPPORTED AND THAT WAS MY ERROR, not
-  Stripe's.** The API reference links sub-fields out rather than expanding them inline.
-  Caught before it reached a recommendation, and recorded because the same grep pattern
-  will mislead the next person the same way.
-- **ONE REAL IMPROVEMENT FOUND: `inactive_message`.** Once the one-shot limit is consumed
-  the link deactivates, and without this a client re-opening a paid invoice PDF sees a
-  bare default error. Added to the code.
-- **ONE OPERATIONAL CONSEQUENCE FOUND, AND IT IS THE IMPORTANT ONE: the one-shot limit is
-  consumed on `checkout.session.completed`, which for ACH fires at SUBMISSION, not at
-  settlement.** So a link dies the moment the client submits — good against double-pay,
-  but if the ACH later fails the client cannot retry and Brandon must mint a new link.
-  Surfaced as a numbered decision rather than silently accepted.
-- **STEP 4 ANSWERED AS OPTIONS.** Recommendation: `clasp pull` on the Pi and commit the
-  backend into this repo under `backend/`, which makes HEAD permanently readable and
-  retires the root cause that has now blocked two batches.
-- **Nothing deployed, nothing staged, no Stripe object created, `INVOICE_PDF_LINK`
-  untouched.**
-- **Carried forward:** everything from CC-105 and CC-107, plus the ACH-retry decision.
-
----
-
-## CC-107 — 2026-08-17
-
-**Sent:** cc106LinkProbe passed — a real `<a href>` survives blob HTML-to-PDF, so Option 1
-is dropped. Build the NEW invoice-PDF path as a sibling of `receiptHtml_`/`saveReceipt`,
-with a plain surcharge-free ACH-capable Stripe Payment Link baked in, replacing the
-Drive-link-to-QBO-PDF flow. Confirm whether `invoiceTokenFor_` and the `?inv=` doGet
-branch can host the new PDF as-is. Report the exact diff and a test sequence before
-deploying.
-
-**Response to CC-107:** **THE EXACT DIFF CANNOT BE PRODUCED FROM THIS MACHINE, AND I AM
-NOT GOING TO INVENT ONE. New self-contained functions delivered in full; the wiring diff
-is withheld with the reason named.**
-
-- **THE BACKEND SOURCE IS NOT ON THIS BOX AND IS NOT IN THIS REPO.** bv-work is the
-  Vite/Lovable frontend plus the docs. `git ls-files` shows no Apps Script anywhere.
-  `invoiceTokenFor_`, `invoicePdfUrlFor_`, `mqDraftInvoice_`, the `?inv=` branch and
-  `INVOICE_PDF_LINK` appear ONLY as prose in CC-LOG.md — never as code, in any file.
-- **AND CLAUDE.md EXPLAINS WHY: the backend is edited by clasp ON THE PI**
-  (`/home/info/appsscript/bv-deploy.sh`, `~/.clasprc.json`, renewable only by Brandon).
-  The Windows box has never held it. There is no clone to take here.
-- **The newest local copy is `Downloads/bramble-appscript-code-v7.4.2.gs.txt` (Jul 27),
-  which predates the entire Item 54 build.** CLAUDE.md's own header is also stale — it
-  says LIVE v7.4.84 @271 while CC-105 deployed v7.4.138 @308.
-- **THIS IS EXACTLY THE CC-102 FAILURE AND I AM DECLINING TO REPEAT IT.** CC-102 was five
-  batches of asserting something was live without reading the live version. Writing a
-  diff against `qboDebriefInvoice_` and the `?inv=` branch sight-unseen would be that
-  same mistake with more confidence attached.
-- **DELIVERED IN FULL, because these need no surrounding context:** `invoiceHtml_`,
-  `invoicePayPdf_` and `stripePaymentLinkFor_` are new leaf functions with no call into
-  unread code. Plus a dry-run editor probe that writes to Drive root and creates nothing
-  in Stripe.
-- **PROVISIONAL ANSWER ON REUSE, grounded in CC-97's own record rather than in source:**
-  structurally yes — `invoiceTokenFor_` is already keyed per invoice, folder-by-ID, with a
-  Disabled check mirroring `galleryTokenFor_`. **But the security posture changes and that
-  is the real finding: CC-97 recorded the tokens as PERMANENT with no expiry column, and
-  the hosted artefact is no longer a static document — it now contains a live, reusable
-  payment URL.** Token revocation becomes the only kill switch for a payment page.
-- **FIVE ARCHITECTURE GAPS SURFACED THAT THE BRIEF DOES NOT COVER**, the sharpest two
-  being that nothing in the described flow marks the QBO invoice paid — QuickBooks is the
-  system of record and would silently drift — and that ACH settles days later and can fail
-  after the fact, so "link clicked" is not "invoice paid."
-- **NOTHING DEPLOYED, NOTHING STAGED, no Stripe object created, `INVOICE_PDF_LINK`
-  untouched.** Invoicing and comms path; the brief said report first.
-- **Carried forward:** everything from CC-105, plus the Pi-clone prerequisite before any
-  Item 54 build, the QBO payment-reconciliation gap, and the ACH settlement-timing
-  decision.
-
----
-
-## CC-106 — 2026-08-17
-
-**Sent:** Item 54 re-scoped — QuickBooks stays the invoicing system of record, card
-acceptance stays with SwipeSimple, and the only new piece is a plain ACH Stripe Payment
-Link embedded in a custom-generated invoice PDF. Confirm the actual technique behind
-saveReceipt's receipt-styled PDF, confirm whether it can carry a real clickable
-hyperlink, and if not, find the most viable alternative in the same Apps Script
-environment. Report before building.
-
-**Response to CC-106:** **INVESTIGATION ONLY — NOTHING BUILT, NOTHING STAGED, NOTHING
-DEPLOYED.**
-
-- **The mechanism is now quoted, not assumed. It is NOT a Docs template merge.**
-  `saveReceipt` calls `receiptHtml_(d)`, which returns a hand-built HTML string, then
-  `Utilities.newBlob(html, 'text/html', 'r.html').getAs('application/pdf')` and
-  `DriveApp.getFolderById(RECEIPT_FOLDER_ID).createFile(pdf)`. Pure HTML-blob
-  conversion, no intermediate document.
-- **The line is stable across every local version that has saveReceipt** (v6.7.3
-  through v7.4.2), so this is long-standing behaviour rather than a recent shape.
-- **`receiptHtml_` contains no anchor tag at all.** The only `<a href>` in the file sits
-  in an unrelated HTML output builder, never on the PDF path — so the hyperlink question
-  has never actually been exercised in this codebase.
-- **`DocumentApp` and the Drive advanced service have NEVER been used in any local
-  version.** A Docs-based PDF is genuinely new ground here, not a return to something
-  that previously worked.
-- **THE HYPERLINK ANSWER IS NOT YET PROVEN AND I DID NOT PRETEND OTHERWISE.** The
-  expectation is that blob conversion drops link annotations, but the brief asked for a
-  concrete test and I cannot run Apps Script from this machine — no clasp, no Node, and
-  no working clone present. A one-click editor test function is proposed instead,
-  matching the existing staged-function pattern.
-- **Source caveat, stated up front:** the only local copy is
-  `Downloads/bramble-appscript-code-v7.4.2.gs.txt`, dated Jul 27, while live is
-  v7.4.138. `invoicePdfUrlFor_` (added under CC-104) is absent from it, which confirms
-  the staleness. saveReceipt must be re-read on a fresh clone before any build.
-- **Recommendation delivered as numbered options** — the lead being HTML to Google Doc
-  to PDF via the built-in Drive advanced service, which keeps HTML authoring and adds
-  real link annotations without a new external dependency, applied to a NEW invoice PDF
-  rather than by disturbing the existing receipt path.
-- **Carried forward:** everything from CC-105 — the Lovable timeout prompt,
-  `INVOICE_PDF_LINK` still off, the real-debrief timing number, the test send, Push
-  Subscriptions `Role`, Items 77 and 81, Mercury, Item 50, and the still-unauthorised
-  Stripe MCP server.
-
----
-
 ## CC-138 — 2026-08-18
 
 **Sent:** Confirm the Script ID matches, then dig deeper — the mystery is real. Check the property
@@ -1788,6 +1496,298 @@ DOCUMENTED POINTS TURNED OUT TO BE FALSE.** Documentation written; Item 79 scope
   interactive `/mcp` authorisation consolidates everything; no re-plumbing.
 - **Carried forward:** the `STRIPE_RK` fix (code or property), the rename for redaction,
   Item 79's build decision, Items 77 and 81, Mercury, Item 50.
+
+---
+
+## CC-111 — 2026-08-17
+
+**Sent:** Now that Pi/SSH works, why does the STRIPE_RK diagnostic still need pasting into
+the web editor by hand? Does clasp support remote execution with Logger capture, or only
+file operations? Check it against how clasp is actually configured rather than asserting.
+
+**Response to CC-111:** **HALF THE ASSUMPTION WAS WRONG AGAIN. Remote EXECUTION is
+genuinely blocked. Remote LOG READING WORKS AND HAS NEVER BEEN USED — and using it found
+the probable cause of the STRIPE_RK failure in minutes.**
+
+- **`clasp run` IS BLOCKED, proven by attempt rather than by memory.** `clasp run
+  zzzNoSuchFunction_cc111` returns `Script function not found. Please make sure script is
+  deployed as API executable.` Four concrete, independently-blocking reasons:
+  `appsscript.json` has **0** occurrences of `executionApi` and **0** of `oauthScopes`;
+  `~/.clasprc.json` holds a default login (**no** `isLocalCreds`, **no** `clientId`) rather
+  than `clasp login --creds`; and the GCP projects **do not match** — the script's is
+  `bramble-vine-appscript` while `client_secret.json` is `bramble-vine-clasp`.
+- **⚠ AND FIXING IT WOULD REQUIRE A PUSH, WHICH IS CURRENTLY THE DANGEROUS OPERATION.**
+  Adding `executionApi` means editing `appsscript.json` and pushing — and CC-110 Finding B
+  says the Pi is behind live. Not worth doing for a capability that log-reading now covers.
+- **⚠⚠ `clasp tail-logs` WORKS. Cloud Logging is linked and I read real Logger output,
+  including Brandon's own two failures:** `cc107InvoicePdfProbe Error: STRIPE_RK not set` at
+  **21:01:59** and **21:03:23**, with the trace `stripePaymentLinkFor_(Code:21060)` /
+  `cc107InvoicePdfProbe(Code:21111)`. **Every batch has asked Brandon to paste, run AND
+  report output that I could have read myself.** Same unchecked-assumption class as
+  CC-106-108. I can only prove it works today, not retroactively.
+- **HARD PROOF FOR CC-110 FINDING B: the Pi's `Code.js` is 20,967 lines, but the live stack
+  trace cites lines 21060 and 21111.** Live carries code the Pi does not. `bv-deploy.sh`
+  would delete it.
+- **⚠⚠ PROBABLE CAUSE OF THE STRIPE_RK FAILURE, FOUND IN THE LOGS: the App Config tab grew
+  from `rows 2..23` at 10:08:18 to `rows 2..24` by 13:01:08 and has stayed at 24.** A row
+  was added in exactly that window. **CC-108's code calls
+  `getScriptProperties().getProperty('STRIPE_RK')` DIRECTLY and bypasses `cfg_`, so an App
+  Config row is invisible to it.** Circumstantial, not conclusive — the dump only prints
+  rows 21-22 — but it fits, and it matches this project's own convention note at 18398 that
+  "Config is edited in the App Config tab."
+- **AND IF THAT IS WHAT HAPPENED, THE KEY IS SITTING IN A SPREADSHEET ROW RIGHT NOW.**
+  Combined with CC-110's `SECRET_KEY_RE` gap, that is two exposures on the same secret.
+  Recommendation unchanged and now urgent: delete the App Config row, set
+  `STRIPE_SECRET_KEY` in Script Properties instead.
+- **NEW WORKING LOOP, ADOPTED FROM NOW ON: Brandon clicks Run; I read the output via
+  `clasp tail-logs`.** No transcription, no reporting burden. Applies immediately to
+  `cc110PropsProbe`.
+- **Nothing pushed, nothing deployed, nothing executed remotely. Read-only. The key value
+  was never requested or seen, and log output was redacted defensively on the way through.**
+- **Carried forward:** everything from CC-105/107/108/110, plus the Pi-vs-live
+  reconciliation still blocking any deploy.
+
+---
+
+## CC-110 — 2026-08-17
+
+**Sent:** STRIPE_RK keeps reading as unset despite being set repeatedly. Diagnose the
+mechanism — name match, caching, Save button, wrong project — and supply a length-only
+verification snippet. Do not handle the key value.
+
+**Response to CC-110:** **TWO CAUSES RULED OUT FROM SOURCE, THREE LEFT STANDING, AND TWO
+PROBLEMS FOUND THAT THE BRIEF DID NOT ASK ABOUT — ONE OF THEM A LEAK THAT FIRES THE MOMENT
+THE KEY STARTS WORKING.**
+
+- **CACHING IS DEFINITIVELY NOT THE CAUSE, and this is read from HEAD rather than
+  assumed.** `propOr_` (line 2820) is a bare
+  `PropertiesService.getScriptProperties().getProperty(key) || dflt` — no CacheService, no
+  memo. The six-hour cache is `cfgMap_` alone, on the App Config *sheet*, and `cfg_` falls
+  through to `propOr_` when the sheet has nothing. Script Property reads are live.
+- **TWO APPS SCRIPT PROJECTS IS ALSO RULED OUT.** Both clasp dirs on the Pi
+  (`appsscript` and `appsscript-v1-backup`) carry the **same scriptId** — compared by hash
+  so the id itself never left the Pi. One project, not two. And the probe reaching my own
+  `throw` proves the paste and the run are in the same project.
+- **STILL STANDING, in order:** Save not clicked in the Script Properties panel; a
+  trailing space or case difference in the KEY; the wrong panel entirely. A single-key
+  probe cannot tell these apart, so the snippet enumerates **every** key inside delimiters
+  with lengths — a trailing space is invisible until you bracket it.
+- **⚠ FINDING THE BRIEF DID NOT ASK FOR, AND IT IS THE SHARPEST ONE: `SECRET_KEY_RE` DOES
+  NOT MATCH `STRIPE_RK`.** The regex at 18396 is
+  `/key|secret|token|password|oauth2|_pat\b|credential|^QBO_CLIENT_ID$/i`. `STRIPE_RK`
+  contains none of those. So the moment the key IS set correctly, `propSnapshot_` (18407)
+  drops it in the **safe** bucket and writes the **plaintext value** into the PS_TAB sheet,
+  and the `confirm:'SNAP'` action returns it in an API response. **Recommendation: name the
+  property `STRIPE_SECRET_KEY`.** One word changed in the pasted function, matches the
+  existing regex, no live-path edit, and it sidesteps the name confusion at the same time.
+- **⚠ SECOND FINDING: `stripePaymentLinkFor_` HAS ZERO OCCURRENCES IN THE PI's Code.js.**
+  Brandon pasted CC-107/108 straight into the web editor, so **the Pi is now BEHIND live
+  and `bv-deploy.sh` would clasp-push over the pasted functions and delete them.** This is
+  the "other writers exist" hazard CLAUDE.md warns about, pointing the other way for once.
+  Do not deploy until the two are reconciled.
+- **THE BRIEF'S BV_SHARED_KEY PRECEDENT DOES NOT EXIST — 0 occurrences at HEAD.** The real
+  established pattern is `WEB_PUSH_KEY` at 2912 (`length + ' chars, ends ' + slice(-4)`,
+  with an in-code note on why) and `propSnapshot_`'s `k + '(' + length + ')'`. The snippet
+  mirrors those.
+- **No existing public editor function enumerates property keys** — `ntfyPropsDebug` is
+  Pushover-scoped — so a throwaway snippet is justified rather than sprawl.
+- **Nothing deployed, nothing staged, nothing pushed. Read-only on the Pi. The key value
+  was never requested, seen, or handled.**
+- **Carried forward:** everything from CC-105/107/108, plus the Pi-vs-live reconciliation
+  now blocking any deploy.
+
+---
+
+## CC-109 — 2026-08-17
+
+**Sent:** Why does this session report no Pi/backend access when earlier batches clearly
+had it? Is this a different environment, expired credentials, or something else? Answer
+before choosing between restoring access and the repo-commit workaround. ACH retry
+confirmed at limit 1.
+
+**Response to CC-109:** **THE ACCESS WAS THERE THE WHOLE TIME. CC-106, CC-107 AND CC-108
+WERE WRONG, AND THE ERROR WAS MINE, NOT THE ENVIRONMENT'S.**
+
+- **SSH TO THE PI WORKS FROM THIS SESSION, RIGHT NOW.** `ssh -i ~/.ssh/edaphos_clock
+  info@192.168.4.106` returns `CONNECTED as info@Edaphos`. Same machine, same LAN
+  (this box is 192.168.4.42), same key, `known_hosts` already carrying 192.168.4.106 from
+  Jul 24. Nothing expired, nothing revoked, no new grant needed.
+- **THE ROOT CAUSE, NAMED PLAINLY: I inferred "no backend access" from "no `.gs` files and
+  no clasp ON THE WINDOWS BOX" and never tested the Pi.** CLAUDE.md gives the host, the
+  user and the key at lines 218-219, and the deploy ritual at 224. I read that file for
+  other things in CC-106 and did not act on it. Three batches were spent on a blocker that
+  did not exist.
+- **`/home/info/appsscript/Code.js` is readable — 1,111,592 bytes, Aug 17 13:42, first
+  line `v7.4.138: CC-104 (8/15), DEPLOYED under CC-105`.** That matches CC-105's deploy
+  exactly. All Item 54 functions present: `invoiceTokenFor_` 4, `invoicePdfUrlFor_` 3,
+  `mqDraftInvoice_` 10, `INVOICE_PDF_LINK` 5, `qboDebriefInvoice_` 20.
+- **CC-106's FINDING HOLDS AT REAL HEAD, which is the one piece of good news in this.**
+  `Utilities.newBlob(html, 'text/html', 'r.html')` is at line 5294 inside the real
+  `saveReceipt`, and `DocumentApp` is still **0** occurrences. The mechanism conclusion was
+  right despite being read from a Jul 27 file.
+- **Item 54's live structures now located, not inferred:** `invoiceTokenFor_(ss, invoiceId,
+  fileId, createIfMissing)` at 12400, the `?inv=` doGet branch at 3143 via
+  `invoiceFileForToken_`, and the flag read as `cfg_('INVOICE_PDF_LINK','off')` at 5626
+  and 14148 — **App Config, not Script Properties.**
+- **CC-108's STRIPE_RK guidance CONFIRMED CORRECT by convention check:** API keys live in
+  Script Properties here (`ANTHROPIC_API_KEY`, `QUO_API_KEY`, `QBT_API_KEY`, `HOOK_KEY`),
+  while `cfg_` holds feature flags. So secrets in Script Properties, flags in App Config.
+  Note `BV_SHARED_KEY` does not exist under that name at HEAD.
+- **CC-108 PART 6 IS WITHDRAWN AS A BLOCKER FIX.** No new access surface is needed and no
+  repo-commit workaround is needed to unblock the wiring. Committing the backend to the
+  repo still has independent merit as a backup — outside Google the only copies are the Pi
+  and a Jul 27 file in Downloads — but it is now optional and low priority, not a
+  prerequisite.
+- **CLAUDE.md IS STALE AND IT CONTRIBUTED.** Its header still says LIVE v7.4.84 @271 while
+  the Pi and CC-105 both say v7.4.138 @308. Worth a correction pass.
+- **ACH retry: no change. `restrictions[completed_sessions][limit]` stays 1**; CC-108's
+  code already reflects it.
+- **Nothing deployed, nothing staged, nothing pulled or pushed on the Pi — read-only
+  commands only.** The wiring diff still waits for explicit go-ahead per CC-108.
+- **Carried forward:** everything from CC-105/107/108 minus the backend-readability item,
+  which is closed.
+
+---
+
+## CC-108 — 2026-08-17
+
+**Sent:** cc107InvoicePdfProbe passed in the real layout; Gap 1 Option 1 approved (manual
+QBO reconciliation). Do steps 1-3: create the `rk_` restricted key and store it as
+`STRIPE_RK`, enable `us_bank_account` in TEST mode with card as fallback, then run the
+probe with `LIVE_STRIPE = true` and report with confirmation. Pause before the live
+wiring, and settle how to get a readable backend HEAD.
+
+**Response to CC-108:** **STEPS 1-3 ARE ALL OWNER ACTIONS. I CANNOT PERFORM ANY OF THEM,
+AND I DID NOT SIMULATE THEM.** What I could do instead was verify the API assumptions
+already baked into CC-107's code — that work is done and it changed the code.
+
+- **THE KEY: I MUST NOT AND CANNOT TAKE IT.** Two independent reasons, both absolute.
+  Handling an API key value is off-limits to me regardless of transport, and separately
+  there is no mechanism here to reach Script Properties — the backend lives on the Pi.
+  **The secure input mechanism for this project IS Brandon setting it himself in the
+  Apps Script editor.** No paste in chat, no file, no intermediary. There is no version
+  of step 1 that routes through me.
+- **NO SCREENSHOTS. I have no view of the Stripe Dashboard and no way to run an Apps
+  Script function.** cc107InvoicePdfProbe was never staged into the backend — CC-107
+  delivered it as text and said so — so the probe runs where the last two ran: pasted
+  into the editor by Brandon.
+- **VERIFIED AGAINST THE DOCS, NOT ASSUMED — all three assumptions in CC-107's
+  `stripePaymentLinkFor_` hold:** `price_data` on `payment_links` line_items is real and
+  the guide's curl matches the exact param shape used; `restrictions[completed_sessions]
+  [limit]` is real and quoted verbatim; and ACH Direct Debit is confirmed **Supported**
+  on Payment Links in the payment-method support matrix.
+- **⚠ MY FIRST GREP SUGGESTED `price_data` WAS NOT SUPPORTED AND THAT WAS MY ERROR, not
+  Stripe's.** The API reference links sub-fields out rather than expanding them inline.
+  Caught before it reached a recommendation, and recorded because the same grep pattern
+  will mislead the next person the same way.
+- **ONE REAL IMPROVEMENT FOUND: `inactive_message`.** Once the one-shot limit is consumed
+  the link deactivates, and without this a client re-opening a paid invoice PDF sees a
+  bare default error. Added to the code.
+- **ONE OPERATIONAL CONSEQUENCE FOUND, AND IT IS THE IMPORTANT ONE: the one-shot limit is
+  consumed on `checkout.session.completed`, which for ACH fires at SUBMISSION, not at
+  settlement.** So a link dies the moment the client submits — good against double-pay,
+  but if the ACH later fails the client cannot retry and Brandon must mint a new link.
+  Surfaced as a numbered decision rather than silently accepted.
+- **STEP 4 ANSWERED AS OPTIONS.** Recommendation: `clasp pull` on the Pi and commit the
+  backend into this repo under `backend/`, which makes HEAD permanently readable and
+  retires the root cause that has now blocked two batches.
+- **Nothing deployed, nothing staged, no Stripe object created, `INVOICE_PDF_LINK`
+  untouched.**
+- **Carried forward:** everything from CC-105 and CC-107, plus the ACH-retry decision.
+
+---
+
+## CC-107 — 2026-08-17
+
+**Sent:** cc106LinkProbe passed — a real `<a href>` survives blob HTML-to-PDF, so Option 1
+is dropped. Build the NEW invoice-PDF path as a sibling of `receiptHtml_`/`saveReceipt`,
+with a plain surcharge-free ACH-capable Stripe Payment Link baked in, replacing the
+Drive-link-to-QBO-PDF flow. Confirm whether `invoiceTokenFor_` and the `?inv=` doGet
+branch can host the new PDF as-is. Report the exact diff and a test sequence before
+deploying.
+
+**Response to CC-107:** **THE EXACT DIFF CANNOT BE PRODUCED FROM THIS MACHINE, AND I AM
+NOT GOING TO INVENT ONE. New self-contained functions delivered in full; the wiring diff
+is withheld with the reason named.**
+
+- **THE BACKEND SOURCE IS NOT ON THIS BOX AND IS NOT IN THIS REPO.** bv-work is the
+  Vite/Lovable frontend plus the docs. `git ls-files` shows no Apps Script anywhere.
+  `invoiceTokenFor_`, `invoicePdfUrlFor_`, `mqDraftInvoice_`, the `?inv=` branch and
+  `INVOICE_PDF_LINK` appear ONLY as prose in CC-LOG.md — never as code, in any file.
+- **AND CLAUDE.md EXPLAINS WHY: the backend is edited by clasp ON THE PI**
+  (`/home/info/appsscript/bv-deploy.sh`, `~/.clasprc.json`, renewable only by Brandon).
+  The Windows box has never held it. There is no clone to take here.
+- **The newest local copy is `Downloads/bramble-appscript-code-v7.4.2.gs.txt` (Jul 27),
+  which predates the entire Item 54 build.** CLAUDE.md's own header is also stale — it
+  says LIVE v7.4.84 @271 while CC-105 deployed v7.4.138 @308.
+- **THIS IS EXACTLY THE CC-102 FAILURE AND I AM DECLINING TO REPEAT IT.** CC-102 was five
+  batches of asserting something was live without reading the live version. Writing a
+  diff against `qboDebriefInvoice_` and the `?inv=` branch sight-unseen would be that
+  same mistake with more confidence attached.
+- **DELIVERED IN FULL, because these need no surrounding context:** `invoiceHtml_`,
+  `invoicePayPdf_` and `stripePaymentLinkFor_` are new leaf functions with no call into
+  unread code. Plus a dry-run editor probe that writes to Drive root and creates nothing
+  in Stripe.
+- **PROVISIONAL ANSWER ON REUSE, grounded in CC-97's own record rather than in source:**
+  structurally yes — `invoiceTokenFor_` is already keyed per invoice, folder-by-ID, with a
+  Disabled check mirroring `galleryTokenFor_`. **But the security posture changes and that
+  is the real finding: CC-97 recorded the tokens as PERMANENT with no expiry column, and
+  the hosted artefact is no longer a static document — it now contains a live, reusable
+  payment URL.** Token revocation becomes the only kill switch for a payment page.
+- **FIVE ARCHITECTURE GAPS SURFACED THAT THE BRIEF DOES NOT COVER**, the sharpest two
+  being that nothing in the described flow marks the QBO invoice paid — QuickBooks is the
+  system of record and would silently drift — and that ACH settles days later and can fail
+  after the fact, so "link clicked" is not "invoice paid."
+- **NOTHING DEPLOYED, NOTHING STAGED, no Stripe object created, `INVOICE_PDF_LINK`
+  untouched.** Invoicing and comms path; the brief said report first.
+- **Carried forward:** everything from CC-105, plus the Pi-clone prerequisite before any
+  Item 54 build, the QBO payment-reconciliation gap, and the ACH settlement-timing
+  decision.
+
+---
+
+## CC-106 — 2026-08-17
+
+**Sent:** Item 54 re-scoped — QuickBooks stays the invoicing system of record, card
+acceptance stays with SwipeSimple, and the only new piece is a plain ACH Stripe Payment
+Link embedded in a custom-generated invoice PDF. Confirm the actual technique behind
+saveReceipt's receipt-styled PDF, confirm whether it can carry a real clickable
+hyperlink, and if not, find the most viable alternative in the same Apps Script
+environment. Report before building.
+
+**Response to CC-106:** **INVESTIGATION ONLY — NOTHING BUILT, NOTHING STAGED, NOTHING
+DEPLOYED.**
+
+- **The mechanism is now quoted, not assumed. It is NOT a Docs template merge.**
+  `saveReceipt` calls `receiptHtml_(d)`, which returns a hand-built HTML string, then
+  `Utilities.newBlob(html, 'text/html', 'r.html').getAs('application/pdf')` and
+  `DriveApp.getFolderById(RECEIPT_FOLDER_ID).createFile(pdf)`. Pure HTML-blob
+  conversion, no intermediate document.
+- **The line is stable across every local version that has saveReceipt** (v6.7.3
+  through v7.4.2), so this is long-standing behaviour rather than a recent shape.
+- **`receiptHtml_` contains no anchor tag at all.** The only `<a href>` in the file sits
+  in an unrelated HTML output builder, never on the PDF path — so the hyperlink question
+  has never actually been exercised in this codebase.
+- **`DocumentApp` and the Drive advanced service have NEVER been used in any local
+  version.** A Docs-based PDF is genuinely new ground here, not a return to something
+  that previously worked.
+- **THE HYPERLINK ANSWER IS NOT YET PROVEN AND I DID NOT PRETEND OTHERWISE.** The
+  expectation is that blob conversion drops link annotations, but the brief asked for a
+  concrete test and I cannot run Apps Script from this machine — no clasp, no Node, and
+  no working clone present. A one-click editor test function is proposed instead,
+  matching the existing staged-function pattern.
+- **Source caveat, stated up front:** the only local copy is
+  `Downloads/bramble-appscript-code-v7.4.2.gs.txt`, dated Jul 27, while live is
+  v7.4.138. `invoicePdfUrlFor_` (added under CC-104) is absent from it, which confirms
+  the staleness. saveReceipt must be re-read on a fresh clone before any build.
+- **Recommendation delivered as numbered options** — the lead being HTML to Google Doc
+  to PDF via the built-in Drive advanced service, which keeps HTML authoring and adds
+  real link annotations without a new external dependency, applied to a NEW invoice PDF
+  rather than by disturbing the existing receipt path.
+- **Carried forward:** everything from CC-105 — the Lovable timeout prompt,
+  `INVOICE_PDF_LINK` still off, the real-debrief timing number, the test send, Push
+  Subscriptions `Role`, Items 77 and 81, Mercury, Item 50, and the still-unauthorised
+  Stripe MCP server.
 
 ---
 
