@@ -14,6 +14,58 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-140 — 2026-08-18
+
+**Sent:** Fix the two bugs in CC-139's delivered function and deploy it. Standby for the 2x2
+results. Plus, at the end: **"ZZZ_test disappears too"**.
+
+**Response to CC-140:** **⚠⚠ THAT ONE LINE CLOSES FIVE BATCHES OF INVESTIGATION: the Script
+Properties PANEL IS BROKEN FOR EVERYTHING.** `ZZZ_TEST` vanishing on refresh exactly as
+`STRIPE_SECRET_KEY` did means it is **not** the name, **not** the value, **not** Stripe. **Deployed
+@316 / v7.4.146** with both bugs fixed and verified.
+
+- **⚠⚠ CELL ① COLLAPSING ANSWERS THE WHOLE 2x2 — THE OTHER THREE CELLS ARE NOW UNNECESSARY.** If a
+  throwaway name with a throwaway value does not survive, testing the real name or the real value
+  cannot narrow anything further. Brandon should not spend the refreshes.
+- **✅ AND IT MAKES A COHERENT WHOLE WITH CC-134's FINDING: every property in that store got there
+  by CODE — 35 `setProperty` calls.** The store is healthy at 3% of its ceiling. **Only the UI
+  write path is broken**, which is exactly why nothing else ever appeared to break. Recorded in
+  CLAUDE.md as a standing constraint.
+- **✅ BUG 1 FIXED AND VERIFIED IN THE DEPLOYED CODE: `3%25` = 0 occurrences, `3% of the limit` = 1.**
+- **✅ BUG 2 FIXED — THE OUTCOMES ARE GENUINELY SPLIT, NOT RE-WORDED. Four distinct branches, all
+  present in the deployed file:** `RESULT — WRITE FAILED`, `RESULT — ABSENT AFTER A CLEAN WRITE`,
+  `RESULT — LENGTH MISMATCH`, `RESULT — WRITTEN AND READ BACK`. State is now tracked as `wroteOk` /
+  `wroteLength` / `writeErr` instead of CC-139's `wroteLength = -1` sentinel, **which had collapsed
+  "the write threw" and "the write was clean but nothing came back" into one line — two failures
+  with different causes and different next steps.**
+- **⚠ ONE COUNT NEEDED CHECKING RATHER THAN TRUSTING: `wroteLength = -1` still greps 1.** It is my
+  own comment at 3163 describing the old bug; the real declarations at 3165-3167 are the split
+  state. Same trap as three earlier measurement errors this session — checked, not assumed.
+- **✅ Used the `AC_TAB` CONSTANT rather than the literal `'App Config'`**, so a future tab rename
+  cannot silently desync this function from `cfg_`. Everything else kept from CC-139 as instructed.
+- **✅ `clasp pull` showed IDENTICAL — no other writer had touched it.** 144 lines added, **nothing
+  removed** — a pure addition, which is what a new leaf function should be.
+- **⚠ THE "wait ~60s before testing" STEP DOES NOT APPLY HERE and I did not pad it out: this is an
+  editor-only function with no HTTP surface**, so no probe could distinguish @315 from @316. The
+  content check against the remote is the verification. Editor runs execute HEAD anyway, so it was
+  reachable even before the deploy.
+- **⚠ I DECLINED A TEMPTING SCOPE EXPANSION:** since the panel is now known broken for *every*
+  property, a general `setScriptPropertyFromInbox` would serve all future needs, not just Stripe.
+  **I did not build it** — CC-140 said keep everything else as-is, and widening an
+  invoicing-adjacent deploy on my own initiative is not my call. Flagged as an option instead.
+- **⚠ WHAT THE FUNCTION DELIBERATELY DOES NOT CLAIM: its read-back is same-execution**, so it
+  proves `setProperty` worked, not that the value survives a refresh — the behaviour that has been
+  failing. The success branch says so in its own log line. **`bustAppConfigCache` after closing the
+  tab is the real proof.**
+- **Carried forward:** Brandon runs the function, then re-runs `bustAppConfigCache` after a
+  refresh; then one fresh debrief reads the **Pay Note** column and closes the Stripe blocker; the
+  generalised property-setter as an option; invoice 22804 cleanup (**file FIRST**); Lovable build
+  history for 047ba0a; the 109 empty catches; TEXT itemisation; the 4 UUID-project rows; Item 80;
+  Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82;
+  Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-139 — 2026-08-18
 
 **Sent:** New diagnosis — the property was never committed server-side (save not landing),

@@ -194,6 +194,20 @@ deploy while the Pi is behind silently overwrites whatever is in the web editor.
 pull` + diff before deploying is not a formality** — it is the only thing standing between
 a deploy and someone else's untracked work.
 
+🚫🚫 **AND A FIFTH, ESTABLISHED EMPIRICALLY IN CC-140: THE APPS SCRIPT EDITOR'S "PROJECT SETTINGS →
+SCRIPT PROPERTIES" PANEL DOES NOT PERSIST ANYTHING FOR THIS PROJECT.** A throwaway `ZZZ_TEST`
+property vanished on refresh exactly as `STRIPE_SECRET_KEY` did, so the failure is **panel-wide** —
+not that name, not that value, not Stripe. Five batches (CC-134 → CC-138) were spent narrowing it.
+- **NEVER hand-add a Script Property and expect it to stick.** Set it from code —
+  `cc139SetStripeKeyFromInbox` is the working pattern: read from a temporary App Config row,
+  `setProperty`, clear the cell, log the length only.
+- ⚠ **THE COROLLARY THAT EXPLAINS WHY NOTHING ELSE BROKE: every property already in the store got
+  there by CODE** (35 `setProperty` calls). The store is healthy — measured at **3% of its
+  500,000-char ceiling** — so quota is not involved. Only the UI write path is broken.
+- ⚠ **AND WHAT THIS RULED OUT, so it is not re-investigated:** code deleting it (`setProperties(`
+  = 0 occurrences, so `deleteAllOthers` is impossible), the property name, the wrong project
+  (Script ID matched exactly), and multi-tab overwrite (only one tab was ever open).
+
 🚫🚫 **A FOURTH ONE, PROVEN IN CC-133: AN UNPUSHED EDIT TO THE PI'S `Code.js` DOES NOT SURVIVE.**
 CC-131 corrected 7 changelog headers directly in `/home/info/appsscript/Code.js` and left them
 unpushed, intending them to "ride along with the next functional deploy". **But the deploy ritual
