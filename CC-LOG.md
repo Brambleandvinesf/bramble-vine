@@ -306,6 +306,60 @@ DEPLOYED.**
 
 ---
 
+## CC-129 — 2026-08-18
+
+**Sent:** No real client ever received a link, so no emergency — build the two doGet guards and
+the generic bustAppConfigCache, report diffs, deploy all three together after review.
+
+**Response to CC-129:** **BOTH BUILT, VERIFIED, STAGED — NOT DEPLOYED.** 90 lines added, 19
+removed, `node --check` PASS. Staged at `/home/info/bv-scratch/Code.cc129.js`. **Priority 3 is
+correctly still pending** — it needs the diagnostic live first.
+
+- **✅ GUARD 1:** `const action = (...) || 'getData'` → `String((...) || '').trim()`, and
+  `let out;` → `let out = { ok: false, error: 'unknown or missing action' };`. **Seeding `out`
+  is what removes the need for a 155-name allowlist**: every named branch overwrites it, so if
+  nothing matches, the error is what returns.
+- **✅ GUARD 2:** `} else {` → `} else if (action === 'getData') {`. That was the second door —
+  the fallthrough — and it is why `?action=bogus` returned the same 355,775 bytes as a bare GET.
+- **✅ VERIFIED WITH FIXED-STRING GREP (`-F`), not regex:** `|| 'getData';` **0**, `let out;`
+  **0**, `b.slice(-6)` **0**, the old hardcoded WEB_PUSH loop **0**, and
+  `action === 'getData'` **1**. The OAuth callback and `?g=` gallery sit ABOVE the changed line
+  and are untouched. **33 of 33 frontend GETs pass an explicit `action=`** (the 48 bare
+  `fetch(SCRIPT_URL,` calls are POSTs), so no legitimate caller changes.
+- **⚠ A RISK I CHECKED BEFORE RECOMMENDING THIS: seeding `out` changes `out === undefined`
+  semantics.** Searched the whole dispatcher for `if (!out)`, `if (out)`, `out ===`, `out !==`,
+  `typeof out` — **nothing depends on it being undefined**, so the seed is safe.
+- **✅ bustAppConfigCache IS NOW ACTUALLY GENERIC:** every non-blank row, key quoted with
+  `JSON.stringify` so a trailing space is visible, value length, and a wrong-column warning for
+  **C and D**. Plus a **SECOND pass printing what `cfg_` actually resolves** for each key —
+  because the sheet's contents and the running code's view can differ, and that difference is
+  the whole diagnosis.
+- **⚠⚠ GOING GENERIC FORCED A SECURITY FIX I DID NOT ANTICIPATE: the OLD code printed
+  `b.slice(-6)` — THE LAST SIX CHARACTERS OF THE VALUE.** For `WEB_PUSH_KEY` that was already a
+  partial secret in the log; applied generically it would have printed the tail of
+  `STRIPE_SECRET_KEY`, **the exact leak CC-123 renamed that property to prevent**. Values are
+  now redacted via `SECRET_KEY_RE`, and non-secret values printed in full — which is the point
+  for a flag, where the question is whether the cell says `on`, `on ` or `On`.
+- **⚠ MY THIRD SELF-INFLICTED MEASUREMENT ERROR IN THREE BATCHES, same family as the others: I
+  grepped for `['WEB_PUSH_URL', 'WEB_PUSH_KEY'].forEach` and got "15" — because `[...]` is a
+  CHARACTER CLASS in grep, so it matched `X.forEach` for any X in that set.** Re-verified with
+  `grep -F`. The pattern across CC-124 (`$'` in replace), CC-128 (`tr -d "\x27"`), and now this
+  is the same root cause: **shell/regex metacharacters in my own verification commands.** Fixed
+  strings from here on for anything I intend to trust.
+- **⚠ PRIORITY 3 NOT DONE, BY DESIGN.** It needs the fixed diagnostic deployed and then RUN —
+  and running an editor-only function is Brandon's action, not something I can reach. After
+  deploy: run `bustAppConfigCache`, and the two sections answer it — if the sheet shows
+  `INVOICE_STRIPE_PAY = "on"` but `cfg_` resolves `(EMPTY)`, that is candidate (a) via cache or
+  column placement; if `cfg_` resolves `"on"`, the flag is fine and the cause is (b) or (c),
+  which `invoiceTimingsMs.stripeLink` and `payNote` then separate.
+- **Carried forward:** deploy approval for all three; then run the diagnostic and close
+  INV-22810-T; the Invoice Tokens row count; sheet rows 415-429; Lovable build history for
+  047ba0a; TEXT itemisation; the 4 UUID-project rows; Item 80; Item 77 extraction;
+  hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50;
+  Mercury; Stripe MCP.
+
+---
+
 ## CC-128 — 2026-08-18
 
 **Sent:** Priority 1 build the doGet allowlist; Priority 2 make bustAppConfigCache generic;
