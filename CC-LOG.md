@@ -306,6 +306,61 @@ DEPLOYED.**
 
 ---
 
+## CC-120 — 2026-08-18
+
+**Sent:** Run the test push to settle whether Lovable rebuilds from an external push.
+Remove the superseded Drive-link invoice system; confirm nothing else depends on it and
+report the exact diff before deploying.
+
+**Response to CC-120:** Test push landed (047ba0a, the FIRST frontend commit from Claude
+Code). Item 54 removal is BUILT AND STAGED, NOT DEPLOYED — 195 lines, pure deletion.
+**Two of my own errors caught by my own checks this batch, both reported below.**
+
+- **⚠ MY CC-119 TEST DESIGN WAS UNTESTABLE AND I CHANGED IT.** I proposed a comment-only
+  push. **Vite strips comments — the built output would have been byte-identical, so "Lovable
+  did not rebuild" and "Lovable rebuilt and nothing changed" would have looked exactly the
+  same.** A test whose two outcomes are indistinguishable is not a test. Replaced with an
+  inert `<meta name="bv-build-probe" content="cc120">` in `__root.tsx`'s head — equally
+  harmless (nothing reads it, nothing branches on it) but it survives into served HTML.
+- **✅ REAL CONTROL TAKEN BEFORE PUSHING, and it is a strong one:** the published app already
+  serves `theme-color` and `apple-mobile-web-app-title` **from this same head block**, which
+  proves meta tags here do reach the page — and serves **zero** occurrences of
+  `bv-build-probe`. So the marker's absence is established AND its route is proven.
+- **⚠ I CANNOT OBSERVE THE ANSWER MYSELF, and CLAUDE.md line 891 already said so:
+  `preview--brambleandvinesf.lovable.app` returns Lovable's gatekeeper HTML for every asset
+  path when unauthenticated, so a marker scan there produces FALSE NEGATIVES.** The
+  auto-rebuild question needs Brandon's eyes on Lovable's own history for commit 047ba0a.
+  Published still reads 0, which is expected — publish is manual.
+- **⚠ AND BYTE-COMPARISON IS NOT A USABLE SIGNAL: two back-to-back fetches of the published
+  page differ from each other.** The page varies per request, so "it changed since the
+  control" means nothing. I nearly reported that as evidence. Only the probe count counts.
+- **⚠⚠ MY FIRST ITEM 54 DRY RUN WAS WRONG AND THE DRY RUN IS THE ONLY REASON I KNOW.** The
+  four token functions were cut with a bare `'}'` end-anchor, which matched
+  **invoiceTokenFor_'s own closing brace** — so it removed 41 lines instead of 121, deleting
+  ONE function and leaving THREE behind still calling it. **The label printed all four names
+  while doing one.** Re-anchored on the last distinctive line inside setupInvoicePdfFolder,
+  plus an assertion that all four definitions fall inside the cut. This is why the patch
+  writes to Code.cc120.js and never to Code.js.
+- **⚠⚠ THE DEPENDENCY CHECK FOUND A REAL ONE: `qboInvoicePdfBlob_` HAS A SECOND CONSUMER
+  THAT IS NOT PART OF THIS SYSTEM — the EMAIL ATTACHMENT at the send step.** Deleting it as
+  "part of the Drive-link system" would have broken email invoicing silently. The removal
+  list did not name it and that was correct. **`INVOICE_PDF_LINK` is kept for the same
+  reason** — it still gates that attachment.
+- **Verified: 195 lines removed, 20 added, and ZERO additions outside the changelog** — a
+  pure deletion. `node --check` PASSES. No surviving references to any removed name.
+- **`INVOICE_PDF_FOLDER_ID` is now dead config** (nothing reads it). **The 'Invoice Tokens'
+  tab is NOT deleted by code** — same principle as rows 415-429: code should not be trusted
+  to drop a data tab. Inert now that nothing recreates it.
+- **⚠ PRE-DEPLOY GATE, NOT OPTIONAL:** `bv-deploy.sh` runs `clasp push -f` FIRST, which
+  overwrites the web editor — and CC-112's three Stripe functions were pasted there. Confirm
+  they are present in Code.js **before** deploying this, or they die.
+- **Carried forward:** sheet rows 415-429 (Brandon's); Brandon's look at Lovable's build
+  history; Item 54 deploy pending diff approval; the 4 UUID-project rows; Item 80; Item 77
+  extraction; hqScreenFor/redirect tidy; invoiceHtml_ QBO restyle; STRIPE_RK; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP (still unauthorised).
+
+---
+
 ## CC-119 — 2026-08-17
 
 **Sent:** Item 75/78's fix confirmed working. Delete sheet rows 415-429. And: can Claude Code
