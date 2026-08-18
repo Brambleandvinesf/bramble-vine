@@ -118,6 +118,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" },
       { name: "theme-color", content: "#0a0a0a" },
+      /* CC-120 build probe. Inert by design — nothing reads this and no code path
+         branches on it. It exists so a build can be OBSERVED from outside: sibling
+         meta tags here are already present in the published HTML, so if this one
+         shows up at brambleandvinesf.lovable.app then a change pushed straight to
+         git (not typed into Lovable's chat) reached a real build. Safe to delete. */
+      { name: "bv-build-probe", content: "cc120" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
