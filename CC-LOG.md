@@ -306,6 +306,53 @@ DEPLOYED.**
 
 ---
 
+## CC-136 — 2026-08-18
+
+**Sent:** Confirm the version blocker is cleared, then build the MSG_QUEUE fix (Option 1+2) and
+report the diff before deploying.
+
+**Response to CC-136:** **✅ VERSION BLOCKER CLEARED — @314 DEPLOYED.** **MSG_QUEUE fix built and
+verified by 16 BEHAVIOURAL TESTS, all passing — not just a syntax check.** 88 added, 5 removed.
+**Not deployed; diff reported first as instructed.**
+
+- **⚠ THE BLOCKER TEST WAS NOT A NO-OP, AND I SHOULD SAY SO: HEAD still carried CC-135's
+  property-store accounting**, pushed but never deployed when the ceiling hit. So @314 shipped
+  that. It was already approved and is editor-only, so nothing live changed — but calling it a
+  no-op would have been wrong.
+- **⚠ I also corrected the v7.4.144 header, which read "PUSHED TO HEAD BUT NOT DEPLOYED".** True
+  when written, false the moment it deployed. **That is the inverse of the STAGED-while-deployed
+  error, and this is the second time in two batches I have had to fix a header in that direction.**
+- **✅ `clasp deployments` → @314, 2026-08-18T18:47Z.** Deploys work again.
+- **✅ THE FIX, AND THE 5 REMOVED LINES ARE PRECISELY THE BUG:**
+  · `const q = JSON.parse(props.getProperty('MSG_QUEUE') || '[]');` **×2** — the unguarded parses
+  · `props.setProperty('MSG_QUEUE', JSON.stringify(q).substring(0, 9000));` — the mid-object cut
+  · `} catch (err) {}` **×2** — the empty catches that hid all of it
+- **✅ 16 BEHAVIOURAL TESTS, ALL PASS — and the reason I wrote them matters: a syntax check would
+  not have caught the ORIGINAL bug either.** The harness extracts the real functions out of
+  `Code.cc136.js` rather than a retyped copy, so it tests what actually ships:
+  · 400 pushes → **still parses**, within cap at **8365 chars**, **41 entries kept**, **newest
+    survived**, **oldest dropped** (first kept = Title 359)
+  · one **20,000-char** entry → still parses, brought to **8481**, and the trim was **logged**
+  · corrupt value → reads as `[]`, **the property was CLEARED**, and it was **LOGGED**
+  · **a push AFTER corruption succeeds** — the old code dropped those forever
+  · valid-but-wrong-shape JSON (`{"not":"an array"}`) treated as corruption
+- **⚠ AN EDGE CASE I HAD TO ADD THAT THE PROPOSAL DID NOT COVER: a SINGLE entry larger than the
+  cap.** Shifting cannot fix a one-element array, so its `body` is trimmed instead. **Without
+  this, one long message would have put the property straight back into the invalid state the
+  patch exists to prevent** — the same failure by a different route.
+- **⚠ THE ORDERING FIX IS THE HEART OF IT:** the old `msgQueueFlush_` parsed **above** its
+  `deleteProperty`, so a corrupt value threw first and the delete was never reached — which is
+  exactly why the bad value could never clear itself. `msgQueueRead_` now clears and logs, so the
+  failure is self-limiting instead of permanent.
+- **Carried forward:** deploy approval for CC-136; then Brandon runs `bustAppConfigCache` — one
+  output settles **both** the STRIPE_SECRET_KEY store-size question **and** whether MSG_QUEUE was
+  sitting bricked; one fresh debrief for the Pay Note reading; the invoice 22804 deletions
+  (**file FIRST**); ledger pruning if the store is tight; Lovable build history for 047ba0a; TEXT
+  itemisation; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy;
+  Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-135 — 2026-08-18
 
 **Sent:** Add a precise total store-size check (the last log truncated values). And investigate
