@@ -14,6 +14,75 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-139 — 2026-08-18
+
+**Sent:** New diagnosis — the property was never committed server-side (save not landing),
+not deleted afterward; multi-tab theory dead (only one tab). Priority 1: web-search whether
+this is known Apps Script IDE behaviour. Priority 2: build an editor-only code-set
+workaround (App Config inbox row → setProperty → clear cell → prove persistence by reading
+it back), report the exact diff before deploying. Priority 3: present the cfg_() fallback as
+a numbered option only, do not adopt.
+
+**Response to CC-139:** **⚠⚠ THIS BATCH RAN FROM A DIFFERENT ENVIRONMENT THAN THE ONE THIS
+LOG ASSUMES, AND IT COULD NOT REACH THE PI.** No SSH, no clasp, Code.js unread and
+unverifiable from here. What follows is web research (real) plus a new function delivered
+IN FULL, unexecuted, for Brandon or the Pi-side session to paste into the editor and run —
+no push, no deploy, nothing executed remotely.
+
+- **PRIORITY 1 — no confirmed single root cause, but the "save doesn't land" class is real
+  and documented.** A Google Apps Script community thread states the Script Properties UI
+  "will display the properties, but it doesn't update or delete properties correctly," with
+  the standing community workaround being to manage properties from code instead of the
+  panel. Two related Issue Tracker entries exist by name ("Script properties are not
+  updating," "Managing Script properties from the Script editor UI has no…") but their full
+  bodies are sign-in-gated and could not be read from here — reporting the titles only, not
+  inventing their content. **Nothing found, anywhere, about ad-blockers, extensions, or
+  third-party cookies breaking the save XHR** — said plainly rather than guessed at.
+  Net: the new diagnosis (unsaved local state, not a deletion) is CONSISTENT with a known
+  class of editor flakiness, not conclusively proven by it.
+- **PRIORITY 2 — `cc139SetStripeKeyFromInbox()` delivered in full**, following the CC-107
+  precedent (new leaf functions delivered whole when they need no surrounding code). Reads a
+  temporary App Config row `STRIPE_SECRET_KEY_INBOX` (col A key / col B value, same
+  convention as every other App Config row), `setProperty`s the real `STRIPE_SECRET_KEY`,
+  clears the inbox cell in a `finally` (survives even if the write throws), logs length only,
+  then re-reads via `getProperty` and logs present/absent + length-match as the proof. One
+  blind assumption, flagged in-code: it opens the sheet via
+  `SpreadsheetApp.getActiveSpreadsheet()` since Code.js could not be read to confirm the
+  real accessor — fails loudly with a named error if that's wrong, rather than silently
+  misreading. Cost restated as instructed: Sheets revision history keeps the pasted value
+  recoverable after the cell clears; fine for `rk_test_`, rotate before a live key touches
+  this row. Recommended sequence: add the row → paste the test key → Run from the editor →
+  read the RESULT log line → run `bustAppConfigCache` to cross-check via the existing
+  diagnostic → close the tab and reopen later and re-run `bustAppConfigCache` to test
+  survival past a refresh, which is the actual symptom being chased.
+- **PRIORITY 3 — fallback presented, NOT adopted:** (1, recommended) run Priority 2's
+  function first — it proves or disproves the hypothesis without touching the leak surface
+  at all. (2) If code-set also fails to persist: change `stripePaymentLinkFor_` and
+  `stripeDeactivateLink_` to read via `cfg_()` so the key can live in the App Config tab —
+  cost stated plainly: a live Stripe secret key sitting in a spreadsheet cell readable by
+  anyone with sheet access, the exact leak class CC-123's `STRIPE_RK`→`STRIPE_SECRET_KEY`
+  rename and CC-131's rotation warning both exist to prevent. Needs Brandon's explicit
+  approval before any code touches those two functions.
+- **⚠ OPERATIONAL NOTE FOR ROUTING FUTURE PROMPTS:** this session (Cowork) has file access
+  to the `bv-work` repo on Brandon's Windows box (via the desktop bridge) and read CC-LOG.md
+  / CLAUDE.md / ARCHITECTURE.md directly from there this batch, but has no path to the Pi at
+  192.168.4.106 — no SSH, no clasp, no shell on Brandon's machine either, only file transfer.
+  Any step needing live Pi verification, a deploy, or `clasp tail-logs` needs the actual
+  Pi-side Claude Code session CC-109/111 describe, not this one.
+- **Nothing deployed, nothing pushed, nothing run. No key value seen, requested, or
+  handled.**
+- **Carried forward, unchanged:** Brandon's Priority-2 test run and its RESULT line; one
+  fresh debrief for the Pay Note reading once the key works; invoice 22804 cleanup in order
+  (Drive file → row → tab, file FIRST); Lovable build history glance for 047ba0a; the 109
+  empty catches as a standing observation; TEXT itemisation; the 4 UUID-project rows; Item
+  80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76,
+  79, 81, 82; Item 50; Mercury; Stripe MCP still needs OAuth from an interactive session
+  (note: this Cowork session's OWN Stripe connector shows connected/enabled at the org
+  level — worth Brandon checking whether that satisfies the Pi-side need, but not assumed
+  equivalent here).
+
+---
+
 ## CC-111 — 2026-08-17
 
 **Sent:** Now that Pi/SSH works, why does the STRIPE_RK diagnostic still need pasting into
