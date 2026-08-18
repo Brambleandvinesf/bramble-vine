@@ -306,6 +306,52 @@ DEPLOYED.**
 
 ---
 
+## CC-126 — 2026-08-18
+
+**Sent:** Deploy the combined build. And check whether the CC-104 frontend busy-timeout fix
+actually landed before recommending the flag go live.
+
+**Response to CC-126:** **DEPLOYED AND VERIFIED LIVE: @311 / v7.4.141.** And **the frontend
+fix is CONFIRMED PRESENT AND COMPLETE — all four elements**, including one that matters more
+than anyone realised. **The flag is safe to flip.**
+
+- **✅ SAFE SEQUENCE RAN CLEAN:** `clasp pull` showed the editor IDENTICAL to the baseline
+  CC-125 was built on, so the staged patch was valid. **Only 2 files pushed** — the CC-123
+  `.claspignore` fix held.
+- **✅ VERIFIED AGAINST THE REMOTE, not the Pi:** `invoicePayCheck_`, `invoicePayPdfFrom_`,
+  `stripeDeactivateLink_`, `mqPayCols_` all 1; `MQ_PAY_LINK_ID_COL` 4; `body: sendText` 1;
+  `content: sendText.trim()` 1; **`body: qaText` 0** (no un-rewritten text can reach a send);
+  `getProperty('STRIPE_RK')` 0; **`cfg_('INVOICE_STRIPE_PAY','off')` at all 3 sites.**
+- **⚠ Caught the recurring one again:** v7.4.141 still read "STAGED" while being deployed.
+  Corrected to "DEPLOYED under CC-126" before pushing. Tenth occurrence.
+- **✅✅ THE CC-104 FIX LANDED — CONFIRMED IN `visits.tsx`, NOT INFERRED:**
+  · `AbortController` + `setTimeout(() => controller.abort(), 45000)` — lines 456-457
+  · `} finally { clearTimeout(timer); ... busy: false }` — lines 495-500, so **busy ALWAYS
+    clears**, which is precisely the CC-103 failure
+  · a visible timeout message — "Send timed out — it may or may not have gone through. Reload
+    before trying again." (490-491), surfaced through `flash(..., true)` at 502
+- **⚠⚠ AND THE PART I DID NOT EXPECT TO GET FOR FREE — line 485:
+  `if (j.ok === false) throw new Error(j.error || "Action failed")`.** CC-125's fail-closed
+  mint-failure path sets `result.ok = false` AND `result.error = payBlock`. **So that whole
+  refusal reason already displays to the office as a visible error.** The fail-closed path was
+  wired end-to-end without either side being built for the other. Verified rather than hoped.
+- **⚠ LATENCY MATH, since this adds the first IO ever on the TEXT send path:** worst case is
+  auto-replace on an email row — one QBO read (~1s) + mint + deactivate (2 Stripe calls,
+  ~1-2s) + PDF render (~1-2s) ≈ **5-7s against a 45s timeout**. No timeout risk, and `busy`
+  clears regardless.
+- **⚠ OBSERVATION, NOT AN ALARM: the project directory holds ~130 `Code.js.bak.*` files.**
+  They are **inert for clasp** — only `.js`-suffixed files are pushed, which is exactly why
+  CC-123's bad push listed my scratch `.js` files and none of these. Worth tidying sometime;
+  not a hazard.
+- **Carried forward:** Brandon sets `STRIPE_SECRET_KEY` (rk_test_ restricted), adds App Config
+  `INVOICE_STRIPE_PAY = on`, runs `bustAppConfigCache`, then checks one debrief's queue row
+  for Pay URL / Pay Amount / Pay Link ID before sending; the Invoice Tokens row count (public
+  Drive file exposure); sheet rows 415-429; Lovable build history for 047ba0a; TEXT
+  itemisation; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect
+  tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-125 — 2026-08-18
 
 **Sent:** Stripe prices are immutable, so change the guard from block to auto-replace:
