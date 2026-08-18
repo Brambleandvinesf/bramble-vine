@@ -14,6 +14,69 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-143 — 2026-08-18
+
+**Sent:** Option 1 chosen — rebuild PDF hosting properly. Design first, report before building.
+
+**Response to CC-143:** **✅ GOOD NEWS ON SCOPE: PDF GENERATION IS 100% INTACT — only the hosting
+layer was removed, so this is smaller than feared.** And **⚠⚠ THE EXPOSURE CLASS IS NOT NEW: client
+photos are ALREADY shared `ANYONE_WITH_LINK` in production via `photoShare_`, on identical
+reasoning.** Design reported; **no code written**, per the review gate.
+
+- **✅ 1. WHAT SURVIVED — verified, not assumed. ALL FOUR generators are present:** `invoiceHtml_`,
+  `invoicePayPdf_`, `invoicePayPdfFrom_`, `qboInvoicePdfBlob_` (1 each). **Nothing about PDF
+  generation needs rebuilding.** Three pieces are missing and only three: the `Invoice Tokens` tab +
+  `invoiceTokenFor_`/`invoiceFileForToken_`, the `?inv=` doGet branch, and `invoicePdfUrlFor_`.
+- **✅ AND THE PATTERN TO MIRROR IS LIVE AND PROVEN: the gallery.** `galleryTokenFor_`,
+  `galleryClientForToken_`, `GT_TAB` and `e.parameter.g` are all intact — **and
+  `galleryClientForToken_` ALREADY enforces the Disabled column** (`!String(vals[i][3]||'').trim()`).
+  So the Disabled mechanism is not theoretical; it works in production today.
+- **✅ 2. THE ContentService CONSTRAINT STILL HOLDS.** Its MimeType enum has no PDF member (ATOM,
+  CSV, ICAL, JAVASCRIPT, JSON, RSS, TEXT, VCARD, XML). **And the codebase says so itself in
+  `photoShare_`'s comment: "Apps Script cannot serve binary."** Drive hosting is therefore required,
+  not chosen.
+- **⚠⚠ 3. THE MOST IMPORTANT FINDING FOR HONEST RISK FRAMING: `photoShare_` (line 12897) SETS CLIENT
+  PHOTOS TO `ANYONE_WITH_LINK` TODAY, LIVE**, and its comment records it as a deliberate Brandon
+  decision from 8/4 for the same reason ("Apps Script cannot serve binary, so the alternative was
+  base64-inlining every image"). **So invoice hosting is a second INSTANCE of an accepted exposure
+  class, not a new category** — and the photo gallery has the identical unpurged gap.
+- **⚠⚠ AND `purge` APPEARS ZERO TIMES IN THE ENTIRE FILE. Nothing in this codebase purges anything.**
+  That is precisely the gap CC-143 is asking to close, and it applies to the gallery too.
+- **⚠ THE DESIGN'S KEY DECISION — MINT THE TOKEN AT CREATION, WRITE THE FILE BYTES AT SEND.** CC-104
+  moved link-minting to creation for latency; CC-124 established the PDF must render at SEND or it
+  goes stale when an invoice changes. **Those look contradictory and are not: the URL/token is a
+  string (stable, cheap, belongs in the draft the office reviews), while the FILE CONTENTS are
+  overwritten at send from the invoice the price guard already fetched.** Same token, same URL, fresh
+  bytes.
+- **⚠ AND THE LATENCY COST, STATED NOT HIDDEN: that puts ONE Drive write back on the send path** —
+  the class of thing CC-103 punished. Mitigating facts: the email branch already renders the PDF at
+  send, so the render cost is paid; this adds one Drive call, not four; and CC-126 confirmed
+  `visits.tsx` now has a 45s timeout with `busy` cleared in a `finally`.
+- **⚠ THE PURGE MUST BE VERIFIABLE, WHICH IS THE REAL DIFFERENCE FROM LAST TIME.** A `newTrigger`
+  call in code is not an installed trigger — the "exists vs reachable" trap this project has hit
+  four times. **So the design includes both an installer and an editor-only trigger LISTER**, so the
+  trigger's existence is something Brandon can see rather than assume.
+- **EXPIRY RECOMMENDATION: 45 DAYS, with reasoning.** Net-30 is the common term, `PAY_REMINDED`
+  exists precisely because invoices go unpaid for weeks, and an expiry shorter than the payment term
+  would kill live invoices. 45 covers Net-30 plus slippage while bounding exposure to ~6 weeks
+  instead of forever. **Paid-detection is the primary trigger and expiry only the backstop.**
+- **⚠ PAID SIGNAL: QBO BALANCE, NOT STRIPE — and the reason matters.** Stripe's completed-session
+  signal only sees Stripe payments; a client paying by check or SwipeSimple would never fire it, and
+  the file would sit hosted until expiry. **QBO Balance === 0 is authoritative across every payment
+  method**, and it is the same read the send-time guard already performs.
+- **⚠ NO DIFF IN THIS RESPONSE, DELIBERATELY.** CC-143 asked for the design AND the diff before
+  building — a diff requires code, and writing it would be building ahead of the approval gate.
+  **Design first; the exact diff comes with the build once approved.**
+- **⚠ Nothing deployed. Live remains @317 / v7.4.147.**
+- **Carried forward:** design approval → build; **Item 83 (RECURRING items missing from Load
+  Vehicle) next after this**; whether the purge should also cover the gallery's photo files; invoice
+  22804 cleanup (**file FIRST**, Brandon's, and it is cleaning the OLD exposure not this rebuild);
+  Lovable build history for 047ba0a; Stripe Dashboard branding (Brandon, not code); the 109 empty
+  catches; the 4 UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62
+  push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-142 — 2026-08-18
 
 **Sent:** ⚠ PRIORITY 0 regression — the client message links to the bare Stripe link, against
