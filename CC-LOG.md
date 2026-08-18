@@ -306,6 +306,51 @@ DEPLOYED.**
 
 ---
 
+## CC-119 — 2026-08-17
+
+**Sent:** Item 75/78's fix confirmed working. Delete sheet rows 415-429. And: can Claude Code
+push frontend changes directly instead of Brandon pasting Lovable prompts every time?
+
+**Response to CC-119:** **THE ANSWER IS YES, AND CLAUDE.md HAS SAID SO SINCE BEFORE ANY OF
+THIS — I NEVER USED IT AND NEVER MENTIONED IT.** Row deletion is Brandon's (10 seconds, no
+tool worth building).
+
+- **⚠⚠ CLAUDE.md LINE 555, IN THE "HOW TO RUN A SESSION" LIST THIS FILE OPENS WITH: "Frontend
+  can also be committed/pushed directly (deploy key ~/.ssh/bramble_vine_deploy on Brandon's
+  Windows box)."** It was sanctioned from the start. **I have generated paste-prompts for
+  dozens of batches — Items 59, 62, 65, 64, 91, 104, 118 — without once using it or telling
+  Brandon it was available.** That is not a capability gap; it is me not reading the
+  instructions I open every session with.
+- **✅ PUSH ACCESS PROVEN, NOT ASSUMED: 20 commits authored "Claude Code
+  <info@brambleandvinesf.com>" in the last 25.** The deploy key works and has worked all along.
+- **🚫 BUT NEVER FOR FRONTEND CODE — VERIFIED: every commit touching `src/` or `public/` is
+  `gpt-engineer-app[bot]`** (Lovable's own bot). Mine are all CC-LOG.md / CLAUDE.md. So the
+  answer to "is there a real reason, or has it never been tried" is **it has never been
+  tried.**
+- **⚠ THE ONE GENUINE HAZARD IS REAL AND ALREADY OBSERVED: TWO CONCURRENT WRITERS.** 20 of my
+  commits and 5 of Lovable's bot's in the last 25 — **and that is exactly why my pushes kept
+  hitting non-fast-forwards needing rebases this session.** It is the same class as the CLASP
+  "YOU ARE NOT THE ONLY WRITER" rule, in a different tool. Mitigation is the same and I already
+  do it: pull/rebase immediately before every push.
+- **⚠ AND THE PUBLISH STEP DOES NOT GO AWAY. CLAUDE.md lines 530 and 557 both require it:
+  "PUBLISH after every confirmed-working Lovable change."** So direct push does not remove
+  Brandon from the loop — **it replaces "paste a prompt and wait for Lovable to write the
+  code" with "read a diff and click Publish."** Smaller, and he reviews real code instead of
+  reviewing my description of code.
+- **⚠ ONE THING I WILL NOT ASSERT: whether a GitHub push triggers Lovable's preview rebuild by
+  itself.** Its sync is two-way, but whether a push from outside its chat kicks a rebuild is
+  the sort of thing this project has been burned by assuming four times. **One low-risk test
+  answers it**, and that is the recommendation rather than a claim.
+- **ROW DELETION: BRANDON'S, DELIBERATELY.** There is no existing action for arbitrary TM_TAB
+  row deletion, and **building a one-off deletion function for 15 blank tail rows is worse
+  than selecting them in the sheet** — it adds a destructive tool to a live data path to save
+  ten seconds. Standing rule: minimise sprawl.
+- **Carried forward:** the row deletion; the push-workflow test; the 4 UUID-project rows;
+  Item 80; the Item 77 extraction; the redirect tidy; Drive-link removal; `invoiceHtml_`
+  redesign; Items 79/81/82; Mercury; Item 50.
+
+---
+
 ## CC-118 — 2026-08-17
 
 **Sent:** Ship the one-line guard fix in field.tsx plus a toast on the remaining `!it` case;
