@@ -193,6 +193,22 @@ up as `Code.js.bak.PRE-CC112-RECONCILE.*`. All three are now present at lines ~2
 deploy while the Pi is behind silently overwrites whatever is in the web editor. **`clasp
 pull` + diff before deploying is not a formality** — it is the only thing standing between
 a deploy and someone else's untracked work.
+
+🚫🚫 **AND A SECOND, WORSE ONE, PROVEN LIVE IN CC-123: `/home/info/appsscript` IS A `clasp
+push` SOURCE DIRECTORY. EVERY `.js` FILE IN IT GOES INTO THE APPS SCRIPT PROJECT.** There was
+no `.claspignore`, so a deploy pushed **7 files** — `Code.js` plus staged copies
+(`Code.cc120.js`, `Code.cc123.js`, `Code.baseline-cc120.js`) and two patch scripts. **Apps
+Script has ONE GLOBAL NAMESPACE across all files**, so every function was defined four or
+five times over, and `Code.baseline-cc120.js` still held the pre-removal Drive-link code.
+Deployment @309 went out in that state and was live roughly two minutes.
+- **NOTHING BUT `Code.js` AND `appsscript.json` MAY LIVE IN THAT DIRECTORY.** Staged files
+  and patch scripts belong in `/home/info/bv-scratch`. A `.claspignore` now exists as a
+  second line of defence — do not rely on it alone.
+- ⚠ **`clasp push` DOES NOT DETECT DELETIONS. It said "Script is already up to date" while
+  five stray files remained in the project.** Removing files locally is not enough — a real
+  content change to `Code.js` is required to force a full sync.
+- ⚠ **"Pushed 2 files" IS NOT PROOF THE OTHERS ARE GONE.** Verify by `clasp pull` into a
+  throwaway directory and listing what actually comes down. That is the only honest check.
 ⚠ AND THE CHANGELOG HEADER DOES NOT MENTION THESE FUNCTIONS — it still reads v7.4.138. Code
 exists that the header does not describe, which is the mirror image of the usual failure.
 

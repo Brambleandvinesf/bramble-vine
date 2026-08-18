@@ -306,6 +306,72 @@ DEPLOYED.**
 
 ---
 
+## CC-123 — 2026-08-18
+
+**Sent:** Deploy the Drive-link removal (clasp pull, diff, deploy). Land the STRIPE_RK
+rename. Build the stale-price mitigation and wire Stripe into the send path, itemisation
+Option 1.
+
+**Response to CC-123:** **DEPLOYED AND VERIFIED LIVE: @310.** Removal + rename both shipped.
+**⚠⚠ BUT A DEPLOY-TIME INCIDENT HAPPENED FIRST AND @309 WENT OUT BROKEN FOR ~2 MINUTES.**
+And **the stale-price guard cannot be built as specified — my own proposal was wrong** — so
+the Stripe wiring is not built pending one decision.
+
+- **✅ `clasp pull` FIRST, AND THE EDITOR WAS IDENTICAL TO THE CC-120 BASELINE**, so the
+  staged patch was valid and nothing of anyone else's was overwritten.
+- **✅ THE RENAME IS PROVEN, NOT ASSUMED.** The patch asserts `SECRET_KEY_RE` does NOT match
+  `'STRIPE_RK'` and DOES match `'STRIPE_SECRET_KEY'`, and refuses to write if either fails.
+  Both held. **No fallback to the old name by design** — a fallback keeps the leaking name
+  usable, which is the bug.
+- **⚠ MY OWN GUARD THREW A FALSE POSITIVE and I checked instead of trusting it:** it flagged
+  three surviving `STRIPE_RK` references that turned out to be COMMENT lines. Re-scoped to
+  `getProperty('STRIPE_RK')`. **But one of those comments mattered** — the function's doc
+  line still told the reader to set the old property, which would have walked Brandon
+  straight back into the leak. Updated.
+- **⚠ CORRECTING MY CC-122 INSTRUCTION: THE VALUE IS AN `rk_test_` RESTRICTED KEY, NOT
+  `sk_test_`.** The function's own doc says `rk_`, scoped to write on Payment Links + Prices
+  only. I said "sk_test_" last batch. Restricted is the better practice and is what the code
+  was written for.
+- **⚠ CAUGHT THE RECURRING ONE BEFORE SHIPPING:** v7.4.139's header still read "STAGED" while
+  being deployed. Corrected to "DEPLOYED under CC-123". That is the ninth time this pattern
+  has appeared.
+- **⚠⚠ THE INCIDENT: `bv-deploy.sh` PUSHED SEVEN FILES.** There was no `.claspignore`, and
+  `/home/info/appsscript` is a `clasp push` source — so my staged copies and patch scripts
+  went INTO the Apps Script project. **Apps Script has one global namespace**, so every
+  function was defined four or five times, and `Code.baseline-cc120.js` still contained the
+  pre-removal Drive-link code. **@309 was deployed in that state.**
+- **⚠ AND THE CLEANUP EXPOSED TWO MORE TRAPS.** `clasp push -f` reported **"Script is already
+  up to date"** while five stray files were still in the project — **it does not detect
+  deletions**; a real content change to Code.js was needed to force a sync. And **"Pushed 2
+  files" is not proof the rest are gone** — I confirmed by pulling into a throwaway directory
+  and listing what actually came down. Both now recorded in CLAUDE.md as standing hazards.
+- **✅ VERIFIED AGAINST THE REMOTE, NOT THE PI:** the four Drive-link functions 0, the three
+  Stripe functions 1 each, `getProperty('STRIPE_RK')` 0, `getProperty('STRIPE_SECRET_KEY')`
+  1, `e.parameter.inv` 0, the email attachment still 1. The two `INV_TOK_TAB` hits are
+  changelog prose, not code.
+- **⚠⚠ THE STALE-PRICE GUARD IS A PLACEBO AS I SPECIFIED IT, AND I DID NOT BUILD IT.**
+  "Compare to the invoice's current total at send, in-memory only, no additional fetch" —
+  **without a fetch there is no current total, only the value stored at creation.** Comparing
+  the stored amount to the stored total compares two numbers written in the same instant:
+  always equal, catches nothing. A stale price arises from a QBO-SIDE edit, and detecting
+  that requires reading QBO. **"No extra IO" and "detect a QBO edit" are mutually
+  exclusive.** Presented as options rather than shipping something that looks like a
+  safeguard and isn't.
+- **⚠ USEFUL DISCOVERY AT THE MINT SITE: `out.balance` ALREADY EXISTS**, from the QBO fetch
+  that creation already performs for `invoiceUrl`. So the authoritative amount to mint
+  against is available for free — and a creation-time comparison of the debrief total against
+  QBO's Balance costs nothing and catches a different real bug.
+- **The Stripe wiring is NOT built.** Its companion guard is unresolvable as written, and
+  shipping the wiring with a placebo guard on a live invoicing path is worse than asking. One
+  answer unblocks it.
+- **Carried forward:** the guard decision then the wiring; Brandon sets `STRIPE_SECRET_KEY`
+  to an `rk_test_` key; the Invoice Tokens row count (exposure question); sheet rows 415-429;
+  Lovable build history for 047ba0a; real line-item itemisation (explicit follow-up); the 4
+  UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; invoiceHtml_ QBO
+  restyle; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-122 — 2026-08-18
 
 **Sent:** INVOICE_PDF_LINK has been ON, not off — does that change the deletion's safety?
