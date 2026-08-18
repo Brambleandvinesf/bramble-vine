@@ -306,6 +306,55 @@ DEPLOYED.**
 
 ---
 
+## CC-117 — 2026-08-17
+
+**Sent:** Origin confirmed as pre-app legacy data. Sanity-check that, confirm no active write
+path still produces broken rows, build the dry-run audit, then tag affected rows with "Load".
+
+**Response to CC-117:** **AUDIT RUN LIVE OVER ALL 428 ROWS — AND IT OVERTURNS THE APPROVED
+FIX. The "Load" tag would not have unblocked the crew.** No code written.
+
+- **✅ AUDIT DONE WITHOUT AN EDITOR FUNCTION.** `getData` already returns every `TM_TAB` row
+  with `Project ID` and `Material ID`, so I ran it from here rather than building a probe and
+  asking Brandon to run it — 428 rows, read live.
+- **⚠⚠ THE HEADLINE: 413 OF 428 ROWS (96%) HAVE NO MATERIAL ID. It is the NORM, not a defect.**
+      missing BOTH project and Material ID:  15
+      missing project ONLY:                   0
+      missing Material ID ONLY:             413
+- **🚫 WHICH FALSIFIES MY OWN CC-115 ROOT CAUSE — but in a way that makes the bug BIGGER, not
+  smaller.** I said the dead checkbox came from `if (!it || !it.materialId) return;` in
+  field.tsx. That is still the mechanism — **but it means roughly EVERY checkbox is dead for
+  the assistant**, not a handful of legacy rows. And that fits the report exactly: Brandon said
+  checkboxes "do not respond" for the Garden Assistant, flatly, not "some don't".
+- **✅ AND IT EXPLAINS WHY IT IS ROLE-SPECIFIC, which nothing else has: `loading.tsx` works
+  because `setLoaded` "has always accepted a row fallback" (its own note at line 587) and the
+  backend prefers `materialId` but falls back to row. `field.tsx` never gets that far — it
+  bails in the frontend before sending anything.** Same backend, same data; one client sends
+  the row, the other refuses to send at all.
+- **⚠ SO THE REAL FIX IS ONE GUARD, NOT A DATA MIGRATION: field.tsx must send the row like
+  loading.tsx does** (`if (!it) return;`), since the backend already supports it. That is
+  small, it needs no backfill, and it unblocks every checkbox for the assistant.
+- **🚫 AND THE 15 "PROJECT-LESS" ROWS ARE NOT LEGACY DATA — THEY ARE EMPTY.** Rows 414-419+
+  have blank client, blank item, blank everything. **They are trailing padding rows at the
+  bottom of the sheet, not pre-app records**, so Brandon's legacy framing does not fit them
+  either — and tagging 15 empty rows with "Load" would put 15 blank entries in front of Angel
+  on Confirm Special while fixing nothing.
+- **THE ONLY GENUINELY LEGACY-LOOKING ROWS ARE FOUR**, carrying a UUID-format Project ID
+  (`5d78b464-a0e1-4e23…`) against 409 rows of the normal `proj-N` shape. Those four are worth
+  a look on their own terms, but they are not what is blocking anyone.
+- **✅ QUESTION 2 ANSWERED: prevention is genuinely unnecessary**, and for a better reason than
+  assumed — **`Project ID` is missing on ZERO non-empty rows.** Every real row has one. No
+  active path is producing project-less records because none exist.
+- **⚠ THIS IS THE THIRD CONSECUTIVE CORRECTION IN THIS ITEM** (CC-114 misidentified the
+  component, CC-115 mis-scoped the guard, CC-117 overturns the fix). The through-line is that
+  each conclusion came from reading code without checking it against the actual data — and the
+  data took one call.
+- **Carried forward:** the one-guard fix (urgent), the 4 UUID rows, the empty trailing rows,
+  Item 80, the Item 77 extraction, the redirect tidy, Drive-link removal, `invoiceHtml_`
+  redesign, Items 79/81/82, Mercury, Item 50.
+
+---
+
 ## CC-116 — 2026-08-17
 
 **Sent:** Build the Item 75/78 fix — tag project-less items with a sentinel project value
