@@ -306,6 +306,67 @@ DEPLOYED.**
 
 ---
 
+## CC-122 — 2026-08-18
+
+**Sent:** INVOICE_PDF_LINK has been ON, not off — does that change the deletion's safety?
+Turn it off, then deploy the removal. And propose the design for wiring Stripe into the
+real send path.
+
+**Response to CC-122:** **DO NOT TURN THE FLAG OFF — after the deletion it gates ONLY the
+email PDF attachment, so turning it off breaks email invoices.** Nothing deployed. Three
+findings, one of them a live secret-exposure bug.
+
+- **⚠⚠ TURNING INVOICE_PDF_LINK OFF HAS A CONSEQUENCE THE PLAN DID NOT ACCOUNT FOR.** After
+  the deletion it gates EXACTLY ONE thing — the email PDF attachment at line 5603 (the
+  `qboInvoicePdfBlob_` consumer we deliberately kept). **Off = email clients stop receiving
+  the invoice PDF.** The deploy itself is what removes the Drive link; the flag has nothing
+  to do with that once the code is gone. So the flag should stay ON, or go back on
+  immediately after.
+- **⚠ AND "OFF IN APP CONFIG" IS NOT "OFF IN RUNNING CODE" FOR UP TO 6 HOURS.** `cfgMap_`
+  caches the App Config tab for 6 hours; `bustAppConfigCache` is required. This has bitten
+  this project before (CC-88, CC-102).
+- **⚠⚠ THE REAL SAFETY ISSUE IS NOT THE CODE, IT IS THE FILES. Minted invoice PDFs were
+  shared `ANYONE_WITH_LINK` (line 12483) — publicly readable by anyone holding the URL.
+  DELETING THE CODE DOES NOT UNSHARE THE FILES.** My own CC-97 comment said it: "the token
+  hides and revokes the PAGE, it does not gate the FILE." Any PDF minted while the flag was
+  on is still publicly reachable and stays that way forever unless someone unshares it.
+- **⚠ SO YES, THIS IS WORTH ONE CHECK, AND IT IS BRANDON'S: DOES THE 'Invoice Tokens' TAB
+  HAVE ANY ROWS?** Zero rows means nothing was ever minted, no client ever got a link, and
+  this is safe to move past. Rows mean that many client invoice PDFs are sitting publicly
+  accessible in Drive. **I cannot read the tab — there is no generic tab-read action and
+  `doGet` is the only entry point.**
+- **⚠ REVISING MY CC-120 ADVICE: DO NOT DELETE THE 'Invoice Tokens' TAB YET.** It is the
+  ONLY index of which Drive files were minted. Deleting it destroys the cleanup map for
+  files that remain publicly shared. Keep it until the exposure question is settled.
+- **✅ PRE-DEPLOY CHECK PASSES: all three Stripe functions are present in the Pi's Code.js**,
+  so a `clasp push` preserves them. **⚠ BUT THAT IS THE PI, NOT THE WEB EDITOR, AND I CANNOT
+  READ THE EDITOR.** Correct sequence: `clasp pull` FIRST, diff against my baseline; if
+  identical, deploy; if the editor has diverged, rebuild the patch on the new baseline —
+  otherwise Code.cc120.js, built from the old baseline, clobbers whatever is newer.
+- **⚠⚠ SECRET EXPOSURE, AND THIS IS THE MOST IMPORTANT THING IN THE BATCH: `STRIPE_RK`
+  EVADES LOG REDACTION.** `SECRET_KEY_RE = /key|secret|token|password|oauth2|_pat\b|
+  credential|^QBO_CLIENT_ID$/i`. **The string "STRIPE_RK" matches NONE of those
+  alternatives.** So at line 9436 `if (!SECRET_KEY_RE.test(k)) safe[k] = all[k]` copies its
+  **full value**, and `propSnapshot_` appends property snapshots to a SHEET TAB — a Stripe
+  secret key in plaintext in a spreadsheet. **The rename to `STRIPE_SECRET_KEY` is not
+  cosmetic; it is the fix** (it matches both `key` and `secret`). It must land BEFORE any
+  key is set under the old name.
+- **DESIGN PROPOSED, NOT BUILT.** Mint at invoice creation, agreeing with the prompt — but
+  the CC-102/103 latency lesson is the WEAKER argument here (one HTTPS call, not four). The
+  strong ones: the office sees the link in the review preview before it goes out, a re-send
+  cannot mint a duplicate, and creation is when the total is fixed. **⚠ AND A REAL
+  COUNTER-ARGUMENT: `restrictions[completed_sessions][limit]=1` makes this a one-shot
+  financial instrument for a FIXED amount. Edit the invoice in QBO after minting and the
+  link charges the OLD total.** Mitigation with no added IO: store the minted amount beside
+  the link and compare it to the stored total at send, refusing on mismatch.
+- **Carried forward:** the Invoice Tokens row count; the flag decision; `clasp pull` then
+  deploy; the STRIPE_SECRET_KEY rename then Brandon sets the test key; itemisation choice;
+  sheet rows 415-429; Lovable build history for 047ba0a; the 4 UUID-project rows; Item 80;
+  Item 77 extraction; hqScreenFor/redirect tidy; invoiceHtml_ QBO restyle; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP unauthorised.
+
+---
+
 ## CC-121 — 2026-08-18
 
 **Sent:** Before approving the Drive-link deletion, confirm what TEXT-preferred clients
