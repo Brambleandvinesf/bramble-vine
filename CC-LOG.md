@@ -306,6 +306,67 @@ DEPLOYED.**
 
 ---
 
+## CC-127 — 2026-08-18
+
+**Sent:** Pay URL / Pay Amount / Pay Link ID blank on both real invoice rows — find the root
+cause with evidence. And investigate the strange echo page showing a raw JSON dump.
+
+**Response to CC-127:** **THE TWO INVOICES ARE DIFFERENT CASES — one is not a bug at all.**
+And the echo page is a **confirmed anonymous data exposure that predates all of this work**,
+proven by an unauthenticated request I ran myself.
+
+- **⚠⚠ INV-22804-T IS NOT A BUG. Its Debrief Event ID decodes to 2026-08-17 13:51:29 PT —
+  18.8 HOURS BEFORE the minting code went live at @311 (2026-08-18 15:37Z).** The code did not
+  exist when that debrief ran, so blank columns are the correct outcome and there is no
+  payNote either, because nothing was there to write one.
+- **⚠ INV-22810-T IS THE REAL FAILURE: 1787067885469 = 2026-08-18 08:44:45 PT = 15:44:45Z,
+  EIGHT MINUTES AFTER the deploy.** The code was live. This is the only case to explain.
+- **RULED OUT WITH EVIDENCE, not assumption:**
+  · **The carry-through order is correct.** `qboDebriefInvoice_(payload, invOut)` runs at 8354
+    and `invoiceDraft = {...}` is built AFTER it, so `invOut.payUrl` is populated before it is
+    read. I suspected an ordering bug from line numbers and the actual code disproved it.
+  · **`MANUAL-` is FRONTEND-generated — `debrief-queue.tsx:485`, `MANUAL-${Date.now()}`. The
+    string appears NOWHERE in Code.js.** There is no MANUAL branch in the backend, so item 4's
+    different-code-path hypothesis is ruled out.
+  · **`bustAppConfigCache` DOES call `cfgBust_()` first**, so the cache genuinely was cleared.
+    A silent log is not evidence the bust failed.
+- **⚠⚠ BRANDON'S ITEM 2 IS CORRECT, AND IT IS PRECISELY WHY THE DIAGNOSIS CANNOT BE FINISHED:
+  the live `bustAppConfigCache` loops over a HARDCODED `['WEB_PUSH_URL','WEB_PUSH_KEY']`.** It
+  is not the generic all-rows version CC-89 intended. **The one tool built to detect exactly
+  this class of failure was pointed at two unrelated keys** — including its own check for "the
+  value is one column too far right", which it performs only for the WEB_PUSH keys.
+- **⚠ THREE CANDIDATES REMAIN AND I CANNOT DISCRIMINATE THEM WITHOUT THAT DIAGNOSTIC:** (a) the
+  flag not resolving — note `cfgMap_` reads **columns A and B ONLY**, so a value in column C is
+  invisible; (b) `bal > 0` failing because QBO returned no usable Balance; (c) the mint throwing
+  (e.g. `STRIPE_SECRET_KEY` unreadable). **I am not going to guess between them.**
+- **⚠ THE DISCRIMINATOR IS ALREADY IN THE CODE: `qMark('stripeLink')` writes into
+  `report.invoiceTimingsMs`.** Present ⇒ the flag WAS on and the block ran, so the failure is
+  (b) or (c) and `out.payNote` names which. Absent ⇒ the flag read `off`, which is (a).
+- **⚠⚠⚠ THE ECHO PAGE IS A REAL ANONYMOUS EXPOSURE, PROVEN NOT INFERRED. An unauthenticated
+  GET to the `/exec` URL with NO parameters returns the full tools/loading table** — client
+  names, Project IDs, item names, notes. I ran it from a shell with no credentials and got
+  A&G - Guerrero / proj-1 / Truck / Chain saws. That is exactly the JSON Brandon saw.
+- **⚠ ITEM 3 ANSWERED PLAINLY: THIS IS NOT A LEFTOVER OF THE DELETED `?inv=` BRANCH.**
+  `?inv=zzz-nonexistent-token` returns **the same dump**, not the old invoice page and not an
+  error — the parameter is simply ignored and falls through to a default that returns data.
+  Unrelated to the removal; it predates it.
+- **⚠⚠ THE SEVERITY IS HIGHER THAN "only Brandon has seen it": EVERY CLIENT WHO EVER RECEIVED A
+  PHOTO GALLERY LINK HOLDS THE `/exec` BASE URL**, because a gallery link is
+  `/exec?g=<token>`. Deleting the query string from it returns the loading table. No token, no
+  auth, from anywhere.
+- **The UI element: `href={part}` at `visits.tsx:151` — CC-72's MessagePreview — is the ONLY
+  href in that screen**, and it linkifies any URL in the draft text. **⚠ I have NOT confirmed
+  which URL was in that particular body and will not invent one.** The gallery link cannot be
+  the culprit by degradation: it is guarded by `if (tok)` at 17631.
+- **Nothing changed, nothing deployed. Read-only GETs only.**
+- **Carried forward:** fix the diagnostic then re-run to finish the Item 54 diagnosis; close
+  the anonymous `doGet` fallback; the Invoice Tokens row count; sheet rows 415-429; Lovable
+  build history for 047ba0a; TEXT itemisation; the 4 UUID-project rows; Item 80; Item 77
+  extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82;
+  Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-126 — 2026-08-18
 
 **Sent:** Deploy the combined build. And check whether the CC-104 frontend busy-timeout fix
