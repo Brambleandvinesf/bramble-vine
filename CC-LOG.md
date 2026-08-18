@@ -306,6 +306,52 @@ DEPLOYED.**
 
 ---
 
+## CC-133 — 2026-08-18
+
+**Sent:** Deploy the staged build, correct the STAGED header, wait for propagation before any
+smoke test, report the confirmed live version.
+
+**Response to CC-133:** **DEPLOYED AND VERIFIED LIVE: @313 / v7.4.143.** ⚠⚠ **And `clasp pull`
+reverted CC-131's docs fix on the way — my own plan from two batches ago was self-defeating.**
+It shipped anyway, by luck rather than design. Regression probe 4/4.
+
+- **⚠⚠ THE `clasp pull` STEP REPORTED DIVERGED, AND IT WAS MY OWN WORK BEING DESTROYED.** CC-131
+  corrected 7 changelog headers directly in the Pi's `Code.js` and left them **unpushed**,
+  intending them to "ride along with the next functional deploy". **But the deploy ritual BEGINS
+  with `clasp pull`** — which pulled the editor's copy, which had never seen that edit, straight
+  over the top of it.
+- **✅ IT SURVIVED ONLY BECAUSE `Code.cc132.js` HAD ALREADY BEEN BUILT FROM THE EDITED FILE**, so
+  the corrections were baked into the staged patch and shipped regardless. **That was luck.** The
+  lesson is now in CLAUDE.md: stage in `bv-scratch`, never as an unpushed edit to the live file.
+- **✅ AND I VERIFIED THE DIVERGENCE WAS ONLY MINE BEFORE PROCEEDING** — filtered the diff for
+  anything that was not header text: **nothing.** 17 changed lines, all changelog prose. No
+  third-party work was at risk, which is the question that step exists to answer.
+- **✅ DEPLOYED, VERIFIED AGAINST THE REMOTE (pulled into a throwaway dir, fixed-string greps):**
+  `MQ_PAY_NOTE_COL` 3, `case MQ_PAY_NOTE_COL` 1, `payNote: String(invOut.payNote` 1,
+  **`out.payNote = (out.balance === 0)` 1** (the null-vs-zero fix),
+  `STRIPE_SECRET_KEY IS NOT A SCRIPT PROPERTY` 1, `SCRIPT PROPERTIES (` 2,
+  `no pay link: INVOICE_STRIPE_PAY is not on` 1. **`STAGED` down to 1 — the prose mention only,
+  so the 7 stale headers are gone from live.** Header reads "DEPLOYED under CC-133".
+- **✅ REGRESSION PROBE 4/4:** bare GET → 48 bytes error, `?action=bogus` → 48 bytes error,
+  `?action=ping` → 110 bytes, `?action=getDayState` → 950 bytes. CC-129's guards intact, nothing
+  broken.
+- **⚠ HONEST LIMIT ON THAT PROBE, AND IT MATTERS: IT CANNOT CONFIRM @313 SPECIFICALLY. CC-132
+  changed NOTHING observable over HTTP** — a sheet column, a persisted field, a bug fix and an
+  editor-only diagnostic. **@312 and @313 answer those four checks identically.** So the probe
+  proves *no regression*, not *which version answered*.
+- **⚠ WHICH ALSO DISSOLVES THE CC-130 PROPAGATION WORRY FOR THIS DEPLOY: with no observable
+  difference, probe timing cannot produce a false read either way.** The real evidence that @313
+  is live is `clasp deployments` plus the remote content check — and the functional proof will be
+  Brandon's next debrief writing a value into Pay Note.
+- **Carried forward:** Brandon runs ONE fresh debrief, then reads the **Pay Note** column on that
+  invoice's Message Queue row — it now says which of (b) or (c) it was, in words; the invoice
+  22804 deletions (**file FIRST** — the row is the only record of the File ID, and only the file
+  deletion removes the exposure); Lovable build history for 047ba0a; TEXT itemisation; the 4
+  UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-132 — 2026-08-18
 
 **Sent:** Wrong-store theory ruled out. Persist payNote so the next failure is readable, then

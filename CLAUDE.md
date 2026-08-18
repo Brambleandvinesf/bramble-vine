@@ -194,6 +194,18 @@ deploy while the Pi is behind silently overwrites whatever is in the web editor.
 pull` + diff before deploying is not a formality** — it is the only thing standing between
 a deploy and someone else's untracked work.
 
+🚫🚫 **A FOURTH ONE, PROVEN IN CC-133: AN UNPUSHED EDIT TO THE PI'S `Code.js` DOES NOT SURVIVE.**
+CC-131 corrected 7 changelog headers directly in `/home/info/appsscript/Code.js` and left them
+unpushed, intending them to "ride along with the next functional deploy". **But the deploy ritual
+BEGINS with `clasp pull`** — which pulled the editor's copy (which had never seen the edit) straight
+over the top of it. The correction was silently reverted.
+- **Stage work in `/home/info/bv-scratch`, never as an unpushed edit to the live `Code.js`.** The
+  file is a pull target; anything not pushed is on borrowed time.
+- ⚠ **It only survived because the staged patch had already been BUILT from the edited file**, so
+  the corrections were baked into `Code.cc132.js` and shipped anyway. That was luck, not design.
+- ⚠ **And the `clasp pull` diff is what caught it** — it reported DIVERGED, which is exactly what
+  that step exists for. Read that output; do not assume divergence means someone else's work.
+
 🚫🚫 **A THIRD ONE, PROVEN IN CC-130: A SMOKE TEST RUN IMMEDIATELY AFTER `clasp deploy` CAN
 REPORT A FALSE FAILURE.** The CC-129 security fix was verified present in the deployed project
 (`clasp pull` into a throwaway dir confirmed the guards, and the old default gone) while the
