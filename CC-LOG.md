@@ -306,6 +306,57 @@ DEPLOYED.**
 
 ---
 
+## CC-115 — 2026-08-17
+
+**Sent:** Screenshot of an assistant (Miguel) on Load Vehicle shows the SAME layout as
+everyone else. Confirm whether field.tsx renders loading.tsx's own component (one shared
+implementation) or a separate look-alike, and whether the redirect causes a real loop.
+
+**Response to CC-115:** **ANSWERED — CASE 3: TWO SEPARATE COMPONENTS BUILT TO LOOK
+IDENTICAL. And the screenshot's own "0/1" and "0/5" counts point at the real bug.** No code.
+
+- **✅ PROVEN BY TWO GREPS, NOT INFERRED: `field.tsx` DOES NOT IMPORT FROM `./loading`
+  (zero hits), and `loading.tsx` EXPORTS ONLY `Route`** — no component export exists, so
+  there is nothing for field.tsx to reuse even in principle. **They are genuinely two
+  implementations.** The screenshot looks identical because the second was built to match,
+  which is exactly the brief's case 3 and the hardest kind to spot from a screenshot.
+- **🚫 AND MY CC-113 CHARACTERISATION OF field.tsx's HANDLER WAS UNFAIR — IT IS BETTER CODE
+  THAN loading.tsx's WAS.** `field.tsx:330-350`'s `toggle` does an optimistic flip via
+  `optDecide`, **throws on `!res.ok`** with the in-code note *"Previously only a thrown error
+  rolled back, so an HTTP 500 read as success"*, then `optRevert`s and raises
+  `toast.error("Couldn't save that item — try again.")`. **So it is not failing silently and
+  it is not the `{ silent: true }` path.** That was the visit screen, corrected in CC-114.
+- **⚠⚠ SO WHY WOULD A CHECKBOX DO NOTHING? THE FIRST LINE OF THAT FUNCTION:**
+      const it = itemsRef.current.find((x) => x.row === row);
+      if (!it || !it.materialId) return;
+  **An item with no `materialId` returns silently — no request, no toast, no state change.
+  The box renders and tapping it does literally nothing.** That is "checkboxes not
+  responding", precisely.
+- **✅✅ WHICH MAKES ITEMS 75 AND 78 THE SAME BUG.** Item 78 is *"loading items with no
+  attached project should not appear at all"* — **an item with no project is exactly the
+  item likely to have no `materialId`.** So the project-less rows Brandon wants removed are
+  the rows whose checkboxes are dead. One cause, two reports, and Miguel's screenshot showing
+  "0/1" and "0/5" is consistent with a list containing an item that can never be ticked.
+- **⚠ AND THERE IS A DRIFT SIGNAL WORTH CHASING IN THE NEXT PASS: `loading.tsx:587` carries
+  the note *"setLoaded has always accepted a row fallback"*** — suggesting the lead's copy
+  handles the missing-`materialId` case via a row fallback while field.tsx's copy returns
+  early. **If so, that is the drift that makes this role-specific**, and it is checkable in
+  one read.
+- **QUESTION 4 — THE REDIRECT IS PROBABLY A RED HERRING, and I am saying so against my own
+  CC-114 lead.** The screenshot shows the assistant resolving cleanly to a correct-looking
+  screen inside FIELD STATE. A live routing loop would not present as a stable, usable
+  screen. `hqScreenFor` returning `/loading` for every role while `loading.tsx` bounces
+  assistants to `/field` is still untidy and worth fixing, **but it is not what is blocking
+  the crew.**
+- **⚠ THE CC-114 MERGE PLAN THEREFORE STILL APPLIES, BUT IT IS NO LONGER THE URGENT FIX.**
+  Two implementations is the reason this keeps happening; the missing-`materialId` early
+  return is what is happening *now*. Those want different-sized responses, and conflating
+  them is how the field problem stays live for another batch.
+- **Carried forward:** the materialId fix (urgent), the extraction (structural), the redirect
+  tidy-up, Drive-link removal, `invoiceHtml_` redesign, Items 79/81/82, Mercury, Item 50.
+
+---
+
 ## CC-114 — 2026-08-17
 
 **Sent:** Build the real fix (Option 1) — extract one shared loading component following the
