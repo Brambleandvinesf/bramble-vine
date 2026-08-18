@@ -306,6 +306,61 @@ DEPLOYED.**
 
 ---
 
+## CC-135 — 2026-08-18
+
+**Sent:** Add a precise total store-size check (the last log truncated values). And investigate
+the MSG_QUEUE truncation bug, proposing a fix.
+
+**Response to CC-135:** **⚠⚠ NEW HARD BLOCKER: `clasp deploy` FAILED — "Script has reached the
+limit of 200 versions."** The push landed, so **HEAD has the new diagnostic and the editor runs
+HEAD — meaning Priority 1's number is available right now anyway.** @313 is still what `/exec`
+serves. **And the MSG_QUEUE bug is materially worse than I described in CC-134.**
+
+- **⚠⚠ THE 200-VERSION CEILING BLOCKS EVERY FUTURE DEPLOY.** `clasp push` succeeded; `clasp
+  deploy` could not create @314. Verified live: `clasp deployments` still shows **@313**. The
+  frontend is unaffected because it uses the pinned URL, so nothing changed for the app.
+- **✅ AND IT DOES NOT BLOCK THIS BATCH'S PURPOSE: EDITOR RUNS EXECUTE HEAD, NOT THE PINNED
+  DEPLOYMENT.** `bustAppConfigCache` is editor-only, so the new accounting is runnable
+  immediately. Verified HEAD by pulling into a throwaway dir: `STORE SIZE`, `HEADROOM`,
+  `LARGEST PROPERTIES`, `DO NOT PARSE AS JSON`, `v7.4.144` all present.
+- **⚠ I CORRECTED THE CHANGELOG HEADER TO SAY SO.** It briefly read "DEPLOYED under CC-135",
+  which was false — **the exact inverse of the STAGED-while-deployed error I have corrected ten
+  times.** It now states plainly that it is pushed to HEAD, not deployed, and why.
+- **✅ PRIORITY 1 BUILT: length is now ALWAYS printed** (the CC-132 version printed a 60-char
+  preview for non-secrets and **no length**, which is exactly why the log could not be totalled —
+  my flaw, and Brandon was right that a manual add-up would be unreliable). Plus **ONE total
+  against the 500,000-character ceiling**, headroom, a percentage, an over-90% warning, and the
+  **8 largest properties named** so a pruning target does not have to be guessed at. Keys are
+  counted toward the total as well as values.
+- **✅ AND IT PARSE-TESTS EVERY JSON-SHAPED PROPERTY** — which is how the MSG_QUEUE state becomes
+  visible for the first time.
+- **⚠⚠ PRIORITY 2 — I WAS WRONG IN CC-134 AND IT IS WORSE. I said MSG_QUEUE "silently resets to
+  []". IT DOES NOT RESET. IT BRICKS PERMANENTLY:**
+  · `msgQueuePush_` writes `JSON.stringify(q).substring(0, 9000)` → cut mid-object → invalid JSON.
+  · `msgQueueFlush_` then does `JSON.parse(...)` **BEFORE** its `props.deleteProperty('MSG_QUEUE')`
+    — so the throw means **the delete is never reached and the corrupt value stays**.
+  · The next `msgQueuePush_` also parses first → also throws → **every future push is silently
+    dropped too**.
+  · **Both catches are `catch (err) {}` — completely empty. Nothing is ever logged.**
+  · **Net: once it exceeds 9000 chars, pushes stop forever, the flush can never clear it, and
+    9,000 characters of the property store are occupied permanently.**
+- **⚠ EVIDENCE IS UNTRACEABLE BY CONSTRUCTION** — the empty catches log nothing, so there is no
+  historical record to search. **But the state is detectable NOW: `MSG_QUEUE` sitting at exactly
+  9000 characters, flagged by the new parse test, is its signature.**
+- **⚠ THIS IS A REAL CANDIDATE FOR ITEM 62's "push registered but not delivering"**, and it is
+  worth fixing regardless of the Stripe question.
+- **PROPOSED FIX (not built): drop OLDEST ENTRIES ONE AT A TIME until the serialised array fits,
+  instead of a blind character cut** — so the stored value is always valid JSON. Plus a
+  self-healing read (`catch` → reset to `[]` and log) so an already-corrupt value cannot persist.
+- **Carried forward:** ⚠ **prune Apps Script versions (Brandon, UI) — nothing can deploy until
+  then**; run `bustAppConfigCache` for the store total; the MSG_QUEUE fix; ledger pruning if the
+  store is full; one fresh debrief for the Pay Note reading; the invoice 22804 deletions (**file
+  FIRST**); Lovable build history for 047ba0a; TEXT itemisation; the 4 UUID-project rows; Item 80;
+  Item 77 extraction; hqScreenFor/redirect tidy; Items 66-74, 76, 79, 81, 82; Item 50; Mercury;
+  Stripe MCP.
+
+---
+
 ## CC-134 — 2026-08-18
 
 **Sent:** STRIPE_SECRET_KEY vanishes after being saved as a Script Property. Not user error —
