@@ -306,6 +306,57 @@ DEPLOYED.**
 
 ---
 
+## CC-132 — 2026-08-18
+
+**Sent:** Wrong-store theory ruled out. Persist payNote so the next failure is readable, then
+Brandon runs a fresh debrief. Bundle the docs cleanup. Improve the diagnostic.
+
+**Response to CC-132:** **BUILT, VERIFIED, STAGED — NOT DEPLOYED.** 89 added, 5 removed,
+`node --check` PASS. **Persisted to a new Message Queue column, and while doing it I found a
+real bug in the very field being relied on to explain the failure.**
+
+- **LOCATION: a new MQ column `Pay Note`, beside Pay URL / Pay Amount / Pay Link ID.** One row
+  then tells the whole pay story including why it is missing; `mqPayCols_` and the row writer
+  already exist so it is a four-line addition; and the MQ row exists whenever the invoice was
+  created, which is exactly the failing case. **Debrief Log was the alternative and I rejected
+  it** — it would split the pay story across two tabs and need a second write path for no gain.
+- **⚠⚠ THE BIGGER FIX IS NOT THE PERSISTENCE, IT IS THE AMBIGUITY. payNote is now set on EVERY
+  path — success, flag-off, both failure branches.** Before this it was written only on the two
+  failure branches, so a **BLANK payNote meant one of three completely different things: it
+  succeeded, the flag was off, or the block never ran.** That is precisely what made INV-22810-T
+  unanswerable. Persisting an ambiguous field would have preserved the ambiguity.
+- **⚠⚠ AND A REAL BUG, FOUND IN THAT SAME FIELD: the zero-balance branch tested
+  `Number(out.balance) === 0` — AND `Number(null) IS 0`.** So an invoice where QBO returned **no
+  balance at all** was reported as *"invoice balance is 0, nothing is owed"*. **Two opposite
+  diagnoses collapsed into one confident, wrong sentence, in the exact field being trusted to
+  explain a failure.** Now compares `out.balance === 0` and prints the raw value via
+  `JSON.stringify`, so absent and zero are distinguishable.
+- **⚠ THIS IS DIRECTLY RELEVANT TO INV-22810-T: if that invoice's Balance came back absent, the
+  old code would have told us "nothing is owed" — plausible, and wrong.** Had payNote been
+  persisted last week without this fix, we would have read that sentence and believed it.
+- **✅ THE CARRY-FORWARD ITEM IS DONE: `bustAppConfigCache` now lists SCRIPT PROPERTIES too** —
+  names and lengths, **secrets withheld via `SECRET_KEY_RE`** — and prints an explicit warning
+  when `STRIPE_SECRET_KEY` is absent, naming the consequence. **It previously read only the App
+  Config tab, so "correctly a Script Property" and "missing entirely" both looked identical:
+  absent.** Settling that took a human cross-check that should not have been needed.
+- **✅ DOCS CLEANUP BUNDLED, AND I RECOMMEND IT — no reason not to.** CC-131's correction was
+  staged in `Code.js` in place, so it is already in this patch's base. Verified: the only
+  remaining `STAGED` is v7.4.143's own header (legitimate — it IS staged) plus one prose mention.
+  Bundling means zero extra deploys and no comment-only deploy on a live invoicing system.
+- **⚠ Also recorded: the full Stripe error text is now kept verbatim** rather than summarised,
+  because `'STRIPE_SECRET_KEY not set'` and a Stripe 400 are different problems and the whole
+  difference lives in that string.
+- **⚠ Minor, accepted: the flag is read twice** (once for `!== 'on'`, once for `=== 'on'`).
+  `cfgMap_` is cached for 6 hours so the second read is free, and two plain conditions read
+  better than one nested one.
+- **Carried forward:** deploy approval → then Brandon runs ONE fresh debrief and the Pay Note
+  column answers it; the invoice 22804 file/row/tab deletions (file FIRST — the row is the only
+  record of the File ID); Lovable build history for 047ba0a; TEXT itemisation; the 4
+  UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-131 — 2026-08-18
 
 **Sent:** Candidate (a) ruled out — diagnose INV-22810-T from existing data. Delete the one
