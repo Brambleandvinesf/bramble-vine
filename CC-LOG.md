@@ -306,6 +306,62 @@ DEPLOYED.**
 
 ---
 
+## CC-134 — 2026-08-18
+
+**Sent:** STRIPE_SECRET_KEY vanishes after being saved as a Script Property. Not user error —
+investigate whether code deletes/overwrites it, especially `setProperties(x, true)`.
+
+**Response to CC-134:** **BRANDON'S `deleteAllOthers` HYPOTHESIS IS RULED OUT DEFINITIVELY —
+`setProperties(` appears ZERO times in the entire file.** No code path can delete it. **But I
+found a real mechanism that fits the symptom exactly, plus direct evidence this project has
+already hit Apps Script's property limits once.** Nothing changed; read-only investigation.
+
+- **✅ RULED OUT WITH COUNTS, NOT IMPRESSIONS:**
+  · **`setProperties(` = 0.** There is no bulk property write anywhere, so `deleteAllOthers=true`
+    **cannot** be the mechanism. It was a precise, well-formed hypothesis; it simply is not
+    present in the code.
+  · **`deleteAllProperties` = 0.**
+  · **`deleteProperty` = 7, every one a hardcoded, unrelated key:** `MSG_QUEUE`,
+    `CLOCK_ARM_PENDING`, `LUNCH_CLOCK`, `VISIT_TIMER` (×2), `DEPART_ETA` (×2). **None uses a
+    variable key**, so none can catch STRIPE_SECRET_KEY by accident.
+  · **Nothing writes any STRIPE key** — grepping the 35 `setProperty` calls for "stripe" returns
+    nothing, and none loops over variable keys.
+  · **`setupAppConfig`, the config migration, only READS properties** and appends sheet rows. It
+    was the strongest code-level suspect and it is clean.
+- **⚠⚠ THE MECHANISM I DID FIND — APPS SCRIPT'S PROPERTY STORE LIMITS: 9KB per value, 500KB per
+  store.** And this project leans on that store hard:
+  · **~20 properties hold `JSON.stringify` blobs**, several of them append-only ledgers with **NO
+    PRUNING FOUND**: `TEXT_SENT`, `QUO_DONE_IDS`, `PAY_REMINDED`, `VISIT_NOTES`,
+    `FREQUENT_DESTS`, `DESIGNATE_NOTIFIED`.
+  · **⚠⚠ `MSG_QUEUE` IS ALREADY HARD-CAPPED AT 9000 CHARS** —
+    `props.setProperty('MSG_QUEUE', JSON.stringify(q).substring(0, 9000))`. **That cap is direct
+    evidence the per-property ceiling has already bitten here once.**
+  · **10 time-driven triggers**, several firing every 5 minutes (`visitTimerTick`,
+    `syncQuoDoneStatus`) and 15 (`enrichCalendarOnChange`), all writing that same store
+    continuously while Brandon is editing it.
+- **HYPOTHESIS (labelled as one, not a conclusion): the store is at or near its 500KB total, so a
+  new property write fails, and the IDE surfaces that badly — which looks exactly like "I clicked
+  Save and it disappeared."** Supporting, not proving: the existing 9KB cap shows limits bite in
+  this project.
+- **⚠⚠ A SEPARATE LATENT BUG FOUND IN PASSING, worth its own item: `substring(0, 9000)` truncates
+  a JSON array MID-STRING, producing INVALID JSON.** The next `JSON.parse` throws, the
+  surrounding `try/catch` swallows it, and **`MSG_QUEUE` silently resets to `[]`** — so the push
+  queue quietly discards everything once it grows past 9KB, with no error anywhere.
+- **✅ THE TEST IS ALREADY DEPLOYED: CC-132's `bustAppConfigCache` lists EVERY Script Property
+  with its length.** Summing those lengths tests the quota hypothesis directly, and it also states
+  outright whether STRIPE_SECRET_KEY is present. **Run that before anything else — it is free and
+  it either confirms or kills the theory.**
+- **⚠ I did NOT propose putting the key in the App Config tab as a workaround.** That would
+  reintroduce the secret-in-a-spreadsheet leak CC-123's rename exists to prevent.
+- **Carried forward:** run `bustAppConfigCache` and total the property lengths; the dummy-property
+  discriminator if needed; ledger pruning if the store is full; the `MSG_QUEUE` truncation bug;
+  one fresh debrief for the Pay Note reading; the invoice 22804 deletions (**file FIRST**);
+  Lovable build history for 047ba0a; TEXT itemisation; the 4 UUID-project rows; Item 80; Item 77
+  extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82;
+  Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-133 — 2026-08-18
 
 **Sent:** Deploy the staged build, correct the STAGED header, wait for propagation before any
