@@ -306,6 +306,54 @@ DEPLOYED.**
 
 ---
 
+## CC-113 — 2026-08-17
+
+**Sent:** ⚠ PRIORITY OVERRIDE — Item 77 is actively blocking crew in the field. Then: remove
+the superseded Drive-link system, redesign invoiceHtml_ to match QBO, build Item 79's
+backend split, record Item 82.
+
+**Response to CC-113:** **ITEM 77 ROOT-CAUSED — AND IT IS STRUCTURAL, NOT A ROLE-PERMISSION
+BUG.** I spent the batch on it, as instructed, and deliberately did NOT start the other
+three. No code.
+
+- **⚠⚠ THE CAUSE: THE ASSISTANT RUNS A COMPLETELY DIFFERENT LOADING SCREEN.**
+  `loading.tsx` lines 204-208:
+      if (effectiveRole === "assistant") { void navigate({ to: "/field", replace: true }); }
+  with the comment *"Assistant's loading UX lives inside the Field state machine now."*
+  **So the assistant never reaches `loading.tsx` at all** — they get a second, independent
+  implementation inside `field.tsx`.
+- **✅ AND THAT EXPLAINS EVERY SYMPTOM AT ONCE, which is why it is the right answer rather
+  than one of several:** Item 75 (checkboxes dead for assistant), Item 76 (extraneous
+  buttons), Item 78 (project-less items showing), and Brandon's whole Item 77 suspicion that
+  "changes don't reach all accounts". **They don't — because a fix applied to `loading.tsx`
+  lands for lead, management and office and never for the assistant.**
+- **🚫 THE LEADING SUSPECT IN THE BRIEF WAS WRONG, and I checked it rather than assuming:
+  `LAYOUTS`/`NAV_CAPABILITY` is NOT the mechanism here.** `loading: {lead:1, assistant:1,
+  office:0, management:1}` — the assistant IS permitted the screen. And `canConfirm =
+  canSee(role,'special_confirm')` (assistant: 0) gates only a "REVIEW & CONFIRM NOW" link
+  inside a waiting state, not the checkboxes.
+- **⚠ THREE SEPARATE `setLoaded` CALL PATHS EXIST for one action:** `loading.tsx:326`,
+  `field.tsx:342`, and `field.tsx:1641`. **Third instance of the two-implementations-of-one-
+  rule trap** after CC-11 (badge vs receipts screen) and CC-67 (invoice drafter vs
+  confirmations). The pattern is now unmistakable in this codebase.
+- **⚠⚠ AND THE SMOKING GUN FOR "CHECKBOXES DON'T RESPOND": `field.tsx:1641` sends with
+  `{ silent: true }`.** A silent send **suppresses error reporting by design** — so if that
+  call fails for the assistant, nothing is shown and the checkbox simply does not change.
+  That is precisely the reported symptom, and it is why it presents as unresponsive rather
+  than as an error.
+- **THE OTHER THREE ITEMS NOT STARTED, DELIBERATELY.** The brief said treat Item 77 as top
+  priority "ahead of the Item 54/79 work below", and crew are blocked. Removing the
+  Drive-link system, a full QBO-replica design pass, and Item 79's routing build are each a
+  batch's work; starting them would have meant four half-finished things while the field
+  problem stayed live.
+- **⚠ CLAUDE.md NOT UPDATED THIS BATCH** — the finding is confirmed but the fix is not
+  chosen, and writing a structural note before the decision is how a future session inherits
+  half a plan. It goes in with the fix.
+- **Carried forward:** the Item 77 fix decision, Drive-link removal, invoiceHtml_ redesign,
+  Item 79 build, Item 82 (recorded, low priority), Items 81, Mercury, Item 50.
+
+---
+
 ## CC-112 — 2026-08-17
 
 ⚠ **CC-106 THROUGH CC-111 NEVER ARRIVED HERE** (as CC-98 and CC-80..83 did not). The Stripe
