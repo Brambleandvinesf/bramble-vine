@@ -14,6 +14,55 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-156 — 2026-08-19
+
+**Sent:** Item C resolved — leave as-is, note the Drive-framing preview as wishlist. Item D — lime
+border on message cards, lime preview text, match the existing palette.
+
+**Response to CC-156:** **✅ Item C recorded as wishlist and dropped from active. Item D built and
+pushed (`0f3dce9`).** ⚠ **Two scoping decisions I made deliberately, and one consequence flagged.**
+⚠ Frontend — needs a publish.
+
+- **✅ ITEM C — CLOSED AS "LEAVE AS-IS". The Invoice Link keeps its current one-click new-tab
+  behaviour.** No code change.
+- **📌 WISHLIST, NOT A BLOCKER — REAL IN-APP INVOICE PREVIEW.** The path is known and tested: the
+  Apps Script page **cannot** be framed (`X-Frame-Options: SAMEORIGIN` + `frame-ancestors 'self'`),
+  but **Drive previews CAN be** (no framing headers at all). So it would mean the backend handing the
+  frontend a Drive file id / preview URL and the app framing `drive.google.com/file/d/<id>/preview`
+  directly, skipping the token page. **Costs if ever picked up:** a backend + frontend change, the
+  file id reaching the frontend (office-only, acceptable), and the in-app view bypassing the
+  Disabled/expiry gate. **Not tracked as open work.**
+- **✅ ITEM D — CONFIRMED THE CURRENT STYLING BEFORE CHANGING IT, as asked:** `CARD` had
+  `border: 1px solid ${LINE}` (**#2a2a2a**, dark grey) and the preview body used `MUTED` (**#8f8f8f**).
+- **✅ AND THE GREEN IS THE EXISTING ONE, NOT A NEW SHADE: `LIME` is already `#7cff00` in this file's
+  palette** — the same green as the buttons and headers on this screen. Matched rather than
+  approximated.
+- **⚠ SCOPING DECISION 1: the border override is applied AT THE MESSAGE CARD, not to the shared `CARD`
+  constant.** `CARD` is also used by the **"add message" composer panel** above (line 666), which is
+  not a message card and should stay neutral. Changing the constant would have green-bordered both.
+- **⚠ SCOPING DECISION 2, FLAGGED FOR A DECISION: this file serves BOTH `/visits` and `/invoices` by
+  design** (CC-45: *"ONE component, two screens… duplicating the card would have created two things to
+  keep in step"*). **So the lime card also applies to Visit Confirmations.** That preserves the
+  deliberate parity — **but it can be scoped to invoices only via the existing `isInvoices` flag if
+  Brandon wants the two screens to diverge.**
+- **⚠ ONE CONSEQUENCE RAISED RATHER THAN LEFT TO BE DISCOVERED: URLs inside the preview are ALSO
+  rendered `LIME`.** With the body now lime too, **links no longer stand out by colour — the underline
+  is the only thing distinguishing them.** Still readable as links, but a weaker affordance than
+  before. Easy to change if it reads badly.
+- **✅ `MUTED` is still used 12× elsewhere in the file, so no constant was orphaned.** Typechecked on
+  the Pi with the negative-control-validated harness: **no in-file errors.**
+- **⚠ FOUR FRONTEND COMMITS NOW AWAIT ONE PUBLISH** — `047ba0a`, `429efe1`, `629ae8d`, `0f3dce9` — and
+  the CC-119 question (does an external push trigger a Lovable rebuild?) is **still unanswered.**
+- **Carried forward:** ⚠ **publish, then confirm CC-154's edit flow, CC-155's greyed-out SEND, and
+  CC-156's lime cards in one pass**; ⚠ **the CC-119 build question**; one real invoice for the branded
+  link + lime pill + Item column; the post-confirm `getProjects` reading for Item 83; the two stray
+  root PDFs; invoice 22804 cleanup; Stripe Dashboard branding; gallery-file purge; the 109 empty
+  catches; the 4 UUID-project rows; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+  **(Item 80: retired. Item C: closed — wishlist only.)**
+
+---
+
 ## CC-155 — 2026-08-19
 
 **Sent:** Item A — SEND still looks lit in edit mode, is it visual or functional? Item B — retire
