@@ -14,6 +14,63 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-155 — 2026-08-19
+
+**Sent:** Item A — SEND still looks lit in edit mode, is it visual or functional? Item B — retire
+Item 80. Item C — in-app invoice preview, but test the nested-iframe risk first.
+
+**Response to CC-155:** **✅ ITEM A WAS (a), PURELY VISUAL — fixed and pushed (`629ae8d`).**
+**⚠⚠ ITEM C IS BLOCKED, AND IT FAILS EARLIER THAN THE PROMPT ANTICIPATED — not at the nested Drive
+embed, but at LEVEL 1: the Apps Script page refuses to be framed at all.** Item B done. **⚠ Frontend
+— needs a Lovable publish.**
+
+- **✅ ITEM A DIAGNOSIS: (a). The `disabled` attribute WAS correctly set — SEND was genuinely inert
+  and unclickable.** The gap is that **every button here is styled with an INLINE style object, and
+  inline styles cannot express `:disabled`** — that is a CSS pseudo-class. So it kept LIME fill and
+  `cursor: pointer` and read as live while being dead.
+- **⚠ AND IT WAS NEVER LIMITED TO EDIT MODE: SEND has looked lit while `busy` and `sent` too, since
+  these styles were first written.** Edit mode is just the first state someone SITS in long enough to
+  notice. So the fix takes the whole disabled condition, not only `editing`.
+- **✅ Added `offBtn(base, off)` — opacity 0.4 + `cursor: not-allowed` — matching the `opacity`
+  pattern already used in this file for `c.sent` (line 729) and `yesBusy` (940), rather than
+  inventing a new convention.** Applied to SEND, SAVE EDIT, CANCEL, SKIP, **and the reload button,
+  which had the identical blind spot.**
+- **✅ SKIP keeps `editing` OUT of its disabled condition, deliberately** — CC-154's reasoning stands
+  (it sends nothing) — but it now greys while busy or sent.
+- **✅ ITEM B: Item 80 retired. Dropped from carried-forward from here on**, per CC-151's finding that
+  it had no definition anywhere in the log.
+- **⚠⚠ ITEM C — TESTED, NOT ASSUMED, AND IT IS A NO. The invoice page returns BOTH:**
+  `X-Frame-Options: SAMEORIGIN` **and** `Content-Security-Policy: frame-ancestors 'self'`.
+  **`frame-ancestors 'self'` means only its own origin may frame it.** The app is
+  `brambleandvinesf.lovable.app`; the page is `script.google.com`. **The browser will refuse to render
+  it in an iframe.** Same headers via the branded redirect.
+- **⚠ SO THE NESTING CONCERN NEVER GETS TESTED — it fails one level earlier than expected.** Not "two
+  iframes deep is too many", but "the middle page cannot be framed once".
+- **⚠⚠ AND THE GENUINELY USEFUL COUNTERPART: DRIVE PREVIEWS *ARE* FRAMABLE.**
+  `drive.google.com/file/d/<id>/preview` returns **no `X-Frame-Options` and no `frame-ancestors`** —
+  only a trusted-types CSP. That is how the middle page embeds one. **So a real in-app preview IS
+  achievable — by framing Drive DIRECTLY and skipping the Apps Script page**, which needs the backend
+  to hand the frontend a file id or preview URL.
+- **⚠ AND A HONEST OBJECTION TO THE PROPOSED FALLBACK, raised rather than silently built: a modal
+  whose only content is an "Open Invoice" button is TWO clicks where there is currently one, for a
+  purely cosmetic "in-app" feeling.** That is a usability regression dressed as a feature. I did not
+  build it.
+- **⚠ `XFrameOptionsMode.ALLOWALL` CONSIDERED AND NOT RECOMMENDED:** it may drop `X-Frame-Options`,
+  but **CSP `frame-ancestors` overrides XFO in modern browsers**, so it likely would not help — and
+  testing it costs a deploy to a client-facing page. **It would also permit any site to frame the
+  invoice, which is clickjacking surface on a page where the token IS the credential.**
+- **⚠ NOT LIVE UNTIL PUBLISHED**, and the CC-119 question (does an external push trigger a Lovable
+  rebuild — commit `047ba0a`) is **still unanswered and now gates three frontend commits.**
+- **Carried forward:** ⚠ **publish, then click through CC-154's edit flow AND confirm SEND now greys
+  out**; ⚠ **the CC-119 build question**; **an Item C decision — leave the link as-is, or frame Drive
+  directly (backend + frontend)**; one real invoice for the branded link + lime pill + Item column; the
+  post-confirm `getProjects` reading for Item 83; the two stray root PDFs; invoice 22804 cleanup;
+  Stripe Dashboard branding; gallery-file purge; the 109 empty catches; the 4 UUID-project rows; Item 77
+  extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50;
+  Mercury; Stripe MCP. **(Item 80: RETIRED.)**
+
+---
+
 ## CC-154 — 2026-08-19
 
 **Sent:** Invoice Queue UI — remove the duplicate textarea, pencil-to-edit the preview in place, SAVE
