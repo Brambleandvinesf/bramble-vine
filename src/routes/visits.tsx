@@ -186,7 +186,13 @@ function MessagePreview({ text, onEdit }: { text: string; onEdit?: () => void })
       <div
         style={{
           ...INPUT,
-          color: MUTED,
+          /* CC-156 Item D: the preview body is LIME now, matching the screen's
+             terminal aesthetic instead of the muted grey it used.
+             ⚠ ONE CONSEQUENCE, FLAGGED: the URLs inside this text are also rendered
+             LIME (see the <a> below), so links no longer stand out by COLOUR against
+             the body — the underline is now the only thing distinguishing them. It
+             still reads as a link, but it is a weaker affordance than before. */
+          color: LIME,
           fontSize: 13,
           lineHeight: 1.5,
           whiteSpace: "pre-wrap",
@@ -743,7 +749,14 @@ export function VisitsPage({
               transition: "opacity .3s ease",
             }}
           >
-            <div style={CARD}>
+            {/* CC-156 Item D: bright-green border on the MESSAGE CARD.
+                ⚠ Deliberately NOT applied to the shared CARD constant — CARD is also
+                used by the "add message" composer panel above (line 666), which is not
+                a message card and should stay neutral. Overriding here keeps the change
+                to the thing that was actually asked for.
+                LIME is the palette's existing #7cff00, the same green as the buttons and
+                headers on this screen — not a new shade. */}
+            <div style={{ ...CARD, border: `1px solid ${LIME}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontWeight: "bold", color: TEXT }}>
                   {row.client || "(no client)"}
