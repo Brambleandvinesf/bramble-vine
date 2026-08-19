@@ -140,6 +140,12 @@ type CardState = {
      discard, which is worse than having no cancel at all. */
   editing: boolean;
   preEdit: string;
+  /* CC-157: refresh gets its OWN flag rather than reusing `busy`.
+     ⚠ REUSING `busy` WOULD HAVE MADE SEND DISPLAY "SENDING…" DURING A REFRESH — every
+     button on this card renders its own busy label off the same flag. Someone watching
+     a refresh would have seen "SENDING…" and reasonably concluded a client had just been
+     texted. A refresh sends nothing; it must never look like it did. */
+  refreshing: boolean;
 };
 
 /* CC-154: `onEdit` is OPTIONAL on purpose. This component is used twice — on the
@@ -266,6 +272,7 @@ export function VisitsPage({
         flash: null,
         editing: false,
         preEdit: "",
+        refreshing: false,
       };
     }
     return out;
@@ -309,6 +316,7 @@ export function VisitsPage({
           flash: null,
           editing: false,
           preEdit: "",
+          refreshing: false,
         };
       }
       return next;
@@ -603,6 +611,72 @@ export function VisitsPage({
     [cards, flash, loadQueue],
   );
 
+  /* CC-157 — RE-RENDER THE HOSTED INVOICE PDF, WITHOUT SENDING ANYTHING.
+     For when an invoice is edited by hand in QBO after it was created, or after it was
+     already sent: the link stays the same, the document behind it becomes current.
+
+     ⚠ SEPARATE FROM doAction ON PURPOSE. Routing this through doAction would have meant
+     sharing `busy`, and every button on the card renders its own busy label off that flag —
+     so a refresh would have shown "SENDING…" on the SEND button. On an invoicing screen
+     that is not a cosmetic problem; it reads as "a client was just texted".
+
+     Mirrors doAction's 45s AbortController and its always-clear `finally`, for the same
+     reason CC-104 added them there: a hung request must never leave a dead button. */
+  const doRefresh = useCallback(
+    async (row: QueueRow) => {
+      setCards((prev) => ({
+        ...prev,
+        [row.eventId]: { ...prev[row.eventId], refreshing: true, flash: null },
+      }));
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 45000);
+      let msg = "";
+      let err = false;
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            action: "refreshInvoicePdf",
+            eventId: row.eventId,
+            /* Explicit, because the backend is dry-by-default like queueAction. */
+            dryRun: false,
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+          payReplaced?: boolean;
+          payNow?: string;
+        };
+        if (j.ok === false) throw new Error(j.error || "Refresh failed");
+        /* Surfaced rather than silent: a refresh that also re-minted the pay link changed
+           the amount a client will be charged, which is worth seeing. */
+        msg = j.payReplaced
+          ? `Refreshed — pay link updated${j.payNow ? ` to $${j.payNow}` : ""}.`
+          : "Refreshed ✓";
+      } catch (e) {
+        err = true;
+        msg =
+          e instanceof Error && e.name === "AbortError"
+            ? "Refresh timed out — it may still have completed. Reload before retrying."
+            : e instanceof Error
+              ? e.message
+              : "Refresh failed.";
+      } finally {
+        clearTimeout(timer);
+        setCards((prev) => ({
+          ...prev,
+          [row.eventId]: { ...prev[row.eventId], refreshing: false },
+        }));
+        flash(row.eventId, msg, err);
+      }
+    },
+    [flash],
+  );
+
   const onAdd = useCallback(async () => {
     if (!addClient) {
       setAddFlash({ msg: "Choose a client.", err: true });
@@ -862,12 +936,12 @@ export function VisitsPage({
               <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <button
                   /* CC-155: greys out for EVERY disabled reason, not just editing. */
-                  style={offBtn(SOLID_BTN, c.busy || c.sent || c.editing)}
+                  style={offBtn(SOLID_BTN, c.busy || c.sent || c.editing || c.refreshing)}
                   onClick={() => void doAction(row, "send")}
                   /* CC-154: ⚠ `c.editing` GATES SEND. A half-typed message must not
                      be sendable — this is a client-facing text, and there is no
                      recall. Save (or cancel) first, then send. */
-                  disabled={c.busy || c.sent || c.editing}
+                  disabled={c.busy || c.sent || c.editing || c.refreshing}
                   title={c.editing ? "Save or cancel your edit first" : undefined}
                 >
                   {/* (8/7, CC-01 item 2) Explicit in-progress labels. The wait
@@ -914,13 +988,32 @@ export function VisitsPage({
                 <button
                   /* CC-155: SKIP stays ENABLED during edit (CC-154's reasoning: it
                      sends nothing), so `editing` is deliberately absent here — but it
-                     still greys out while busy or already sent. */
-                  style={offBtn(GHOST_BTN, c.busy || c.sent)}
+                     still greys out while busy or already sent.
+                     CC-157: and while a refresh is in flight, since that IS a write. */
+                  style={offBtn(GHOST_BTN, c.busy || c.sent || c.refreshing)}
                   onClick={() => void doAction(row, "skip")}
-                  disabled={c.busy || c.sent}
+                  disabled={c.busy || c.sent || c.refreshing}
                 >
                   {c.busy ? "SKIPPING…" : "SKIP"}
                 </button>
+                {/* CC-157 — REFRESH. Invoice rows only: the backend refuses anything else,
+                    and a visit confirmation has no document to re-render, so offering the
+                    button there would be a dead control.
+                    ⚠ Deliberately NOT hidden once `sent` — refreshing an ALREADY-SENT
+                    invoice is the main reason this exists. The token is stable, so the link
+                    already in the client's hands starts resolving to the new document. */}
+                {row.kind === "invoice" && (
+                  <button
+                    style={offBtn(GHOST_BTN, c.busy || c.refreshing || c.editing)}
+                    onClick={() => void doRefresh(row)}
+                    /* Blocked mid-edit: an unsaved body edit is unrelated to the PDF, but
+                       letting both run at once means two writes racing on one row. */
+                    disabled={c.busy || c.refreshing || c.editing}
+                    title="Re-render the invoice PDF from QuickBooks. Sends nothing."
+                  >
+                    {c.refreshing ? "REFRESHING…" : "REFRESH PDF"}
+                  </button>
+                )}
                 {c.flash && (
                   <span
                     style={{
