@@ -14,6 +14,53 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-152 — 2026-08-19
+
+**Sent:** Informational only — the exact exec URL for the pinned deployment, confirm the `inv`
+parameter, and confirm nothing about the request context matters for an external 302.
+
+**Response to CC-152:** All three answered. **⚠ And two things worth volunteering that affect how the
+Worker should be written — plus a moment where I nearly reported a security hole that turned out to be
+a Google sign-in page.** No code, nothing deployed.
+
+- **✅ 1. THE EXEC URL, and the codebase asserts its stability itself.** `WEBAPP_URL` is **hardcoded**
+  at Code.js:2934 with the comment *"this web app's own exec URL — the Quo webhook target. Hardcoded
+  (it never changes across 'New version' deploys)"*:
+  `https://script.google.com/macros/s/AKfycbwZlJn9jKzzYfcFglDmVGV3l-FTYib0D3mNdILivsB1477aMym68NViDCwia26_JH4siQ/exec`
+- **✅ 2. THE PARAMETER IS EXACTLY `inv`, case-sensitive** — `e.parameter.inv`. Plain GET, **no
+  headers, no auth, no POST body**. Verified by curling it from an unauthenticated shell, not read off
+  the code.
+- **✅ 3. NOTHING ABOUT THE REQUEST CONTEXT IS INSPECTED.** Counted in Code.js: `e.headers` 0,
+  `referer` 0, `userAgent` 0, `X-Forwarded` 0, `e.contextPath` 0, `e.queryString` 0, `e.pathInfo` 0.
+  The two `referrer` hits are unrelated — Places API key-restriction comments at 1349 and 11730. **An
+  external 302 changes nothing.**
+- **⚠ VOLUNTEERED #1 — USE A 302, NOT A PROXY.** The token page **embeds a Drive preview iframe and
+  links to a Drive download**, both cross-origin to Google. A Worker that `fetch`ed and returned the
+  body would break the iframe and any relative asset paths. A plain redirect hands the browser
+  straight to Google and sidesteps all of it.
+- **⚠⚠ VOLUNTEERED #2 — AND THIS IS THE PART THAT NEARLY LOOKED LIKE A SECURITY HOLE: the OTHER
+  deployment (`AKfycbzBs4_Hib-ncdYgjL2OA6SR7DS5qPahoTAYX3B0XTFu`) returned 902,409 bytes with no
+  invoice page.** For a moment that read like the CC-129 data dump still being open on a second URL.
+  **It is not — it is `accounts.google.com/v3/signin`.** That deployment is behind Google auth and is
+  not anonymously reachable. **So the pinned URL is the ONLY anonymous door, which is both the correct
+  redirect target and a genuinely reassuring finding.**
+- **⚠ A SMALL INCONSISTENCY, HARMLESS HERE BUT WORTH RECORDING: the `?inv=` URLs are minted with
+  `ScriptApp.getService().getUrl()` (lines 22287, 22315), NOT the `WEBAPP_URL` constant** that exists
+  precisely because it is stable. It does not affect the redirect — tokens live in the sheet, so any
+  deployment of the same script resolves them — but the constant and the minter disagree about which
+  source of truth to use.
+- **⚠ TOKEN FORMAT, so the Worker passes it through untouched: 28 characters from `galleryNewToken_`**
+  (two UUIDs concatenated, dashes stripped, sliced to 28 — hex only). `invoiceFileForToken_` rejects
+  anything under 12 chars. **No normalising, lowercasing or trimming — forward it verbatim.**
+- **Carried forward:** unchanged from CC-151 — the post-confirm `getProjects` reading (Item 83's
+  decisive test); Item 80 needs a definition or retirement; a fresh probe/invoice under @321; the two
+  stray root PDFs; invoice 22804 cleanup; Lovable build history for 047ba0a; Stripe Dashboard branding;
+  gallery-file purge; the 109 empty catches; the 4 UUID-project rows; Item 77 extraction;
+  hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury;
+  Stripe MCP.
+
+---
+
 ## CC-151 — 2026-08-19
 
 **Sent:** Item 83 — confirm the two-data-sources theory with evidence before fixing, find the
