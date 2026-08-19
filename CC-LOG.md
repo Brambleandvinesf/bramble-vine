@@ -14,6 +14,52 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-153 — 2026-08-19
+
+**Sent:** The branded redirect is live. Update the minter so client texts show
+pay.brambleandvinesf.com instead of the raw script.google.com URL.
+
+**Response to CC-153:** **DEPLOYED @322 / v7.4.152.** Small and contained as expected — 35 added, 2
+removed. **✅ And I proved the actual client-facing string by running the real functions, not by
+reading the code.**
+
+- **✅ VERIFIED THE REDIRECT MYSELF BEFORE MINTING ANYTHING THAT DEPENDS ON IT:**
+  `pay.brambleandvinesf.com/?inv=zzz` → **302** to the pinned `/exec` with the token intact → **200,
+  9,891 bytes, the real invoice page.** Confirmed again after the deploy.
+- **✅ AND THE PROOF THAT MATTERS — the exact text a client now receives, produced by running
+  `invoiceMsgBody_` plus the CC-144 append against the real patched file:**
+  `Good morning! Here's the invoice from your recent garden visit. …` /
+  **`Invoice Link: https://pay.brambleandvinesf.com/?inv=a1b2c3d4e5f6a7b8c9d0e1f2a3b4`**
+  Branded host present: **true**. `script.google.com` present: **false**.
+- **✅ SCOPED CORRECTLY, VERIFIED IN THE DEPLOYED FILE:**
+  `getService().getUrl() + '?inv='` → **0** (old form gone), `INVOICE_LINK_BASE + '?inv='` → **2**
+  (both mint sites), **`getService().getUrl() + '?g='` → 2 — the GALLERY links are deliberately
+  untouched**, because the Worker forwards only `inv` and a gallery token on that host would not
+  resolve.
+- **⚠ ONE CONSTANT RATHER THAN TWO INLINE LITERALS, and the reason is a new risk this introduces:
+  there is now a dependency IN FRONT OF EVERY CLIENT INVOICE LINK. If the Worker or the DNS goes
+  down, ALREADY-SENT links break** — where previously they pointed straight at Google. **Rollback is
+  one edit to `INVOICE_LINK_BASE` plus a deploy, and the tokens keep resolving on the raw `/exec` URL
+  throughout, because they live in the sheet and not in the host.** That is worth knowing before it
+  matters rather than after.
+- **⚠ THE TRAILING SLASH BEFORE THE QUERY IS DELIBERATE AND COMMENTED AS SUCH** —
+  `pay…com/?inv=` is the shape tested end to end. A future tidy-up to `pay…com?inv=` would be an
+  untested change to a client-facing path.
+- **✅ CC-129's security guard still intact on the bare URL: 48 bytes,
+  `{"ok":false,"error":"unknown or missing action"}`.** No regression.
+- **⚠ WHAT I DID NOT DO: create a real test invoice.** That writes to QBO, so it is Brandon's action,
+  not mine to trigger. I verified the two halves that can be verified without it — the exact minted
+  string, and that the redirect resolves — so the remaining step is confirming they meet in a real
+  send.
+- **Carried forward:** ⚠ **one real invoice to confirm the branded link in an actual text** (which
+  also finally shows the lime pill and Item column, still unseen); the post-confirm `getProjects`
+  reading for Item 83; Item 80 needs a definition or retirement; the two stray root PDFs; invoice
+  22804 cleanup; Lovable build history for 047ba0a; Stripe Dashboard branding; gallery-file purge;
+  the 109 empty catches; the 4 UUID-project rows; Item 77 extraction; hqScreenFor/redirect tidy;
+  Item 62 push delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-152 — 2026-08-19
 
 **Sent:** Informational only — the exact exec URL for the pinned deployment, confirm the `inv`
