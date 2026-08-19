@@ -120,17 +120,56 @@ type CardState = {
   busy: boolean;
   sent: boolean;
   flash: { msg: string; err: boolean } | null;
+  /* CC-154: the card shows the read-only preview by default and only becomes
+     editable when the pencil is clicked. `editing` gates that, and it also
+     gates SEND — a half-typed message must not be sendable.
+     `preEdit` holds the text as it was when editing started, so CANCEL can put
+     it back. Without it, cancelling would silently keep the edits it claims to
+     discard, which is worse than having no cancel at all. */
+  editing: boolean;
+  preEdit: string;
 };
 
-function MessagePreview({ text }: { text: string }) {
+/* CC-154: `onEdit` is OPTIONAL on purpose. This component is used twice — on the
+   queue card, which now owns the edit affordance, and in the ad-hoc "add message"
+   composer, which already has its own textarea and must NOT grow a pencil. Making
+   the prop optional means that second call site needs no change at all. */
+function MessagePreview({ text, onEdit }: { text: string; onEdit?: () => void }) {
   if (!text) return null;
   const parts = text.split(/(https?:\/\/[^\s]+)/g);
   return (
     <div style={{ marginTop: 10 }}>
       <div
-        style={{ color: MUTED, fontSize: 11, letterSpacing: 1, marginBottom: 4 }}
+        style={{
+          color: MUTED,
+          fontSize: 11,
+          letterSpacing: 1,
+          marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
       >
         PREVIEW
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            title="Edit this message"
+            aria-label="Edit this message"
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              color: LIME,
+              fontSize: 13,
+              lineHeight: 1,
+            }}
+          >
+            ✎
+          </button>
+        )}
       </div>
       <div
         style={{
@@ -202,7 +241,14 @@ export function VisitsPage({
     if (!cached) return {};
     const out: Record<string, CardState> = {};
     for (const r of (cached.queue ?? []).map(normalizeRow)) {
-      out[r.eventId] = { text: r.draft, busy: false, sent: false, flash: null };
+      out[r.eventId] = {
+        text: r.draft,
+        busy: false,
+        sent: false,
+        flash: null,
+        editing: false,
+        preEdit: "",
+      };
     }
     return out;
   });
@@ -234,11 +280,17 @@ export function VisitsPage({
     setCards((prev) => {
       const next: Record<string, CardState> = {};
       for (const r of q) {
+        /* CC-154: `prev[...] ??` matters more now than it did — it is what keeps
+           an in-progress EDIT alive across a poll. Without it a background
+           refresh would drop the card out of edit mode and discard whatever was
+           being typed. */
         next[r.eventId] = prev[r.eventId] ?? {
           text: r.draft,
           busy: false,
           sent: false,
           flash: null,
+          editing: false,
+          preEdit: "",
         };
       }
       return next;
@@ -504,6 +556,14 @@ export function VisitsPage({
       }
       if (!success) return;
       if (action === "save") {
+        /* CC-154: a successful save is what ends edit mode — and only a SUCCESSFUL
+           one. If the write failed, `success` is false and we returned above, so the
+           card stays editable with the text intact rather than dropping the user
+           back to a preview that shows an unsaved edit as though it had landed. */
+        setCards((prev) => ({
+          ...prev,
+          [row.eventId]: { ...prev[row.eventId], editing: false, preEdit: "" },
+        }));
         flash(row.eventId, "Saved.", false);
       } else {
         setCards((prev) => ({
@@ -721,24 +781,67 @@ export function VisitsPage({
               {row.kind === "invoice" && (
                 <PaymentReminderToggle client={row.client} />
               )}
-              <textarea
-                value={c.text}
-                onChange={(e) =>
-                  setCards((prev) => ({
-                    ...prev,
-                    [row.eventId]: { ...prev[row.eventId], text: e.target.value },
-                  }))
-                }
-                rows={5}
-                disabled={c.busy || c.sent}
-                style={{ ...INPUT, marginTop: 10, resize: "vertical" }}
-              />
-              <MessagePreview text={c.text} />
+              {/* CC-154: ONE box, not two. This used to render an editable textarea
+                  AND a read-only preview of the same string directly beneath it —
+                  the same text twice, with the rendered-links version (Item 59)
+                  only in the lower one. Now the preview IS the resting state and
+                  the pencil turns it editable in place. */}
+              {c.editing ? (
+                <>
+                  <div
+                    style={{
+                      color: MUTED,
+                      fontSize: 11,
+                      letterSpacing: 1,
+                      marginTop: 10,
+                      marginBottom: 4,
+                    }}
+                  >
+                    EDITING
+                  </div>
+                  <textarea
+                    value={c.text}
+                    onChange={(e) =>
+                      setCards((prev) => ({
+                        ...prev,
+                        [row.eventId]: { ...prev[row.eventId], text: e.target.value },
+                      }))
+                    }
+                    rows={5}
+                    autoFocus
+                    disabled={c.busy || c.sent}
+                    style={{ ...INPUT, resize: "vertical" }}
+                  />
+                </>
+              ) : (
+                <MessagePreview
+                  text={c.text}
+                  onEdit={
+                    /* No pencil once the row is sent or mid-request — editing a
+                       message that has already gone out would be misleading. */
+                    c.busy || c.sent
+                      ? undefined
+                      : () =>
+                          setCards((prev) => ({
+                            ...prev,
+                            [row.eventId]: {
+                              ...prev[row.eventId],
+                              editing: true,
+                              preEdit: prev[row.eventId].text,
+                            },
+                          }))
+                  }
+                />
+              )}
               <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <button
                   style={SOLID_BTN}
                   onClick={() => void doAction(row, "send")}
-                  disabled={c.busy || c.sent}
+                  /* CC-154: ⚠ `c.editing` GATES SEND. A half-typed message must not
+                     be sendable — this is a client-facing text, and there is no
+                     recall. Save (or cancel) first, then send. */
+                  disabled={c.busy || c.sent || c.editing}
+                  title={c.editing ? "Save or cancel your edit first" : undefined}
                 >
                   {/* (8/7, CC-01 item 2) Explicit in-progress labels. The wait
                       here is the PLATFORM, not our code: Apps Script's own round
@@ -748,13 +851,39 @@ export function VisitsPage({
                       the fix is making the wait read as "working" not "stuck". */}
                   {c.busy ? "SENDING…" : "SEND"}
                 </button>
-                <button
-                  style={GHOST_BTN}
-                  onClick={() => void doAction(row, "save")}
-                  disabled={c.busy || c.sent}
-                >
-                  {c.busy ? "SAVING…" : "SAVE EDIT"}
-                </button>
+                {/* CC-154: SAVE EDIT and CANCEL exist only while editing. Before,
+                    SAVE EDIT sat there permanently offering to save a message
+                    nobody had touched. */}
+                {c.editing && (
+                  <>
+                    <button
+                      style={GHOST_BTN}
+                      onClick={() => void doAction(row, "save")}
+                      disabled={c.busy || c.sent}
+                    >
+                      {c.busy ? "SAVING…" : "SAVE EDIT"}
+                    </button>
+                    <button
+                      style={GHOST_BTN}
+                      onClick={() =>
+                        /* Restores the text as it was when the pencil was clicked.
+                           A cancel that kept the edits would be a lie. */
+                        setCards((prev) => ({
+                          ...prev,
+                          [row.eventId]: {
+                            ...prev[row.eventId],
+                            text: prev[row.eventId].preEdit,
+                            editing: false,
+                            preEdit: "",
+                          },
+                        }))
+                      }
+                      disabled={c.busy || c.sent}
+                    >
+                      CANCEL
+                    </button>
+                  </>
+                )}
                 <button
                   style={GHOST_BTN}
                   onClick={() => void doAction(row, "skip")}
