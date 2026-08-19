@@ -14,6 +14,67 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-151 — 2026-08-19
+
+**Sent:** Item 83 — confirm the two-data-sources theory with evidence before fixing, find the
+minimal unifying fix, check the Item 80 / UUID connection, test with real scenarios.
+
+**Response to CC-151:** **⚠⚠ MY HYPOTHESIS IS DISPROVEN, AND SO WAS MY SECOND ONE. The real finding
+is bigger than Item 83: ALL 756 PROJECTS HAVE A BLANK STATUS, so Load Vehicle's gate is currently
+closed for EVERY project — recurring and special alike.** No code written — I have not proven a bug,
+and CC-151 asked for evidence first.
+
+- **✅ DISPROVEN #1 — IT IS NOT TWO DATA SOURCES. Load Vehicle reads ONE source with ONE filter.**
+  `loading.tsx:151-168` maps `d.tools` (TM_TAB) and filters on three conditions, the operative one
+  being **`projectStatus[client||projectId] === "Confirmed"`**. Recurring items are not on a separate
+  path; they are subject to the same single gate. **My CC-142/149 theory was wrong.**
+- **✅ AND THE FILTER IS ALREADY THE SUBJECT OF A DOCUMENTED FIX (PP2, 8/2)** — the status map was
+  once keyed by bare Project ID, which collided across clients ("proj-1 exists for nearly every
+  client") and silently emptied the list. That was fixed with a composite `client||projectId` key.
+  **The plumbing is sound.**
+- **⚠⚠ DISPROVEN #2 — I thought I had found it in `confirm.tsx:847`, `if (!e) continue;`, which
+  would have skipped any untouched project and stranded the PP2 client-level fallback beneath it. It
+  does not fire: `setEdits` at 569-589 PRE-POPULATES an entry for EVERY project on every load**
+  (`next[key] = existing ?? {…}`). I checked instead of shipping it, which is the only reason that
+  did not become a confident wrong fix.
+- **✅ ESTABLISHED, THE WRITE PATH: `setStatus` is the ONLY writer of CP_TAB Status** — labelled in
+  Code.js:5348 as *"Confirm/Skip on special projects"* — plus `confirmDay`'s bulk `statuses` array.
+  A blank sheet Status becomes `"Pending"` via `statusFromServer`, which satisfies neither branch, so
+  it relies on the client-level fallback. Server-confirmed clients DO merge into the local set
+  (442-450), so that fallback is reachable.
+- **⚠⚠⚠ THE ACTUAL DATA, fetched live via `?action=getProjects` rather than asked for: 756 projects,
+  and the Status distribution is `'(blank)' -> 756`. EVERY SINGLE ONE.** Today's single client has
+  one RECURRING and one SPECIAL project, **both blank**.
+- **⚠⚠ WHICH MEANS THE SYMPTOM IS MIS-SCOPED: nothing has Status "Confirmed", so Load Vehicle would
+  currently show NOTHING for any project of any type.** Recurring is simply where Brandon noticed
+  it. Fixing "recurring" specifically would have been patching the wrong layer.
+- **⚠ AND THE HONEST CAVEAT THAT STOPS ME CALLING IT A BUG: it is ~00:30 PT and TODAY'S CREW DAY HAS
+  NOT STARTED.** The 8/2 comment records that **Status is cleared daily at 08:30 by Make scenario
+  5514992** and that `Status='Confirmed'` therefore means *confirmed today*. **Blank at midnight,
+  before anyone has confirmed, is exactly what a working system looks like.** 756/756 blank is also
+  consistent with a daily clear that sweeps every row.
+- **⚠ SO THE DISCRIMINATOR IS ONE READING AT THE RIGHT MOMENT, not more code archaeology: re-read
+  `?action=getProjects` AFTER the day is confirmed.** Status "Confirmed" on today's projects ⇒ the
+  write works and the bug is downstream in the reader. Still blank ⇒ the confirm write is not landing,
+  and **⚠ the prime suspect is that Make 5514992 clears but nothing reliably sets — with Make being
+  phased out, that dependency is exactly the kind that rots silently.**
+- **✅ ITEM 80 / UUID CONNECTION — ANSWERED, AND IT IS NEITHER REAL NOR COINCIDENTAL: ITEM 80 HAS
+  NEVER BEEN DEFINED. Zero definitions in CC-LOG.md** — it appears only inside carried-forward lists
+  and one CC-116 aside telling a future session to "check the Item 80 interaction". **I cannot assess
+  a shared root cause with an item that has no recorded content**, and I am not going to invent one.
+  It needs a definition before it can be worked or dropped.
+- **⚠ ONE LATENT ODDITY NOTED WITHOUT OVERSTATING IT: `deletes` is also handled inside that same
+  `if (!e) continue;` block.** Benign today because `edits` is pre-populated — but if that
+  pre-population ever became conditional, deletions would start silently vanishing too.
+- **Carried forward:** ⚠ **the post-confirm `getProjects` reading — that is Item 83's decisive test**;
+  ⚠ **Item 80 needs a definition or retirement**; a fresh probe/invoice under @321 (pill + Item column
+  still unseen); delete the two stray root PDFs; invoice 22804 cleanup; Lovable build history for
+  047ba0a; Stripe Dashboard branding; gallery-file purge; the 109 empty catches; the 4 UUID-project
+  rows; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81,
+  82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-150 — 2026-08-19
 
 **Sent:** Verification only — run `listInstalledTriggers()` and confirm `invoicePdfPurge_` appears.
