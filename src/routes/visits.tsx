@@ -108,6 +108,18 @@ function weekKey(d: Date): string {
   return `${local.getUTCFullYear()}-${local.getUTCMonth() + 1}-${local.getUTCDate()}`;
 }
 
+/* CC-155 Item A — make a disabled button LOOK disabled.
+   ⚠ ROOT CAUSE, and it was (a) not (b): the `disabled` attribute WAS correctly set, so SEND
+   was genuinely inert and unclickable. But every button here is styled with an INLINE style
+   object, and inline styles cannot express `:disabled` — that is a CSS pseudo-class. So the
+   button kept LIME fill and `cursor: pointer` and read as live while being dead.
+   ⚠ NOT limited to edit mode: SEND has looked lit while `busy` and `sent` too, ever since
+   these styles were written. Edit mode is simply the first state someone SITS in long enough
+   to notice. So this takes the whole disabled condition, not just `editing`. */
+function offBtn(base: React.CSSProperties, off: boolean): React.CSSProperties {
+  return off ? { ...base, opacity: 0.4, cursor: "not-allowed" } : base;
+}
+
 function yesThisWeek(lastYes: string | null): boolean {
   if (!lastYes) return false;
   const d = new Date(lastYes);
@@ -642,7 +654,8 @@ export function VisitsPage({
               + NEW MESSAGE
             </button>
           )}
-          <button style={GHOST_BTN} onClick={onReload} disabled={reloading}>
+          {/* CC-155: same inline-style blind spot — this one looked live while reloading. */}
+          <button style={offBtn(GHOST_BTN, reloading)} onClick={onReload} disabled={reloading}>
             {reloading ? <>RELOADING<Ellipsis /></> : "RELOAD"}
           </button>
         </div>
@@ -835,7 +848,8 @@ export function VisitsPage({
               )}
               <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                 <button
-                  style={SOLID_BTN}
+                  /* CC-155: greys out for EVERY disabled reason, not just editing. */
+                  style={offBtn(SOLID_BTN, c.busy || c.sent || c.editing)}
                   onClick={() => void doAction(row, "send")}
                   /* CC-154: ⚠ `c.editing` GATES SEND. A half-typed message must not
                      be sendable — this is a client-facing text, and there is no
@@ -857,14 +871,14 @@ export function VisitsPage({
                 {c.editing && (
                   <>
                     <button
-                      style={GHOST_BTN}
+                      style={offBtn(GHOST_BTN, c.busy || c.sent)}
                       onClick={() => void doAction(row, "save")}
                       disabled={c.busy || c.sent}
                     >
                       {c.busy ? "SAVING…" : "SAVE EDIT"}
                     </button>
                     <button
-                      style={GHOST_BTN}
+                      style={offBtn(GHOST_BTN, c.busy || c.sent)}
                       onClick={() =>
                         /* Restores the text as it was when the pencil was clicked.
                            A cancel that kept the edits would be a lie. */
@@ -885,7 +899,10 @@ export function VisitsPage({
                   </>
                 )}
                 <button
-                  style={GHOST_BTN}
+                  /* CC-155: SKIP stays ENABLED during edit (CC-154's reasoning: it
+                     sends nothing), so `editing` is deliberately absent here — but it
+                     still greys out while busy or already sent. */
+                  style={offBtn(GHOST_BTN, c.busy || c.sent)}
                   onClick={() => void doAction(row, "skip")}
                   disabled={c.busy || c.sent}
                 >
