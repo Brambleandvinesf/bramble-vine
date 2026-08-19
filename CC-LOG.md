@@ -14,6 +14,63 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-157 — 2026-08-19
+
+**Sent:** Add a manual "Refresh" per invoice — refetch from QBO, re-render, overwrite at the same
+token. Confirm the send-time logic is invocable standalone; confirm nothing client-facing fires.
+
+**Response to CC-157:** **BACKEND DEPLOYED @323 / v7.4.153. Frontend pushed (`5c7d52e`).** **✅ Item 1:
+NO EXTRACTION NEEDED. ✅ Item 4 verified by grep, not assumption. ⚠ And one frontend trap avoided that
+would have made a refresh look like a send.**
+
+- **✅ ITEM 1 — ALREADY STANDALONE. `invoicePayCheck_(invoiceId, payAmount, payLinkId)` and
+  `invoicePdfUrlFor_(ss, invoiceId, inv, payUrl)` are top-level functions taking explicit params.**
+  The send flow merely calls them. **So this is a SECOND CALLER, not a refactor** — nothing had to be
+  pulled apart, which is the best possible answer to that question.
+- **✅ ITEM 4 — VERIFIED RATHER THAN ASSERTED: none of `invoicePayCheck_`, `invoicePdfUrlFor_` or
+  `invoicePayPdfFrom_` contains `quoFetch_`, `MailApp`, `sendEmail`, `ntfy`, `Pushover` or
+  `msgQueue`.** Grepped each function body individually. **No text or email can leave from a refresh.**
+- **⚠ BUT IT IS NOT SIDE-EFFECT FREE, and that is worth saying rather than letting "nothing
+  client-facing" imply "inert": it reads QBO, it can DEACTIVATE the old Stripe link and MINT a
+  replacement, and it writes and trashes Drive files.** Real external effects — just none a client
+  receives.
+- **⚠⚠ THE DESIGN DECISION THAT MATTERS MOST: refresh routes through `invoicePayCheck_`, NOT a plain
+  fetch.** If the QBO edit changed the total, the old pay link now charges the wrong amount —
+  **re-rendering the PDF alone would produce a document whose printed total and payment amount
+  DISAGREE, which is worse than not refreshing at all.** Fail-closed on a failed re-mint, same rule as
+  the send path.
+- **✅ NO NEW TOKEN, which is the entire point: `invoiceTokenFor_` keeps the existing token and
+  repoints it at the new file, so a link ALREADY IN A CLIENT'S HANDS starts resolving to the refreshed
+  document.**
+- **✅ AND THE DRAFT TEXT IS DELIBERATELY NOT REWRITTEN — since CC-144 the body carries the DOCUMENT
+  link (stable token), not the Stripe URL, so a re-mint invalidates nothing in the message.** That is
+  simpler than the send path, which did need a swap back when the body held the raw link.
+- **⚠⚠ THE FRONTEND TRAP I AVOIDED: refresh gets its OWN `refreshing` flag rather than reusing
+  `busy`.** Every button on the card renders its own busy label off that one flag — **so reusing it
+  would have shown "SENDING…" on the SEND button during a refresh.** On an invoicing screen that is
+  not cosmetic; it reads as *a client was just texted*.
+- **✅ Mirrors `doAction`'s 45s `AbortController` and always-clear `finally`**, for the same reason
+  CC-104 added them: a hung request must never leave a dead button.
+- **✅ Invoice rows only (the backend refuses the rest, so the control would otherwise be dead on
+  confirmations), and DELIBERATELY still available once `sent` — refreshing an already-sent invoice is
+  the main reason this exists.** Blocked mid-edit, to avoid two writes racing on one row.
+- **✅ A re-minted pay link is SURFACED in the flash** (`"Refreshed — pay link updated to $X."`) rather
+  than left silent, since it changes what a client will be charged.
+- **⚠ WHAT I COULD NOT TEST: the backend action end-to-end.** Apps Script's POST-through-redirect
+  behaviour would not cooperate with curl (411, then Google's wrapper page), so **I verified the deploy
+  by content instead** — `data.action === 'refreshInvoicePdf'` 1, the guard strings present, both
+  helper calls present, v7.4.153. Frontend typechecked clean on the Pi with the
+  negative-control-validated harness. **The click-through is Brandon's.**
+- **Carried forward:** ⚠ **publish — FIVE frontend commits now waiting** (`047ba0a`, `429efe1`,
+  `629ae8d`, `0f3dce9`, `5c7d52e`); ⚠ **the CC-119 build question**; one real invoice for the branded
+  link + lime pill + Item column; the post-confirm `getProjects` reading for Item 83; the two stray
+  root PDFs; invoice 22804 cleanup; Stripe Dashboard branding; gallery-file purge; the 109 empty
+  catches; the 4 UUID-project rows; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+  **(Item 80: retired. Item C: closed — wishlist only.)**
+
+---
+
 ## CC-156 — 2026-08-19
 
 **Sent:** Item C resolved — leave as-is, note the Drive-framing preview as wishlist. Item D — lime
