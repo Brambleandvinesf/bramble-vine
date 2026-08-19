@@ -14,6 +14,52 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-150 — 2026-08-19
+
+**Sent:** Verification only — run `listInstalledTriggers()` and confirm `invoicePdfPurge_` appears.
+Flag immediately if it does not. Memo placement confirmed as deployed.
+
+**Response to CC-150:** **✅ CONFIRMED — `invoicePdfPurge_ [CLOCK]` is installed, verified from the
+script's OWN API rather than the UI.** ⚠⚠ **And the same log surfaced a timing trap: BOTH of
+Brandon's PDF probe runs PREDATE @321, so neither artifact contains the pill or the Item column.**
+No code changes; nothing deployed.
+
+- **⚠ HOW I VERIFIED IT, since I cannot execute editor functions: `clasp logs`.** Brandon's own runs
+  are recorded there, which is better evidence than me re-running anything — it is what
+  `ScriptApp.getProjectTriggers()` actually reported at the time.
+- **✅ THE FULL LISTING, `INSTALLED TRIGGERS (12)`, with `invoicePdfPurge_` FIRST:** `invoicePdfPurge_
+  [CLOCK]`, `morningConfirmNudge`, `enrichCalendarOnChange`, `endOfDayCleanup_`,
+  `updateDepartureEta`, `payrollNightly_`, `syncQuoDoneStatus`, `visitTimerTick`, `dailyReset_`,
+  `nineAmClockArm`, `enrichCalendarOnChange [ON_EVENT_UPDATED]`, `autoSortOnChange [ON_CHANGE]`.
+- **✅ SO BRANDON'S MANUAL CHECK AND THE SCRIPT API AGREE — no inconsistency to flag.**
+- **✅ AND AN UNEXPECTED BONUS PROOF: he ran the installer TWICE (14:23:05 and 16:24:46), and the
+  trigger count stayed at 12 BOTH times.** That is direct evidence the installer's
+  duplicate-removal works — a second install without it would have shown 13. I had written that
+  de-dup defensively and never verified it; the logs did.
+- **⚠ FIRST PURGE RUN HAS NOT HAPPENED YET, which is correct: it is scheduled for ~3:30 AM and the
+  log window ends 17:03.** Expect the first `invoicePdfPurge_:` summary line tomorrow morning.
+- **⚠⚠ THE TIMING TRAP, AND THIS IS THE PART WORTH ACTING ON: `cc107InvoicePdfProbe` ran at
+  14:23:54 and 16:28:55. @321 deployed at 17:02 PT. BOTH PROBE PDFs PREDATE THE PILL BY 33+
+  MINUTES.** Judging @321's work against either would repeat the exact stale-file confusion of
+  CC-147 for a third time. **The log range ends at 17:03:02, so NOTHING has been rendered under @321
+  yet — the pill has still never been seen by anyone.**
+- **⚠ TWO STRAY PDFs IN DRIVE ROOT, per the probe's own comment ("Writes one PDF to Drive ROOT — not
+  the invoice folder. Delete the file after.")** — one from each run. Worth deleting; they are not
+  in the purge's scope because the purge only sweeps rows in the Invoice Tokens tab.
+- **⚠ AND TWO TEST-MODE STRIPE PAYMENT LINKS now exist** (`plink_1U5tV8EV7amXHJgKVNyRRvE4` from the
+  earlier live test, `plink_1U5wR9EV7amXHJgKGkRO36JY` from this probe). Harmless — test mode
+  processes no money — but they are live objects in the Stripe test dashboard.
+- **✅ MEMO PLACEMENT: recorded as final. Kept exactly as deployed in CC-149 — above the pill, not
+  deleted.**
+- **Carried forward:** ⚠ **a FRESH probe or invoice under @321 — the pill and the Item column have
+  still never been rendered**; note whether the LOGO appears, since it answers the data-URI question
+  outright; delete the two stray root PDFs; **Item 83 next**; invoice 22804 cleanup; Lovable build
+  history for 047ba0a; Stripe Dashboard branding; gallery-file purge; the 109 empty catches; the 4
+  UUID-project rows; Item 80; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery;
+  Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-149 — 2026-08-19
 
 **Sent:** bgcolor button confirmed dead on a fresh @320 invoice — build the image pill. Strip
