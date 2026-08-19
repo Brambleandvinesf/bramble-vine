@@ -14,6 +14,61 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-154 — 2026-08-19
+
+**Sent:** Invoice Queue UI — remove the duplicate textarea, pencil-to-edit the preview in place, SAVE
+EDIT only in edit mode, SEND disabled while editing. Confirm the structure first.
+
+**Response to CC-154:** **✅ STRUCTURE CONFIRMED AS DESCRIBED, then changed. Pushed as `429efe1`
+(forward-only). ⚠ FRONTEND — it needs a Lovable PUBLISH to reach the live app; it is not live yet.**
+
+- **✅ CONFIRMED BEFORE TOUCHING ANYTHING, and it matched exactly:** `src/routes/visits.tsx` — an
+  editable `<textarea>` bound to `c.text`, a read-only `<MessagePreview text={c.text} />` **directly
+  beneath it showing the same string**, and SEND / SAVE EDIT / SKIP all permanently visible with
+  `disabled={c.busy || c.sent}`.
+- **⚠ AND ONE THING I CHECKED SPECIFICALLY BEFORE EDITING: there are TWO textareas in that file.** The
+  other (line 609) belongs to the ad-hoc **"add message" composer**, which has its own preview call.
+  **I did not touch it** — and made `MessagePreview`'s new `onEdit` prop **optional** precisely so that
+  second call site needs no change and grows no pencil.
+- **✅ THE CHANGE:** preview is now the resting state and carries a **✎** pencil that turns it editable
+  **in place**; SAVE EDIT and a new **CANCEL** render only while editing; **SEND is disabled while
+  editing** with a `title` explaining why.
+- **⚠ SEND GATING IS THE POINT, and worth stating plainly: this is a client-facing text with no
+  recall.** A half-typed message must not be sendable. Save or cancel first.
+- **✅ SKIP LEFT ENABLED, deliberately, and the prompt's own reasoning holds: it sends nothing, so an
+  unsaved edit is moot** — and gating it would only make abandoning a card harder.
+- **⚠ `preEdit` EXISTS SO CANCEL IS HONEST.** Without storing the pre-edit text, "cancel" would silently
+  keep the edits it claims to discard — worse than having no cancel at all.
+- **⚠ EDIT MODE ENDS ONLY ON A *SUCCESSFUL* SAVE.** `doAction` returns early when the write fails, so a
+  failed save leaves the card editable with the text intact, rather than dropping back to a preview that
+  shows an unsaved edit as though it had landed.
+- **⚠ AND A LOAD-BEARING LINE I ANNOTATED RATHER THAN CHANGED: `next[r.eventId] = prev[r.eventId] ?? {…}`
+  in the poll reducer is what keeps an in-progress EDIT alive across a background refresh.** Without it a
+  poll would drop the card out of edit mode mid-typing. It was already correct; it is now commented as
+  to why.
+- **✅ VERIFIED BY TYPECHECKING, NOT BY READING: there is no toolchain locally (no node_modules, npx,
+  node or bun), but the Pi has npm/node.** Installed TypeScript there and ran `tsc --noEmit --noResolve`
+  on the file: **no syntax errors, no missing-property errors**, only environment-level missing-React-
+  types noise.
+- **⚠⚠ AND I PROVED THE CHECK COULD ACTUALLY FAIL, because a green result from a broken harness is
+  worthless: deleted one `editing:` field in a copy and re-ran — `TS2741: Property 'editing' is missing
+  in type … but required in type 'CardState'`.** The check is live, so the clean result on the real file
+  means something.
+- **⚠ WHAT I COULD NOT TEST: the interaction itself.** Clicking the pencil, typing, and seeing SEND grey
+  out needs the app running, and there is no local dev toolchain. The logic is typechecked and the state
+  transitions are small, but **the click-through is Brandon's to confirm**.
+- **⚠ NOT LIVE UNTIL PUBLISHED. This is a Lovable-connected repo — the commit is pushed and clean, but
+  the app serves the published build.** Whether an external push triggers a rebuild is still the
+  unanswered question from CC-119 (commit `047ba0a`), so **assume a publish is required.**
+- **Carried forward:** ⚠ **publish, then click through edit → save → send-enabled**; the CC-119 build
+  question (still unanswered, and now it matters twice); one real invoice for the branded link + lime
+  pill + Item column; the post-confirm `getProjects` reading for Item 83; Item 80 needs a definition;
+  the two stray root PDFs; invoice 22804 cleanup; Stripe Dashboard branding; gallery-file purge; the 109
+  empty catches; the 4 UUID-project rows; Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push
+  delivery; Items 66-74, 76, 79, 81, 82; Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-153 — 2026-08-19
 
 **Sent:** The branded redirect is live. Update the minter so client texts show
