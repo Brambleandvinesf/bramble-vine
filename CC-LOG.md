@@ -14,6 +14,65 @@ whole history from here without Brandon re-pasting anything.
 
 ---
 
+## CC-149 — 2026-08-19
+
+**Sent:** bgcolor button confirmed dead on a fresh @320 invoice — build the image pill. Strip
+everything below the total. Add an Item Name column.
+
+**Response to CC-149:** **DEPLOYED @321 / v7.4.151.** ⚠ **The pill is a real PNG and I looked at it
+before shipping it.** One detail in the prompt changed the engineering entirely, and one instruction
+had an ambiguity I resolved by reordering rather than deleting.
+
+- **⚠⚠ DROPPING THE DOLLAR AMOUNT MADE THE GRAPHIC STATIC, WHICH REMOVED MOST OF THE PROBLEM.**
+  CC-147's pre-approval assumed a per-invoice image with the amount baked in — that would have meant
+  generating a PNG at every render. **CC-149's "Pay Now" only, no amount, means ONE image forever.**
+  So it is a **6,072-char base64 literal inlined in Code.js** — no `UrlFetchApp`, no CacheService, no
+  hosting, and no dependence on the unresolved Lovable-publish question.
+- **✅ GENERATED WITH PIL ON THE PI (python3 + Pillow present), AND I READ THE PNG BACK TO CONFIRM
+  IT:** 400×104 at 2× for crispness, **corner radius = half the height, so it is a true pill rather
+  than a rounded rectangle**, lime `#7cff00`, `#0a0a0a` bold "Pay Now", transparent outside the
+  shape. 4,554 bytes. Committed with its generator to `reference/` so the label or colours can be
+  changed without reverse-engineering a base64 blob.
+- **✅ THIRD ATTEMPT, AND THE FIRST THE RENDERER CANNOT UNDO.** CC-144: CSS
+  background/padding/border-radius on an `<a>` → grey text. CC-146: table cell with the legacy
+  `bgcolor` attribute → plain bold black text on a real @320 invoice. **Drive's converter honours
+  neither.** Pixels are the only remaining answer, and `bgcolor=` is now **0** in the deployed file.
+- **✅ PAY AREA STRIPPED as asked: no third rule, no ACH heading, no paste-link, no card note.**
+  Verified in a real render: `or paste this link` and `bank transfer` appear only in one comment line
+  describing their removal; `card payments are handled` is **0**.
+- **⚠ ON RECORD, NOT RELITIGATED: with the paste-link gone, an image that fails to render leaves that
+  document with NO visible way to pay** — the anchor becomes an invisible hotspot over nothing. That
+  is the one failure mode with no in-document recovery, and it is accepted.
+- **⚠⚠ THE AMBIGUITY I DID NOT GUESS AT: the QBO memo ("Thank you. Tax included in the total
+  shown.") sat BELOW the button.** It was not in the list of four things to remove, but "nothing
+  else below it" is explicit. **Deleting client-facing tax wording on an inferred instruction would
+  be overstepping; leaving it under the button would ignore a clear instruction. So I MOVED IT
+  ABOVE the pill** — the button is genuinely last, and nothing was thrown away. Confirmed in a real
+  render: `TOTAL → memo → pill → end`.
+- **✅ ITEM NAME — AND THE REAL FINDING IS THAT IT WAS BEING SWALLOWED, NOT MERELY ABSENT.**
+  `description` read `l.Description || sid.ItemRef.name`, **so the item name could never be its own
+  column AND silently stood in for the description whenever Description was empty.** Now split into
+  `itemName` and `description`, rendered as **Item | Description | Qty | Amount** with Item leftmost
+  and bold. **No extra QBO call** — `saved` is the full Invoice entity per CC-147.
+- **✅ VERIFIED BY ACTUALLY RENDERING, not just grepping: extracted `invoiceHtml_` from the patched
+  file, ran it against a realistic three-line invoice, and inspected the output** — 4 header columns,
+  pill `<img>` present, all four removals confirmed, and a blank Item cell where a line has no item
+  name rather than the description repeating.
+- **⚠ WHAT I STILL CANNOT VERIFY, and it is now the ONLY open question: whether an `<img>` data URI
+  renders in Drive's PDF at all.** The logo uses the same mechanism — **so if the logo appeared in
+  the last test PDF, the pill will work; if it did not, no image approach can succeed** and the
+  honest answer becomes styled text. Worth reporting which was seen.
+- **✅ DEPLOYED: `clasp pull` IDENTICAL first; 78 added, 27 removed; `node --check` PASS; remote
+  verified (`PAY_PILL_PNG` 2, `esc(i.itemName)` 1, `bgcolor=` 0, v7.4.151).**
+- **Carried forward:** ⚠ **one fresh invoice to see the pill — and note whether the LOGO renders,
+  since that answers the image question outright**; the two MANDATORY purge steps still outstanding
+  from CC-145; **Item 83 next**; invoice 22804 cleanup; Lovable build history for 047ba0a; Stripe
+  Dashboard branding; gallery-file purge; the 109 empty catches; the 4 UUID-project rows; Item 80;
+  Item 77 extraction; hqScreenFor/redirect tidy; Item 62 push delivery; Items 66-74, 76, 79, 81, 82;
+  Item 50; Mercury; Stripe MCP.
+
+---
+
 ## CC-147 — 2026-08-18
 
 **Sent:** Preview links must work before send. And the pay button still isn't reading as a pill —
