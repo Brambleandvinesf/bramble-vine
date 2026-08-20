@@ -306,7 +306,7 @@ function useLoadingSnapshot(enabled: boolean) {
           .filter(
             (it) => it.item && clientSet.has(it.client) && projectStatus[it.project] === "Confirmed",
           );
-        const byId = new Map(list.map((i) => [i.materialId, i]));
+        const byId = new Map(list.map((i) => [String(i.row), i]));
         const abandoned = optReconcile((r) => {
           const it = byId.get(r.id);
           if (!it) return true; // row gone from the checklist entirely
@@ -336,7 +336,7 @@ function useLoadingSnapshot(enabled: boolean) {
       const next = !it.loaded;
       // The record is the optimistic flip - no separate local mutation needed,
       // and it now outlives the polls instead of being overwritten by them.
-      optDecide("loaded", it.materialId, next);
+      optDecide("loaded", String(row), next);
       try {
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
@@ -346,7 +346,7 @@ function useLoadingSnapshot(enabled: boolean) {
         // Previously only a thrown error rolled back, so an HTTP 500 read as success.
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } catch {
-        optRevert("loaded", it.materialId);
+        optRevert("loaded", String(row));
         toast.error("Couldn't save that item — try again.");
       }
     },
