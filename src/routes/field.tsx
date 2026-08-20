@@ -286,10 +286,19 @@ function useLoadingSnapshot(enabled: boolean) {
         const clientSet = new Set(
           (json.clients ?? []).map((c) => String(c ?? "").trim()).filter(Boolean),
         );
+        /* PP2 (8/2): Project IDs are unique only PER CLIENT ("proj-1" exists
+           for nearly every client), so a bare-ID key lets a later client's
+           blank status clobber an earlier client's "Confirmed" and silently
+           drops that client's whole checklist. loading.tsx already keys by
+           Client Name + Project ID; this reader never got the same fix, which
+           is why the assistant's Load Vehicle showed fewer items than the
+           lead's. */
+        const statusKey = (client: unknown, project: unknown) =>
+          `${String(client ?? "").trim()}||${String(project ?? "").trim()}`;
         const projectStatus: Record<string, string> = {};
         (json.projects ?? []).forEach((p) => {
           const id = String(p["Project ID"] ?? "").trim();
-          if (id) projectStatus[id] = String(p["Status"] ?? "").trim();
+          if (id) projectStatus[statusKey(p["Client Name"], id)] = String(p["Status"] ?? "").trim();
         });
         const list: LoadingItem[] = (json.tools ?? [])
           .map((t) => ({
@@ -304,7 +313,10 @@ function useLoadingSnapshot(enabled: boolean) {
             loaded: t["Loaded Status"] === true,
           }))
           .filter(
-            (it) => it.item && clientSet.has(it.client) && projectStatus[it.project] === "Confirmed",
+            (it) =>
+              it.item &&
+              clientSet.has(it.client) &&
+              projectStatus[statusKey(it.client, it.project)] === "Confirmed",
           );
         const byId = new Map(list.map((i) => [String(i.row), i]));
         const abandoned = optReconcile((r) => {
