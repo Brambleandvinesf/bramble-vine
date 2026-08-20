@@ -1401,28 +1401,21 @@ function FieldBody({
       ? `${assistantsStillIn.map((m) => m.name).join(", ")} — assistants clock out before the lead.`
       : null;
 
-  const makeClockSlot = (hideClientSwitch?: boolean) =>
-    me ? (
-      <PersonalClockPanel
-        me={me}
-        roster={roster}
-        clientMatch={clientMatch}
-        now={now}
-        isPreview={isPreview}
-        send={send}
-        setBanner={setBanner}
-        breakFrom={breakFrom}
-        setBreakFrom={setBreakFrom}
-        afterClockOut={leadEndOfDay ? openPayroll : undefined}
-        outBlockedReason={leadOutBlocked}
-        hideClientSwitch={hideClientSwitch}
-      />
-    ) : null;
-  const personalClockSlot = makeClockSlot();
-  /* HQ Load Vehicle: nobody is at a client yet, so a "SWITCH TO <client>" /
-     "SWITCH TO BRAMBLE & VINE" pair at the top of the checklist is noise —
-     and only the assistant ever saw it, because leads load from /loading. */
-  const loadingClockSlot = makeClockSlot(true);
+  const personalClockSlot = me ? (
+    <PersonalClockPanel
+      me={me}
+      roster={roster}
+      clientMatch={clientMatch}
+      now={now}
+      isPreview={isPreview}
+      send={send}
+      setBanner={setBanner}
+      breakFrom={breakFrom}
+      setBreakFrom={setBreakFrom}
+      afterClockOut={leadEndOfDay ? openPayroll : undefined}
+      outBlockedReason={leadOutBlocked}
+    />
+  ) : null;
 
   /* AB (8/2): the one combined client-arrival action. Marks arrival (only
      the first presser — the shared route state makes it first-tap-wins),
