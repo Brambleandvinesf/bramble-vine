@@ -1514,7 +1514,7 @@ function FieldBody({
       )}
       {!routeComplete && (
         <>
-          {currentEvent && (
+          {currentEvent && !assistantGateOpen && (
             <ClientHeader
               event={currentEvent}
               clientMatch={vendorStop ? vendorStop.vendor : clientMatch}
@@ -1528,7 +1528,6 @@ function FieldBody({
               /* Vendor/break stops aren't clients — no inventory reference. */
               panelDisabled={!!vendorStop || isBreakStop || isPreview}
             />
-
           )}
 
           {(state === "" || state === "enroute" || state === "arrived") && (
