@@ -1533,7 +1533,6 @@ function FieldBody({
           {(state === "" || state === "enroute" || state === "arrived") && (
             assistantGateOpen ? (
               <AssistantLoadingGate
-                clockSlot={loadingClockSlot}
                 confirmed={loadingSnap.confirmed === true}
                 items={loadingSnap.items}
                 ready={loadingSnap.ready}
