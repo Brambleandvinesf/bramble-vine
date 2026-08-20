@@ -1471,7 +1471,7 @@ function FieldBody({
   return (
     <div>
       {me && (
-        <ClockingAsHeader me={me} roster={roster} />
+        <ClockingAsHeader me={me} roster={roster} now={now} />
       )}
       {/* ROUTE COMPLETE → the HQ end-of-day sequence (BB, 8/2):
           ARRIVED AT HQ → FINISHED UNLOADING → clock out (assistants
@@ -2110,10 +2110,20 @@ function RosterPicker({
  * ============================================================ */
 function ClockingAsHeader({
   me,
+  roster,
+  now,
 }: {
   me: Me;
   roster: RosterMember[];
+  now: number;
 }) {
+  const row = roster.find((r) => r.id === me.id);
+  const open = !!row?.in && !row?.out;
+  const clientLabel = row?.client
+    ? isOverheadClient(row.client)
+      ? OVERHEAD_CLIENT
+      : row.client
+    : null;
   return (
     <div
       style={{
@@ -2124,8 +2134,24 @@ function ClockingAsHeader({
         flexWrap: "wrap",
       }}
     >
-      <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKING AS:</span>
-      <span style={{ color: LIME, fontSize: 12, letterSpacing: 1 }}>{me.name.toUpperCase()}</span>
+      {open ? (
+        <>
+          <span style={{ color: LIME, fontSize: 12, letterSpacing: 1, fontWeight: "bold" }}>
+            {me.name.toUpperCase()}
+          </span>
+          <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKED IN UNDER</span>
+          <span style={{ color: LIME, fontSize: 12, letterSpacing: 1, fontWeight: "bold" }}>
+            {clientLabel?.toUpperCase() ?? "UNKNOWN"}
+          </span>
+          <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>
+            since {fmtTime(row.in)} · {elapsed(row.in, now)}
+          </span>
+        </>
+      ) : (
+        <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>
+          {me.name.toUpperCase()} — NOT CLOCKED IN
+        </span>
+      )}
     </div>
   );
 }
