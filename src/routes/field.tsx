@@ -1401,28 +1401,21 @@ function FieldBody({
       ? `${assistantsStillIn.map((m) => m.name).join(", ")} — assistants clock out before the lead.`
       : null;
 
-  const makeClockSlot = (hideClientSwitch?: boolean) =>
-    me ? (
-      <PersonalClockPanel
-        me={me}
-        roster={roster}
-        clientMatch={clientMatch}
-        now={now}
-        isPreview={isPreview}
-        send={send}
-        setBanner={setBanner}
-        breakFrom={breakFrom}
-        setBreakFrom={setBreakFrom}
-        afterClockOut={leadEndOfDay ? openPayroll : undefined}
-        outBlockedReason={leadOutBlocked}
-        hideClientSwitch={hideClientSwitch}
-      />
-    ) : null;
-  const personalClockSlot = makeClockSlot();
-  /* HQ Load Vehicle: nobody is at a client yet, so a "SWITCH TO <client>" /
-     "SWITCH TO BRAMBLE & VINE" pair at the top of the checklist is noise —
-     and only the assistant ever saw it, because leads load from /loading. */
-  const loadingClockSlot = makeClockSlot(true);
+  const personalClockSlot = me ? (
+    <PersonalClockPanel
+      me={me}
+      roster={roster}
+      clientMatch={clientMatch}
+      now={now}
+      isPreview={isPreview}
+      send={send}
+      setBanner={setBanner}
+      breakFrom={breakFrom}
+      setBreakFrom={setBreakFrom}
+      afterClockOut={leadEndOfDay ? openPayroll : undefined}
+      outBlockedReason={leadOutBlocked}
+    />
+  ) : null;
 
   /* AB (8/2): the one combined client-arrival action. Marks arrival (only
      the first presser — the shared route state makes it first-tap-wins),
@@ -1471,7 +1464,7 @@ function FieldBody({
   return (
     <div>
       {me && (
-        <ClockingAsHeader me={me} roster={roster} />
+        <ClockingAsHeader me={me} roster={roster} now={now} />
       )}
       {/* ROUTE COMPLETE → the HQ end-of-day sequence (BB, 8/2):
           ARRIVED AT HQ → FINISHED UNLOADING → clock out (assistants
@@ -1514,7 +1507,7 @@ function FieldBody({
       )}
       {!routeComplete && (
         <>
-          {currentEvent && (
+          {currentEvent && !assistantGateOpen && (
             <ClientHeader
               event={currentEvent}
               clientMatch={vendorStop ? vendorStop.vendor : clientMatch}
@@ -1528,13 +1521,11 @@ function FieldBody({
               /* Vendor/break stops aren't clients — no inventory reference. */
               panelDisabled={!!vendorStop || isBreakStop || isPreview}
             />
-
           )}
 
           {(state === "" || state === "enroute" || state === "arrived") && (
             assistantGateOpen ? (
               <AssistantLoadingGate
-                clockSlot={loadingClockSlot}
                 confirmed={loadingSnap.confirmed === true}
                 items={loadingSnap.items}
                 ready={loadingSnap.ready}
@@ -2110,10 +2101,20 @@ function RosterPicker({
  * ============================================================ */
 function ClockingAsHeader({
   me,
+  roster,
+  now,
 }: {
   me: Me;
   roster: RosterMember[];
+  now: number;
 }) {
+  const row = roster.find((r) => r.id === me.id);
+  const open = !!row?.in && !row?.out;
+  const clientLabel = row?.client
+    ? isOverheadClient(row.client)
+      ? OVERHEAD_CLIENT
+      : row.client
+    : null;
   return (
     <div
       style={{
@@ -2124,8 +2125,24 @@ function ClockingAsHeader({
         flexWrap: "wrap",
       }}
     >
-      <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKING AS:</span>
-      <span style={{ color: LIME, fontSize: 12, letterSpacing: 1 }}>{me.name.toUpperCase()}</span>
+      {open ? (
+        <>
+          <span style={{ color: LIME, fontSize: 12, letterSpacing: 1, fontWeight: "bold" }}>
+            {me.name.toUpperCase()}
+          </span>
+          <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>CLOCKED IN UNDER</span>
+          <span style={{ color: LIME, fontSize: 12, letterSpacing: 1, fontWeight: "bold" }}>
+            {clientLabel?.toUpperCase() ?? "UNKNOWN"}
+          </span>
+          <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>
+            since {fmtTime(row?.in ?? undefined)} · {elapsed(row?.in, now)}
+          </span>
+        </>
+      ) : (
+        <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>
+          {me.name.toUpperCase()} — NOT CLOCKED IN
+        </span>
+      )}
     </div>
   );
 }
@@ -2146,7 +2163,6 @@ function PersonalClockPanel({
   setBreakFrom,
   afterClockOut,
   outBlockedReason,
-  hideClientSwitch,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -2161,8 +2177,6 @@ function PersonalClockPanel({
   afterClockOut?: () => void;
   /** T2 (8/2): non-null blocks every OUT action, with this reason shown. */
   outBlockedReason?: string | null;
-  /** At HQ (Load Vehicle): no client to switch onto yet — hide those buttons. */
-  hideClientSwitch?: boolean;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
@@ -2250,9 +2264,6 @@ function PersonalClockPanel({
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
       enabled: true,
     };
-  } else if (hideClientSwitch) {
-    /* HQ Load Vehicle: no switch/break actions here — this screen matches the
-       lead's /loading checklist, which offers none. Clock-out still renders. */
   } else if (onOverhead && clientMatch) {
     primary = {
       label: `SWITCH TO ${clientMatch.toUpperCase()}`,
@@ -2876,7 +2887,6 @@ const ICON_BTN: React.CSSProperties = {
  * AND every filtered loading item is checked off.
  * ============================================================ */
 function AssistantLoadingGate({
-  clockSlot,
   confirmed,
   items,
   ready,
@@ -2889,7 +2899,6 @@ function AssistantLoadingGate({
   onComplete,
   onDepart,
 }: {
-  clockSlot?: React.ReactNode;
   confirmed: boolean;
   items: LoadingItem[];
   ready: boolean;
@@ -2917,7 +2926,6 @@ function AssistantLoadingGate({
 
   return (
     <div style={{ padding: "10px 14px" }}>
-      {clockSlot}
       {!confirmed && (
         <div
           style={{
