@@ -2264,9 +2264,6 @@ function PersonalClockPanel({
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
       enabled: true,
     };
-  } else if (hideClientSwitch) {
-    /* HQ Load Vehicle: no switch/break actions here — this screen matches the
-       lead's /loading checklist, which offers none. Clock-out still renders. */
   } else if (onOverhead && clientMatch) {
     primary = {
       label: `SWITCH TO ${clientMatch.toUpperCase()}`,
