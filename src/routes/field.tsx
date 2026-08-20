@@ -2901,7 +2901,6 @@ const ICON_BTN: React.CSSProperties = {
  * AND every filtered loading item is checked off.
  * ============================================================ */
 function AssistantLoadingGate({
-  clockSlot,
   confirmed,
   items,
   ready,
@@ -2914,7 +2913,6 @@ function AssistantLoadingGate({
   onComplete,
   onDepart,
 }: {
-  clockSlot?: React.ReactNode;
   confirmed: boolean;
   items: LoadingItem[];
   ready: boolean;
@@ -2942,7 +2940,6 @@ function AssistantLoadingGate({
 
   return (
     <div style={{ padding: "10px 14px" }}>
-      {clockSlot}
       {!confirmed && (
         <div
           style={{
