@@ -2139,6 +2139,7 @@ function PersonalClockPanel({
   setBreakFrom,
   afterClockOut,
   outBlockedReason,
+  hideClientSwitch,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -2153,6 +2154,8 @@ function PersonalClockPanel({
   afterClockOut?: () => void;
   /** T2 (8/2): non-null blocks every OUT action, with this reason shown. */
   outBlockedReason?: string | null;
+  /** At HQ (Load Vehicle): no client to switch onto yet — hide those buttons. */
+  hideClientSwitch?: boolean;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
