@@ -2144,7 +2144,7 @@ function ClockingAsHeader({
             {clientLabel?.toUpperCase() ?? "UNKNOWN"}
           </span>
           <span style={{ color: MUTED, fontSize: 11, letterSpacing: 1 }}>
-            since {fmtTime(row?.in)} · {elapsed(row?.in, now)}
+            since {fmtTime(row?.in ?? undefined)} · {elapsed(row?.in, now)}
           </span>
         </>
       ) : (
