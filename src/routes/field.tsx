@@ -2250,7 +2250,10 @@ function PersonalClockPanel({
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
       enabled: true,
     };
-  } else if (onOverhead && clientMatch && !hideClientSwitch) {
+  } else if (hideClientSwitch) {
+    /* HQ Load Vehicle: no switch/break actions here — this screen matches the
+       lead's /loading checklist, which offers none. Clock-out still renders. */
+  } else if (onOverhead && clientMatch) {
     primary = {
       label: `SWITCH TO ${clientMatch.toUpperCase()}`,
       onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
@@ -2270,12 +2273,10 @@ function PersonalClockPanel({
       onClick: () => void startBreak(c),
       enabled: true,
     };
-    if (!hideClientSwitch) {
-      secondary = {
-        label: "SWITCH TO BRAMBLE & VINE",
-        onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
-      };
-    }
+    secondary = {
+      label: "SWITCH TO BRAMBLE & VINE",
+      onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
+    };
   }
 
 
