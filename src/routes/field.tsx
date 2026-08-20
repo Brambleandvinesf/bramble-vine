@@ -247,15 +247,17 @@ function useLoadingSnapshot(enabled: boolean) {
     return out;
   }, [optRecords]);
 
+  // Keyed by sheet ROW, not Material ID: most rows have no Material ID (that is
+  // the norm, not an error), so keying on it dropped the override for almost
+  // every tap and collided every such row onto one empty-string record.
   const items = useMemo(
     () =>
       rawItems.map((it) =>
-        it.materialId && it.materialId in loadedOverride
-          ? { ...it, loaded: loadedOverride[it.materialId] }
-          : it,
+        String(it.row) in loadedOverride ? { ...it, loaded: loadedOverride[String(it.row)] } : it,
       ),
     [rawItems, loadedOverride],
   );
+
 
   // Toggle needs the currently displayed value without depending on it.
   const itemsRef = useRef(items);
