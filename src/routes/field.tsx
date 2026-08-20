@@ -1401,21 +1401,28 @@ function FieldBody({
       ? `${assistantsStillIn.map((m) => m.name).join(", ")} — assistants clock out before the lead.`
       : null;
 
-  const personalClockSlot = me ? (
-    <PersonalClockPanel
-      me={me}
-      roster={roster}
-      clientMatch={clientMatch}
-      now={now}
-      isPreview={isPreview}
-      send={send}
-      setBanner={setBanner}
-      breakFrom={breakFrom}
-      setBreakFrom={setBreakFrom}
-      afterClockOut={leadEndOfDay ? openPayroll : undefined}
-      outBlockedReason={leadOutBlocked}
-    />
-  ) : null;
+  const makeClockSlot = (hideClientSwitch?: boolean) =>
+    me ? (
+      <PersonalClockPanel
+        me={me}
+        roster={roster}
+        clientMatch={clientMatch}
+        now={now}
+        isPreview={isPreview}
+        send={send}
+        setBanner={setBanner}
+        breakFrom={breakFrom}
+        setBreakFrom={setBreakFrom}
+        afterClockOut={leadEndOfDay ? openPayroll : undefined}
+        outBlockedReason={leadOutBlocked}
+        hideClientSwitch={hideClientSwitch}
+      />
+    ) : null;
+  const personalClockSlot = makeClockSlot();
+  /* HQ Load Vehicle: nobody is at a client yet, so a "SWITCH TO <client>" /
+     "SWITCH TO BRAMBLE & VINE" pair at the top of the checklist is noise —
+     and only the assistant ever saw it, because leads load from /loading. */
+  const loadingClockSlot = makeClockSlot(true);
 
   /* AB (8/2): the one combined client-arrival action. Marks arrival (only
      the first presser — the shared route state makes it first-tap-wins),
@@ -1527,7 +1534,7 @@ function FieldBody({
           {(state === "" || state === "enroute" || state === "arrived") && (
             assistantGateOpen ? (
               <AssistantLoadingGate
-                clockSlot={personalClockSlot}
+                clockSlot={loadingClockSlot}
                 confirmed={loadingSnap.confirmed === true}
                 items={loadingSnap.items}
                 ready={loadingSnap.ready}
@@ -2139,6 +2146,7 @@ function PersonalClockPanel({
   setBreakFrom,
   afterClockOut,
   outBlockedReason,
+  hideClientSwitch,
 }: {
   me: Me;
   roster: RosterMember[];
@@ -2153,6 +2161,8 @@ function PersonalClockPanel({
   afterClockOut?: () => void;
   /** T2 (8/2): non-null blocks every OUT action, with this reason shown. */
   outBlockedReason?: string | null;
+  /** At HQ (Load Vehicle): no client to switch onto yet — hide those buttons. */
+  hideClientSwitch?: boolean;
 }) {
   const row = roster.find((r) => r.id === me.id);
   const open = !!row?.in && !row?.out;
@@ -2240,14 +2250,14 @@ function PersonalClockPanel({
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
       enabled: true,
     };
-  } else if (onOverhead && clientMatch) {
+  } else if (onOverhead && clientMatch && !hideClientSwitch) {
     primary = {
       label: `SWITCH TO ${clientMatch.toUpperCase()}`,
       onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
       enabled: true,
     };
     secondary = { label: "BREAK TIME", onClick: () => void startBreak(OVERHEAD_CLIENT) };
-  } else if (onOverhead && !clientMatch) {
+  } else if (onOverhead) {
     primary = {
       label: "BREAK TIME",
       onClick: () => void startBreak(OVERHEAD_CLIENT),
@@ -2260,11 +2270,14 @@ function PersonalClockPanel({
       onClick: () => void startBreak(c),
       enabled: true,
     };
-    secondary = {
-      label: "SWITCH TO BRAMBLE & VINE",
-      onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
-    };
+    if (!hideClientSwitch) {
+      secondary = {
+        label: "SWITCH TO BRAMBLE & VINE",
+        onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
+      };
+    }
   }
+
 
   return (
     <div style={{ ...PANEL_BOX, marginTop: 4 }}>
