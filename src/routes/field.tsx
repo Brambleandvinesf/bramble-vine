@@ -2243,14 +2243,14 @@ function PersonalClockPanel({
       onClick: () => void doClockIn(OVERHEAD_CLIENT),
       enabled: true,
     };
-  } else if (onOverhead && clientMatch) {
+  } else if (onOverhead && clientMatch && !hideClientSwitch) {
     primary = {
       label: `SWITCH TO ${clientMatch.toUpperCase()}`,
       onClick: () => void doSwitch(OVERHEAD_CLIENT, clientMatch),
       enabled: true,
     };
     secondary = { label: "BREAK TIME", onClick: () => void startBreak(OVERHEAD_CLIENT) };
-  } else if (onOverhead && !clientMatch) {
+  } else if (onOverhead) {
     primary = {
       label: "BREAK TIME",
       onClick: () => void startBreak(OVERHEAD_CLIENT),
@@ -2263,11 +2263,14 @@ function PersonalClockPanel({
       onClick: () => void startBreak(c),
       enabled: true,
     };
-    secondary = {
-      label: "SWITCH TO BRAMBLE & VINE",
-      onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
-    };
+    if (!hideClientSwitch) {
+      secondary = {
+        label: "SWITCH TO BRAMBLE & VINE",
+        onClick: () => void doSwitch(c, OVERHEAD_CLIENT),
+      };
+    }
   }
+
 
   return (
     <div style={{ ...PANEL_BOX, marginTop: 4 }}>
