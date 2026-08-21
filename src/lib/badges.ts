@@ -110,7 +110,9 @@ export function useBadgePoller({
       const want: string[] = [];
       if (canMessages) want.push("messages");
       if (canVisits) want.push("visits");
-      if (canReceipts) want.push("receipts");
+      /* NOT `receipts`: badgeCounts counts pending LINE ITEMS (17 lines across 6
+         receipts, measured 8/21) and the screen shows whole receipts. Counted
+         separately below from getReceipts so the badge matches the screen. */
       if (canApprovals) want.push("queues");
       if (!want.length) return false;
       const e = (email ?? "").trim().toLowerCase();
