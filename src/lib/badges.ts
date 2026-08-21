@@ -144,7 +144,7 @@ export function useBadgePoller({
           set(BK.inbox, c.inbox);
           set(BK.visits, c.visits);
           set(BK.invoices, c.invoices);      // CC-45 Item 47
-          set(BK.receipts, c.receipts);
+          /* c.receipts deliberately ignored — see the want[] note above. */
           set(BK.approvals, c.approvals);
           set(BK.debriefq, c.debriefq);
           if (Array.isArray(j.pending) && j.pending.length > 0) stillPending = true;
