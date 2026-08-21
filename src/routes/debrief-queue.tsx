@@ -9,6 +9,8 @@ import { sessionCache } from "../lib/session-cache";
 import { StateDebrief } from "./field";
 import { fetchPayrollDay, personSeconds } from "../lib/billing-hours";
 import { fetchClientNames } from "../lib/add-project";
+import { Trash2 } from "lucide-react";
+
 
 /* ============================================================
  * DEBRIEF QUEUE — gated on the route_queues capability (lead, office,
