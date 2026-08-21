@@ -857,7 +857,7 @@ function NavBar() {
             </span>
             <FullscreenButton />
             <button
-              onClick={signOut}
+              onClick={handleSignOut}
               style={{
                 background: "transparent",
                 color: "#7cff00",
