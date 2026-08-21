@@ -135,6 +135,23 @@ function DebriefQueuePage() {
      looked at today" were the same answer on screen. */
   const [window, setWindow] = useState<{ since?: string; through?: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  /* Locally hidden rows. Session-scoped on purpose: nothing on the sheet says
+     "this visit needs no debrief", so a hide must never outlive the session and
+     never hide the row from anyone else. */
+  const [dismissed, setDismissed] = useState<string[]>(
+    () => sessionCache.get<string[]>(DK) ?? [],
+  );
+  const [confirmDismiss, setConfirmDismiss] = useState<string | null>(null);
+
+  const dismiss = useCallback((id: string) => {
+    setConfirmDismiss(null);
+    setDismissed((prev) => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      sessionCache.set(DK, next);
+      return next;
+    });
+  }, []);
+
 
   const load = useCallback(async () => {
     setLoading(true);
