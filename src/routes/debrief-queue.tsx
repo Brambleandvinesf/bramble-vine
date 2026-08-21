@@ -9,6 +9,8 @@ import { sessionCache } from "../lib/session-cache";
 import { StateDebrief } from "./field";
 import { fetchPayrollDay, personSeconds } from "../lib/billing-hours";
 import { fetchClientNames } from "../lib/add-project";
+import { Trash2 } from "lucide-react";
+
 
 /* ============================================================
  * DEBRIEF QUEUE — gated on the route_queues capability (lead, office,
@@ -64,6 +66,8 @@ const TEXT = "#e8e8e8";
 const FINE = "#b8b8b8";
 const LINE = "#2a2a2a";
 const CK = "debriefQueue:queue";
+const DK = "debriefQueue:dismissed";
+
 
 type QueueEntry = {
   eventId: string;
@@ -135,6 +139,23 @@ function DebriefQueuePage() {
      looked at today" were the same answer on screen. */
   const [window, setWindow] = useState<{ since?: string; through?: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  /* Locally hidden rows. Session-scoped on purpose: nothing on the sheet says
+     "this visit needs no debrief", so a hide must never outlive the session and
+     never hide the row from anyone else. */
+  const [dismissed, setDismissed] = useState<string[]>(
+    () => sessionCache.get<string[]>(DK) ?? [],
+  );
+  const [confirmDismiss, setConfirmDismiss] = useState<string | null>(null);
+
+  const dismiss = useCallback((id: string) => {
+    setConfirmDismiss(null);
+    setDismissed((prev) => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      sessionCache.set(DK, next);
+      return next;
+    });
+  }, []);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -298,7 +319,11 @@ function DebriefQueuePage() {
     [open, who, load],
   );
 
-  const pending = useMemo(() => queue ?? [], [queue]);
+  const pending = useMemo(
+    () => (queue ?? []).filter((e) => !dismissed.includes(e.eventId)),
+    [queue, dismissed],
+  );
+
 
   if (!allowed) {
     return (
@@ -406,41 +431,95 @@ function DebriefQueuePage() {
 
       <div style={{ display: "grid", gap: 10 }}>
         {pending.map((e) => (
-          <button
-            key={e.eventId}
-            type="button"
-            onClick={() => void openEntry(e)}
-            style={{
-              ...panel,
-              textAlign: "left",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              color: TEXT,
-            }}
-          >
-            <div style={{ color: LIME, fontSize: 14, fontWeight: "bold" }}>{e.client}</div>
-            <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>{fmtWhen(e)}</div>
-            {e.location && (
-              <div style={{ color: FINE, fontSize: 10, marginTop: 2 }}>{e.location}</div>
-            )}
-            {/* CC-10 Item 3: the restored backlog reaches back before the
-                Debrief Log tab existed, so some of these WERE debriefed and
-                simply left no log row. Billed hours is the surviving evidence.
-                Stated, never acted on — it does not remove the row, because a
-                debrief writes four things besides billing and a zero-hour
-                visit is real. */}
-            {typeof e.billedHours === "number" && e.billedHours > 0 && (
-              <div style={{ color: FINE, fontSize: 10, marginTop: 4 }}>
-                {e.billedHours}h already on Billing Hours — may have been debriefed
-                before the log existed
+          <div key={e.eventId} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => void openEntry(e)}
+              style={{
+                ...panel,
+                width: "100%",
+                textAlign: "left",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                color: TEXT,
+                paddingRight: 56,
+              }}
+            >
+              <div style={{ color: LIME, fontSize: 14, fontWeight: "bold" }}>{e.client}</div>
+              <div style={{ color: FINE, fontSize: 11, marginTop: 3 }}>{fmtWhen(e)}</div>
+              {e.location && (
+                <div style={{ color: FINE, fontSize: 10, marginTop: 2 }}>{e.location}</div>
+              )}
+              {/* CC-10 Item 3: the restored backlog reaches back before the
+                  Debrief Log tab existed, so some of these WERE debriefed and
+                  simply left no log row. Billed hours is the surviving evidence.
+                  Stated, never acted on — it does not remove the row, because a
+                  debrief writes four things besides billing and a zero-hour
+                  visit is real. */}
+              {typeof e.billedHours === "number" && e.billedHours > 0 && (
+                <div style={{ color: FINE, fontSize: 10, marginTop: 4 }}>
+                  {e.billedHours}h already on Billing Hours — may have been debriefed
+                  before the log existed
+                </div>
+              )}
+              <div style={{ color: LIME_DIM, fontSize: 10, marginTop: 6, letterSpacing: 1 }}>
+                TAP TO DEBRIEF →
               </div>
-            )}
-            <div style={{ color: LIME_DIM, fontSize: 10, marginTop: 6, letterSpacing: 1 }}>
-              TAP TO DEBRIEF →
+            </button>
+            {/* DISMISS — LOCAL ONLY, and deliberately so. Nothing is written to
+                the sheet: the queue is DERIVED from calendar evidence plus the
+                absence of a Debrief Log row, so there is no row to delete. This
+                only hides the card on this device for this session, for the
+                backlog entries that were debriefed before the log existed.
+                Two-tap, because an accidental swipe past a real visit is how a
+                debrief silently never happens. */}
+            <div style={{ position: "absolute", top: 8, right: 8 }}>
+              {confirmDismiss === e.eventId ? (
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => dismiss(e.eventId)}
+                    style={{
+                      background: "transparent", border: `1px solid ${LIME_DIM}`, color: LIME,
+                      fontFamily: "inherit", fontSize: 10, letterSpacing: 1, fontWeight: "bold",
+                      padding: "6px 10px", borderRadius: 4, cursor: "pointer",
+                    }}
+                  >
+                    HIDE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDismiss(null)}
+                    style={{
+                      background: "transparent", border: `1px solid ${LINE}`, color: FINE,
+                      fontFamily: "inherit", fontSize: 10, letterSpacing: 1,
+                      padding: "6px 8px", borderRadius: 4, cursor: "pointer",
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  aria-label={`Hide ${e.client} from the queue`}
+                  title="Hide from queue (this device only)"
+                  onClick={() => setConfirmDismiss(e.eventId)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    width: 36, height: 36, background: "transparent",
+                    border: `1px solid ${LINE}`, color: FINE, borderRadius: 6,
+                    cursor: "pointer", padding: 0,
+                  }}
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
-          </button>
+          </div>
         ))}
       </div>
+
 
       {/* UPCOMING — same evidence signal inverted: the visit has not ended yet,
           so there is nothing to debrief. Visible but deliberately inert. */}
