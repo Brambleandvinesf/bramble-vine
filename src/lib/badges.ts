@@ -94,7 +94,17 @@ export function useBadgePoller({
     if (!email) return;
     let cancelled = false;
 
-    /** Did the last response defer any count? Drives the retry cadence only. */
+    /**
+     * ONE REQUEST PER GROUP, SEQUENTIALLY — and that is deliberate, not sprawl.
+     * badgeCounts computes at most one uncached count per request (BC_MAX_COLD=1)
+     * and, measured live on 8/21, a combined `want=messages,visits,receipts,queues`
+     * request returned only the already-cached groups and reported the rest
+     * `pending` FOREVER — four repeats in a row produced byte-identical responses,
+     * so the deferred counts never arrived and those badges never appeared.
+     * Asking for one group at a time makes each group the single cold compute it
+     * is allowed, and every group answers. Sequential, so we do not trade this for
+     * the concurrency serialisation XX-04 measured.
+     */
     const tick = async (): Promise<boolean> => {
       const want: string[] = [];
       if (canMessages) want.push("messages");
@@ -103,40 +113,45 @@ export function useBadgePoller({
       if (canApprovals) want.push("queues");
       if (!want.length) return false;
       const e = (email ?? "").trim().toLowerCase();
-      try {
-        const r = await fetch(
-          `${SCRIPT_URL}?action=badgeCounts&email=${encodeURIComponent(e)}` +
-            `&want=${encodeURIComponent(want.join(","))}&days=30`,
-        );
-        const j = (await r.json()) as {
-          counts?: Partial<
-            Record<
-              "inbox" | "visits" | "invoices" | "receipts" | "approvals" | "debriefq",
-              number
-            >
-          >;
-          pending?: string[];
-        };
+      let stillPending = false;
+      for (const group of want) {
         if (cancelled) return false;
-        const c = j.counts ?? {};
-        /* A key the server did not send is "no answer yet", NOT zero — keep the
-           last known value. Writing 0 here would flash a wrong count on every
-           deferred badge, which is worse than showing a slightly stale one. */
-        const set = (key: string, v: number | undefined) => {
-          if (typeof v === "number") setBadge(key, v);
-        };
-        set(BK.inbox, c.inbox);
-        set(BK.visits, c.visits);
-        set(BK.invoices, c.invoices);      // CC-45 Item 47
-        set(BK.receipts, c.receipts);
-        set(BK.approvals, c.approvals);
-        set(BK.debriefq, c.debriefq);
-        return Array.isArray(j.pending) && j.pending.length > 0;
-      } catch {
-        /* keep last values */
-        return false;
+        try {
+          const r = await fetch(
+            `${SCRIPT_URL}?action=badgeCounts&email=${encodeURIComponent(e)}` +
+              `&want=${encodeURIComponent(group)}&days=30`,
+          );
+          const j = (await r.json()) as {
+            counts?: Partial<
+              Record<
+                "inbox" | "visits" | "invoices" | "receipts" | "approvals" | "debriefq",
+                number
+              >
+            >;
+            pending?: string[];
+          };
+          if (cancelled) return false;
+          const c = j.counts ?? {};
+          /* A key the server did not send is "no answer yet", NOT zero — keep the
+             last known value. Writing 0 here would flash a wrong count on every
+             deferred badge, which is worse than showing a slightly stale one. */
+          const set = (key: string, v: number | undefined) => {
+            if (typeof v === "number") setBadge(key, v);
+          };
+          set(BK.inbox, c.inbox);
+          set(BK.visits, c.visits);
+          set(BK.invoices, c.invoices);      // CC-45 Item 47
+          set(BK.receipts, c.receipts);
+          set(BK.approvals, c.approvals);
+          set(BK.debriefq, c.debriefq);
+          if (Array.isArray(j.pending) && j.pending.length > 0) stillPending = true;
+        } catch {
+          /* keep last values */
+        }
       }
+      return stillPending;
     };
+
 
     /* Self-scheduling timeout rather than a fixed interval, so the delay can
        depend on whether counts are still outstanding. */
