@@ -420,13 +420,14 @@ function DesignateTab({
     return entries;
   }, [pending, receiptById]);
 
-  // Default: expand newest 3
+  // Default: all groups collapsed
   useEffect(() => {
     if (initedRef.current) return;
     if (!groups.length) return;
     initedRef.current = true;
-    setExpanded(new Set(groups.slice(0, 3).map((g) => g.key)));
+    setExpanded(new Set());
   }, [groups]);
+
 
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
