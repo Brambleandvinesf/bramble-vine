@@ -591,12 +591,15 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     threadId: string;
     vendor: string;
     date: string;
+    receiptNo: string;
+    receiptNoAuto: boolean;
     subtotal: string;
     tax: string;
     total: string;
     items: { description: string; qty: string; amount: string }[];
     msg?: { text: string; warn: boolean };
   } | null>(null);
+
 
   // Attach file input
   const fileInputRef = useRef<HTMLInputElement | null>(null);
