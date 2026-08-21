@@ -64,6 +64,8 @@ const TEXT = "#e8e8e8";
 const FINE = "#b8b8b8";
 const LINE = "#2a2a2a";
 const CK = "debriefQueue:queue";
+const DK = "debriefQueue:dismissed";
+
 
 type QueueEntry = {
   eventId: string;
