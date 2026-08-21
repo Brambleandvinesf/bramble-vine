@@ -205,6 +205,24 @@ type InboxResponse = {
   route?: RouteInfo;
 };
 
+/**
+ * Mint a receipt number when the scanned document has none.
+ * Shape: BV-YYYYMMDD-XXXX (uppercase base36 suffix) so it is obviously
+ * generated, sorts by date, and cannot collide with a vendor's own numbering.
+ */
+function genReceiptNo(dateStr?: string): string {
+  const d = dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr) ? new Date(dateStr + "T12:00:00") : new Date();
+  const day = isNaN(d.getTime()) ? new Date() : d;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${day.getFullYear()}${pad(day.getMonth() + 1)}${pad(day.getDate())}`;
+  const rand = Math.floor(Math.random() * 36 ** 4)
+    .toString(36)
+    .toUpperCase()
+    .padStart(4, "0");
+  return `BV-${stamp}-${rand}`;
+}
+
+
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
 function weekKeyLA(d: Date): string {
   const parts = new Intl.DateTimeFormat("en-US", {
