@@ -202,12 +202,16 @@ export function useBadgePoller({
     };
     void run();
     const onVis = () => {
-      if (document.visibilityState === "visible") void tick();
+      if (document.visibilityState === "visible") {
+        void tick();
+        void tickReceipts();
+      }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
+      if (rcTimer !== undefined) window.clearTimeout(rcTimer);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [email, canMessages, canReceipts, canVisits, canApprovals]);
