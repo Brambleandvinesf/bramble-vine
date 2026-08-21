@@ -205,6 +205,24 @@ type InboxResponse = {
   route?: RouteInfo;
 };
 
+/**
+ * Mint a receipt number when the scanned document has none.
+ * Shape: BV-YYYYMMDD-XXXX (uppercase base36 suffix) so it is obviously
+ * generated, sorts by date, and cannot collide with a vendor's own numbering.
+ */
+function genReceiptNo(dateStr?: string): string {
+  const d = dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr) ? new Date(dateStr + "T12:00:00") : new Date();
+  const day = isNaN(d.getTime()) ? new Date() : d;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${day.getFullYear()}${pad(day.getMonth() + 1)}${pad(day.getDate())}`;
+  const rand = Math.floor(Math.random() * 36 ** 4)
+    .toString(36)
+    .toUpperCase()
+    .padStart(4, "0");
+  return `BV-${stamp}-${rand}`;
+}
+
+
 /* Same logic as visits.tsx yesThisWeek: is lastYes in current LA week? */
 function weekKeyLA(d: Date): string {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -591,12 +609,15 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     threadId: string;
     vendor: string;
     date: string;
+    receiptNo: string;
+    receiptNoAuto: boolean;
     subtotal: string;
     tax: string;
     total: string;
     items: { description: string; qty: string; amount: string }[];
     msg?: { text: string; warn: boolean };
   } | null>(null);
+
 
   // Attach file input
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -1383,10 +1404,14 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       return;
     }
     const r = res.receipt;
+    const foundNo = String(r.receiptNumber || r.receiptNo || r.receiptId || r.invoiceNumber || "").trim();
+    const dateStr = r.date || res.emailDate || "";
     setRcPick({
       threadId: openItem.threadId,
       vendor: r.vendor || "",
-      date: r.date || res.emailDate || "",
+      date: dateStr,
+      receiptNo: foundNo || genReceiptNo(dateStr),
+      receiptNoAuto: !foundNo,
       subtotal: r.subtotal || "",
       tax: r.tax || "",
       total: r.total || "",
@@ -1402,13 +1427,17 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     if (!rcPick) return;
     const vendor = rcPick.vendor.trim();
     if (!vendor) return setRcPick({ ...rcPick, msg: { text: "Vendor is required.", warn: true } });
+    // A receipt without a number is unfilable downstream — mint one rather than refuse.
+    const receiptNo = rcPick.receiptNo.trim() || genReceiptNo(rcPick.date);
     const saved = rcPick;
     setRcPick(null);
-    flash("Saving receipt — " + vendor + "\u2026");
+    flash("Saving receipt — " + vendor + " · " + receiptNo + "\u2026");
     const res = await postAction({
       action: "saveReceipt",
       vendor,
       date: rcPick.date.trim(),
+      receiptNumber: receiptNo,
+      receiptId: receiptNo,
       subtotal: rcPick.subtotal.trim(),
       tax: rcPick.tax.trim(),
       total: rcPick.total.trim(),
@@ -1416,6 +1445,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
         .map((r) => ({ description: r.description.trim(), qty: r.qty.trim(), amount: r.amount.trim() }))
         .filter((i) => i.description),
     });
+
     if (res && res.ok && res.saved) {
       flash(
         res.webhook === 200
@@ -2249,7 +2279,28 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               <input value={rcPick.vendor} onChange={(e) => setRcPick({ ...rcPick, vendor: e.target.value })} style={{ ...inputStyle, minHeight: 44 }} />
               <label style={labelStyle}>Date</label>
               <input value={rcPick.date} onChange={(e) => setRcPick({ ...rcPick, date: e.target.value })} placeholder="YYYY-MM-DD" style={{ ...inputStyle, minHeight: 44 }} />
+              <label style={labelStyle}>Receipt #</label>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0 }}>
+                <input
+                  value={rcPick.receiptNo}
+                  onChange={(e) => setRcPick({ ...rcPick, receiptNo: e.target.value, receiptNoAuto: false })}
+                  placeholder="Receipt / invoice number"
+                  style={{ ...inputStyle, minHeight: 44, flex: 1, minWidth: 0 }}
+                />
+                <button
+                  style={{ ...ghostBtn, minHeight: 44 }}
+                  onClick={() => setRcPick({ ...rcPick, receiptNo: genReceiptNo(rcPick.date), receiptNoAuto: true })}
+                >
+                  Generate
+                </button>
+              </div>
             </div>
+            {rcPick.receiptNoAuto && (
+              <div style={{ fontSize: ".8rem", opacity: 0.7 }}>
+                No receipt number on the document — one was generated. Edit it if the vendor's own number is known.
+              </div>
+            )}
+
             <label style={labelStyle}>Items</label>
             <div>
               {rcPick.items.map((row, idx) => (
