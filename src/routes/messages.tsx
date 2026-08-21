@@ -377,7 +377,9 @@ export function MessagesPage() {
   const { email, ready } = useAuth();
   const navigate = useNavigate();
   const allowed = canSee(effectiveRole, "messages");
-  const showReceipt = effectiveRole === "lead" || effectiveRole === "management";
+  const showReceipt =
+    effectiveRole === "lead" || effectiveRole === "management" || effectiveRole === "office";
+
   const showLineBadge = effectiveRole === "management";
   const showForwardOffice = effectiveRole === "lead" || effectiveRole === "assistant";
   const showForwardCrew = effectiveRole === "office" || effectiveRole === "management";
