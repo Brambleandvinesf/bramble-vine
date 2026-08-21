@@ -2279,7 +2279,28 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
               <input value={rcPick.vendor} onChange={(e) => setRcPick({ ...rcPick, vendor: e.target.value })} style={{ ...inputStyle, minHeight: 44 }} />
               <label style={labelStyle}>Date</label>
               <input value={rcPick.date} onChange={(e) => setRcPick({ ...rcPick, date: e.target.value })} placeholder="YYYY-MM-DD" style={{ ...inputStyle, minHeight: 44 }} />
+              <label style={labelStyle}>Receipt #</label>
+              <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 0 }}>
+                <input
+                  value={rcPick.receiptNo}
+                  onChange={(e) => setRcPick({ ...rcPick, receiptNo: e.target.value, receiptNoAuto: false })}
+                  placeholder="Receipt / invoice number"
+                  style={{ ...inputStyle, minHeight: 44, flex: 1, minWidth: 0 }}
+                />
+                <button
+                  style={{ ...ghostBtn, minHeight: 44 }}
+                  onClick={() => setRcPick({ ...rcPick, receiptNo: genReceiptNo(rcPick.date), receiptNoAuto: true })}
+                >
+                  Generate
+                </button>
+              </div>
             </div>
+            {rcPick.receiptNoAuto && (
+              <div style={{ fontSize: ".8rem", opacity: 0.7 }}>
+                No receipt number on the document — one was generated. Edit it if the vendor's own number is known.
+              </div>
+            )}
+
             <label style={labelStyle}>Items</label>
             <div>
               {rcPick.items.map((row, idx) => (
