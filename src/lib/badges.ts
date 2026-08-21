@@ -10,6 +10,7 @@
 import { useEffect, useState } from "react";
 import { sessionCache } from "./session-cache";
 import { SCRIPT_URL } from "../routes/confirm";
+import { normLine, isPendingDesignation } from "./receipt-line";
 
 export const BK = {
   inbox: "home:getInbox:count",
@@ -109,7 +110,9 @@ export function useBadgePoller({
       const want: string[] = [];
       if (canMessages) want.push("messages");
       if (canVisits) want.push("visits");
-      if (canReceipts) want.push("receipts");
+      /* NOT `receipts`: badgeCounts counts pending LINE ITEMS (17 lines across 6
+         receipts, measured 8/21) and the screen shows whole receipts. Counted
+         separately below from getReceipts so the badge matches the screen. */
       if (canApprovals) want.push("queues");
       if (!want.length) return false;
       const e = (email ?? "").trim().toLowerCase();
@@ -141,7 +144,7 @@ export function useBadgePoller({
           set(BK.inbox, c.inbox);
           set(BK.visits, c.visits);
           set(BK.invoices, c.invoices);      // CC-45 Item 47
-          set(BK.receipts, c.receipts);
+          /* c.receipts deliberately ignored — see the want[] note above. */
           set(BK.approvals, c.approvals);
           set(BK.debriefq, c.debriefq);
           if (Array.isArray(j.pending) && j.pending.length > 0) stillPending = true;
@@ -153,6 +156,42 @@ export function useBadgePoller({
     };
 
 
+    /**
+     * RECEIPTS BADGE = WHOLE RECEIPTS, NOT LINE ITEMS.
+     *
+     * The backend's receiptsPendingCount_ counts pending LINES, so the badge read
+     * 17 while the Designate tab showed 6 receipts. There is no count-only action
+     * for distinct receipts, so this reads getReceipts and applies the SAME shared
+     * rule the screen uses (isPendingDesignation) before counting distinct
+     * Receipt_IDs — one rule, one place (CC-11's lesson).
+     * That payload is ~200KB, so it is deliberately polled much slower than the
+     * other badges and refreshed on tab focus.
+     */
+    const RECEIPTS_POLL_MS = 300_000;
+    let rcTimer: number | undefined;
+    const tickReceipts = async () => {
+      if (!canReceipts || cancelled) return;
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+        const j = (await r.json()) as { lines?: Record<string, unknown>[] };
+        if (cancelled) return;
+        const ids = new Set<string>();
+        for (const raw of j.lines ?? []) {
+          const l = normLine(raw);
+          if (isPendingDesignation(l)) ids.add(l.receiptId || `row-${l.row}`);
+        }
+        setBadge(BK.receipts, ids.size);
+      } catch {
+        /* keep last value */
+      }
+    };
+    const runReceipts = async () => {
+      await tickReceipts();
+      if (cancelled) return;
+      rcTimer = window.setTimeout(runReceipts, RECEIPTS_POLL_MS);
+    };
+    if (canReceipts) void runReceipts();
+
     /* Self-scheduling timeout rather than a fixed interval, so the delay can
        depend on whether counts are still outstanding. */
     let timer: number | undefined;
@@ -163,12 +202,16 @@ export function useBadgePoller({
     };
     void run();
     const onVis = () => {
-      if (document.visibilityState === "visible") void tick();
+      if (document.visibilityState === "visible") {
+        void tick();
+        void tickReceipts();
+      }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
+      if (rcTimer !== undefined) window.clearTimeout(rcTimer);
       document.removeEventListener("visibilitychange", onVis);
     };
   }, [email, canMessages, canReceipts, canVisits, canApprovals]);
