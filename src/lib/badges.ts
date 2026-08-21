@@ -156,6 +156,42 @@ export function useBadgePoller({
     };
 
 
+    /**
+     * RECEIPTS BADGE = WHOLE RECEIPTS, NOT LINE ITEMS.
+     *
+     * The backend's receiptsPendingCount_ counts pending LINES, so the badge read
+     * 17 while the Designate tab showed 6 receipts. There is no count-only action
+     * for distinct receipts, so this reads getReceipts and applies the SAME shared
+     * rule the screen uses (isPendingDesignation) before counting distinct
+     * Receipt_IDs — one rule, one place (CC-11's lesson).
+     * That payload is ~200KB, so it is deliberately polled much slower than the
+     * other badges and refreshed on tab focus.
+     */
+    const RECEIPTS_POLL_MS = 300_000;
+    let rcTimer: number | undefined;
+    const tickReceipts = async () => {
+      if (!canReceipts || cancelled) return;
+      try {
+        const r = await fetch(`${SCRIPT_URL}?action=getReceipts`);
+        const j = (await r.json()) as { lines?: Record<string, unknown>[] };
+        if (cancelled) return;
+        const ids = new Set<string>();
+        for (const raw of j.lines ?? []) {
+          const l = normLine(raw);
+          if (isPendingDesignation(l)) ids.add(l.receiptId || `row-${l.row}`);
+        }
+        setBadge(BK.receipts, ids.size);
+      } catch {
+        /* keep last value */
+      }
+    };
+    const runReceipts = async () => {
+      await tickReceipts();
+      if (cancelled) return;
+      rcTimer = window.setTimeout(runReceipts, RECEIPTS_POLL_MS);
+    };
+    if (canReceipts) void runReceipts();
+
     /* Self-scheduling timeout rather than a fixed interval, so the delay can
        depend on whether counts are still outstanding. */
     let timer: number | undefined;
