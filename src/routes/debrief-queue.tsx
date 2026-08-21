@@ -298,7 +298,11 @@ function DebriefQueuePage() {
     [open, who, load],
   );
 
-  const pending = useMemo(() => queue ?? [], [queue]);
+  const pending = useMemo(
+    () => (queue ?? []).filter((e) => !dismissed.includes(e.eventId)),
+    [queue, dismissed],
+  );
+
 
   if (!allowed) {
     return (
