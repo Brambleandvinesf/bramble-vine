@@ -798,6 +798,17 @@ function FullscreenButton() {
 
 function NavBar() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
+  // Clearing identity alone left the crew looking at the screen they were on:
+  // the redirect effect could race the state change, so navigate explicitly and
+  // fall back to a hard location replace if the router does not take.
+  const handleSignOut = () => {
+    signOut();
+    void router.navigate({ to: "/login", replace: true }).catch(() => {
+      if (typeof window !== "undefined") window.location.replace("/login");
+    });
+  };
+
   return (
     <nav
       style={{
