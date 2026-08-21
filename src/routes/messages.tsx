@@ -1386,10 +1386,14 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
       return;
     }
     const r = res.receipt;
+    const foundNo = String(r.receiptNumber || r.receiptNo || r.receiptId || r.invoiceNumber || "").trim();
+    const dateStr = r.date || res.emailDate || "";
     setRcPick({
       threadId: openItem.threadId,
       vendor: r.vendor || "",
-      date: r.date || res.emailDate || "",
+      date: dateStr,
+      receiptNo: foundNo || genReceiptNo(dateStr),
+      receiptNoAuto: !foundNo,
       subtotal: r.subtotal || "",
       tax: r.tax || "",
       total: r.total || "",
@@ -1405,13 +1409,17 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
     if (!rcPick) return;
     const vendor = rcPick.vendor.trim();
     if (!vendor) return setRcPick({ ...rcPick, msg: { text: "Vendor is required.", warn: true } });
+    // A receipt without a number is unfilable downstream — mint one rather than refuse.
+    const receiptNo = rcPick.receiptNo.trim() || genReceiptNo(rcPick.date);
     const saved = rcPick;
     setRcPick(null);
-    flash("Saving receipt — " + vendor + "\u2026");
+    flash("Saving receipt — " + vendor + " · " + receiptNo + "\u2026");
     const res = await postAction({
       action: "saveReceipt",
       vendor,
       date: rcPick.date.trim(),
+      receiptNumber: receiptNo,
+      receiptId: receiptNo,
       subtotal: rcPick.subtotal.trim(),
       tax: rcPick.tax.trim(),
       total: rcPick.total.trim(),
@@ -1419,6 +1427,7 @@ function MessagesInner({ showReceipt, showLineBadge, showForwardCrew, showForwar
         .map((r) => ({ description: r.description.trim(), qty: r.qty.trim(), amount: r.amount.trim() }))
         .filter((i) => i.description),
     });
+
     if (res && res.ok && res.saved) {
       flash(
         res.webhook === 200
