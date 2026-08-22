@@ -55,7 +55,20 @@ type QueueRow = {
      client-facing text — never sent. Empty for confirmations, and empty for any
      invoice row drafted before the Event ID join existed. */
   officeNotes: string[];
+  /* REGENERATE-IF-STALE (Item: rebuild unsent invoice drafts). The backend
+     re-checks an UNSENT invoice draft (blank / Pending / Skipped) whenever the
+     underlying QBO invoice changes — new receipt lines, a second debrief
+     appended — and flips a Skipped row back to Pending so it rematerializes
+     here instead of staying invisible.
+     `staleNote` is the backend's own sentence about what changed (e.g.
+     "invoice changed: $412.50 -> $899.99"). `editPreserved` is true when the
+     office had already edited that draft by hand: the edit is KEPT VERBATIM and
+     only the notice is added, because an operator's words must never be
+     overwritten by a regeneration. Sent rows are records and are never touched. */
+  staleNote: string;
+  editPreserved: boolean;
 };
+
 
 type QueueResponse = {
   queue?: Array<Record<string, unknown>>;
@@ -79,7 +92,10 @@ function normalizeRow(r: Record<string, unknown>): QueueRow {
     officeNotes: Array.isArray(r.officeNotes)
       ? (r.officeNotes as unknown[]).map((n) => String(n)).filter(Boolean)
       : [],
+    staleNote: String(r.staleNote ?? r["Stale Note"] ?? "").trim(),
+    editPreserved: r.editPreserved === true || r["Edit Preserved"] === true,
   };
+
 }
 
 function isPending(r: QueueRow) {
@@ -851,6 +867,35 @@ export function VisitsPage({
                   <span style={{ fontSize: 12, color: RED }}>no contact!</span>
                 )}
               </div>
+              {/* REGENERATE-IF-STALE — the invoice behind this draft changed after
+                  it was drafted (or after it was skipped). Lime, not a warning
+                  colour: nothing is wrong, the number simply moved. Shown on the
+                  card because a skipped row coming back with a different total is
+                  exactly the case someone must not send on autopilot. */}
+              {row.kind === "invoice" && row.staleNote && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: `1px solid ${LIME}`,
+                    borderRadius: 6,
+                    padding: "8px 10px",
+                    fontSize: 12,
+                    color: LIME,
+                    background: "rgba(124,255,0,0.06)",
+                  }}
+                >
+                  <div style={{ letterSpacing: 1, fontSize: 11, marginBottom: 3 }}>
+                    INVOICE CHANGED SINCE THIS DRAFT
+                  </div>
+                  <div style={{ color: TEXT }}>{row.staleNote}</div>
+                  <div style={{ color: MUTED, marginTop: 4 }}>
+                    {row.editPreserved
+                      ? "Your edited wording was kept — review the amount before sending."
+                      : "The draft below was rebuilt with the current amount."}
+                  </div>
+                </div>
+              )}
+
               {/* CC-37 Item 46 — the crew's INTERNAL office notes for this
                   debrief, directly above the client-facing text they're about to
                   approve. READ-ONLY and never sent: it is context for the
