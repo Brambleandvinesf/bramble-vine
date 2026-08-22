@@ -566,7 +566,12 @@ function DesignateTab({
                         writer={writer}
                         setLines={setLines}
                       />
-                      <ProductKeyMatcher line={l} vendor={vendor} />
+                      <ProductKeyMatcher
+                        line={l}
+                        vendor={vendor}
+                        writer={writer}
+                        setLines={setLines}
+                      />
                       <div style={{ marginTop: 6 }}>
                         <DesignationPicker
                           value={picks[l.row] ?? ""}
@@ -822,7 +827,7 @@ function InvoiceTab({
                             </div>
                             <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                               {fmtDate(g.dateStr)}
-                              {total && ` · ${fmtMoney(total)}`}
+                              {total && ` · cost ${fmtMoney(total)}`}
                               {photo && (
                                 <>
                                   {" · "}
@@ -877,13 +882,18 @@ function InvoiceTab({
                         {(() => {
                           const groupRows = g.lines.map((l) => l.row);
                           const groupCount = groupRows.filter((r) => checked.has(r)).length;
-                          const total = rec?.total || "";
+                          // The total that matters on this screen is what the CLIENT
+                          // is charged, not what the receipt cost — so it is the sum
+                          // of the per-line invoice prices (tiered/master/plant floor).
+                          const clientTotal = round2(
+                            g.lines.reduce((sum, l) => sum + invoiceLineTotal(l), 0),
+                          );
                           return (
                             <>
-                              {total && (
+                              {clientTotal > 0 && (
                                 <div style={{ textAlign: "right", marginTop: 8 }}>
                                   <span style={{ fontSize: 16, color: LIME, fontWeight: "bold" }}>
-                                    Total {fmtMoney(total)}
+                                    Total {usd(clientTotal)}
                                   </span>
                                 </div>
                               )}
@@ -1084,7 +1094,42 @@ type ProductRow = { "Product Key"?: string; "Canonical Name"?: string };
 type PlantBreakdownLine = { source: string; value?: number | null; note?: string };
 type PlantSuggestion = { suggested: number | null; breakdown: PlantBreakdownLine[]; sizeClass?: string };
 
-function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
+function ProductKeyMatcher({
+  line,
+  vendor,
+  writer,
+  setLines,
+}: {
+  line: Line;
+  vendor: string;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+}) {
+  /**
+   * Once a line is matched to a QuickBooks product, the receipt line should
+   * READ as that product — on both the Designate and Invoice Review screens.
+   * Reuses the existing `renameLine` action (same one Name-from-Photo uses) so
+   * the new name persists in the sheet rather than living only on this screen.
+   */
+  const adoptName = (canonicalName: string) => {
+    const name = canonicalName.trim();
+    if (!name || name === line.description) return;
+    const prev = line.description;
+    setLines((cur) => cur.map((l) => (l.row === line.row ? { ...l, description: name } : l)));
+    writer.dispatch(
+      `rename-${line.row}`,
+      { action: "renameLine", row: line.row, name },
+      {
+        rollback: () =>
+          setLines((cur) =>
+            cur.map((l) => (l.row === line.row ? { ...l, description: prev } : l)),
+          ),
+        onSuccessMsg: "Line renamed to the product name",
+        onErrorMsg: (e) => `Couldn't rename line — restored (${e.message})`,
+      },
+    );
+  };
+
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sug, setSug] = useState<{
@@ -1175,6 +1220,7 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
           suggestion,
           price: suggestion.suggested != null ? String(suggestion.suggested) : "",
         });
+        adoptName(canonicalName);
         setSug(null);
         setPickOpen(false);
         return;
@@ -1185,6 +1231,7 @@ function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
         : s?.pushed
           ? `QBO price → $${s.price}`
           : s?.status ?? "recorded";
+      adoptName(canonicalName);
       setDone(`${canonicalName} · ${outcome}`);
       setSug(null);
       setPickOpen(false);
@@ -1814,19 +1861,51 @@ function usd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
+/** Quantity as billed — blank/zero/garbage counts as 1. */
+function lineQty(line: Line): number {
+  const q = num(line.quantity);
+  return isFinite(q) && q > 0 ? q : 1;
+}
+
+/**
+ * What the CLIENT is charged per unit.
+ *
+ * Pricing rubric: vendor cost × that vendor's tier multiplier, then MAX against
+ * the Product Master price (when the line is matched) AND against the plant
+ * size floor from Plants/Retail (when the backend resolved one). The floor was
+ * previously computed by the backend but never applied here, so a 24" box at
+ * $500 × 1.6 displayed $800 instead of its $899.99 floor.
+ */
+function invoiceUnit(line: Line): number {
+  const unitCost = num(line.unitPrice);
+  const mult = isFinite(line.multiplier) && line.multiplier > 0 ? line.multiplier : 1.15;
+  let unit = round2((isFinite(unitCost) ? unitCost : 0) * mult);
+  if (line.productMatched && line.masterPrice != null && isFinite(line.masterPrice)) {
+    unit = Math.max(unit, round2(line.masterPrice));
+  }
+  if (line.plantFloor != null && isFinite(line.plantFloor)) {
+    unit = Math.max(unit, round2(line.plantFloor));
+  }
+  return unit;
+}
+
+/** What the client is charged for the whole line. */
+function invoiceLineTotal(line: Line): number {
+  return round2(lineQty(line) * invoiceUnit(line));
+}
+
 function LineBody({ line }: { line: Line }) {
   const unitCost = num(line.unitPrice);
   const hasCost = isFinite(unitCost) && unitCost > 0;
 
-  const qRaw = num(line.quantity);
-  const qty = isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
+  const qty = lineQty(line);
 
   const mult = isFinite(line.multiplier) && line.multiplier > 0 ? line.multiplier : 1.15;
-  const tierUnit = round2(unitCost * mult);
-  const invUnit =
-    line.productMatched && line.masterPrice != null && isFinite(line.masterPrice)
-      ? Math.max(round2(line.masterPrice), tierUnit)
-      : tierUnit;
+  const invUnit = invoiceUnit(line);
+  const floorApplied =
+    line.plantFloor != null &&
+    isFinite(line.plantFloor) &&
+    round2(line.plantFloor) >= invUnit;
 
   const costSubtotal = round2(qty * unitCost);
   const invSubtotal = round2(qty * invUnit);
@@ -1864,7 +1943,10 @@ function LineBody({ line }: { line: Line }) {
               </span>
             </span>
             <span style={{ fontSize: 11, color: MUTED }}>
-              {mult}×{line.productMatched ? "" : " · not yet matched"}
+              {floorApplied
+                ? `${line.plantSize || "size"} floor`
+                : `${mult}×`}
+              {line.productMatched ? "" : " · not yet matched"}
             </span>
           </div>
         </>
