@@ -566,7 +566,12 @@ function DesignateTab({
                         writer={writer}
                         setLines={setLines}
                       />
-                      <ProductKeyMatcher line={l} vendor={vendor} />
+                      <ProductKeyMatcher
+                        line={l}
+                        vendor={vendor}
+                        writer={writer}
+                        setLines={setLines}
+                      />
                       <div style={{ marginTop: 6 }}>
                         <DesignationPicker
                           value={picks[l.row] ?? ""}
