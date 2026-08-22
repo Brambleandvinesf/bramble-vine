@@ -1089,7 +1089,42 @@ type ProductRow = { "Product Key"?: string; "Canonical Name"?: string };
 type PlantBreakdownLine = { source: string; value?: number | null; note?: string };
 type PlantSuggestion = { suggested: number | null; breakdown: PlantBreakdownLine[]; sizeClass?: string };
 
-function ProductKeyMatcher({ line, vendor }: { line: Line; vendor: string }) {
+function ProductKeyMatcher({
+  line,
+  vendor,
+  writer,
+  setLines,
+}: {
+  line: Line;
+  vendor: string;
+  writer: Writer;
+  setLines: React.Dispatch<React.SetStateAction<Line[]>>;
+}) {
+  /**
+   * Once a line is matched to a QuickBooks product, the receipt line should
+   * READ as that product — on both the Designate and Invoice Review screens.
+   * Reuses the existing `renameLine` action (same one Name-from-Photo uses) so
+   * the new name persists in the sheet rather than living only on this screen.
+   */
+  const adoptName = (canonicalName: string) => {
+    const name = canonicalName.trim();
+    if (!name || name === line.description) return;
+    const prev = line.description;
+    setLines((cur) => cur.map((l) => (l.row === line.row ? { ...l, description: name } : l)));
+    writer.dispatch(
+      `rename-${line.row}`,
+      { action: "renameLine", row: line.row, name },
+      {
+        rollback: () =>
+          setLines((cur) =>
+            cur.map((l) => (l.row === line.row ? { ...l, description: prev } : l)),
+          ),
+        onSuccessMsg: "Line renamed to the product name",
+        onErrorMsg: (e) => `Couldn't rename line — restored (${e.message})`,
+      },
+    );
+  };
+
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sug, setSug] = useState<{
