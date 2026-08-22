@@ -1215,6 +1215,7 @@ function ProductKeyMatcher({
           suggestion,
           price: suggestion.suggested != null ? String(suggestion.suggested) : "",
         });
+        adoptName(canonicalName);
         setSug(null);
         setPickOpen(false);
         return;
@@ -1225,6 +1226,7 @@ function ProductKeyMatcher({
         : s?.pushed
           ? `QBO price → $${s.price}`
           : s?.status ?? "recorded";
+      adoptName(canonicalName);
       setDone(`${canonicalName} · ${outcome}`);
       setSug(null);
       setPickOpen(false);
