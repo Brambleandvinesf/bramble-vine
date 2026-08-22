@@ -92,7 +92,10 @@ function normalizeRow(r: Record<string, unknown>): QueueRow {
     officeNotes: Array.isArray(r.officeNotes)
       ? (r.officeNotes as unknown[]).map((n) => String(n)).filter(Boolean)
       : [],
+    staleNote: String(r.staleNote ?? r["Stale Note"] ?? "").trim(),
+    editPreserved: r.editPreserved === true || r["Edit Preserved"] === true,
   };
+
 }
 
 function isPending(r: QueueRow) {
