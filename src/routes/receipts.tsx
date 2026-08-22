@@ -781,7 +781,7 @@ function InvoiceTab({
           const allRows = entry.receipts.flatMap((r) => r.lines.map((l) => l.row));
           const allChecked = allRows.every((r) => checked.has(r));
           return (
-            <div key={entry.client} style={{ ...CARD, marginBottom: 10 }}>
+            <div key={entry.client} style={{ ...CARD, border: `2px solid ${LIME}`, boxShadow: `0 0 12px rgba(124,255,0,.18), inset 0 0 0 1px rgba(124,255,0,.08)`, marginBottom: 10 }}>
               <button style={GROUP_HEAD_BTN} onClick={() => toggleClient(entry.client)}>
                 <span style={{ color: LIME, fontWeight: "bold", letterSpacing: 1 }}>
                   {entry.client}
