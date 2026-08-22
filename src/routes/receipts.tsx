@@ -822,7 +822,7 @@ function InvoiceTab({
                             </div>
                             <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                               {fmtDate(g.dateStr)}
-                              {total && ` · ${fmtMoney(total)}`}
+                              {total && ` · cost ${fmtMoney(total)}`}
                               {photo && (
                                 <>
                                   {" · "}
