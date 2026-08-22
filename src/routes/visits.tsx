@@ -867,6 +867,35 @@ export function VisitsPage({
                   <span style={{ fontSize: 12, color: RED }}>no contact!</span>
                 )}
               </div>
+              {/* REGENERATE-IF-STALE — the invoice behind this draft changed after
+                  it was drafted (or after it was skipped). Lime, not a warning
+                  colour: nothing is wrong, the number simply moved. Shown on the
+                  card because a skipped row coming back with a different total is
+                  exactly the case someone must not send on autopilot. */}
+              {row.kind === "invoice" && row.staleNote && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: `1px solid ${LIME}`,
+                    borderRadius: 6,
+                    padding: "8px 10px",
+                    fontSize: 12,
+                    color: LIME,
+                    background: "rgba(124,255,0,0.06)",
+                  }}
+                >
+                  <div style={{ letterSpacing: 1, fontSize: 11, marginBottom: 3 }}>
+                    INVOICE CHANGED SINCE THIS DRAFT
+                  </div>
+                  <div style={{ color: FG }}>{row.staleNote}</div>
+                  <div style={{ color: MUTED, marginTop: 4 }}>
+                    {row.editPreserved
+                      ? "Your edited wording was kept — review the amount before sending."
+                      : "The draft below was rebuilt with the current amount."}
+                  </div>
+                </div>
+              )}
+
               {/* CC-37 Item 46 — the crew's INTERNAL office notes for this
                   debrief, directly above the client-facing text they're about to
                   approve. READ-ONLY and never sent: it is context for the
