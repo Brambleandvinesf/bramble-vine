@@ -1896,7 +1896,10 @@ function LineBody({ line }: { line: Line }) {
               </span>
             </span>
             <span style={{ fontSize: 11, color: MUTED }}>
-              {mult}×{line.productMatched ? "" : " · not yet matched"}
+              {floorApplied
+                ? `${line.plantSize || "size"} floor`
+                : `${mult}×`}
+              {line.productMatched ? "" : " · not yet matched"}
             </span>
           </div>
         </>
