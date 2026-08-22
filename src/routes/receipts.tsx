@@ -1814,19 +1814,51 @@ function usd(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
+/** Quantity as billed — blank/zero/garbage counts as 1. */
+function lineQty(line: Line): number {
+  const q = num(line.quantity);
+  return isFinite(q) && q > 0 ? q : 1;
+}
+
+/**
+ * What the CLIENT is charged per unit.
+ *
+ * Pricing rubric: vendor cost × that vendor's tier multiplier, then MAX against
+ * the Product Master price (when the line is matched) AND against the plant
+ * size floor from Plants/Retail (when the backend resolved one). The floor was
+ * previously computed by the backend but never applied here, so a 24" box at
+ * $500 × 1.6 displayed $800 instead of its $899.99 floor.
+ */
+function invoiceUnit(line: Line): number {
+  const unitCost = num(line.unitPrice);
+  const mult = isFinite(line.multiplier) && line.multiplier > 0 ? line.multiplier : 1.15;
+  let unit = round2((isFinite(unitCost) ? unitCost : 0) * mult);
+  if (line.productMatched && line.masterPrice != null && isFinite(line.masterPrice)) {
+    unit = Math.max(unit, round2(line.masterPrice));
+  }
+  if (line.plantFloor != null && isFinite(line.plantFloor)) {
+    unit = Math.max(unit, round2(line.plantFloor));
+  }
+  return unit;
+}
+
+/** What the client is charged for the whole line. */
+function invoiceLineTotal(line: Line): number {
+  return round2(lineQty(line) * invoiceUnit(line));
+}
+
 function LineBody({ line }: { line: Line }) {
   const unitCost = num(line.unitPrice);
   const hasCost = isFinite(unitCost) && unitCost > 0;
 
-  const qRaw = num(line.quantity);
-  const qty = isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
+  const qty = lineQty(line);
 
   const mult = isFinite(line.multiplier) && line.multiplier > 0 ? line.multiplier : 1.15;
-  const tierUnit = round2(unitCost * mult);
-  const invUnit =
-    line.productMatched && line.masterPrice != null && isFinite(line.masterPrice)
-      ? Math.max(round2(line.masterPrice), tierUnit)
-      : tierUnit;
+  const invUnit = invoiceUnit(line);
+  const floorApplied =
+    line.plantFloor != null &&
+    isFinite(line.plantFloor) &&
+    round2(line.plantFloor) >= invUnit;
 
   const costSubtotal = round2(qty * unitCost);
   const invSubtotal = round2(qty * invUnit);
