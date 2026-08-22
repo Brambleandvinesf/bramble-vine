@@ -887,7 +887,7 @@ export function VisitsPage({
                   <div style={{ letterSpacing: 1, fontSize: 11, marginBottom: 3 }}>
                     INVOICE CHANGED SINCE THIS DRAFT
                   </div>
-                  <div style={{ color: FG }}>{row.staleNote}</div>
+                  <div style={{ color: TEXT }}>{row.staleNote}</div>
                   <div style={{ color: MUTED, marginTop: 4 }}>
                     {row.editPreserved
                       ? "Your edited wording was kept — review the amount before sending."
