@@ -877,13 +877,18 @@ function InvoiceTab({
                         {(() => {
                           const groupRows = g.lines.map((l) => l.row);
                           const groupCount = groupRows.filter((r) => checked.has(r)).length;
-                          const total = rec?.total || "";
+                          // The total that matters on this screen is what the CLIENT
+                          // is charged, not what the receipt cost — so it is the sum
+                          // of the per-line invoice prices (tiered/master/plant floor).
+                          const clientTotal = round2(
+                            g.lines.reduce((sum, l) => sum + invoiceLineTotal(l), 0),
+                          );
                           return (
                             <>
-                              {total && (
+                              {clientTotal > 0 && (
                                 <div style={{ textAlign: "right", marginTop: 8 }}>
                                   <span style={{ fontSize: 16, color: LIME, fontWeight: "bold" }}>
-                                    Total {fmtMoney(total)}
+                                    Total {usd(clientTotal)}
                                   </span>
                                 </div>
                               )}
