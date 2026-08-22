@@ -1258,6 +1258,7 @@ function ProductKeyMatcher({
         price: p,
         receiptId: line.receiptId,
       });
+      adoptName(plant.canonicalName);
       setDone(
         `${plant.canonicalName} · ${json.pushed ? `QBO price → $${json.price}` : json.status ?? "not pushed"}`,
       );
