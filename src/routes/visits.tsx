@@ -55,7 +55,20 @@ type QueueRow = {
      client-facing text — never sent. Empty for confirmations, and empty for any
      invoice row drafted before the Event ID join existed. */
   officeNotes: string[];
+  /* REGENERATE-IF-STALE (Item: rebuild unsent invoice drafts). The backend
+     re-checks an UNSENT invoice draft (blank / Pending / Skipped) whenever the
+     underlying QBO invoice changes — new receipt lines, a second debrief
+     appended — and flips a Skipped row back to Pending so it rematerializes
+     here instead of staying invisible.
+     `staleNote` is the backend's own sentence about what changed (e.g.
+     "invoice changed: $412.50 -> $899.99"). `editPreserved` is true when the
+     office had already edited that draft by hand: the edit is KEPT VERBATIM and
+     only the notice is added, because an operator's words must never be
+     overwritten by a regeneration. Sent rows are records and are never touched. */
+  staleNote: string;
+  editPreserved: boolean;
 };
+
 
 type QueueResponse = {
   queue?: Array<Record<string, unknown>>;
